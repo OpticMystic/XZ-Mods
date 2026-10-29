@@ -81,6 +81,6 @@ void xz_doom_compose(uint16_t *out,const uint32_t *game,const struct xz_doom_con
         int x=b->x+(b->w-(int)strlen(b->label)*12)/2;
         text(out,x,b->y+b->h/2-7,b->label,0xffff);
     }
-    text(out,160,419,"KNOB MENUS / REKORDBOX EXITS",0xfd20);
+    text(out,160,419,"KNOB MENUS / BUTTON ABOVE LINK EXITS",0xfd20);
     text(out,160,443,"FIRE TOGGLES / USE OPENS",0xffff);
 }

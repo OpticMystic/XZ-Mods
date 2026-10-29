@@ -1153,7 +1153,7 @@
     },
     {
       "key": "rekordbox_press",
-      "label": "Button next to LINK",
+      "label": "Button above LINK",
       "group": "advanced",
       "default": 2,
       "min": 0,
@@ -1193,7 +1193,7 @@
     },
     {
       "key": "rekordbox_shift",
-      "label": "SHIFT + button next to LINK",
+      "label": "SHIFT + button above LINK",
       "group": "advanced",
       "default": 1,
       "min": 0,
@@ -1707,7 +1707,7 @@
     },
     "rekordbox_menu": {
       "key": "rekordbox_menu",
-      "label": "Button next to LINK opens MODS (read by older runtimes)",
+      "label": "Button above LINK opens MODS (read by older runtimes)",
       "group": "advanced",
       "default": 0,
       "min": 0,

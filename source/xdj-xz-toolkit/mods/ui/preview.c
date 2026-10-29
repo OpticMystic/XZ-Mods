@@ -58,7 +58,7 @@ int main(int argc,char **argv){
   d->groove_active=d->sample_active=-1;d->sample_volume=1;
   d->levels[0]=d->levels[1]=d->levels[2]=1;
   d->track=deck<2?"Night Drive (Extended Mix)":"EXTERNAL USB AUDIO";
-  d->status=deck<2?"STEMS READY":"CONTROL EXTERNAL AUDIO IN REKORDBOX OR SERATO";
+  d->status=deck<2?"STEMS READY":"CONTROL EXTERNAL AUDIO IN DJ SOFTWARE";
   d->bpm=deck<2?128:0;
  }
  model.connection.ready=1;model.connection.enabled=1;

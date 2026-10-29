@@ -412,18 +412,15 @@ void xz_pic_wave_swatch(struct xz_canvas c, int x, int y, int w, int h, int sche
  }
 }
 void xz_pic_media_buttons(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int w, int h) {
- static const char *const labels[3]={"USB 1","USB 2","LINK"};
+ /* The player's top-to-bottom order, read left to right: the button above LINK first and lit, as a plain cap (its
+    print on the player is a logo), then LINK, USB 1 and USB 2. */
+ static const char *const labels[4]={NULL,"LINK","USB 1","USB 2"};
  int bw=(w-18)/4;
  for(int i=0;i<4;i++){
-  int bx=x+i*(bw+6),lit=i==3;
+  int bx=x+i*(bw+6),lit=i==0;
   uint32_t fill=lit?s->select:s->row,edge=lit?s->select:s->row_edge,ink=lit?s->on_select:s->dim;
   xz_round_rect(c,bx,y,bw,h,6,15,edge);xz_round_rect(c,bx+1,y+1,bw-2,h-2,5,15,fill);
-  if(i<3)xz_pic_text_center(c,bx+bw/2,y+(h-9)/2,labels[i],12,ink);
-  else{ /* a computer: screen and stand */
-   int cx=bx+bw/2,cy=y+h/2-2;
-   xz_border(c,cx-11,cy-7,22,14,ink);xz_border(c,cx-10,cy-6,20,12,ink);
-   xz_rect(c,cx-1,cy+7,3,3,ink);xz_rect(c,cx-6,cy+10,13,2,ink);
-  }
+  if(labels[i])xz_pic_text_center(c,bx+bw/2,y+(h-9)/2,labels[i],12,ink);
  }
 }
 /* The explainer in the menu's colours: MODERN as the play card, CLASSIC in the theme's own (dark or light). */

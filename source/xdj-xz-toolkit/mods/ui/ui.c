@@ -19,7 +19,7 @@ static const char *pc_targets[4]={"PC1","PC2","PC3","PC4"};
 /* PC row slots left to right; vocals lead and rhythm follows, like the local row. */
 static const int pc_slots[XZ_UI_PC_ROLES]={XZ_UI_PC_VOCAL,XZ_UI_PC_INST,XZ_UI_PC_BASS,XZ_UI_PC_DRUMS};
 static const enum xz_ui_page section_pages[4]={XZ_UI_CONTROLS,XZ_UI_BEAT_JUMP,XZ_UI_PC_STEMS,XZ_UI_BUTTONS};
-/* The button next to LINK. Stored numbers are settings.h enum xz_rekordbox_action; MODS lists them in
+/* The button above LINK. Stored numbers are settings.h enum xz_rekordbox_action; MODS lists them in
    xz_ui_rekordbox_order. The code keeps the name REKORDBOX; the screen never says it. */
 static const char *const rekordbox_names[XZ_UI_RB_CHOICES]={"MODS MENU","ITS OWN JOB","INTERFACE","VJ.TOOLS SCREEN","STEMS","NOTHING","DECK VIEW"};
 static const char *const rekordbox_help[XZ_UI_RB_CHOICES]={
@@ -679,14 +679,14 @@ static void pc_setup_render(const struct xz_ui_scene *s){
   return;
  }
  static const char *text[5][3]={
-  {"CONNECT THE XZ TO THE PC BY USB AND OPEN","REKORDBOX IN PERFORMANCE MODE.","DETECT CHECKS THAT THIS DECK IS PLAYING FROM THE PC."},
-  {"IMPORT THE XZ STEMS MAP IN REKORDBOX.","FILE: XZ-onscreen-stems-4deck.midi.csv","TURN STEMS ON FOR THE LOADED TRACK."},
-  {"LOAD A TRACK ON THIS DECK IN REKORDBOX.","THE TEST SENDS ONE DRUMS SWITCH.","WATCH THE DRUMS STEM IN REKORDBOX."},
-  {"DID THE DRUMS STEM SWITCH IN REKORDBOX?","TAP DRUMS ON THE DECK ROW LATER TO SWITCH IT BACK.","NO GOES BACK TO THE TEST STEP."},
-  {"ONSCREEN STEMS NOW SWITCH REKORDBOX STEMS ON THIS DECK.","LIT/UNLIT SHOWS ONLY WHEN REKORDBOX REPORTS ITS LED.","PADS AND STANDALONE STEMS KEEP THEIR OWN SETTINGS."}};
+  {"CONNECT THE XZ TO THE PC BY USB AND OPEN","THE DJ SOFTWARE IN PERFORMANCE MODE.","DETECT CHECKS THAT THIS DECK IS PLAYING FROM THE PC."},
+  {"IMPORT THE XZ STEMS MAP IN THE DJ SOFTWARE.","FILE: XZ-onscreen-stems-4deck.midi.csv","TURN STEMS ON FOR THE LOADED TRACK."},
+  {"LOAD A TRACK ON THIS DECK IN THE DJ SOFTWARE.","THE TEST SENDS ONE DRUMS SWITCH.","WATCH THE DRUMS STEM IN THE DJ SOFTWARE."},
+  {"DID THE DRUMS STEM SWITCH IN THE DJ SOFTWARE?","TAP DRUMS ON THE DECK ROW LATER TO SWITCH IT BACK.","NO GOES BACK TO THE TEST STEP."},
+  {"ONSCREEN STEMS NOW SWITCH THE SOFTWARE'S STEMS ON THIS DECK.","LIT/UNLIT SHOWS ONLY WHEN THE SOFTWARE REPORTS ITS LED.","PADS AND STANDALONE STEMS KEEP THEIR OWN SETTINGS."}};
  xz_text(c,XZ_UI_CX,190,text[step][0],step==XZ_UI_PC_STEP_DONE?1:2,step==XZ_UI_PC_STEP_DONE?108:54,ink);
  for(int i=1;i<3;i++)xz_text(c,XZ_UI_CX,step==XZ_UI_PC_STEP_DONE?190+i*20:196+i*24,text[step][i],1,108,ink);
- if(step==XZ_UI_PC_STEP_TEST&&(pc->pending&(1u<<XZ_UI_PC_DRUMS)))xz_text(c,XZ_UI_CX,292,"DRUMS SENT / WAITING FOR REKORDBOX",1,108,p->accent);
+ if(step==XZ_UI_PC_STEP_TEST&&(pc->pending&(1u<<XZ_UI_PC_DRUMS)))xz_text(c,XZ_UI_CX,292,"DRUMS SENT / WAITING FOR THE DJ SOFTWARE",1,108,p->accent);
  else if(why==XZ_UI_PC_WHY_SOURCE||why==XZ_UI_PC_WHY_LINK||(why!=XZ_UI_PC_WHY_NONE&&pc->reason))
   xz_text(c,XZ_UI_CX,292,pc_page_status(m,deck),1,108,why==XZ_UI_PC_WHY_LINK?p->alarm:dim);
  xz_text(c,XZ_UI_CX,312,"STEM SWITCHES ARE READY AFTER TESTING. LEVEL AND BYPASS NEED MORE VERIFICATION.",1,108,dim);
@@ -798,7 +798,7 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
   else if(a.kind==XZ_UI_PC_TEST||a.kind==XZ_UI_PC_CONFIRM){
    enum xz_ui_pc_reason why=xz_ui_pc_blocked(m,deck);
    snprintf(u->notice,sizeof(u->notice),"%s",why==XZ_UI_PC_WHY_SOURCE?"NO PC DECK FOUND / TAP DETECT PC FIRST":
-    why==XZ_UI_PC_WHY_LINK?pc_reason(m,deck,why):"DRUMS SENT / WATCH REKORDBOX");
+    why==XZ_UI_PC_WHY_LINK?pc_reason(m,deck,why):"DRUMS SENT / WATCH THE DJ SOFTWARE");
   }
   else if(xz_ui_profile_owns(a.kind))snprintf(u->notice,sizeof(u->notice),"%s",xz_ui_profile_blocked(u,m,&a));
   else if(a.kind==XZ_UI_PROFILE_PICK)snprintf(u->notice,sizeof(u->notice),"%s",m->dj&&m->dj->pending>=0?
@@ -1023,7 +1023,7 @@ size_t xz_ui_inline_touch(struct xz_ui *u,const struct xz_ui_model *m,int width,
    u->down=1;u->notice[0]=0;u->notice_deck=a.deck;
    if(m->deck[a.deck].pc_stems.pending&(1u<<a.index)){
     /* One gesture per role until rekordbox answers or the send times out. */
-    snprintf(u->notice,sizeof(u->notice),"%s SENT / WAITING FOR REKORDBOX",a.label);u->capture=-1;return 0;
+    snprintf(u->notice,sizeof(u->notice),"%s SENT / WAITING FOR THE DJ SOFTWARE",a.label);u->capture=-1;return 0;
    }
    u->capture=(int)i;u->held_kind=XZ_UI_PC_TOGGLE;u->held_deck=a.deck;u->held_index=a.index;
    u->held_pc_target=m->deck[a.deck].pc_stems.target;u->held_pc_epoch=m->deck[a.deck].pc_stems.epoch;

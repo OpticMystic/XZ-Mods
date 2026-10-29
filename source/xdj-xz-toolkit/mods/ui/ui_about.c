@@ -51,7 +51,7 @@ void xz_about_render(struct xz_canvas c,int selected,int focused,int lit,const c
   line(c,148,362,632,"Thanks: Sam Leone / OverCue, Tratosca, nsaintot & contributors.",1,ink);
   line(c,148,380,632,"Full credits, licenses and matching source: scan NOTICES.",1,dim);
  }else{
-  line(c,148,362,632,"Thanks to AlphaTheta / Pioneer DJ and the DJ community.",1,ink);
+  line(c,148,362,632,"Thanks to the DJ community and everyone who tests XZ Mods.",1,ink);
   line(c,148,380,632,"Independent project. Not affiliated, supported or endorsed.",1,dim);
  }
 }
