@@ -38,7 +38,11 @@ void xz_sync_link_lease_release(struct xz_sync_link_lease *s,const struct xz_syn
    clean->clear_owned_payload=o->payload_still_ours&&!o->foreign_present&&o->external_writer_epoch==s->claim.external_writer_epoch;
    clean->restore_master=o->current_master_id==lease_master(s)&&o->master_choice_epoch==s->claim.master_choice_epoch&&
     !o->foreign_present&&o->external_writer_epoch==s->claim.external_writer_epoch;
-   clean->restore_input_id=input_master(s->claim.previous_master_id);
+   /* IDs 2/3 are players 3/4, which only a lease publishes, and one lease is
+      released here. Returning the engine to the other one leaves it following a
+      player nobody publishes; return to no master instead. */
+   int32_t previous=s->claim.previous_master_id;
+   clean->restore_input_id=previous==2||previous==3?0:input_master(previous);
   }
  }
  s->active=0;s->master_committed=0;

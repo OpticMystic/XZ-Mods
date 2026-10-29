@@ -51,5 +51,12 @@ int main(int argc,char **argv){
  memset(&lease,0,sizeof lease);other=claim;other.foreign_present=1;assert(xz_sync_link_lease_claim(&lease,&other)==XZ_SYNC_LINK_SLOT_BUSY);
  other=claim;other.previous_master_id=2;assert(xz_sync_link_lease_claim(&lease,&other)==XZ_SYNC_LINK_SLOT_BUSY);
  other=claim;other.music_id_known=0;assert(xz_sync_link_lease_claim(&lease,&other)==XZ_SYNC_LINK_BAD_INPUT);
+ /* Only a lease publishes players 3/4. Losing one cannot return the engine to the other. */
+ for(unsigned id=3;id<=4;id++){
+  struct xz_sync_link_claim software=claim;software.source_id=id;software.previous_master_id=id==3?3:2;
+  memset(&lease,0,sizeof lease);assert(xz_sync_link_lease_claim(&lease,&software)==XZ_SYNC_LINK_OK);
+  observe=(struct xz_sync_link_observation){.external_writer_epoch=10,.payload_still_ours=1,.current_master_id=(int32_t)id-1};
+  xz_sync_link_lease_release(&lease,&observe,&clean);assert(clean.restore_master&&clean.restore_input_id==0);
+ }
  puts("PASS pure Link plan: completedPCM provenance, BE packet/time calibration, bounded freshness/uncertainty, source lease and foreign/operator cleanup; no native activation");return 0;
 }
