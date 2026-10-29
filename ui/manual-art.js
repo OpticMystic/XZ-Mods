@@ -142,6 +142,98 @@
     box.mxGo = i => go(i, true);
   }
 
+  // ---------------------------------------------------------------- a navigation video: how to drive the player
+  // build_manual.py writes a .mn box per ```nav``` block: one <li> per flow with its video, poster and the steps the
+  // capture's timeline recorded (data-t: the step's start in ms). The video is the firmware's own screen beside the
+  // Blender render of the control in use, with no words in it; the steps under it light up as the video reaches them,
+  // and a click on a step plays from there. Without the video the steps still read as a numbered list.
+  const EXPAND = 'M2 6V2h4v1.5H3.5V6zM10 2h4v4h-1.5V3.5H10zM2 10h1.5v2.5H6V14H2zM12.5 10H14v4h-4v-1.5h2.5z';
+  function mountNav(box) {
+    if (box.dataset.mounted) return;
+    const scenes = [...box.querySelectorAll('.mn-scenes > li')].map(li => ({
+      video: li.dataset.video, poster: li.dataset.poster, w: +li.dataset.w, h: +li.dataset.h, seconds: +li.dataset.seconds,
+      title: li.dataset.title || '', steps: [...li.querySelectorAll('.mn-steps > li')].map(s => ({ t: +s.dataset.t, html: s.innerHTML }))
+    })).filter(s => s.video && s.steps.length);
+    if (!scenes.length) { box.hidden = true; box.dataset.missing = 'no video'; return; }
+    box.dataset.mounted = '1';
+    const label = box.getAttribute('aria-label') || 'How to';
+    const video = clipVideo(scenes[0].w, scenes[0].h, label);
+    video.loop = true;
+    const title = el('h5', { text: label });
+    const tabs = scenes.length > 1 ? el('div', { class: 'mn-tabs', role: 'group', 'aria-label': 'Ways shown' }) : null;
+    const play = el('button', { type: 'button', class: 'mn-play', 'aria-label': 'Play' }, glyph(PLAY));
+    const big = document.fullscreenEnabled ? el('button', { type: 'button', class: 'mn-big', 'aria-label': 'Show larger' }, glyph(EXPAND)) : null;
+    const stage = el('div', { class: 'mn-stage' }, video, el('span', { class: 'mn-bar', 'aria-hidden': 'true' }, el('i')));
+    const list = el('ol', { class: 'mn-list' });
+    box.replaceChildren(el('div', { class: 'mn-head' }, el('span', { class: 'mn-badge', text: 'How to' }), title, big), stage, tabs, list,
+      el('div', { class: 'mn-ctl' }, play, el('span', { class: 'mn-note', text: 'The screen as the player draws it, and the control you use' })));
+    let at = 0, userPaused = false, items = [];
+    const bar = stage.querySelector('.mn-bar i');
+    const sync = () => {
+      const on = !video.paused;
+      play.replaceChildren(glyph(on ? PAUSE : PLAY)); play.setAttribute('aria-label', on ? 'Pause' : 'Play');
+      box.classList.toggle('is-playing', on);
+    };
+    // The step the video is in: the last one that has started.
+    function mark() {
+      const t = video.currentTime * 1000, steps = scenes[at].steps;
+      let now = -1;
+      steps.forEach((s, k) => { if (s.t <= t + 40) now = k; });
+      items.forEach((li, k) => { li.classList.toggle('is-now', k === now); li.classList.toggle('is-done', k < now); });
+      if (bar && video.duration) bar.style.transform = 'scaleX(' + Math.min(1, video.currentTime / video.duration) + ')';
+    }
+    function show(i, user) {
+      at = i;
+      const scene = scenes[at];
+      video.pause(); video.poster = scene.poster; video.src = scene.video;
+      title.textContent = scene.title || label;
+      items = scene.steps.map((s, k) => {
+        const li = el('li', { 'data-t': s.t, tabindex: '0', role: 'button', 'aria-label': 'Play from step ' + (k + 1) });
+        li.innerHTML = s.html;
+        li.onclick = event => { if (event.target.closest('a')) return; seek(s.t); };
+        li.onkeydown = event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); seek(s.t); } };
+        return li;
+      });
+      list.replaceChildren(...items);
+      if (tabs) [...tabs.children].forEach((b, k) => b.setAttribute('aria-pressed', String(k === at)));
+      box.dataset.scene = at + 1;
+      mark();
+      if (user && !reduced()) playVideo(video);
+    }
+    function seek(t) {
+      userPaused = false;
+      const go = () => { try { video.currentTime = Math.max(0, t - 250) / 1000; } catch {} mark(); playVideo(video); };
+      if (video.readyState >= 1) go(); else { video.preload = 'auto'; video.addEventListener('loadedmetadata', go, { once: true }); video.load(); }
+    }
+    if (tabs) scenes.forEach((s, k) => tabs.append(el('button', { type: 'button', 'aria-pressed': 'false', onclick: () => show(k, true) }, el('span', { text: s.title || 'Way ' + (k + 1) }))));
+    video.ontimeupdate = mark;
+    video.onplay = video.onpause = sync;
+    video.onseeked = mark;
+    stage.onclick = () => { if (video.paused) { userPaused = false; playVideo(video); } else { userPaused = true; video.pause(); } };
+    play.onclick = () => { if (video.paused) { userPaused = false; playVideo(video); } else { userPaused = true; video.pause(); } };
+    if (big) big.onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else stage.requestFullscreen?.().catch(() => {}); };
+    // a smooth highlight while playing: timeupdate fires only a few times a second
+    let raf = 0;
+    const tick = () => { mark(); raf = video.paused ? 0 : requestAnimationFrame(tick); };
+    video.addEventListener('play', () => { if (!raf) raf = requestAnimationFrame(tick); });
+    box.mxStop = () => { video.pause(); cancelAnimationFrame(raf); raf = 0; };
+    live.add(box);
+    show(0, false);
+    sync();
+    if (!reduced() && 'IntersectionObserver' in window) {
+      const observer = new IntersectionObserver(entries => {
+        for (const entry of entries) {
+          if (!box.isConnected) { observer.disconnect(); return; }
+          if (entry.isIntersecting && video.paused && !userPaused) playVideo(video);
+          else if (!entry.isIntersecting && !video.paused) video.pause();
+        }
+      }, { threshold: 0.55 });
+      observer.observe(box);
+      box.mxObserver = observer;
+    }
+    box.mnShow = i => show(i, true);
+  }
+
   // ---------------------------------------------------------------- the start page picture: a render of the model
   const hero = { video: null, observer: null };
   function heroMedia() {
@@ -180,7 +272,7 @@
   }
 
   window.manualArt = Object.freeze({
-    enhance(article) { for (const box of article.querySelectorAll('.mx')) mount(box); },
+    enhance(article) { for (const box of article.querySelectorAll('.mx')) mount(box); for (const box of article.querySelectorAll('.mn')) mountNav(box); },
     stopAll, hero: heroMedia, startHero, media
   });
 })();
