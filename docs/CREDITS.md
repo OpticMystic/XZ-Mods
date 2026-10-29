@@ -17,7 +17,7 @@ reports, and helping make more of the equipment we own.
 
 ## People and projects
 
-Thanks to **AlphaTheta / Pioneer DJ** for the hardware, and to the DJs,
+Thanks to the makers of the XDJ-XZ for the hardware, and to the DJs,
 researchers, testers, and open-source contributors who share their work.
 
 **Sam Leone and the OverCue team.** OverCue's

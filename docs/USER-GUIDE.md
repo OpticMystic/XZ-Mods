@@ -8,7 +8,7 @@ to build source.
 
 ## Prepare your USB
 
-1. Back up your Rekordbox USB. Start with a few tracks and a spare USB stick.
+1. Back up your music USB. Start with a few tracks and a spare USB stick.
 2. Extract the supplied XZ Mods 0.1.6 ZIP.
    Extract it and keep `XZ Mods.exe` beside its `resources` folder. Windows needs
    WebView2. VJ.Tools and a separate Python installation are not required.
@@ -20,7 +20,7 @@ to build source.
    The public download contains no firmware, boot support or personal boot image.
 4. Prepare stems with [OverCue](https://overcue.gg/). This is the recommended
    path. OverCue Desktop separates your tracks and writes a `CDJMODS` folder on
-   your Rekordbox USB. Keep the matching `Contents` and `CDJMODS` folders on the
+   your music USB. Keep the matching `Contents` and `CDJMODS` folders on the
    same USB. Open **Prepare stems > Check OverCue track** and choose the original
    track inside `Contents`. This reads the source and all prepared pages without
    changing them. Both new lossless FLAC pages and legacy zlib pages are supported,
@@ -28,8 +28,8 @@ to build source.
    with this local build before loading FLAC-prepared tracks on the XZ.
 5. Or use the beta stem builder in **Prepare stems > Build stems in XZ Mods**.
    It writes the same [open OverCue format](https://github.com/OverCue-gg/overcue-stems-format)
-   under `CDJMODS` and never replaces stems OverCue made. Export the track with
-   Rekordbox first. It must be a 44.1 kHz stereo WAV or FLAC file in the USB's
+   under `CDJMODS` and never replaces stems OverCue made. Export the track from
+   your DJ software first. It must be a 44.1 kHz stereo WAV or FLAC file in the USB's
    `Contents` folder. Choose that track, choose an engine, then click
    **Prepare stems**. Separation runs on the CPU, one track at a time, with
    bounded model windows and disk-backed audio buffers. Generate and Import write
@@ -120,12 +120,11 @@ two-deck, loop, focus and experimental-control qualification remains in progress
 
 ## Related projects
 
-- [CDJ3K-Mods](https://cdj3k-mods.com/) and its
-  [source repository](https://github.com/nsaintot/cdj3k-mods): CDJ-3000 mods.
-- [OverCue](https://overcue.gg/): CDJ-3000 mods and desktop stem preparation.
-  XZ Mods reads supported prepared audio; the OverCue CDJ installer is not an XZ installer.
-- [XDJ-RX3 Toolkit](https://github.com/Tratosca/rx3-toolkit): the RX3 project,
-  not a mod for the original XDJ-RX.
+- nsaintot's player mods and their
+  [source repository](https://github.com/nsaintot/cdj3k-mods): mods for another DJ player.
+- [OverCue](https://overcue.gg/): player mods and desktop stem preparation.
+  XZ Mods reads supported prepared audio; OverCue's own player installer is not an XZ installer.
+- [Tratosca's toolkit](https://github.com/Tratosca/rx3-toolkit): mods for a different player.
 - [XDJ-AZ Mods](https://github.com/Kyle-Hosman/xdj-az-mods): AZ mod loader and tools.
 
 These projects have separate compatibility and installation requirements.
@@ -137,7 +136,7 @@ These projects have separate compatibility and installation requirements.
 3. Select **Back up and update loader**. The app verifies the new image before
    replacing `autoexec.bin` and keeps the previous bytes under
    `VJ.Tools/XZ-Mods-updates`.
-4. Eject the USB safely after completion. Music, Rekordbox data and saved
+4. Eject the USB safely after completion. Music, your exported library and saved
    preferences remain in place.
 
 If you selected a prepared folder, copy its resulting loader to the USB root.
@@ -169,7 +168,7 @@ selects page 2 by default, with alternate warm red/orange pad lights.
 
 ## Prepare stems
 
-Open Prepare stems. XZ Mods finds the connected Rekordbox USB and lists every
+Open Prepare stems. XZ Mods finds the connected music USB and lists every
 track on it. The bar at the top shows the USB, how many tracks are ready, the
 free space and one line that says what your selection will cost. To use
 another USB, open the drive menu. Its last two entries are Choose a folder...
@@ -179,7 +178,7 @@ finding or choosing one.
 Each track shows a status you can read at a glance. Missing has no stems yet.
 Ready has stems on the USB. Not yet means the format (AIFF or AAC) is not
 supported yet. No audio file means the track file is not on the USB; export it
-from Rekordbox again. MP3, WAV and FLAC tracks all prepare the same way. The
+again from your DJ software. MP3, WAV and FLAC tracks all prepare the same way. The
 Format column shows which one a track is, and the Size column shows its
 estimated size on the USB. Use the tabs to show only Missing, Ready or Can't
 prepare tracks, and the search box to find a title or artist.
