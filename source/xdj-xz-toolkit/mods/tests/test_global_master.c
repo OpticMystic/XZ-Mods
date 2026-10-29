@@ -136,8 +136,16 @@ static void operator_test(void){
  int native=1;hooks.set_master_on(fake_sync_master,&native);unknown();assert(!deferred_calls);
  hooks.sync_mgr_sync(fake_sync_mgr);struct xz_master_observation b=actual(1);
  assert(b.operator_epoch!=a.operator_epoch&&b.revision!=a.revision);step();assert(deferred_calls==0);
- hooks.set_master_on(fake_sync_master,&native);unknown();hooks.sync_mgr_sync(fake_sync_mgr);
- a=actual(1);assert(a.operator_epoch!=b.operator_epoch&&a.revision!=b.revision);
+ /* M1 (stock-sync-spec.md): stock confirming the master it already has is not a DJ choice. This same-ID
+    call used to count as an operator event (the old contract here); stock parity now outranks it: the
+    operator epoch and the observation stay. */
+ hooks.set_master_on(fake_sync_master,&native);hooks.sync_mgr_sync(fake_sync_mgr);
+ a=actual(1);assert(a.operator_epoch==b.operator_epoch);
+ /* M1: so a waiting DECK 3/4 request survives stock re-confirming its native master and commits at once. */
+ global_reset(0);hooks.sync_mgr_sync(fake_sync_mgr);
+ int32_t confirmed;memcpy(&confirmed,fake_sync_master+8,4);assert(confirmed>=0&&confirmed<2);
+ {int id=confirmed;hooks.set_master_on(fake_sync_master,&id);}
+ step();hooks.sync_mgr_sync(fake_sync_mgr);actual(2);
  acquire(0);a=actual(2);global_decks.master_intent.epoch++;tick();unknown();
  assert(!xz_sync_link_runtime_master_committed(0));hooks.sync_mgr_sync(fake_sync_mgr);b=actual(2);
  assert(b.request_epoch==base_request+1&&b.lease_generation!=a.lease_generation&&b.revision!=a.revision);
@@ -152,7 +160,7 @@ static void operator_test(void){
  global_decks.master_intent.epoch++;global_decks.master_intent.operator_epoch=admission.operator_epoch;
  hooks.sync_mgr_sync(fake_sync_mgr);tick();hooks.sync_mgr_sync(fake_sync_mgr);actual(2);
  assert(!deferred_calls);
- puts("PASS native same-ID operator reselection and local same-ID new request require new provenance; callback delivery is deferred and reentrant");
+ puts("PASS stock same-ID confirmation keeps provenance and a waiting request (M1); a changed native choice and a local same-ID new request require new provenance; callback delivery is deferred and reentrant");
 }
 static void stale(void){
  acquire(0);actual(2);sim_now_us+=XZ_SYNC_LINK_MAX_AGE_US+1;unknown();

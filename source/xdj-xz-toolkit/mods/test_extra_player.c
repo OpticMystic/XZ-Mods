@@ -1165,16 +1165,22 @@ static void test_native_phase_sync(void){
   sim_native_set_bpm(132.);
   for(unsigned elapsed=0;elapsed<1000;elapsed+=10)advance(10);
   assert(view.deck[slave].tempo_x100==1000&&view.deck[slave].sync.locked&&fabs(actual_native_sync_error(slave))<=.001);
-  /* Manual jog bend on follower drops lock, waveform shows real audio drift, then recovers lock. */
+  /* Manual jog bend on follower drops lock and the waveform shows real audio drift. S4 (stock-sync-spec.md):
+     the nudge is then kept as a beat offset. SYNC stays on and locks to the new alignment (sync.offset, the
+     SYNC lamp flashes); the trim holds it instead of closing it. This used to re-lock at zero error. */
   jog(slave,40);step();assert(view.deck[slave].sync.requested&&!view.deck[slave].sync.locked&&view.deck[slave].sync.reason==XZ_EXTRA_SYNC_MANUAL);
   advance(120);
   assert(view.deck[slave].timeline.source_frame==completed_tag(slave)&&fabs(actual_native_sync_error(slave))>.001);
   for(unsigned elapsed=0;elapsed<3000;elapsed+=10)advance(10);
-  assert(view.deck[slave].sync.locked&&fabs(actual_native_sync_error(slave))<=.001);
-  /* Native manual override (scratch/bend) suspends lock and recovers when released. */
+  double kept=actual_native_sync_error(slave);
+  assert(view.deck[slave].sync.locked&&view.deck[slave].sync.offset&&fabs(kept)>.002);
+  for(unsigned elapsed=0;elapsed<1000;elapsed+=10)advance(10);
+  assert(view.deck[slave].sync.locked&&fabs(actual_native_sync_error(slave)-kept)<=.001);
+  /* Native manual override (a nudge on the master) suspends lock; S8: when released the follower keeps
+     the alignment the nudge left (here the master's beat did not move, so the kept offset stays). */
   sim_native.manual=1;step();assert(!view.deck[slave].sync.locked&&view.deck[slave].sync.reason==XZ_EXTRA_SYNC_MANUAL);
   sim_native.manual=0;for(unsigned elapsed=0;elapsed<500;elapsed+=10)advance(10);
-  assert(view.deck[slave].sync.locked&&fabs(actual_native_sync_error(slave))<=.001);
+  assert(view.deck[slave].sync.locked&&fabs(actual_native_sync_error(slave)-kept)<=.001);
   /* Native phase discontinuity (seek): the lock drops without being faked, SYNC stays on and, with
      QUANTIZE on, the follower snaps to the new beat by itself (one jump, no second SYNC press). */
   unsigned flushes_before=f.flushes[slave];
@@ -1183,7 +1189,7 @@ static void test_native_phase_sync(void){
   assert(view.deck[slave].sync.requested&&!view.deck[slave].sync.locked);
   for(unsigned elapsed=0;elapsed<2000;elapsed+=10)advance(10);
   assert(view.deck[slave].sync.requested&&view.deck[slave].sync.locked&&fabs(actual_native_sync_error(slave))<=.001);
-  assert(f.flushes[slave]==flushes_before+1);
+  assert(f.flushes[slave]==flushes_before+1&&!view.deck[slave].sync.offset); /* the snap ends the kept offset */
   xz_xp_destroy(p);p=NULL;
  }
  wire_horizon=0;

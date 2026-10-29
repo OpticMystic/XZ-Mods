@@ -151,7 +151,9 @@ static void route_retires_admission(void){
   CHECK(input(event(d,XZ_EXTRA_IN_MASTER,1)));fake_route(99000+cases);step();
   CHECK(view.master_intent.deck==XZ_MASTER_NONE);
   sync_loop_track(0,1,350);sync_loop_track(1,2,700);press(d,XZ_EXTRA_IN_SYNC);advance(100);
-  sim_native.playing=0;advance(400);CHECK(view.master_intent.deck==XZ_MASTER_DECK3);
+  /* M4 (stock-sync-spec.md): the next master is a playing deck with SYNC on, here deck d (it used to be
+     DECK 3 first whatever SYNC said). */
+  sim_native.playing=0;advance(400);CHECK(view.master_intent.deck==XZ_MASTER_DECK3+d);
   CHECK(!view.deck[0].master&&!view.deck[1].master);end();
  }
 }
@@ -168,7 +170,8 @@ static void native_handoff_after_confirmation(void){
  observed.deck=1;observed.revision++;observed.operator_epoch=2;atomic_store(&control_operator,2);
  sim_native.native_deck=1;sim_native.source_revision++;sim_native.track_identity++;advance(100);
  CHECK(view.master_actual.deck==1&&view.master_intent.deck==0);
- sim_native.playing=0;advance(400);CHECK(view.master_intent.deck==2&&view.master_intent.operator_epoch==2);
+ /* M4: synced DECK 4 is preferred over unsynced DECK 3 (DECK 3 first used to win). */
+ sim_native.playing=0;advance(400);CHECK(view.master_intent.deck==3&&view.master_intent.operator_epoch==2);
  CHECK(view.master_actual.deck==1&&!view.deck[0].master&&!view.deck[1].master);end();
 }
 static int handoff_candidate;

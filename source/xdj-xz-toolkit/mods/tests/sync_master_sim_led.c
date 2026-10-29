@@ -87,6 +87,7 @@ void sim_led_callback(unsigned channel,enum sim_packet variant,int late,const st
  /* The stock serializer either rebuilds the list before each callback or
     keeps it and updates rows in place; a changed row set is always rebuilt. */
  if(sim_rebuild||!sim_layout_valid||v1!=sim_layout_variant[0]||v2!=sim_layout_variant[1])layout(v1,v2);
+ put(sim_packet+4,(uint32_t)(sim_us/1000u)); /* the packet's clock drives flashing lamps */
  led_hook(sim_players[channel-1],sim_packet);
  if(late)stock_write(channel);
 }

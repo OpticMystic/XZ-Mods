@@ -381,7 +381,11 @@ If the beats drift apart, press [[SYNC]] off and on again. With QUANTIZE on, eve
 
 - The tempo follows even when the master or the synced deck is paused. If the beat position is available, the paused deck aligns once. If it is unavailable, alignment happens as soon as it can be read. Continuous beat lock resumes when both decks play.
 - A pause, a jump, a loop or a new master never turns SYNC off. The deck follows again on its own, with no second press.
-- Bending or scratching takes control of the deck. When you let go, QUANTIZE snaps it back into alignment as soon as beat timing is available.
+- Nudge the jog from the side to move the deck a little off the master's beat. SYNC stays on and the tempo stays matched. The deck keeps the new alignment, also when the master's tempo changes, and the [[SYNC]] button flashes.
+- Nudge the master's jog from the side to move only the master. It stays master, and the synced decks keep their tempo and the new alignment.
+- To line the beats up again, press [[SYNC]] off and on. The deck snaps to the nearest beat and the button lights steadily.
+- Scratching on the platter top takes control of the deck. When you let go, QUANTIZE snaps it back to the beat.
+- Press [[SYNC]] off and the deck keeps its position and the synced tempo. The tempo fader takes over once you move it to that tempo.
 - The tempo fader does not move the deck while SYNC is on.
 
 The bottom channel, the lane and the detail panel say what SYNC is doing:
@@ -407,7 +411,7 @@ The detail panel adds a line about the reason, for example:
 | BPM SYNC / LOOP ACTIVE | A loop is running, so only the tempo follows until it ends. |
 | BPM SYNC / BEAT POSITION UNAVAILABLE | The master's beat position cannot be read, so only the tempo follows. |
 | BPM SYNC / QUANTIZE OFF | QUANTIZE is off, so only the tempo follows. |
-| SYNC ON / JOG CONTROL | You are bending or scratching. SYNC picks up again when you let go. |
+| SYNC ON / JOG CONTROL | You are nudging or scratching. SYNC picks up again when you let go. After a side nudge it keeps the new alignment. |
 | NO MASTER / TEMPO UNCHANGED | No deck is master. The deck keeps its tempo and follows as soon as there is one. |
 | MASTER CLOCK UNAVAILABLE / LAST TEMPO RETAINED | The master's tempo cannot be read right now. The deck keeps the last tempo. |
 | SYNC TEMPO LIMIT / LAST TEMPO RETAINED | The master's tempo is out of reach. |
@@ -420,7 +424,13 @@ The detail panel adds a line about the reason, for example:
 - Keep the music stick connected while you play. Decks 3 and 4 read from it all the time.
 - Decks 3 and 4 play WAV, AIFF, FLAC, MP3 and Ogg Vorbis files. AAC and M4A files do not play on decks 3 and 4.
 - A deck 3 or 4 master reads MASTER when decks 1 and 2 can follow it too, and 3/4 MASTER when it drives decks 3 and 4 only.
-- When the master stops, MASTER passes to the next playing deck in deck order. After deck 3 comes deck 4, then decks 1 and 2. After deck 4 come decks 1 and 2, then deck 3. In VINYL mode MASTER passes when you press pause, while the deck slows down. When a deck 1 or 2 master stops, a playing deck 3 or 4 takes MASTER after a moment. A master set by another player over LINK is never taken.
+- Press [[MASTER]] on a playing deck 3 or 4 and it is master at once. The MASTER buttons show the change.
+- When you pause the master, MASTER passes at once to the next playing deck. A deck with SYNC on comes first. Otherwise after deck 3 comes deck 4, then decks 1 and 2. After deck 4 come decks 1 and 2, then deck 3. In VINYL mode MASTER passes when you press pause, while the deck slows down.
+- When you pause a deck 1 or 2 master, a playing deck 3 or 4 takes MASTER at once. If the other of decks 1 and 2 is playing, MASTER goes to that deck instead, as with two decks.
+- In VINYL mode, hold the master's platter top and MASTER passes to the other synced, playing deck after a moment.
+- Load a new track on the master and MASTER passes to the other playing deck. The loading deck keeps SYNC on and plays its new track at the tempo the decks shared.
+- A handover never changes the tempo.
+- A master set by another player over LINK is never taken.
 - Some lamps on the player do not yet light as they do for decks 1 and 2. The beat loop and slip loop pad colours are provisional.
 - Four decks, the handover of MASTER between native and software decks, and scratching on decks 3 and 4 are experimental in this version.
 

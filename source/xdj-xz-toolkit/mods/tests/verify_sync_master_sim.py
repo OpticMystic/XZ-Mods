@@ -2,13 +2,18 @@
 
 Builds tests/test_sync_master_sim.c with the real players, snapshot, master
 observer/bridge, deck selection, LED hook and jog snapshot, then runs:
-  1. the named regressions (each one failed before its fix);
+  1. the named regressions (each one failed before its fix; stories that model
+     one stock behaviour report NOTE and do not gate);
   2. a seed batch on a fixed stock profile, which gates;
-  3. optionally (--explore) a seed batch on randomly drawn stock policies,
+  3. a seeded lock batch (master/follower pairs, VINYL and CDJ, disturbances),
+     checking tempo and beat lock and the published beat stream against what
+     the decks actually play, which gates;
+  4. optionally (--explore) a seed batch on randomly drawn stock policies,
      which reports the stock-dependent classes without gating.
 Every failure prints its class, the seed, the schedule and a minimized action list.
 Usage: python mods/tests/verify_sync_master_sim.py --out DIR [--arch host|arm|all]
-       [--seeds 400] [--first-seed 1] [--run-ms 15000] [--explore]
+       [--seeds 400] [--lock-seeds 200] [--first-seed 1] [--run-ms 15000] [--explore]
+       [--stage /dev/shm/DIR]
 """
 import argparse
 import hashlib
@@ -23,7 +28,9 @@ p.add_argument('--arch', choices=['host', 'arm', 'all'], default='all')
 p.add_argument('--seeds', type=int, default=400)
 p.add_argument('--first-seed', type=int, default=1)
 p.add_argument('--run-ms', type=int, default=15000)
+p.add_argument('--lock-seeds', type=int, default=200)
 p.add_argument('--explore', action='store_true')
+p.add_argument('--stage', help='Linux scratch folder (default /tmp/xz-sync-master-sim-<hash>)')
 a = p.parse_args()
 mods = Path(__file__).resolve().parents[1]
 out = a.out.resolve()
@@ -63,7 +70,7 @@ receipt = {'inputs': {s: hashlib.sha256((mods / s).read_bytes()).hexdigest() for
            'hardware': False, 'gated_profile': GATED}
 failed = False
 # The fixture WAV lives on the Linux filesystem: reading it through a Windows mount is slow.
-stage = '/tmp/xz-sync-master-sim-' + hashlib.sha256(str(out).encode()).hexdigest()[:12]
+stage = a.stage or '/tmp/xz-sync-master-sim-' + hashlib.sha256(str(out).encode()).hexdigest()[:12]
 sh(['mkdir', '-p', stage + '/data/anlz'])
 for arch, cc in [('host', 'gcc'), ('arm', 'arm-linux-gnueabi-gcc')]:
     if a.arch not in ['all', arch]:
@@ -90,13 +97,15 @@ for arch, cc in [('host', 'gcc'), ('arm', 'arm-linux-gnueabi-gcc')]:
     env = {'ASAN_OPTIONS': 'detect_leaks=1:abort_on_error=1', 'UBSAN_OPTIONS': 'halt_on_error=1'} if arch == 'host' else {}
     jobs = [('regress', run + ['regress'], env)]
     jobs.append(('seeds', run + [str(a.first_seed), str(a.seeds), str(a.run_ms), '--minimize'], {**env, **GATED}))
+    if a.lock_seeds:
+        jobs.append(('lock', run + ['lock', str(a.first_seed), str(a.lock_seeds), '30000'], {**env, **GATED}))
     if a.explore:
         jobs.append(('explore', run + [str(a.first_seed), str(a.seeds), str(a.run_ms), '--minimize'], env))
     for name, cmd, job_env in jobs:
         label = arch + '-' + name
         r = sh(cmd, env=job_env, label=label)
         text = r.stdout.decode(errors='replace')
-        summary = [line for line in text.splitlines() if line.startswith(('PASS', 'FAIL', 'CLASS', 'RESULT'))]
+        summary = [line for line in text.splitlines() if line.startswith(('PASS', 'FAIL', 'NOTE', 'CLASS', 'RESULT', 'LOCK'))]
         receipt['runs'].append({'label': label, 'command': cmd, 'env': job_env, 'exit': r.returncode, 'summary': summary})
         print(label, 'exit', r.returncode)
         for line in summary:
@@ -106,5 +115,5 @@ for arch, cc in [('host', 'gcc'), ('arm', 'arm-linux-gnueabi-gcc')]:
             print(r.stderr.decode(errors='replace')[-2000:])
     (out / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
 assert receipt['inputs'] == {s: hashlib.sha256((mods / s).read_bytes()).hexdigest() for s in SOURCES}
-print('FAIL' if failed else 'PASS', 'SYNC/MASTER simulation: regressions and gated seed batch')
+print('FAIL' if failed else 'PASS', 'SYNC/MASTER simulation: regressions, gated seed batch and lock batch')
 raise SystemExit(int(failed))

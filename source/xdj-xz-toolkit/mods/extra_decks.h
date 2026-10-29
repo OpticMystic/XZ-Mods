@@ -106,6 +106,10 @@ struct xz_extra_sync {
  int source;                         /* enum xz_extra_sync_source */
  int master_paused;                  /* the master is loaded and known, but not playing */
  int quantum_unknown;                /* QUANTIZE is on but its beat value is not available */
+ /* A beat offset the DJ made with a side nudge (this deck or the master), kept while SYNC stays on:
+    the tempo stays matched and the SYNC lamp flashes (stock S4, S7, S8). Pressing SYNC off and on
+    again realigns (S5). */
+ int offset;
 };
 /* Why a requested SYNC has or lacks a tempo source. NONE: no master is selected anywhere, tempo is left alone.
    LIVE: a current master source is usable. CLOCK_LOST: a master is selected but its clock or authority is not

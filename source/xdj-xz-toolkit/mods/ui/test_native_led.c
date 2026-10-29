@@ -175,6 +175,18 @@ int main(void) {
   d.loop.edit=2;
   assert(xz_extra_lamp(&d,XZ_LED_ID_LOOP_IN)==XZ_LED_STATE_OFF&&xz_extra_lamp(&d,XZ_LED_ID_LOOP_OUT)==XZ_LED_STATE_BLINK);
   d.loop.edit=0;assert(xz_extra_lamp(&d,XZ_LED_ID_RELOOP_EXIT)==XZ_LED_STATE_ON);
+  /* S4 (stock-sync-spec.md): SYNC lights steady, and flashes while the deck keeps a nudge offset. The SYNC
+     row is owned through sync_master_apply_at, which blinks it in software every 250 ms of the packet clock. */
+  {struct xz_extra_deck s=d;s.loaded=1;s.sync.requested=1;s.sync.offset=0;
+   assert(xz_extra_lamp(&s,XZ_LED_ID_BEAT_SYNC)==XZ_LED_STATE_ON);
+   s.sync.offset=1;assert(xz_extra_lamp(&s,XZ_LED_ID_BEAT_SYNC)==XZ_LED_STATE_BLINK);
+   unsigned char row[XZ_LED_RECORD_BYTES];struct xz_led_sync_master_owner owner;
+   for(uint32_t at=0;at<1000;at+=125){
+    memset(row,0,sizeof row);put(row,XZ_LED_ID_BEAT_SYNC);put(row+4,1);memset(&owner,0,sizeof owner);
+    assert(xz_native_led_sync_master_apply_at(&owner,row,sizeof row,1,1,&s,at)==1&&word(row+0x10)==((at/250u)&1u));
+   }
+   s.sync.offset=0;memset(row,0,sizeof row);put(row,XZ_LED_ID_BEAT_SYNC);put(row+4,1);memset(&owner,0,sizeof owner);
+   assert(xz_native_led_sync_master_apply_at(&owner,row,sizeof row,1,1,&s,250)==1&&word(row+0x10)==1);}
   d.loop.active=0;assert(xz_extra_lamp(&d,XZ_LED_ID_RELOOP_EXIT)==XZ_LED_STATE_ON);
   d.loop.stored=0;assert(xz_extra_lamp(&d,XZ_LED_ID_RELOOP_EXIT)==XZ_LED_STATE_OFF);
   assert(xz_extra_lamp(&d,XZ_LED_ID_BEAT_SYNC)==XZ_LED_STATE_OFF);
