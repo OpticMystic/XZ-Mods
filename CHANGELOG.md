@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0-preview.22.13 - 2026-10-28
+
+A visual Manual, a menu map, accurate button pictures and a cleaner app
+
+- The Manual shows the XDJ-XZ only as renders of a true-scale model and the screen only as the firmware draws it: step-by-step videos for four-deck setup, the sound path, RAM and USB, beat jump and SYNC.
+- Navigation videos beside the manual sections: the real screen next to the control you press, turn or tap, in step, so you can follow without reading the words.
+- A menu map in the Manual: every screen as a flow chart, with the control that opens each one, search, zoom and a link to the section that explains it.
+- Every button named in the app and the Manual is drawn as it looks on the player, lit and unlit.
+- The interface step of the USB guide leads with the button above LINK, with a video of the screen switching.
+- DJ Profile, Updates and About have their own places in the app rail; XZ Screen moved into Tools.
+- After the music USB comes out and goes back in, waveforms and loads come back even if the first read fails, and a failed hub bind is retried.
+- Decks 3 and 4 start with decks 1 and 2 empty (from 22.12).
+- Brand names and logos are gone from the app, the Manual, the XZ screens and the button pictures. The button above LINK is called that everywhere, and its MODS page draws the buttons in the order they sit on the player.
+- The Browsing chapter no longer mentions PLAYLIST and SEARCH keys the player does not have.
+- Experimental XDJ-XZ 1.26 only.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22.12 - 2026-10-28
 
 Four decks start with empty decks
