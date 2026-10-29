@@ -47,8 +47,8 @@ Pictures: `ui/assets/buttons/<id>.svg` (in text) and `<id>.panel.svg` (with the 
 | ![TAG LIST](../../ui/assets/buttons/tag-list.svg) | `[[TAG LIST]]` |   | above the screen | `#c9f522` |
 | ![INFO](../../ui/assets/buttons/info.svg) | `[[INFO]]` |   | above the screen | `#c9f522` |
 | ![MENU](../../ui/assets/buttons/menu.svg) | `[[MENU]]` | `[[UTILITY]]` | above the screen; hold: UTILITY | `#c9f522` |
-| ![rekordbox](../../ui/assets/buttons/rekordbox.svg) | `[[rekordbox]]` | `[[REKORDBOX]]`, `[[rekordbox button]]` | left of the screen, top; the media button above LINK | `#f2f2f2` |
-| ![LINK](../../ui/assets/buttons/link.svg) | `[[LINK]]` |   | left of the screen, below rekordbox | `#1ab8ff` |
+| ![Button above LINK](../../ui/assets/buttons/above-link.svg) | `[[Button above LINK]]` | `[[BUTTON ABOVE LINK]]`, `[[ABOVE LINK]]`, `[[the button above LINK]]` | left of the screen, top of the four media buttons, directly above LINK; its cap prints a logo, which the glyph leaves out | `#f2f2f2` |
+| ![LINK](../../ui/assets/buttons/link.svg) | `[[LINK]]` |   | left of the screen, below the button above LINK | `#1ab8ff` |
 | ![USB 1](../../ui/assets/buttons/usb-1.svg) | `[[USB 1]]` | `[[USB1]]` | left of the screen | `#c9f522` |
 | ![USB 2](../../ui/assets/buttons/usb-2.svg) | `[[USB 2]]` | `[[USB2]]` | left of the screen | `#c9f522` |
 | ![BACK](../../ui/assets/buttons/back.svg) | `[[BACK]]` |   | round the rotary selector, top left; BACK printed above | none |

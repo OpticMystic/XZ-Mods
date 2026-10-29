@@ -1,4 +1,4 @@
-"""Button glyphs: one SVG per control of the Pioneer XDJ-XZ, drawn from its top panel.
+"""Button glyphs: one SVG per control of the XDJ-XZ, drawn from its top panel.
 
   write     Write ui/assets/buttons/ (one SVG per control and lamp state, and index.js for the app).
   check     Fail when ui/assets/buttons/ is not what this file draws now.
@@ -6,11 +6,11 @@
   firmware  Write manual/buttons/firmware-spec.md and its PNG previews at the XZ's own text sizes (needs Edge).
 
 Every glyph is drawn here from one table, GLYPHS, so the manual, the website and the desktop app show the same
-picture of a control. Shapes, cap and lamp colours and printed labels follow Pioneer's top panel (see
+picture of a control. Shapes, cap and lamp colours and printed labels follow the player's top panel (see
 manual/buttons/README.md for the references); lamp colours the firmware sets come from mods/ui/native_led.h.
 Text is outlined from the firmware's own font (Barlow Semi Condensed, SIL OFL), so a glyph looks the same in every
 browser and needs no font. `tools/build_manual.py` turns [[NAME]] in a chapter into these glyphs and fails on a name
-that has none.
+that has none, and on a brand name (tools/check_trademarks.py): no glyph prints a logo or a brand.
 """
 import argparse
 from functools import lru_cache
@@ -20,6 +20,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import check_trademarks  # noqa: E402  no glyph is named after a brand or prints one
 
 APP = Path(__file__).resolve().parents[1]
 FONT = APP / 'source/xdj-xz-toolkit/mods/ui/fonts/BarlowSemiCondensed-Medium.ttf'
@@ -36,6 +39,7 @@ CAP, CAP_HI, CAP_EDGE = '#0b0b0c', '#3a3c40', '#4b4e53'
 OFF_RING, OFF_TEXT, OFF_LINE = '#3a3d41', '#8c9095', '#3d4044'
 GREEN, ORANGE, AMBER, RED = '#27e35a', '#ff5f14', '#ffb11a', '#ff2424'
 LIME, CYAN, AZURE, BLUE = '#c9f522', '#36d4ff', '#1f8fff', '#2f8bff'
+LINK_BLUE = '#1ab8ff'
 LED_OFF = {RED: '#3e1515', AMBER: '#3d2f12', GREEN: '#123d1e', '#d6f53c': '#2f3612'}
 PAD_COLOURS = ['#ff3b3b', '#33d6ff', '#c6f024', '#5a5cff', '#2ee84e', '#ff8f1f', '#1f74ff', '#ffd426']  # photographed HOT CUE colours
 JUMP_COLOURS = ['#ff3000', '#ff3000', '#ffa300', '#ffa300', '#ffa300', '#ffa300', '#ff3000', '#ff3000']  # native_led.h xz_jump_page2_color
@@ -364,8 +368,22 @@ def k_load(d, g, lit, x):
     return cx - 3 - x
 
 
+def k_above_link(d, g, lit, x):
+    """The button above LINK: a plain cap with no print (the unit's is a logo, which XZ Mods does not show), drawn
+    over the top of LINK, dimmed, so the picture says which button it is without words."""
+    w = g['w']
+    rect_cap(d, x + 1.2, 2.4, w, 15, g['colour'], lit, rx=2.2)
+    start = len(d.body)
+    rect_cap(d, x + 1.2, 20.2, w, 10.4, LINK_BLUE, True, 'LINK', size=7.4, rx=1.8, lamp_text=True)
+    d.body[start:] = ['<g opacity=".5">' + ''.join(d.body[start:]) + '</g>']
+    for part in d.parts[-3:]:
+        if part.get('y', 0) > 19: part['note'] = 'LINK below it, at half opacity, for reference'
+    return w + 2.4
+
+
 KINDS = {'round': k_round, 'ring': k_ring, 'litcap': k_litcap, 'rect': k_rect, 'rectlit': k_rectlit, 'shift': k_shift,
-         'pill': k_pill, 'pads': k_pads, 'rotary': k_rotary, 'slide': k_slide, 'beat': k_beat, 'load': k_load}
+         'pill': k_pill, 'pads': k_pads, 'rotary': k_rotary, 'slide': k_slide, 'beat': k_beat, 'load': k_load,
+         'above-link': k_above_link}
 
 
 # ---------------------------------------------------------------- the controls
@@ -449,9 +467,11 @@ GLYPHS = [
           ('tag-list', 'TAG LIST', '', (936, 234, 1006, 264), []),
           ('info', 'INFO', '', (1008, 234, 1079, 264), []),
           ('menu', 'MENU', '; hold: UTILITY', (1078, 226, 1154, 264), ['UTILITY']))],
-    G('rekordbox', 'rekordbox', 'rect', 'left of the screen, top; the media button above LINK', (750, 263, 808, 294), ['REKORDBOX', 'rekordbox button'],
-      lamp='#f2f2f2', colour='#e9e9e9', cap='rekordbox', size=12.5),
-    G('link', 'LINK', 'rect', 'left of the screen, below rekordbox', (750, 296, 810, 328), [], lamp='#1ab8ff', colour='#1ab8ff', cap='LINK', size=12.5),
+    G('above-link', 'Button above LINK', 'above-link', 'left of the screen, top of the four media buttons, directly above LINK; its '
+      'cap prints a logo, which the glyph leaves out', (750, 263, 808, 294), ['BUTTON ABOVE LINK', 'ABOVE LINK', 'the button above LINK'],
+      lamp='#f2f2f2', colour='#e9e9e9', w=44),
+    G('link', 'LINK', 'rect', 'left of the screen, below the button above LINK', (750, 296, 810, 328), [], lamp=LINK_BLUE, colour=LINK_BLUE,
+      cap='LINK', size=12.5),
     G('usb-1', 'USB 1', 'rect', 'left of the screen', (752, 328, 810, 360), ['USB1'], lamp=LIME, colour=LIME, cap='USB 1', size=12.5),
     G('usb-2', 'USB 2', 'rect', 'left of the screen', (752, 360, 812, 394), ['USB2'], lamp=LIME, colour=LIME, cap='USB 2', size=12.5),
     G('back', 'BACK', 'rotary', 'round the rotary selector, top left; BACK printed above', (1196, 248, 1246, 312), [], label='BACK', key='back'),
@@ -504,6 +524,7 @@ def by_name():
     for g in GLYPHS:
         for key in [g['id'], g['name'], *g['aliases']]:
             key = key.upper()
+            if check_trademarks.find(key): raise SystemExit(f'xz_buttons: {key!r} is a brand name ({g["id"]}); name the control by what it is')
             if key in found and found[key] is not g: raise SystemExit(f'xz_buttons: {key!r} names both {found[key]["id"]} and {g["id"]}')
             found[key] = g
     return found
@@ -691,8 +712,18 @@ def glyph_list():
     return ('\n'.join(rows) + '\n').encode('utf-8')
 
 
+def printed_text(g):
+    """Every word a glyph prints: its cap, its label and the panel print round it."""
+    rows = [r for side in PANEL_PRINT.get(g['id'], {}).values() for r in (side if isinstance(side, list) else [side])]
+    pieces = [p for r in rows for p in (r if isinstance(r, list) else [r])]
+    return [g.get('cap') or '', g.get('label') or ''] + [p[1] if isinstance(p, tuple) else p for p in pieces]
+
+
 def problems():
     out_dir = APP / OUT
+    brands = [f'button glyphs: {g["id"]} prints a brand name ({", ".join(check_trademarks.find(t))}); draw the cap plain'
+              for g in GLYPHS for t in printed_text(g) if check_trademarks.find(t)]
+    if brands: return brands
     files = build()
     have = {p.name for p in out_dir.glob('*')} if out_dir.is_dir() else set()
     found = [f'button glyphs: {OUT}/{n} is missing' for n in files if n not in have]
@@ -783,7 +814,7 @@ FACES = (('SH_SMALL', 12, 14), ('SH_TEXT', 20, 22))  # MODS text face, its pixel
 
 
 def firmware_label(g):
-    return (g.get('label') or g['name']).upper() if g['id'] != 'rekordbox' else 'rekordbox'
+    return (g.get('label') or g['name']).upper()
 
 
 def draw_firmware(g, state, face_px, glyph_px):
