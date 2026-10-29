@@ -113,7 +113,7 @@ Choose the screen the XZ shows. The selected card plays a short clip of it.
 2 @ 1046,30 Cancel | Leaves the guide. Nothing is written.
 3 @ 486,452 New interface | MODERN. XZ Mods draws the whole player screen.
 4 @ 1012,332 Standard XDJ-XZ interface | CLASSIC. The player's own screen with MODS added. Classic themes can restyle it.
-5 @ 782,560 Switch later | How to change your mind on the player.
+5 @ 782,560 Switch later | How to change your mind on the player: the button above LINK first, then the menu, each with a video of the player.
 6 @ 372,728 Back | The step before. From the first step, the dashboard.
 7 @ 945,728 Next | The next step.
 ```
@@ -456,6 +456,7 @@ Four decks open in the Manual, at the video of how the sound of decks 3 and 4 re
 7 @ 1010,420 Video | A clip rendered from a true-scale model of the XDJ-XZ shows how a feature works. It plays when it comes into view, and Play pauses it. A video in several steps also has arrows and numbered steps, and its caption follows the step.
 ```
 
+- **How-to videos.** Many sections show how to get there on the player: the screen as the firmware draws it, beside a true-scale picture of the key, rotary selector or pad you use, pressed in time with the screen. The steps under the video light up as it reaches them. Click a step to play from there. Where a section shows more than one way, the tabs above the steps switch between them.
 - **Numbers on pictures.** Point at a number, or tab to it and use the arrow keys, to light up that part of the picture and read what it is. **Play** steps through every number. The list under the picture says the same.
 - **Your interface.** Choose MODERN, CLASSIC or Both on the start page or at the foot of the chapter list. The manual then hides what does not apply to you. A MODS page drawn in both interfaces has a MODERN and CLASSIC switch on its picture.
 - **Where you stopped.** The manual remembers the chapter and section you read last. The start page offers **Continue where you left off**.

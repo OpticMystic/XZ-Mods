@@ -9,6 +9,9 @@ This chapter lists every message XZ Mods can show you, what it means and the one
 
 XZ Mods never changes the player's firmware, so the player always starts stock without the USB.
 
+```nav updates If the player will not start with the USB
+```
+
 1. Switch the player off.
 2. Remove the XZ Mods USB and switch the player on. It starts stock. Play from a stick without XZ Mods if you are in a set.
 3. On your computer, open the USB in the XZ Mods app. If it says **Update available**, choose **Update USB**. If it says **Up to date**, open **Updates** › **XZ Mods version** › **Restore or update a loader by hand** and update the loader again. The app keeps a backup of the old loader each time.
@@ -31,6 +34,9 @@ If the sound goes wrong while you test, stop playback and switch the player off 
 ## Stems on the USB
 
 When a deck cannot play stems, its stem row says why and its last button offers the next step. In CLASSIC the row sits under the deck's waveform. Open the button to see the deck's setup page in MODS.
+
+```nav b-stem-setup Stems on the USB
+```
 
 ```figure classic:theme-0-usb-setup-not-prepared MODS · USB STEMS
 Deck 1 has a track loaded that has no stems yet.
@@ -59,6 +65,9 @@ Every state on both interfaces, with pictures, is in [Stems](stems).
 ## Notices on the play screen {modern}
 
 A notice is a short message in the middle of the lanes. It clears on its own after a few seconds, and the deck keeps playing.
+
+```nav b-notice-load-recovery Notices on the play screen {modern}
+```
 
 ```figure modern:play-notice MODERN · Play screen {modern}
 A notice over the lanes.
@@ -96,6 +105,9 @@ modern:play-notice-long A long notice wraps onto two lines
 ## Errors on a deck
 
 When the player cannot play a track, XZ Mods shows the player's own error code and text on that deck. XZ Mods never hides these errors.
+
+```nav b-deck-error-recovery Errors on a deck
+```
 
 ```figure modern:parity-alert-read MODERN · Play screen {modern}
 A read error on deck 2.
@@ -138,6 +150,9 @@ The player sees the loopback cable for four decks as a hub. It raises **E-8307: 
 ## When settings cannot be saved
 
 Every change in MODS saves on its own to the USB. The save state at the right of the MODS dock says what happened. Lines that say NOT SAVED or NO SETTINGS USB show in amber. The full list is in [Saving to the USB](mods-menu#saving-to-the-usb).
+
+```nav b-save-recovery When settings cannot be saved
+```
 
 | Message | What it means | What to do |
 |---|---|---|
@@ -202,6 +217,9 @@ The diary stays on the sticks. Nothing is sent until you choose to include it in
 ## Report a problem
 
 When something goes wrong, send a report. It helps fix the problem for everyone.
+
+```nav report-dock-entry Report a problem
+```
 
 - **On the player.** Open MODS › **EXTRAS** › **REPORT AN ISSUE**, or push **REPORT THIS** beside an error in the dock. Choose a topic, add words if you like, and send. Offline, the report waits on the stick for your computer. See [Report an issue](extras#report-an-issue).
 - **On your computer.** In the XZ Mods app, open **Feedback** at the foot of the rail and choose **Report a problem**. Only one box is required, and **My reports** in Feedback shows where your report is afterwards. See [Report a problem or share an idea](desktop-app#report-a-problem-or-share-an-idea).

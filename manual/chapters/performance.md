@@ -9,6 +9,9 @@ XZ Mods adds performance features to the pads and deck keys: two pages of beat j
 
 Open MODS and choose PLAY in the section rail.
 
+```nav mods-play The PLAY page
+```
+
 ```figure classic:theme-{look}-play MODS · PLAY
 The PLAY page with the default settings: gate cue and smart cue off, the default jump sizes, and the rekordbox button above LINK on INTERFACE.
 1 @ 300,84 BEAT JUMP PADS | Opens the beat jump editor. The numbers are your page 1 and page 2 sizes in beats.
@@ -26,6 +29,10 @@ If the cue engine has not reported on this USB loader, GATE CUE and SMART CUE sh
 ## Beat jump
 
 In BEAT JUMP mode the eight pads form four pairs: A/B, C/D, E/F and G/H. The first pad of a pair jumps back, the second jumps forward, by the same number of beats. With a loop on, the loop moves by that amount instead.
+
+```nav beat-jump Beat jump | In MODS
+physical-beat-jump | On the deck
+```
 
 You get two pages of sizes:
 
@@ -49,6 +56,9 @@ Each deck remembers its own page. Choosing another pad mode and coming back with
 ### Change the jump sizes
 
 Open MODS > PLAY > BEAT JUMP PADS. The editor shows the pads as they sit on the deck: A to D on top, E to H below.
+
+```nav beat-jump-pages Change the jump sizes
+```
 
 ```figure classic:theme-{look}-beat-jump MODS · BEAT JUMP PADS
 Editing page 2. Pads A and B are selected and jump 16 beats.
@@ -92,6 +102,9 @@ Decks 3 and 4 use the same sizes and both pages. They jump along the track's bea
 
 A jump the deck cannot make does nothing else. XZ Mods never silently shortens the selected distance. The screen shows why:
 
+```nav nav-a-jump-refused When a jump is refused
+```
+
 | Notice | Deck | What it means |
 |---|---|---|
 | JUMP UNAVAILABLE: TRACK EDGE, BUFFER OR DECK STATE | 1 or 2 | The player refused the jump. It would pass the start or end of the track, or the deck cannot jump right now. |
@@ -104,6 +117,9 @@ A jump the deck cannot make does nothing else. XZ Mods never silently shortens t
 
 Both change what a hot cue pad does in HOT CUE mode. Turn them on in MODS > PLAY. Both are off by default, and each works on its own.
 
+```nav nav-a-gate-smart Gate cue and smart cue
+```
+
 | Feature | What a hot cue pad does |
 |---|---|
 | GATE CUE | The track plays from the hot cue only while you hold the pad. Let go and it jumps back to the hot cue and pauses. Use it to stab hot cues like samples. Press [[PLAY/PAUSE]] while you hold the pad to keep playing after you let go. |
@@ -114,6 +130,9 @@ Gate cue and smart cue work on all four decks. On decks 1 and 2 they need the cu
 ### Feature setup
 
 When the cue engine has not reported on a deck, MODS shows a short setup instead of the switch. It checks the feature on a loaded USB track in four steps: detect, choose deck, enable and test.
+
+```nav nav-a-feature-gate Feature setup
+```
 
 ```figure classic:theme-{look}-feature-setup MODS · FEATURE SETUP
 The setup page at its first step, checking gate cue. For smart cue it reads SMART CUE.
@@ -137,6 +156,10 @@ If the status still asks you to load a USB track while one is loaded, prepare th
 ## Keys and KEY SYNC
 
 XZ Mods can move the key of any deck a semitone at a time, and match a deck's key to the master deck with KEY SYNC. The master can be any deck, 1 to 4. The key display then shows the key the track plays in now.
+
+```nav keys Keys and KEY SYNC | In MODS
+physical-key-sync | KEY SYNC on the deck
+```
 
 ### From the deck
 
@@ -169,6 +192,9 @@ If KEY SYNC cannot work, a notice or the deck's key display shows why for a few 
 ### The KEYS page
 
 MODS > PLAY > KEYS does the same from the screen, and adds key shift by semitones. On the play screen, tapping a deck's key opens the same controls for that deck.
+
+```nav key-shift-sync The KEYS page
+```
 
 ```figure classic:theme-{look}-active-key-setup MODS · KEYS
 The KEYS page for deck 1 with the key engine ready. The deck is in its own key.
@@ -242,11 +268,17 @@ In CLASSIC, XZ Mods draws the playing key where the player shows its beat countd
 
 PLAYING KEY is on by default. Turn it off in MODS > SCREEN to show the track's own key instead. In CLASSIC, off brings the beat countdown back. Key notation (AS ON THE USB, MUSICAL or WHEEL) is set on the same page; see [Screen, interfaces and themes](screen-and-themes).
 
+```nav nav-a-playing-key PLAYING KEY
+```
+
 Decks 3 and 4 show their playing key too, after tempo and key shift. Until a software deck reports it, the deck shows the track's own key.
 
 ## RAM tracks {experimental}
 
 RAM TRACKS copies the track on a deck into the player's memory. The deck then plays from memory, so it keeps playing if the music USB goes out. It works on all four decks. Decks 3 and 4 need the loopback cable connected to start a copy.
+
+```nav ram-copy-error RAM tracks
+```
 
 ```figure classic:theme-{look}-ram-setup MODS · RAM TRACKS
 Deck 1 on a USB loader without the RAM engine.
@@ -293,6 +325,9 @@ When a copy does not fit, the page says why and offers the next step:
 
 ### When the music USB goes out {experimental}
 
+```nav nav-a-ram-detached When the music USB goes out
+```
+
 ```explainer ram-usb A deck playing from RAM when the USB goes out
 NOT IN RAM | The deck plays from USB.
 COPYING TO RAM | Press LOAD TRACK INTO RAM. Keep the USB connected while it copies.
@@ -331,6 +366,9 @@ On decks 3 and 4 the waveform loaded before the USB went out stays, so the card 
 ## Quantize
 
 On decks 1 and 2, quantize is the player's own: [[DECK QUANTIZE]] and UTILITY work as on a stock player. In MODERN each deck shows its QUANTIZE lamp and beat value above its time. You can hide them in MODS > SCREEN > LAMPS AND TITLES.
+
+```nav physical-quantize Quantize
+```
 
 While a side drives deck 3 or 4:
 

@@ -9,6 +9,9 @@ Open MODS with [[MENU]], then choose **SCREEN** in the section rail.
 
 ## The SCREEN page
 
+```nav mods-screen-values-all The SCREEN page
+```
+
 ```figure classic:theme-{look}-screen MODS · SCREEN
 The SCREEN page with CLASSIC chosen. Under MODERN, the THEME row reads LAMPS AND TITLES, 3-BAND COLOURS sits beside it, and WAVEFORM COLOURS offers four choices.
 1 @ 250,53 INTERFACE | MODERN or CLASSIC. The framed picture is the one in use.
@@ -46,6 +49,10 @@ The HOME card for SCREEN sums the page up in one line, for example **Classic | 3
 
 XZ Mods gives the player two interfaces. You choose one with **INTERFACE** on the SCREEN page, or when you prepare the USB in the XZ Mods app. MODERN is the default.
 
+```nav interface-choice MODERN and CLASSIC | In MODS
+physical-rekordbox | The button above LINK
+```
+
 - **MODERN** is a full-screen layout drawn by XZ Mods, with bigger waveforms and a browse sidebar.
 - **CLASSIC** keeps the player's own play screen and adds MODS to it. The classic themes restyle that screen.
 
@@ -76,6 +83,9 @@ The MODERN play screen with two decks, 3-BAND waveforms and the playing key show
 
 A classic theme restyles the player's own play screen and the MODS menu: artwork, text, waveforms, cue marks and dialogs. Track positions, numbers and touch areas stay where the player puts them, so a theme never moves a control under your finger.
 
+```nav classic-themes Classic themes {classic}
+```
+
 Choose **THEME** on the SCREEN page to open **CLASSIC THEMES**. Tap a theme, or turn the encoder to it and push. Close MODS to see the play screen in the new theme.
 
 ```figure classic:theme-0-theme-pick CLASSIC THEMES {classic}
@@ -92,6 +102,9 @@ The gallery shows the HOME page of MODS in every theme.
 ```
 
 ### Theme families {classic}
+
+```nav classic-overlays-analog Theme families {classic}
+```
 
 | Family | Themes | What to expect |
 |---|---|---|
@@ -112,6 +125,9 @@ Most families come in a light and a **DARK** version. Pick the dark one for dim 
 ## MODERN look {modern}
 
 MODERN has one look, **STANDARD**, so it has no theme list. The MODS menu is drawn in FLAGSHIP: black pages, a grey section rail and blue selections. More MODERN looks are planned.
+
+```nav lamps-and-titles MODERN look {modern}
+```
 
 Instead of THEME, the SCREEN page offers **LAMPS AND TITLES**. Its row shows **ALL SHOWN**, or how many parts you have hidden.
 
@@ -160,6 +176,9 @@ The preview strip on the [3-BAND COLOURS](#3-band-colours) page draws the three 
 ## 3-band colours
 
 **3-BAND COLOURS** chooses the colour of each band in the 3-BAND waveform: the lows, the mids and the highs. On the SCREEN page it sits beside **THEME** in CLASSIC and beside **LAMPS AND TITLES** in MODERN. Its row shows the three colours in use.
+
+```nav band-colours 3-band colours
+```
 
 ```figure classic:theme-{look}-band-colors MODS · 3-BAND COLOURS
 Every band on STANDARD, the interface's own colours.
@@ -241,6 +260,9 @@ No deck owns a colour. Blue and pale blue mark the deck a side of the player con
 
 **SYSTEM READOUT** puts CPU load, memory and temperature beside **STEMS** and **MODS** on the top bar. Open it to see deck 3 and 4 audio render times and active key shifters across all four decks. P99 is the time at or below which 99% of the last 256 rendered blocks finished; MAX is the longest. Short blocks are scaled to a full block. D3+D4 MAX adds both maxima and compares them with the 5,805 microseconds available per block. New shifts use a stricter 3,483 microsecond budget, leaving time for other work. These render numbers include decoding, time stretch and key shift; they do not measure the complete output path. Use them when you suspect the player is working hard, for example with stems on both decks and four decks running.
 
+```nav system-readout System readout
+```
+
 ```figure classic:theme-{look}-metrics-setup SYSTEM READOUT
 The first setup step with live readings and four key shifters engaged.
 1 @ 225,105 STEP | Where you are in the setup.
@@ -259,6 +281,9 @@ After setup the row on the SCREEN page reads **ON**. On the top bar, **METRICS S
 > **Note.** Only the temperature of the main chip is available on the XDJ-XZ.
 
 ## When something looks wrong
+
+```nav b-theme-recovery When something looks wrong
+```
 
 | What you see | What to do |
 |---|---|

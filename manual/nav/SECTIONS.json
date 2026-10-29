@@ -277,7 +277,7 @@
       "title": "Around the app",
       "level": 2,
       "chapter": "desktop-app.md",
-      "sha256": "adabe34e4d4815860c7b40630581cc8bad948b95b74a82c07af40a4c5997c7a9",
+      "sha256": "dcada2c543bab5c4cd34093841bd73f42f6785cfcfceffe597537fd5b530517d",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -307,7 +307,7 @@
       "title": "The USB dashboard",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "45fd08c16cbf3357a61646ece66abb7855fe52077008b3adac61dba867e2ee92",
+      "sha256": "0116b31b1ae85aa263495391400ee6ac31ecbd2c3be4c5834dec0d878190aec2",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -317,7 +317,7 @@
       "title": "Install or update XZ Mods",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "459488708ec862616225c47da84b6a9a5c1bef99412501e55a13246f294055d8",
+      "sha256": "e3fcf8573890a2f6eb2085e7d5b53920e127249e9f0bdf854a78a9345c4db782",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -367,7 +367,7 @@
       "title": "XZ Screen {experimental}",
       "level": 2,
       "chapter": "desktop-app.md",
-      "sha256": "e5c0f57514bf5eb582190c1141be559383d5aed3bfeea2b7fa944618f1a9706b",
+      "sha256": "76850c92e00e50beb13d6c8afba895c46277acec7b6e767b6b954db98419d5c4",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -377,7 +377,7 @@
       "title": "Tools",
       "level": 2,
       "chapter": "desktop-app.md",
-      "sha256": "3ee9f24baa2d199bda8ac48009b348af0e5a705149e0317038439c2f685e477e",
+      "sha256": "9a66f4436163d5fddb1b060385e69277afe1a151ed0ffda82c3310300dca89b5",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -387,7 +387,17 @@
       "title": "DJ Profile",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "63ad69f80ace07b171059286ccf8e96ce84c7f6656a90c4e4d139f540c1f5006",
+      "sha256": "4e902fec95586fc81a671079367cdd98f7d4f6d3b88c60cafff921fc6ccf4f17",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#updates",
+      "title": "Updates",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "e2ed399d08ab32e1db537ec7d2b18129daa05e450e1684e2b118632dcaceb5b7",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -407,7 +417,7 @@
       "title": "Network updates {experimental}",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "298ab1f837c518bd0d23026d43f9431a8d352338aaf20c04acb0cc416572231b",
+      "sha256": "66927134a593c3cc0be348a9d2e089593d185a0c13b7484935b90d3e902a0938",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -417,7 +427,7 @@
       "title": "XZ Mods version",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "d51ec7188edc6ab5eefba52417513b5b2065b7b2515186364d7f1b1280c4919f",
+      "sha256": "cd0094300ede06df266bb494632c1ba5c65ebe2af207fbccf3f8bb009bf68f4e",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -427,7 +437,17 @@
       "title": "App updates",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "d618b28aa6b4c09cff59218755eff8ef0e0a5537e3a793fe77ecffce969f36d1",
+      "sha256": "bc3f9b80518b10d3aebc22e0f6db2bcda8ee178d535c94006678e7c92e9b504b",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#game-downloads",
+      "title": "Game downloads",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "603dce71e9d20f9ba732739cf282b986c8085d90420ca49873d8a45581aa401a",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -437,7 +457,7 @@
       "title": "About",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "cfacd2deb0acac9bdf0f03b779e2ef57696f8e811275028fe20c5b51eb3cdeb3",
+      "sha256": "4889af92e7ed3c7083ae5de35847328f2b2aef0bc29630dd4b18ec1811ccba41",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -497,7 +517,7 @@
       "title": "My reports",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "0cc12b83db04e35bdbe0c2abfdcea1f0dde40eaa2e129f23690e34ee77ebad74",
+      "sha256": "81c3c8458f128ef5aa85632be961394d6ce646506b87647cc01706ce7e010b32",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -527,7 +547,7 @@
       "title": "Maintainer inbox",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "e0a79c91e0a606bd997c3e0483434553d6aced20f10eeb53e7306a85c75a7e7c",
+      "sha256": "59568567d2e137b2b4120c0bef7704f4727778b12520736a9792973792afe0aa",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -537,7 +557,17 @@
       "title": "Manual",
       "level": 2,
       "chapter": "desktop-app.md",
-      "sha256": "f276c3f67ad7343f2b5f648113ff6243ff3b4ddd01c7425006efaeb38a657dee",
+      "sha256": "1b3f7b7d50c9018f26a91ea573bf09429f035a49d49fe2e555934eef8b82fd89",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#the-menu-map",
+      "title": "The menu map",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "b7c67132e4803e4297921aa0c6bedc2d3b30c87777b3efa5e9b19444c893fe0d",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -854,7 +884,7 @@
       "title": "SYNC on decks 3 and 4 {experimental}",
       "level": 3,
       "chapter": "four-decks.md",
-      "sha256": "8dfb61bf1e32641e5dd27a5b6b7d58f3408acfbccc396f0326d6b49e5f14960d",
+      "sha256": "60a0f7f46ed8b0b4f3aa11e3c971cb91d4903ae4d3c2d2d9b4a796e9b26b9c32",
       "flows": [
         "nav-c-player-3",
         "nav-c-player-4"
@@ -985,7 +1015,7 @@
       "title": "The top panel",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "2afbee594a1c98538b34fbbdf225a0e49e22306867a308ce2554f695b966a3e9",
+      "sha256": "20fdf6a7fdcd9b5d03bcbb728eb293e168a3b05f7ed58f63d8b9ff8e68313292",
       "flows": null,
       "reason": "informational",
       "detail": "Annotated physical control map; per-control actions are assigned under Browse section keys and Deck keys."
@@ -1032,7 +1062,7 @@
       "title": "Deck keys",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "e80bafc07dc3a762450a5100426c4fa12a8549c17d1fbc5326f6c688004f207a",
+      "sha256": "3a8d44a2f9c6f5570111fca37dfb4f4d2d000187826e5fdfd3dfccd637d00350",
       "flows": [
         "b-master-tempo",
         "physical-key-sync",
@@ -1283,7 +1313,7 @@
       "title": "Beat jump",
       "level": 2,
       "chapter": "performance.md",
-      "sha256": "a227da2f28c052d88515231d2887225d4cdba4d3f3abf7a2bd751f320de5e3ac",
+      "sha256": "28dafd661adca0a12ade5c8d1fbbf3399dd98c7fa67560c9b2e991538ec47387",
       "flows": [
         "beat-jump",
         "physical-beat-jump"
@@ -1429,7 +1459,7 @@
       "title": "When the music USB goes out {experimental}",
       "level": 3,
       "chapter": "performance.md",
-      "sha256": "8b8e1c74c5532bc18d75fd6e7370c6f54e779dd63d8ca2167f35dd2f0e947dda",
+      "sha256": "e4a7d98c4683ff27fdebe439de1a2d75d7fdcad1dd17738957125aa0e7468303",
       "flows": [
         "nav-a-ram-detached"
       ],
@@ -1635,7 +1665,7 @@
       "title": "Waveform colours",
       "level": 2,
       "chapter": "screen-and-themes.md",
-      "sha256": "f602e89864833811340e5da3cacc8129f25832833f0d91b87495ef241aee349d",
+      "sha256": "8dd83746df71c2873ef7e51e9c0aeb71d844d7734eb3beafca47306fb8c55e58",
       "flows": [
         "mods-screen-values-all"
       ],
@@ -1920,7 +1950,7 @@
       "title": "If the player will not start with the USB",
       "level": 2,
       "chapter": "troubleshooting.md",
-      "sha256": "4bd2035e3b7de15a11967c2b8dacde32147ba1674a208e1bf9f34df7963e2bfe",
+      "sha256": "e7623681990a61109fbff92368d31115c9a814f161edb41fee92811cc7624ae1",
       "flows": [
         "updates",
         "b-first-menu"
@@ -2028,7 +2058,7 @@
       "title": "The diary on your USB sticks",
       "level": 2,
       "chapter": "troubleshooting.md",
-      "sha256": "0b753993c7d36865c2c85605225d8bc351cdc144760bc315462c8942d3cffb1b",
+      "sha256": "9743606192322e6de928c407a64cb6960fd0b2b3370d7c96b66625669e4069bd",
       "flows": null,
       "reason": "informational",
       "detail": "Explains automatically written diagnostic files; no on-player control. Actual USB diary persistence requires USB runtime."
