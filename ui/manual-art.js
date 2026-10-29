@@ -151,11 +151,12 @@
   function mountNav(box) {
     if (box.dataset.mounted) return;
     const scenes = [...box.querySelectorAll('.mn-scenes > li')].map(li => ({
-      video: li.dataset.video, poster: li.dataset.poster, w: +li.dataset.w, h: +li.dataset.h, seconds: +li.dataset.seconds,
+      flow: li.dataset.flow, video: li.dataset.video, poster: li.dataset.poster, w: +li.dataset.w, h: +li.dataset.h, seconds: +li.dataset.seconds,
       title: li.dataset.title || '', steps: [...li.querySelectorAll('.mn-steps > li')].map(s => ({ t: +s.dataset.t, html: s.innerHTML }))
     })).filter(s => s.video && s.steps.length);
     if (!scenes.length) { box.hidden = true; box.dataset.missing = 'no video'; return; }
     box.dataset.mounted = '1';
+    box.dataset.flows = scenes.map(s => s.flow).join(' ');
     const label = box.getAttribute('aria-label') || 'How to';
     const video = clipVideo(scenes[0].w, scenes[0].h, label);
     video.loop = true;
