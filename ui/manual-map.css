@@ -3,17 +3,7 @@
    path to it; panels #0e1011/#121415; lines #2c3031. The player's on-screen words are drawn as teal chips (#8fe3d9),
    its keys as the manual's keycaps, so a move reads "tap EXTRAS" or "[ROTARY SELECTOR] push" at a glance. */
 
-/* The map takes the whole page: the chapter list folds into the top row, as in a narrow window. */
-main:has(.m-root.m-map-on){max-width:none}
-.m-root.m-map-on{grid-template-columns:minmax(0,1fr)}
-.m-root.m-map-on .m-side{position:static;max-height:none;overflow:visible;padding:0;margin:0 0 10px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 10px;align-items:start}
-.m-root.m-map-on .m-search{margin:0;max-width:420px}
-.m-root.m-map-on .m-side-toggle{display:inline-flex;align-items:center;gap:6px;padding:9px 12px;font-size:13px}
-.m-root.m-map-on .m-side-toggle svg{width:14px;height:14px;transition:transform .2s}
-.m-root.m-map-on .m-side-toggle[aria-expanded=true] svg{transform:rotate(90deg)}
-.m-root.m-map-on .m-side-body{grid-column:1/-1;display:none;padding:12px;border:1px solid var(--m-line);border-radius:10px;background:#0e1011}
-.m-root.m-map-on .m-side.is-open .m-side-body{display:block}
-.m-root.m-map-on .m-side-body .m-toc{columns:3 200px;column-gap:18px}
+/* The map: no reading bar, and the view is as tall as the map. */
 .m-root.m-map-on .m-bar{display:none}
 .m-root.m-map-on .m-view{min-height:0}
 
@@ -51,7 +41,7 @@ main:has(.m-root.m-map-on){max-width:none}
 /* ---------------------------------------------------------------- the map */
 .mm [hidden]{display:none!important}
 .m-map{min-width:0}
-.mm{display:flex;flex-direction:column;height:max(440px,calc(100vh - 78px));min-height:0;border:1px solid #262a2b;border-radius:14px;background:#0b0c0d;overflow:hidden}
+.mm{display:flex;flex-direction:column;height:max(440px,calc(100vh - var(--top-h,0px) - 104px));min-height:0;border:1px solid #262a2b;border-radius:14px;background:#0b0c0d;overflow:hidden}
 .mm-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 14px 9px;border-bottom:1px solid #202425;background:linear-gradient(#121415,#0e1011)}
 .mm-title{flex:1 1 260px;min-width:0}
 .mm-title h2{margin:0;font-size:18px;letter-spacing:-.3px;color:#f4f5f1;outline:none}

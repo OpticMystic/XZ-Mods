@@ -217,14 +217,16 @@ try {
   const shot = async (name, width = 1100, height = 760) => {
     if (!shots) return;
     await size(width, height);
-    await evaluate('window.scrollTo(0,0)');
+    await evaluate(`document.getElementById('card').scrollTo(0,0)`);
     await new Promise(done => setTimeout(done, 150));
-    const { cssContentSize } = await send('Page.getLayoutMetrics');
-    const image = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height: Math.max(height, Math.ceil(cssContentSize.height)), scale: 1 } });
+    // The whole page in one picture: the window grows by what the card hides.
+    const hidden = await evaluate(`(()=>{const card=document.getElementById('card');return card.scrollHeight-card.clientHeight;})()`);
+    if (hidden > 0) { await size(width, height + hidden); await new Promise(done => setTimeout(done, 150)); }
+    const image = await send('Page.captureScreenshot', { format: 'png' });
     await writeFile(join(shots, name + '.png'), Buffer.from(image.data, 'base64'));
     await size(1100, 760);
   };
-  const showDj = () => evaluate(`showPage('dj-profile');window.scrollTo(0,0)`);
+  const showDj = () => evaluate(`showPage('dj-profile');document.getElementById('card').scrollTo(0,0)`);
 
   await open('empty');
   await check(`txt('nav button[data-page="dj-profile"] span')==='DJ Profile'&&!document.querySelector('.tool-row[data-open="dj-profile"]')`, 'DJ Profile is its own rail item, not a row in Tools');
