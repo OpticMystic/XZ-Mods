@@ -201,6 +201,12 @@ int xz_hook_arm(uint32_t address, const unsigned char expected[8],
     if(address==0x157cc0)guard=skin_gamma_guard;
     if(address==0x15cca8)guard=skin_color_guard;
     if(address==0x15c92c)guard=skin_option_guard;
+    /* ui_com_DrawCautionStatus: push {r4-r11,lr}; sub sp,sp,#0xa4. ui_com_DrawCautionBrowse: push {r4-r11,lr};
+       vpush {d8,d9}. No PC-relative operand. */
+    static const unsigned char caution_status_guard[8]={0xf0,0x4f,0x2d,0xe9,0xa4,0xd0,0x4d,0xe2};
+    static const unsigned char caution_browse_guard[8]={0xf0,0x4f,0x2d,0xe9,0x04,0x8b,0x2d,0xed};
+    if(address==0x147f08)guard=caution_status_guard;
+    if(address==0x146fcc)guard=caution_browse_guard;
     static const unsigned char key_list_guard[8]={0xf0,0x4f,0x2d,0xe9,0x01,0x60,0xa0,0xe1};
     if(address==0x236270)guard=key_list_guard;
     static const unsigned char key_traffic_guard[8]={0xf0,0x41,0x2d,0xe9,0x00,0x40,0xa0,0xe1};

@@ -78,6 +78,12 @@ static void mapping_checks(void) {
  assert(route_observed(&b,0,0,0,3,XZ_USB_OK).state==XZ_EXTRA_ROUTE_FAILED);
  assert(route_observed(&b,1,0,0,0,XZ_USB_BUSY).fail_part==XZ_EXTRA_ROUTE_PART_SOCKET);
  assert(route_observed(&b,1,0,0,0,XZ_USB_WRONG_DEVICE).fail_part==XZ_EXTRA_ROUTE_PART_CABLE);
+ /* After a replug the helper's own waiting reason wins over a generic LOST; its plain cable wait does not. */
+ b=(struct route_bridge){1,"WAIT_NATIVE_PAUSED",""};
+ assert(route_observed(&b,0,0,1,0,XZ_USB_OK).state==XZ_EXTRA_ROUTE_WAITING_NATIVE_STOP);
+ strcpy(b.reason,"LOOPBACK_MOVED");assert(route_observed(&b,0,0,1,0,XZ_USB_OK).state==XZ_EXTRA_ROUTE_STARTING);
+ strcpy(b.reason,"WAIT_LOOPBACK");assert(route_observed(&b,0,0,1,0,XZ_USB_OK).state==XZ_EXTRA_ROUTE_LOST);
+ strcpy(b.reason,"ROUTE_DISCONNECTED");assert(route_observed(&b,0,0,1,0,XZ_USB_OK).state==XZ_EXTRA_ROUTE_LOST);
  assert(route_bridge_parse(ready_json,&b));strcpy(b.terminal,"TERMINATED_SIGNAL");
  assert(route_observed(&b,1,0,1,0,XZ_USB_OK).state==XZ_EXTRA_ROUTE_FAILED);
  assert(route_observed(&b,1,1,1,3,XZ_USB_OK).state==XZ_EXTRA_ROUTE_READY);

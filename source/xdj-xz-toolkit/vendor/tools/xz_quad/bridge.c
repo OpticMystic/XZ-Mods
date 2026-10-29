@@ -801,6 +801,45 @@ static int route_binding_check(struct route_binding *binding)
     return 0;
 }
 
+/* The unit (boot and network identity) is fixed for the helper's lifetime; the cable's port is not. Once the route
+ * is applied, a replug, a slow enumeration or a move to the other top port is handled by the active loop. */
+static int route_unit_check(struct route_binding *binding)
+{
+    struct observation unit;
+    memset(&unit, 0, sizeof(unit));
+    if (binding->state == BINDING_ACTIVE && unit_identity(&unit) &&
+        !memcmp(&unit, &binding->unit, sizeof(unit))) return 1;
+    binding->state = BINDING_RETIRED;
+    return 0;
+}
+
+/* The firmware's own short-lived children carry its name until they exec, so one extra "rbp" is not a new
+ * application. Only a set that stays wrong for over half a second ends the helper. */
+static int debounce_wait(int milliseconds);
+static int process_set_settled(pid_t pid)
+{
+    for (unsigned i = 0; i < 3; i++) {
+        if (process_set(pid)) return 1;
+        if (i < 2 && !debounce_wait(300)) return 0;
+    }
+    return 0;
+}
+
+/* The loopback hub left the selected top port and sits alone in the other one. */
+static int loopback_moved(unsigned loopback_port)
+{
+    const struct xz_quad_port *selected = xz_quad_port(loopback_port), *other = xz_quad_port(3 - loopback_port);
+    return selected && other &&
+        !(attribute(selected->usb, "idVendor", "2b73") && attribute(selected->usb, "idProduct", "002e")) &&
+        attribute(other->usb, "idVendor", "2b73") && attribute(other->usb, "idProduct", "002e");
+}
+
+/* RETRY on the player writes this marker; the helper answers it on its next pass. */
+static int retry_requested(void)
+{
+    return unlink(RUN "/retry") == 0;
+}
+
 static enum admission_result route_binding_admit(struct route_binding *binding, struct native *native)
 {
     if (binding->state != BINDING_NEW) { binding->reason = "FATAL_BINDING_NOT_NEW"; return ADMIT_FATAL; }
@@ -940,9 +979,11 @@ static int service_music_hub(struct native *native, struct route_binding *bindin
     if (!scan_music_hub(&fresh, 3 - loopback_port) || memcmp(&music, &fresh, sizeof(music))) {
         *reason = "WAIT_MUSIC_HUB"; return 1;
     }
-    if (!native_alive(native) || !process_set(native->pid) || !route_binding_check(binding)) {
+    if (!native_alive(native) || !process_set_settled(native->pid) || !route_unit_check(binding)) {
         *reason = "TERMINATED_ROUTE_IDENTITY"; return 0;
     }
+    struct device loopback;
+    if (scan_device(&loopback, loopback_port)) { *reason = "WAIT_MUSIC_HUB"; return 1; }
     if (!native_stopped(native)) { *reason = "WAIT_MUSIC_HUB_PAUSED"; return 1; }
     if (!music_inventory(3 - loopback_port, reason)) return 1;
     if (!module_owns_hub(MODULE "parameters/music_hub_devnum", fresh.number, loopback_port)) {
@@ -1162,7 +1203,8 @@ admission:
         if (stopping) { reason = "TERMINATED_SIGNAL"; goto done; }
         if (access(RUN "/stop", F_OK) == 0) { reason = "TERMINATED_STOP_MARKER"; goto done; }
         if (!native_alive(native)) { reason = "TERMINATED_NATIVE_END_OR_IDENTITY_CHANGE"; goto done; }
-        if (!process_set(native->pid)) { reason = "TERMINATED_PROCESS_SET_CHANGE"; failed = 1; goto done; }
+        if (!process_set_settled(native->pid)) { reason = "TERMINATED_PROCESS_SET_CHANGE"; failed = 1; goto done; }
+        (void)retry_requested(); /* every pass of this loop is already a fresh check */
         if (!native_decks_ready(native)) { state_log("WAIT_NATIVE_DECKS"); event_wait(events, 500); continue; }
         if (binding->state == BINDING_NEW) {
             if (!native_stopped(native)) { state_log("WAIT_NATIVE_PAUSED"); event_wait(events, 1000); continue; }
@@ -1175,7 +1217,11 @@ admission:
                 continue;
             }
         }
-        if (!route_binding_check(binding)) { reason = "TERMINATED_ROUTE_IDENTITY"; failed = 1; goto done; }
+        if (!route_binding_check(binding)) {
+            /* The cable moved or is still settling before the route was applied: admit it again from scratch. */
+            memset(binding, 0, sizeof(*binding));
+            state_log("WAIT_LOOPBACK"); event_wait(events, 300); continue;
+        }
         loopback_port = binding->loopback_port;
         if (!music_inventory(3 - loopback_port, &binding->reason)) {
             state_log(binding->reason); event_wait(events, 1000); continue;
@@ -1196,22 +1242,52 @@ admission:
     if (!debounce_wait(300)) { reason = stopping ? "TERMINATED_SIGNAL" : access(RUN "/stop", F_OK) == 0 ? "TERMINATED_STOP_MARKER" : "TERMINATED_ADMISSION_DEBOUNCE_FAILURE"; goto done; }
     /* Repeat all admission guards before metadata-only existing-hub adoption. */
     if (stopping || access(RUN "/stop", F_OK) == 0 || !native_alive(native) ||
-        !native_stopped(native) || !admission_loopback_safe(loopback_port) || !process_set(native->pid) ||
+        !native_stopped(native) || !admission_loopback_safe(loopback_port) || !process_set_settled(native->pid) ||
         !route_binding_check(binding) || !music_inventory(3 - loopback_port, &binding->reason) ||
         access(MODULE, F_OK) == 0 || access(NODE, F_OK) == 0) goto admission;
     if (!command("/sbin/insmod", module, "apply=1", "adopt_existing=1", port_option, "music_hubs=1")) { reason = "TERMINATED_APPLY_LOAD_FAILURE"; failed = 1; goto done; }
     loaded = 1;
     state_log("WAIT_LOOPBACK");
     while (!stopping && native_alive(native) && access(RUN "/stop", F_OK) != 0) {
-        if (!process_set(native->pid)) { reason = "TERMINATED_PROCESS_SET_CHANGE"; failed = 1; break; }
-        if (!route_binding_check(binding)) { reason = "TERMINATED_ROUTE_IDENTITY"; failed = 1; break; }
+        if (!process_set_settled(native->pid)) { reason = "TERMINATED_PROCESS_SET_CHANGE"; failed = 1; break; }
+        if (!route_unit_check(binding)) { reason = "TERMINATED_ROUTE_IDENTITY"; failed = 1; break; }
+        if (retry_requested()) {
+            /* RETRY: try a failed bind again without a replug. Every bind guard below still runs. */
+            route.bind_attempted = 0;
+            memset(&music_attempt, 0, sizeof(music_attempt));
+        }
         const char *music_reason;
         if (!service_music_hub(native, binding, &music_attempt, &music_reason)) {
             reason = music_reason; failed = 1; break;
         }
         if (music_reason && !status_route_ready) state_log(music_reason);
         struct device device;
-        if (scan_device(&device, loopback_port)) { reason = "TERMINATED_SCAN_FAILURE"; failed = 1; break; }
+        if (scan_device(&device, loopback_port)) {
+            /* A replug still enumerating, or the cable moved to the other top port. Neither ends the helper. */
+            if (route.published.number) {
+                if (!remove_node(&route)) { reason = "TERMINATED_NODE_REMOVE_FAILURE"; failed = 1; break; }
+                status_route_ready = 0;
+                state_log("ROUTE_DISCONNECTED");
+            }
+            int moved = loopback_moved(loopback_port);
+            unsigned long references;
+            if (moved && number_file(MODULE "refcnt", &references) && !references) {
+                /* The module holds no hub any more: unload it and admit the cable in its new port from scratch,
+                 * as a fresh helper would. */
+                state_log("LOOPBACK_MOVED");
+                if (!command("/sbin/rmmod", "xz_hub_depth", NULL, NULL, NULL, NULL)) {
+                    reason = "TERMINATED_REARM_UNLOAD_FAILURE"; failed = 1; break;
+                }
+                loaded = 0;
+                memset(&route, 0, sizeof(route));
+                memset(&music_attempt, 0, sizeof(music_attempt));
+                memset(binding, 0, sizeof(*binding));
+                goto admission;
+            }
+            state_log(moved ? "LOOPBACK_MOVED" : "WAIT_LOOPBACK_SETTLING");
+            event_wait(events, 300);
+            continue;
+        }
         enum action action = next_action(&route, &device, 1);
         if (action == CLEAR) {
             if (!remove_node(&route)) { reason = "TERMINATED_NODE_REMOVE_FAILURE"; failed = 1; break; }
@@ -1225,9 +1301,9 @@ admission:
             struct device fresh;
             if (scan_device(&fresh, loopback_port) || !same_hub(&fresh, &device)) continue;
             if (!native_alive(native)) { reason = "TERMINATED_NATIVE_END_OR_IDENTITY_CHANGE"; failed = 1; break; }
-            if (!process_set(native->pid)) { reason = "TERMINATED_PROCESS_SET_CHANGE"; failed = 1; break; }
+            if (!process_set_settled(native->pid)) { reason = "TERMINATED_PROCESS_SET_CHANGE"; failed = 1; break; }
             if (!native_stopped(native)) { state_log("WAIT_NATIVE_PAUSED"); event_wait(events, 300); continue; }
-            if (!route_binding_check(binding)) { reason = "TERMINATED_ROUTE_IDENTITY"; failed = 1; break; }
+            if (!route_unit_check(binding)) { reason = "TERMINATED_ROUTE_IDENTITY"; failed = 1; break; }
             if (!music_inventory(3 - loopback_port, &binding->reason)) {
                 state_log(binding->reason); event_wait(events, 300); continue;
             }
@@ -1241,11 +1317,11 @@ admission:
             route.bind_attempted = 1;
             route.bound = fresh;
             if (!write_text("/sys/bus/usb/drivers/hub/bind", interface, 0)) {
-                state_log("BIND_FAILED; disconnect loopback to retry");
+                state_log("BIND_FAILED; press RETRY or reconnect loopback");
             } else state_log("WAIT_AUDIO_DEVICE");
         } else if (action == PUBLISH) {
             if (!native_alive(native)) { reason = "TERMINATED_NATIVE_END_OR_IDENTITY_CHANGE"; failed = 1; break; }
-            if (!route_binding_check(binding)) { reason = "TERMINATED_ROUTE_IDENTITY"; failed = 1; break; }
+            if (!route_unit_check(binding)) { reason = "TERMINATED_ROUTE_IDENTITY"; failed = 1; break; }
             if (mknod(NODE, S_IFCHR | 0600, makedev(189, 127 + device.number))) { reason = "TERMINATED_NODE_WRITE_FAILURE"; failed = 1; break; }
             route.published = device;
             status_route_ready = 1;

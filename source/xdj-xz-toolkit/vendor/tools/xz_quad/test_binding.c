@@ -35,6 +35,7 @@ static char last_bind[32];
 static uint32_t fixture_engine, fixture_begin, fixture_end, fixture_players[2];
 static uint16_t fixture_flags[2];
 static unsigned slot_reads, range_reads, torn_read, lifecycle, event_waits, ready_waits, node_creates, node_removes;
+static unsigned lifecycle_port=1, settle_waits, retry_waits;
 static unsigned native_deck_waits, native_pause_waits;
 static int m_command(const char *,const char *,const char *,const char *,const char *,const char *);
 static int m_event_socket(void);
@@ -630,10 +631,11 @@ static int m_command(const char *program,const char *arg,const char *option,cons
     CHECK(lifecycle);
     if(!strcmp(program,"/sbin/insmod")) {
         CHECK(!strcmp(arg,"/dev/shm/helper/xz_hub_depth.ko"));CHECK(!find(MODULE));
-        if(!strcmp(option,"apply=0")){CHECK(!strcmp(extra,"loopback_port=1"));CHECK(!strcmp(selection,"music_hubs=1"));CHECK(!music);}
-        else {CHECK(!strcmp(option,"apply=1"));CHECK(!strcmp(extra,"adopt_existing=1"));CHECK(!strcmp(selection,"loopback_port=1"));CHECK(!strcmp(music,"music_hubs=1"));}
+        char port[32];snprintf(port,sizeof(port),"loopback_port=%u",lifecycle_port);
+        if(!strcmp(option,"apply=0")){CHECK(!strcmp(extra,port));CHECK(!strcmp(selection,"music_hubs=1"));CHECK(!music);}
+        else {CHECK(!strcmp(option,"apply=1"));CHECK(!strcmp(extra,"adopt_existing=1"));CHECK(!strcmp(selection,port));CHECK(!strcmp(music,"music_hubs=1"));}
         txt(MODULE,"");txt(MODULE "refcnt","0");
-        if(!strcmp(option,"apply=1"))module_fixture(1,0);
+        if(!strcmp(option,"apply=1"))module_fixture(lifecycle_port,0);
     } else {
         CHECK(!strcmp(program,"/sbin/rmmod")&&!strcmp(arg,"xz_hub_depth"));
         CHECK(!option&&!extra&&!selection&&!music);CHECK(find(MODULE)!=NULL);hide_prefix(MODULE);
@@ -642,7 +644,18 @@ static int m_command(const char *program,const char *arg,const char *option,cons
 }
 static void m_event_wait(int fd,int ms) {
     CHECK(lifecycle&&fds[fd].used&&++event_waits<40);
-    if(*status_terminal) { hide_prefix(USB "2-1.2");txt(MODULE "refcnt","0");return; }
+    if(*status_terminal) { hide_prefix(USB "2-1.2");if(lifecycle==17)hide_prefix(USB "2-1.1");txt(MODULE "refcnt","0");return; }
+    if(equals(RUN "/status","WAIT_LOOPBACK_SETTLING")) {
+        /* Scenario 18: the replugged hub reports full speed for one pass, then settles. */
+        CHECK(lifecycle==18&&++settle_waits==1&&ms==300&&!find(NODE));txt(USB "2-1.2/speed","480");return;
+    }
+    if(equals(RUN "/status","LOOPBACK_MOVED")) { CHECK(0); }
+    if(equals(RUN "/status","BIND_FAILED; press RETRY or reconnect loopback")) {
+        /* Scenario 19: nothing happens until RETRY writes its marker; then the bind runs again. */
+        CHECK(lifecycle==19&&!find(NODE));
+        if(++retry_waits==2){fault=0;txt(RUN "/retry","");}
+        return;
+    }
     if(equals(RUN "/status","WAIT_NATIVE_DECKS")) {
         native_deck_waits++;
         CHECK(ms==500&&!bind_writes&&!find(MODULE));
@@ -652,14 +665,20 @@ static void m_event_wait(int fd,int ms) {
     }
     if(equals(RUN "/status","WAIT_NATIVE_PAUSED")) {
         native_pause_waits++;
-        CHECK(!bind_writes&&!node_creates);
+        CHECK(lifecycle==17?!find(NODE):(!bind_writes&&!node_creates));
         fixture_flags[0]=fixture_flags[1]=0;fixture_players[0]=fixture_players[1]=0;return;
     }
     if(!status_route_ready)return;
-    CHECK(find(NODE)!=NULL&&node_creates==1&&!node_removes);
+    CHECK(find(NODE)!=NULL&&node_creates==1u+(unsigned)(ready_waits&&(lifecycle==17||lifecycle==18))&&node_removes==node_creates-1);
     ready_waits++;
     if(ready_waits==1) {
         fixture_players[0]=0x40000;fixture_flags[0]=0x100;
+        if(lifecycle==17) {
+            /* The cable moves from USB 1 to USB 2; its old hub and its module references are gone. */
+            hide_prefix(USB "2-1.2");mock_loopback(2,0,0);txt(MODULE "refcnt","0");
+            lifecycle_port=2;fixture_music_port=1;
+        }
+        if(lifecycle==18)txt(USB "2-1.2/speed","12");
         if(lifecycle==9||(lifecycle>=11&&lifecycle<=13)){fixture_begin=0x30100;fixture_end=fixture_begin+8;}
     } else if(ready_waits==2) {
         /* A loaded, now playing deck keeps the already-published route. */
@@ -777,9 +796,11 @@ static void native_slot_tests(void) {
     puts("PASS wrong runtime signature/field still REFUSED_NATIVE_RUNTIME before deck admission");
 }
 static void native_lifecycle_tests(void) {
-    for(unsigned scenario=1;scenario<=16;scenario++) {
+    for(unsigned scenario=1;scenario<=19;scenario++) {
         fixture_port(2);txt("/proc/self/mountinfo",no_music_mounts);mock_loopback(1,0,0);
         lifecycle=scenario;fixture_players[0]=fixture_players[1]=0;
+        lifecycle_port=1;settle_waits=retry_waits=0;
+        if(scenario==19)fault=9;
         if(scenario==2)fixture_engine=0;
         if(scenario==3){fixture_players[1]=0x50000;fixture_flags[1]=0x100;}
         if(scenario==8)fixture_players[0]=1;
@@ -795,9 +816,12 @@ static void native_lifecycle_tests(void) {
         int result=bridge_unused_main(3,args);
         if(result!=(scenario==7))fprintf(stderr,"scenario=%u result=%d terminal=%s\n",scenario,result,status_terminal);
         CHECK(result==(scenario==7));
-        CHECK(ready_waits==2&&node_creates==1&&node_removes==1&&bind_writes==1);
+        unsigned republished=scenario==17||scenario==18;
+        CHECK(ready_waits==2&&node_creates==1+republished&&node_removes==1+republished);
+        CHECK(bind_writes==1u+(unsigned)(scenario==17||scenario==19));
+        CHECK(settle_waits==(unsigned)(scenario==18)&&retry_waits==2u*(unsigned)(scenario==19));
         CHECK(native_deck_waits==(scenario==2));
-        CHECK(native_pause_waits==(scenario==3||scenario==8||scenario==15||scenario==16));
+        CHECK(native_pause_waits==(scenario==3||scenario==8||scenario==15||scenario==16||scenario==17));
         CHECK(!find(NODE)&&!find(RUN "/bridge.pid")&&!find(MODULE));
         const char *reason=scenario>=4&&scenario<=6?"TERMINATED_NATIVE_END_OR_IDENTITY_CHANGE":
             scenario==7?"TERMINATED_PROCESS_SET_CHANGE":"TERMINATED_STOP_MARKER";
@@ -805,7 +829,8 @@ static void native_lifecycle_tests(void) {
         CHECK(strstr((char *)find(RUN "/status.json")->bytes,reason)!=NULL);
         for(unsigned i=3;i<128;i++)CHECK(!fds[i].used);
     }
-    puts("PASS real main/run_bridge: boot cable + empty decks publishes; delayed decks retry; playing/invalid wait; loading keeps route; process/engine/range restart terminates");
+    fault=0;lifecycle_port=1;
+    puts("PASS real main/run_bridge: boot cable + empty decks publishes; delayed decks retry; playing/invalid wait; loading keeps route; process/engine/range restart terminates; cable moved to the other port, settling replug and RETRY after a failed bind recover");
 }
 
 int main(void) {

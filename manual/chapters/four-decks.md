@@ -45,7 +45,7 @@ One USB-B to USB-A cable runs from the rear USB socket over the back edge into a
 7. Wait for **DECKS 3 AND 4 ARE READY**. The card in the lanes of decks 3 and 4 tells you each step it is waiting for.
 8. Press [[SHIFT]] twice on the left side to play deck 3, or on the right side to play deck 4.
 
-Decks 3 and 4 start as soon as the cable is in, even when decks 1 and 2 have no tracks loaded. You can leave the cable connected before starting the USB loader. No **RESCAN** is needed. Decks 1 and 2 must be stopped or paused while the route starts. **RESCAN** checks at once if you want to check again. After a disconnection, reconnect the cable to the same top port. To move it to the other port, stop playback and restart the USB loader first.
+Decks 3 and 4 start as soon as the cable is in, even when decks 1 and 2 have no tracks loaded. You can leave the cable connected before starting the USB loader. No **RESCAN** is needed. Decks 1 and 2 must be stopped or paused while the route starts. **RESCAN** checks at once if you want to check again. After a disconnection, plug the cable back into either top port. Decks 3 and 4 come back once decks 1 and 2 are stopped or paused; the card says when it is waiting for that. No restart of the USB loader is needed, also when you move the cable to the other port.
 
 > **Note.** The [XZ Mods app](desktop-app#four-decks-in-the-app) shows steps 2 to 5 with an animation of the cable while it writes your USB and when it is done. You set four decks up at the player, not in the app.
 
@@ -120,8 +120,8 @@ You can drive the card with the encoder. While the card shows, push the encoder 
 | LOOKING FOR THE CABLE... | A check runs now. The button reads **SCANNING**. | Wait a moment. |
 | STARTING DECKS 3 AND 4 | The cable is found and the audio input is starting. | Wait a few seconds. The card's sentence says which step is running. |
 | STOP DECKS 1 AND 2 | Decks 3 and 4 or a newly connected music hub wait for decks 1 and 2 to stop. | Stop or pause decks 1 and 2. The card changes by itself. |
-| COULD NOT START DECKS 3 AND 4 | The start failed. The picture marks the type of connection that needs attention: top USB, cable, rear socket or CH3/CH4 switches. The drawn port is an example. | Read the sentence, fix that part, then press **TRY AGAIN**. |
-| DECKS 3 AND 4 DISCONNECTED | The cable was unplugged or lost power while decks 3 and 4 ran. | Plug the cable back into the same top port and press **RESCAN**. |
+| COULD NOT START DECKS 3 AND 4 | The start failed. The picture marks the type of connection that needs attention: top USB, cable, rear socket or CH3/CH4 switches. The drawn port is an example. | Read the sentence, fix that part, then press **TRY AGAIN**. It tries the start again, and restarts the four-deck helper if it had stopped. |
+| DECKS 3 AND 4 DISCONNECTED | The cable was unplugged or lost power while decks 3 and 4 ran. | Plug the cable back into either top port. Press **RESCAN** to check at once. |
 | FOUR DECKS ARE NOT AVAILABLE | The software players are not running in this build. Decks 1 and 2 play as usual. | Press **TWO DECKS**. |
 | DECKS 3 AND 4 ARE READY | The route came up. The card turns green, then wipes away. | Press [[SHIFT]] twice on a side to play deck 3 or 4. |
 
@@ -142,17 +142,9 @@ When the route comes up, a banner says **DECKS 3 AND 4 ARE READY** for a few sec
 
 ### The E-8307 hub warning {experimental}
 
-The player sees the loopback cable as a USB hub. When you plug it in, the player raises its own warning **E-8307: HUBS ARE NOT SUPPORTED** and keeps it up while the cable stays in. That is not an error, so XZ Mods never shows it, whether four decks are on or not.
+The player sees the loopback cable as a USB hub. When you plug it in, the player raises its own warning **E-8307: HUBS ARE NOT SUPPORTED** and would keep it up while the cable stays in. That is not an error. XZ Mods removes the warning window as soon as the player draws it, so it does not stay on screen in MODERN, MODS or CLASSIC, whether four decks are on or not.
 
-- MODERN and MODS show nothing and keep working as usual.
-- In CLASSIC the player's own warning window turns into a calm card: **LOOPBACK CABLE CONNECTED**, **USED BY DECKS 3 AND 4 · NOT AN ERROR**.
-
-```gallery {classic}
-classic:hub-card The player's window with the loopback cable in
-classic:hub-card-large The same card in a larger window
-```
-
-The warning can also appear when you connect a music hub. With the loopback cable connected, stop or pause decks 1 and 2 and let the music hub finish connecting. A hub in the loopback port, a second hub behind the first, or a hub that does not support high-speed USB 2.0 is not supported. Remove that hub or connect the music stick directly.
+A music hub the player refuses raises the same warning, and XZ Mods removes it too. If the sticks on a music hub do not appear, stop or pause decks 1 and 2 with the loopback cable connected and let the music hub finish connecting. A hub in the loopback port, a second hub behind the first, or a hub that does not support high-speed USB 2.0 is not supported. Remove that hub or connect the music stick directly.
 
 ## DECK VIEW
 

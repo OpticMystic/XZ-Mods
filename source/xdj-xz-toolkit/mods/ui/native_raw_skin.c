@@ -9,6 +9,8 @@
 #include "../stock_dialog.h"
 #pragma weak xz_stock_usb_hub_at
 #pragma weak xz_hub_card_draw
+#pragma weak xz_log
+#include <stdio.h>
 
 extern int xz_native_skin_on_owner_thread(void);
 #define CACHE_COUNT 32
@@ -98,10 +100,59 @@ static int destroy_hook(void *gr){
  if(pending.d.gr==(uintptr_t)gr)memset(&pending,0,sizeof(pending));
  leave();return original_destroy(gr);
 }
+/* The E-8307 hub window never stays on screen (owner, 2026-10-29: eliminate it completely). The loopback cable raises
+   it and the player keeps it up while the cable is in. ui_com_DrawCautionStatus / ui_com_DrawCautionBrowse ask
+   their check function for the current caution ID, then draw its window. When a drawn window's text is the hub text,
+   its ID is remembered and the window destroyed at once, as the player itself does for a cleared caution (destroy,
+   then zero the handle); from then on that ID is never drawn. Every other caution draws as before. */
+struct caution_draw {
+ uint32_t entry;unsigned char guard[8];
+ uint32_t (*check)(void);   /* Ui_CautionIDCheck_Status / _Browse: locks, applies the timeout, returns the ID */
+ uint32_t *cell;            /* stiCautionStatusWinID / the browse window handle */
+ uint32_t text;             /* sCautionStatusString / sCautionBrowseString */
+ uint32_t (*original)(uint32_t,uint32_t,uint32_t,uint32_t);
+ uint32_t hub[8];unsigned hubs;
+};
+static struct caution_draw cautions[2]={
+ {0x147f08,{0xf0,0x4f,0x2d,0xe9,0xa4,0xd0,0x4d,0xe2},(uint32_t (*)(void))(uintptr_t)0xe1c6c,
+  (uint32_t *)(uintptr_t)0x1adaea4,XZ_STOCK_STATUS_TEXT,NULL,{0},0},
+ {0x146fcc,{0xf0,0x4f,0x2d,0xe9,0x04,0x8b,0x2d,0xed},(uint32_t (*)(void))(uintptr_t)0xe1d44,
+  (uint32_t *)(uintptr_t)0x1adae30,XZ_STOCK_BROWSE_TEXT,NULL,{0},0}
+};
+/* The hooked entry, so destroy_hook forgets the window too. */
+static int (*caution_destroy)(void *)=(int (*)(void *))(uintptr_t)0x1576a0;
+static int caution_hub(const struct caution_draw *c,uint32_t id){
+ for(unsigned i=0;i<c->hubs;i++)if(c->hub[i]==id)return 1;
+ return 0;
+}
+static void caution_hide(struct caution_draw *c){
+ uint32_t window=*c->cell;
+ if(window&&!caution_destroy((void *)(uintptr_t)window))*c->cell=0;
+}
+static uint32_t caution_draw(struct caution_draw *c,uint32_t a,uint32_t b,uint32_t d,uint32_t e){
+ uint32_t id=c->check();
+ if(id&&caution_hub(c,id)){caution_hide(c);return 0;}
+ uint32_t result=c->original(a,b,d,e);
+ if(id&&*c->cell&&c->hubs<8&&c->check()==id&&xz_stock_usb_hub_at&&xz_stock_usb_hub_at(xz_read_memory,c->text)){
+  c->hub[c->hubs++]=id;caution_hide(c);
+  void (*log)(const char *)=xz_log;
+  if(log){char line[96];snprintf(line,sizeof line,"STOCK_DIALOG: E-8307 hub window id=%u removed; never shown again",(unsigned)id);log(line);}
+ }
+ return result;
+}
+static uint32_t status_draw_hook(uint32_t a,uint32_t b,uint32_t d,uint32_t e){return caution_draw(&cautions[0],a,b,d,e);}
+static uint32_t browse_draw_hook(uint32_t a,uint32_t b,uint32_t d,uint32_t e){return caution_draw(&cautions[1],a,b,d,e);}
 int xz_native_raw_skin_start(int (*lock)(void *,void **,int *),int (*unlock)(void *)){
  static const unsigned char guard[8]={0x38,0x40,0x2d,0xe9,0x00,0x40,0xa0,0xe1};
  if(!lock||!unlock)return -1;
  if(!original_destroy&&xz_hook_arm(0x1576a0,guard,(void *)destroy_hook,(void **)&original_destroy))return -1;
+ for(unsigned i=0;i<2;i++){
+  struct caution_draw *c=&cautions[i];
+  if(!c->original&&xz_hook_arm(c->entry,c->guard,i?(void *)browse_draw_hook:(void *)status_draw_hook,(void **)&c->original)){
+   void (*log)(const char *)=xz_log;
+   if(log)log("STOCK_DIALOG: caution draw hook unavailable; the hub window keeps the calm card");
+  }
+ }
  original_lock=lock;original_unlock=unlock;return 0;
 }
 void xz_native_raw_skin_locked(void *gr,void **pixels,int *pitch,uintptr_t caller,int result){

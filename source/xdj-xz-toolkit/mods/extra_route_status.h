@@ -43,7 +43,10 @@ static const struct route_reason route_reasons[] = {
  RR("MUSIC_READY",STARTING,NONE,"The music drive is ready and the audio route is starting."),
  RR("READY_CH3_CH4",STARTING,NONE,"The audio route was found; waiting for decks 3 and 4 to connect."),
  RR("ROUTE_DISCONNECTED",NOT_DETECTED,CABLE,"The loopback cable is no longer detected."),
- RR("BIND_FAILED; disconnect loopback to retry",FAILED,CABLE,"The cable could not connect; disconnect it briefly before trying again."),
+ RR("BIND_FAILED; press RETRY or reconnect loopback",FAILED,CABLE,"The cable could not connect; press RETRY, or reconnect the cable."),
+ RR("WAIT_LOOPBACK_SETTLING",STARTING,CABLE,"The loopback cable is connecting."),
+ RR("LOOPBACK_MOVED",STARTING,CABLE,"The loopback cable moved to the other top USB port; switching to it."),
+ RR("TERMINATED_REARM_UNLOAD_FAILURE",FAILED,NONE,"The four-deck helper could not switch to the other top port."),
  RR("STOP_PENDING_DISCONNECT; module retained, no force unload",FAILED,CABLE,"The four-deck helper is stopping; disconnect the loopback cable."),
  RR("STOPPED",FAILED,NONE,"The four-deck helper has stopped."),
  RR("STOPPED_WITH_ERROR",FAILED,NONE,"The four-deck helper stopped before the audio route could start."),
@@ -192,6 +195,8 @@ static struct xz_extra_route_status route_observed(const struct route_bridge *b,
  int ever_up,unsigned faults,xz_usb_result refused) {
  if(up)return route_message(XZ_EXTRA_ROUTE_READY,XZ_EXTRA_ROUTE_PART_NONE,"Decks 3 and 4 are ready.");
  if(b->valid&&b->terminal[0])return route_reason_map(b->terminal,1);
+ /* After a replug the helper's own reason (stop decks 1 and 2, the cable is connecting, ...) says what to do next. */
+ if(ever_up&&b->valid&&strcmp(b->reason,"WAIT_LOOPBACK")&&strcmp(b->reason,"ROUTE_DISCONNECTED"))return route_reason_map(b->reason,0);
  if(ever_up)return route_message(XZ_EXTRA_ROUTE_LOST,XZ_EXTRA_ROUTE_PART_CABLE,"The audio route was disconnected; check the loopback cable.");
  if(faults>=3)return route_message(XZ_EXTRA_ROUTE_FAILED,XZ_EXTRA_ROUTE_PART_SOCKET,"The audio connection has failed repeatedly; check the cable and audio input.");
  if(refused==XZ_USB_BUSY)return route_message(XZ_EXTRA_ROUTE_FAILED,XZ_EXTRA_ROUTE_PART_SOCKET,"The audio input is busy; close the application that is using it.");

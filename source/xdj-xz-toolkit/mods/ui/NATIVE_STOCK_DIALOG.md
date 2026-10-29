@@ -148,11 +148,23 @@ ordinary live window.
 
 The hub window is never an error (owner, 2026-10-28: eliminate it, it is no
 longer relevant). Nothing says it: no dock strip, no play-screen notice, in any
-route state. In CLASSIC the player's own window shows a calm LOOPBACK CABLE
-CONNECTED card for as long as it is up. (Until 2026-10-28 the warning came back
-after a 3 s settle when the decks 3 and 4 route did not prove the cable.)
+route state. (Until 2026-10-28 the warning came back after a 3 s settle when the
+decks 3 and 4 route did not prove the cable.)
 
-The CLASSIC card uses the existing caution-window skin path
+The window itself is removed (owner, 2026-10-29: CLASSIC still showed the
+banner; eliminate it completely). `native_raw_skin.c` hooks
+`ui_com_DrawCautionStatus` (`0x147f08`) and `ui_com_DrawCautionBrowse`
+(`0x146fcc`); both prologues are relocatable and pinned in `xz_hook_arm`. Each
+draw first asks the family's own check (`0xe1c6c` / `0xe1d44`, which also
+applies the stock timeout) for the current caution ID. After a draw whose window
+text is the hub text (`xz_stock_usb_hub_at`) and whose ID did not change, that ID
+is remembered for the boot and the window is destroyed the way the player clears
+a caution: `0x1576a0` (through `destroy_hook`), then the handle cell
+(`0x01adaea4` / `0x01adae30`) is zeroed. A remembered ID is never drawn again
+while it stays current. Every other ID draws unchanged. If either hook cannot
+arm, the calm card below remains the fallback.
+
+The fallback CLASSIC card uses the existing caution-window skin path
 (`native_raw_skin.c` kind 2, the GR lock/unlock pair the theme recolour already
 uses). At unlock it reads the window's own text buffer (browse callers
 `0x147bc0`/`0x147dec`, status caller `0x148444`) with the observer's exact

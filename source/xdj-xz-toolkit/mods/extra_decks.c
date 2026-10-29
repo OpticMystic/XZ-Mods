@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/sysmacros.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 #ifdef XZ_JOG_DISPLAY_PROOF
@@ -465,6 +466,32 @@ static void route_check_status(int node,xz_usb_result refused,unsigned attempted
  route_status_publish(route_observed(&b,node,up,route_ever_up,route_faults,refused),now,up);
  route_scan_finish(now,attempted);
 }
+/* RETRY. A running four-deck helper takes the marker as "check and bind again now"; a helper that has stopped is
+   started again with the loader's own launch script (detach + run.sh, staged by the orchestrator for this rbp).
+   Connector thread only. The new helper repeats every check of a first start, and a second one refuses itself. */
+#ifndef XZ_EXTRA_AUTO_DIR
+#define XZ_EXTRA_AUTO_DIR XZ_EXTRA_SHM_DIR "/xz-auto-4bb9db00a2ab"
+#endif
+static int route_root_file(const char *path) {
+ struct stat st;
+ return !lstat(path,&st)&&S_ISREG(st.st_mode)&&!st.st_uid&&!(st.st_mode&022);
+}
+static void route_bridge_retry(void) {
+ int fd=open(XZ_EXTRA_SHM_DIR "/xz-four-deck/retry",O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC,0600);
+ if(fd>=0)close(fd);
+ if(route_bridge_read(XZ_EXTRA_SHM_DIR "/xz-four-deck",XZ_EXTRA_PROC_DIR).valid)return;
+ if(!access(XZ_EXTRA_SHM_DIR "/xz-four-deck/stop",F_OK))return;
+ static const char detach[]=XZ_EXTRA_AUTO_DIR "/detach",script[]=XZ_EXTRA_AUTO_DIR "/run.sh";
+ if(!route_root_file(detach)||!route_root_file(script))return;
+ char *const argv[]={(char *)detach,(char *)script,NULL};
+ char *const envp[]={(char *)"PATH=/sbin:/usr/sbin:/bin:/usr/bin",NULL};
+ pid_t child=vfork();
+ if(!child){execve(detach,argv,envp);_exit(127);}
+ int status=0;
+ if(child>0)while(waitpid(child,&status,0)<0&&errno==EINTR){}
+ xz_log(child>0&&WIFEXITED(status)&&!WEXITSTATUS(status)?"DECK 3/4 route: RETRY started the four-deck helper again":
+        "DECK 3/4 route: RETRY could not start the four-deck helper");
+}
 static void rest(unsigned ms) {
  pthread_mutex_lock(&route_wake_lock);
  unsigned scanning=__atomic_load_n(&route_scan,__ATOMIC_ACQUIRE);
@@ -498,6 +525,7 @@ static void *connector(void *unused) {
   unsigned attempted=__atomic_load_n(&route_scan,__ATOMIC_ACQUIRE);
   if (route.closing) { close_route(); route_check_status(0,XZ_USB_OK,attempted); rest(POLL_DOWN_MS); continue; }
   if (!route.usb) {
+   if(attempted==1)route_bridge_retry();
    char node[sizeof route.node];
    int node_found=find_node(node, sizeof node);
    if (node_found) {

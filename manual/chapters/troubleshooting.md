@@ -145,7 +145,7 @@ A player warning in the dock while MODS is open.
 
 ### E-8307: HUBS ARE NOT SUPPORTED
 
-The player sees the loopback cable for four decks as a hub. It raises **E-8307: HUBS ARE NOT SUPPORTED** or **E-8307: UNSUPPORTED DEVICE** and keeps it up while the cable is in. It is not an error, so XZ Mods never shows it: MODERN and MODS show nothing, and in CLASSIC the player's window turns into a calm **LOOPBACK CABLE CONNECTED** card. See [Four decks](four-decks#the-e-8307-hub-warning).
+The player sees the loopback cable for four decks as a hub. It raises **E-8307: HUBS ARE NOT SUPPORTED** or **E-8307: UNSUPPORTED DEVICE** and would keep it up while the cable is in. It is not an error. XZ Mods removes the window as soon as the player draws it, in MODERN, MODS and CLASSIC. See [Four decks](four-decks#the-e-8307-hub-warning).
 
 ## When settings cannot be saved
 
