@@ -1,6 +1,6 @@
 {
  "title": "The XZ Mods manual",
- "summary": "Every screen, control and setting XZ Mods adds to the XDJ-XZ, with pictures drawn by the firmware itself. Pick your interface at the top and the manual shows only what applies to you.",
+ "summary": "Every screen, control and setting XZ Mods adds to the XDJ-XZ. Pick your interface at the top and the manual shows only what applies to you.",
  "chapters": [
   {"slug": "getting-started", "group": "Start here", "title": "Getting started", "summary": "What XZ Mods changes on the XDJ-XZ, what you need, and your first start from a prepared USB."},
   {"slug": "hardware", "group": "Start here", "title": "Controls on the player", "summary": "Which buttons, pads and knobs do something new, and what each one does with XZ Mods running."},

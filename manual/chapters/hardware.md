@@ -44,7 +44,7 @@ The XDJ-XZ from above: the browse section with the touch screen at the top centr
 | [[LOAD]] | Loads the highlighted track into the deck that side controls: deck 1 or 3, deck 2 or 4. |
 | [[TIME MODE]], [[DECK QUANTIZE]] | Stock on decks 1 and 2. For decks 3 and 4, see [Quantize](performance#quantize) and [Four decks](four-decks). |
 
-A short press of [[MENU]] keeps the job the player's own firmware gives it wherever there is one. This table comes from the firmware itself:
+A short press of [[MENU]] keeps the job the player's own firmware gives it wherever there is one. What a short press does in each place:
 
 ```generated menu-key
 ```

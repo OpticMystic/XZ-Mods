@@ -37,7 +37,7 @@ SYNC and MASTER hand over cleanly between all four decks
 
 A visual Manual, a menu map, accurate button pictures and a cleaner app
 
-- The Manual shows the XDJ-XZ only as renders of a true-scale model and the screen only as the firmware draws it: step-by-step videos for four-deck setup, the sound path, RAM and USB, beat jump and SYNC.
+- The Manual has step-by-step videos for four-deck setup, the sound path, RAM and USB, beat jump and SYNC. The XDJ-XZ appears only as renders of a true-scale model.
 - Navigation videos beside the manual sections: the real screen next to the control you press, turn or tap, in step, so you can follow without reading the words.
 - A menu map in the Manual: every screen as a flow chart, with the control that opens each one, search, zoom and a link to the section that explains it.
 - Every button named in the app and the Manual is drawn as it looks on the player, lit and unlit.
@@ -70,7 +70,7 @@ Beta release candidate: four decks from either port, a Manual in the app, and fi
 - When the music USB goes out, a deck playing its whole track from RAM keeps playing and shows WHOLE TRACK IN RAM · PLAYABLE in place of its waveform.
 - The loopback cable no longer brings up an error. In CLASSIC the player's warning window becomes a calm LOOPBACK CABLE CONNECTED card.
 - In the four-deck view the STEMS button hides the stem buttons with one press and shows them with the next. A deck whose track has no stems shows no stem buttons and keeps its whole waveform.
-- The app has a Manual tab: every chapter with pictures drawn by the firmware, numbered points you can point at, search, and animated explainers for four-deck setup, SYNC, beat jump, 3-band waveforms, RAM tracks and the USB diary.
+- The app has a Manual tab: every chapter with pictures, numbered points you can point at, search, and animated explainers for four-deck setup, SYNC, beat jump, 3-band waveforms, RAM tracks and the USB diary.
 - Feedback has its own place at the foot of the app rail. Report a problem, request a feature or ask a question, and follow it in My reports. Reports sent from the XZ wait there for your words.
 - A new About page: what XZ Mods is, who makes it, links to the source, issues, releases and websites, plain disclaimers and the open-source licenses.
 - The USB guide no longer stops at four decks. Four decks are explained while the USB is written and on the final page, with the cable animation and a link to the Manual.

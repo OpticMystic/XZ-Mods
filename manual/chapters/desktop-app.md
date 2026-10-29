@@ -458,7 +458,7 @@ Four decks open in the Manual, at the video of how the sound of decks 3 and 4 re
 7 @ 998,335 Video | A clip rendered from a true-scale model of the XDJ-XZ shows how a feature works. It plays when it comes into view, and Play pauses it. A video in several steps also has arrows and numbered steps, and its caption follows the step.
 ```
 
-- **How-to videos.** Many sections show how to get there on the player: the screen as the firmware draws it, beside a true-scale picture of the key, rotary selector or pad you use, pressed in time with the screen. The steps under the video light up as it reaches them. Click a step to play from there. Where a section shows more than one way, the tabs above the steps switch between them.
+- **How-to videos.** Many sections show how to get there on the player: the player's screen, beside a true-scale picture of the key, rotary selector or pad you use, pressed in time with the screen. The steps under the video light up as it reaches them. Click a step to play from there. Where a section shows more than one way, the tabs above the steps switch between them.
 - **Numbers on pictures.** Point at a number, or tab to it and use the arrow keys, to light up that part of the picture and read what it is. **Play** steps through every number. The list under the picture says the same.
 - **Your interface.** Choose MODERN, CLASSIC or Both on the start page or at the foot of the chapter list. The manual then hides what does not apply to you. A MODS page drawn in both interfaces has a MODERN and CLASSIC switch on its picture.
 - **Where you stopped.** The manual remembers the chapter and section you read last. The start page offers **Continue where you left off**.
@@ -466,7 +466,7 @@ Four decks open in the Manual, at the video of how the sound of decks 3 and 4 re
 
 ### The menu map
 
-**Menu map**, under the start page in the chapter list, shows every screen on the player and how to get to it, as a flow chart. Each screen on it is a picture the firmware drew. The play screen is on the left, and what each key opens fans out to its right. Every branch is labelled with the control that opens it: a key such as [[MENU]], the rotary selector, or a tap on a word on the screen.
+**Menu map**, under the start page in the chapter list, shows every screen on the player and how to get to it, as a flow chart. The play screen is on the left, and what each key opens fans out to its right. Every branch is labelled with the control that opens it: a key such as [[MENU]], the rotary selector, or a tap on a word on the screen.
 
 ```figure app:menu-map XZ Mods app · Menu map
 The menu map at BEAT JUMP PADS, opened with MENU, then PLAY, then BEAT JUMP PADS.
