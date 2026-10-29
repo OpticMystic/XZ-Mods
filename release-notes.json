@@ -1,6 +1,32 @@
 {
   "releases": [
     {
+      "version": "0.5.0-preview.22.13.2",
+      "date": "2026-10-29",
+      "title": "Decks 3 and 4 handle SYNC and MASTER like decks 1 and 2",
+      "features": [
+        "A new app layout: the sections run along the top, a side list sits on the left, and each page is on a raised card."
+      ],
+      "fixes": [
+        "Press MASTER on a playing deck 3 or 4 and it is master at once, with no waiting notice.",
+        "Pause the master and MASTER passes at once to the next playing deck. A deck with SYNC on comes first.",
+        "Pause a deck 1 or 2 master and a playing deck 3 or 4 takes MASTER at once. If the other of decks 1 and 2 is playing, MASTER goes there instead, as with two decks.",
+        "In VINYL mode, hold the master's platter top and MASTER passes to the other synced, playing deck.",
+        "Load a new track on the master and MASTER passes to the other playing deck. The loading deck keeps SYNC on at the tempo the decks shared.",
+        "A MASTER handover never changes the tempo.",
+        "With no master yet, the first deck to play becomes master, decks 3 and 4 included.",
+        "Nudge a synced deck from the side and it keeps the new alignment: SYNC stays on, the tempo stays matched and the SYNC button flashes. Press SYNC off and on to snap back to the beat.",
+        "Press SYNC off and the deck keeps its position and the synced tempo.",
+        "A short hold on the master's platter top no longer leaves a synced deck slightly off tempo for up to 20 seconds.",
+        "Includes everything in 22.13.1."
+      ],
+      "requirements": [
+        "Experimental XDJ-XZ 1.26 only.",
+        "Hardware acceptance of this build is pending.",
+        "Local test build; not published."
+      ]
+    },
+    {
       "version": "0.5.0-preview.22.13.1",
       "date": "2026-10-29",
       "title": "SYNC and MASTER hand over cleanly between all four decks",
