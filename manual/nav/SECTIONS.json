@@ -895,7 +895,7 @@
       "title": "Limits",
       "level": 2,
       "chapter": "four-decks.md",
-      "sha256": "e98843e052efb4c453abe664fda4fc180bee1a13aceae4c0ae50d6958e710ec7",
+      "sha256": "ed8c6021ed97515916de6b691dd1c6b75ebfe4ee045b3023f16aa6ebab3830cd",
       "flows": null,
       "reason": "informational",
       "detail": "Format, readiness, master handover and experimental-limit reference; no additional navigation procedure."
