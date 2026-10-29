@@ -598,7 +598,25 @@ static void music_hub_service_tests(void) {
             CHECK(service_music_hub(&n,&r,&attempted,&reason));CHECK(bind_writes==1);
         }
         if(change==1)CHECK(!strcmp(reason,"WAIT_MUSIC_HUB_PAUSED"));
-        if(change==7)CHECK(!strcmp(reason,"MUSIC_HUB_BIND_FAILED"));
+        if(change==7) {
+            CHECK(!strcmp(reason,"MUSIC_HUB_BIND_FAILED"));
+            fault=3; /* A retry must still wait while a native deck plays. */
+            CHECK(service_music_hub(&n,&r,&attempted,&reason));
+            CHECK(reason&&!strcmp(reason,"WAIT_MUSIC_HUB_PAUSED")&&bind_writes==1);
+            fault=0;
+            CHECK(service_music_hub(&n,&r,&attempted,&reason));
+            CHECK(bind_writes==2); /* Same hub must recover without another unplug. */
+            CHECK(service_music_hub(&n,&r,&attempted,&reason));CHECK(bind_writes==2);
+        }
+        m_close(n.memory);
+    }
+    for(unsigned music=1;music<=2;music++) {
+        fixture_port(music);mock_loopback(3-music,0,0);
+        struct native n=native_fixture();struct route_binding r={0};
+        CHECK(route_binding_admit(&r,&n)==ADMIT_READY);
+        struct music_hub attempted={0};const char *reason;fault=3;
+        CHECK(service_music_hub(&n,&r,&attempted,&reason));
+        CHECK(!reason&&!bind_writes); /* A direct stick never takes the hub paused gate. */
         m_close(n.memory);
     }
     puts("PASS actual music-hub bind path: both ports, owned generation only, stopped native only, no duplicate bind, bound/child/speed refusals and write failure");

@@ -950,8 +950,8 @@ static int service_music_hub(struct native *native, struct route_binding *bindin
     }
     char interface[32];
     snprintf(interface, sizeof(interface), "%s:1.0", fresh.name);
-    *attempt = fresh;
     if (!write_text("/sys/bus/usb/drivers/hub/bind", interface, 0)) *reason = "MUSIC_HUB_BIND_FAILED";
+    else *attempt = fresh; /* Failed writes remain retryable after all guards pass again. */
     return 1;
 }
 
