@@ -838,27 +838,31 @@ Where: above the screen; hold: UTILITY. Text after it: `MENU`.
 | rect | 5.2, 3.5; 50.5 x 25.0 | `#0b0b0c` | cap |
 | outline | 6.3, 4.6; 48.3 x 22.8; stroke 1.9 | `#3d4044` |  |
 
-## rekordbox (`rekordbox`)
+## Button above LINK (`above-link`)
 
-Where: left of the screen, top; the media button above LINK. Text after it: `rekordbox`.
+Where: left of the screen, top of the four media buttons, directly above LINK; its cap prints a logo, which the glyph leaves out. Text after it: `BUTTON ABOVE LINK`.
 
-**Lit**: ![rekordbox, lit, beside SH_SMALL](firmware/rekordbox-14.png) ![rekordbox, lit, beside SH_TEXT](firmware/rekordbox-22.png)
-
-| Part | Design units | Colour | Note |
-|---|---|---|---|
-| rect | 5.2, 3.5; 81.8 x 25.0 | `#0b0b0c` | cap |
-| outline | 6.3, 4.6; 79.6 x 22.8; stroke 1.9 | `#e9e9e9` |  |
-
-**Lamp off**: ![rekordbox, lamp off, beside SH_SMALL](firmware/rekordbox.off-14.png) ![rekordbox, lamp off, beside SH_TEXT](firmware/rekordbox.off-22.png)
+**Lit**: ![Button above LINK, lit, beside SH_SMALL](firmware/above-link-14.png) ![Button above LINK, lit, beside SH_TEXT](firmware/above-link-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
-| rect | 5.2, 3.5; 81.8 x 25.0 | `#0b0b0c` | cap |
-| outline | 6.3, 4.6; 79.6 x 22.8; stroke 1.9 | `#3d4044` |  |
+| rect | 5.2, 2.4; 44.0 x 15.0 | `#0b0b0c` | cap |
+| outline | 6.3, 3.5; 41.8 x 12.8; stroke 1.9 | `#e9e9e9` |  |
+| rect | 5.2, 20.2; 44.0 x 10.4 | `#0b0b0c` | LINK below it, at half opacity, for reference |
+| outline | 6.3, 21.3; 41.8 x 8.2; stroke 1.9 | `#1ab8ff` | LINK below it, at half opacity, for reference |
+
+**Lamp off**: ![Button above LINK, lamp off, beside SH_SMALL](firmware/above-link.off-14.png) ![Button above LINK, lamp off, beside SH_TEXT](firmware/above-link.off-22.png)
+
+| Part | Design units | Colour | Note |
+|---|---|---|---|
+| rect | 5.2, 2.4; 44.0 x 15.0 | `#0b0b0c` | cap |
+| outline | 6.3, 3.5; 41.8 x 12.8; stroke 1.9 | `#3d4044` |  |
+| rect | 5.2, 20.2; 44.0 x 10.4 | `#0b0b0c` | LINK below it, at half opacity, for reference |
+| outline | 6.3, 21.3; 41.8 x 8.2; stroke 1.9 | `#1ab8ff` | LINK below it, at half opacity, for reference |
 
 ## LINK (`link`)
 
-Where: left of the screen, below rekordbox. Text after it: `LINK`.
+Where: left of the screen, below the button above LINK. Text after it: `LINK`.
 
 **Lit**: ![LINK, lit, beside SH_SMALL](firmware/link-14.png) ![LINK, lit, beside SH_TEXT](firmware/link-22.png)
 

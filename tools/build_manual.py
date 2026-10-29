@@ -26,6 +26,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import xz_buttons  # noqa: E402  the button glyphs [[NAME]] draws
+import check_trademarks  # noqa: E402  no brand name in what a user sees
 
 APP = Path(__file__).resolve().parents[1]
 MANUAL = APP / 'manual'
@@ -186,7 +187,7 @@ def problems(render_dir):
 
 
 def check(render_dir):
-    found = problems(render_dir)
+    found = problems(render_dir) + check_trademarks.problems()  # the app and the XZ too, not only the manual
     for line in found: print('STALE ' + line)
     print(f'manual: {len(found)} problem(s)' if found else 'manual: current')
     return 1 if found else 0
@@ -252,7 +253,10 @@ def key_problems(chapters, book):
     texts = [(c['slug'], c['body']) for c in chapters] + [('manual.json', json.dumps(book, ensure_ascii=False))]
     for where, text in texts:
         for name in sorted(set(re.findall(r'\[\[([^\]]+)\]\]', text))):
-            if not xz_buttons.find(name)[0]:
+            if check_trademarks.find(name):
+                out.append(f'{where}: [[{name}]] is a brand name. Name the control by what it is, for example '
+                           '[[BUTTON ABOVE LINK]]')
+            elif not xz_buttons.find(name)[0]:
                 out.append(f'{where}: [[{name}]] has no button glyph. Use the name printed on the player, or add the glyph '
                            'or an alias in tools/xz_buttons.py')
     return out + xz_buttons.problems()

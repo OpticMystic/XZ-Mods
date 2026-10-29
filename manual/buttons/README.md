@@ -26,6 +26,9 @@ the app names a button, it shows this glyph, with the name kept as text for scre
   `el('li', {}, ...xzText('Press [[SHIFT]] twice'))`. `xzKey('SHIFT')` is a single glyph. The answers in
   `ui/support-kb.js` use `[[NAME]]` too.
 - A control that has no glyph yet gets one in `GLYPHS` (or an alias on the glyph it is), in the same change.
+- No glyph is named after a brand or prints one. The media button directly above LINK prints a logo on the unit; its
+  glyph is a plain cap drawn over a dimmed LINK, and it is written `[[BUTTON ABOVE LINK]]`. `check` fails on a brand
+  name in `[[...]]` (`tools/check_trademarks.py`).
 - Only buttons, keys, switches, pads and the rotary selector get glyphs. Ports (USB 1 and USB 2 as sockets), screens and
   on-screen buttons stay text.
 
@@ -56,11 +59,11 @@ look the same in every browser.
 
 ## Sources
 
-- Pioneer's product photograph of the XDJ-XZ top panel (2000 x 1333) and close-ups of SYNC, MASTER, MASTER TEMPO,
+- The maker's product photograph of the XDJ-XZ top panel (2000 x 1333) and close-ups of SYNC, MASTER, MASTER TEMPO,
   SHIFT, PLAY/PAUSE and CUE, kept outside the repo (`E:/Claude/xz-beta-rc-scratch/button-ref/`). The glyphs are drawn
   from them; the photographs are not copied into the product. `GLYPHS` records where each control is in the top-panel
   photograph (`photo`), for the comparison sheet.
-- The true-scale Blender model of the XZ and Pioneer's manual drawings it is built from (pads 23 x 23 mm, CUE and
+- The true-scale Blender model of the XZ and the drawings in the player's operating instructions it is built from (pads 23 x 23 mm, CUE and
   PLAY/PAUSE rings 32 mm, CH3/CH4 input selectors 17.0 x 7.8 mm).
 - Lamp colours the firmware sets: `source/xdj-xz-toolkit/mods/ui/native_led.h`. BEAT JUMP pads use
   `xz_jump_page2_color` (red outer pads, amber inner). The BEAT LOOP and SLIP LOOP pad colours there are provisional

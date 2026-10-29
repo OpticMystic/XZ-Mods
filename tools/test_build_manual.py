@@ -111,6 +111,19 @@ assert 'src="/manual/buttons/sync.off.svg"' in key and 'data-key="in-cue"' in ke
 found=bm.key_problems([{'slug':'one','body':'Press [[SHIFT]] and [[PLAYLIST]].'}],{'title':'[[MENU]]'})
 assert [f for f in found if 'has no button glyph' in f]==['one: [[PLAYLIST]] has no button glyph. Use the name printed on the player, or add the glyph or an alias in tools/xz_buttons.py'],found
 print('ok keys: a lamp can be drawn off, aliases name the printed control, and check fails on a name with no glyph')
+found=bm.key_problems([{'slug':'one','body':'Press [[rekordbox]], [[CDJ]] or [[BUTTON ABOVE LINK]].'}],{})
+assert [f for f in found if 'brand name' in f]==['one: [[CDJ]] is a brand name. Name the control by what it is, for example [[BUTTON ABOVE LINK]]',
+    'one: [[rekordbox]] is a brand name. Name the control by what it is, for example [[BUTTON ABOVE LINK]]'],found
+assert 'data-key="above-link"' in bm.inline('[[the button above LINK]]') and not any('rekordbox' in k.lower() for k in bm.xz_buttons.by_name())
+import check_trademarks as tm
+assert tm.find('Export it from Rekordbox') and tm.find('a CDJ-3000') and tm.find('Pioneer DJ') and tm.find('CDJs') and not tm.find('XDJ-XZ')
+assert not tm.find('rekordbox_press=2') and not tm.find('PIONEER/rekordbox/export.pdb') and not tm.find('CDJMODS/stems')
+assert tm.find('REKORDBOX BUTTON') and tm.find('the rekordbox library')
+assert [s for _, s in tm.code_strings("// rekordbox's comment\nconst a='Open rekordbox', b=\"x\"; /* Serato */")]==['Open rekordbox','x']
+assert [s for _, s in tm.c_strings('xz_log("REKORDBOX hook");\n_Static_assert(1&&\n 1,"one REKORDBOX numbering");\nlabel(c,"REKORDBOX BUTTON");')]==['REKORDBOX BUTTON']
+assert [s for _, s in tm.html_text('<p id="repair-rekordbox-block" title="Rekordbox">Close Rekordbox</p>')]==['Rekordbox','Close Rekordbox']
+assert [s for _, s in tm.py_strings('"""Rekordbox docstring."""\nkey="rekordbox"\nraise ValueError("Close Rekordbox first")\n')]==['"Close Rekordbox first"']
+print('ok trademarks: [[...]] refuses a brand name, glyphs carry none, and the guard reads only what a user reads')
 
 bm.MODS=REAL_MODS
 table=bm.menu_key_table()
