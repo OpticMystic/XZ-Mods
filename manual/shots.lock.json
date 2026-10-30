@@ -441,7 +441,7 @@
   "source/xdj-xz-toolkit/mods/key/control.c": "e9b6239df26f2368ca4dc9503e5227048a336288dc2bcbf9fa72002e00635145",
   "source/xdj-xz-toolkit/mods/ram/extra.c": "647da1a37cb73c26790aabe92cc097ca6b6fd23faca88b08467939dd33701367",
   "source/xdj-xz-toolkit/mods/shell_playlists.h": "517c492234ac6b720dda2daeb669acbc29b331d5ef160120d08fe728b1dba898",
-  "source/xdj-xz-toolkit/mods/stock_dialog.c": "2fe9b8a273a028f5611d8d1fe5623328256be3a542eadf75d2164091c38de348",
+  "source/xdj-xz-toolkit/mods/stock_dialog.c": "d42a30cbc0e586a290cbd35dd91c4b5bd248f2e2ae58df243f1dc797eab98e44",
   "source/xdj-xz-toolkit/mods/ui/band_colors.h": "c59403473f12e654965dcf1c2fe387bbe8362bf13d73f820ecaa4afab588b61c",
   "source/xdj-xz-toolkit/mods/ui/beat_jump.h": "6b964e0babea2b0a7125f3cd6c5df3554f44f5ea4aa8c050b57d4cb8c7e87d90",
   "source/xdj-xz-toolkit/mods/ui/deck_caps.c": "f2cbd321007031eeb2316221c6275242b64ad419bbbb1e43e29a72175798afbb",

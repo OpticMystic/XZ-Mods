@@ -18,7 +18,10 @@ enum xz_stock_dialog_failure {
 struct xz_stock_dialog_state { unsigned window, usb_hub; uint32_t text_at, counter[2]; enum xz_stock_dialog_failure failure; };
 /* 1: live native browse/status window; 0: no window; -1: observation failed.
    Failures and counter IDs never cause full-screen handoff. A live window takes the screen only in CLASSIC
-   with MODS closed; MODERN and an open MODS keep the screen and show the window's text themselves. */
+   with MODS closed; MODERN and an open MODS keep the screen and show the window's text themselves.
+   A window keeps the hub/ordinary verdict of its last clear text: a look at a text being rewritten (reads that
+   differ or fail, an empty buffer, only the start of a hub text) changes nothing. A new window is ordinary until
+   its text proves the hub warning. */
 int xz_stock_dialog_snapshot(xz_stock_dialog_read read,struct xz_stock_dialog_state *out);
 int xz_stock_dialog_observe(xz_stock_dialog_read read);
 int xz_stock_dialog_active(void);

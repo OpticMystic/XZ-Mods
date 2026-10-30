@@ -3,7 +3,7 @@ static uint32_t browse,status,ids[2];
 /* sCautionBrowseString / sCautionStatusString, UTF-16; all zero = no text. */
 static uint16_t browse_text[32],status_text[32];
 static inline void caution_text(uint16_t out[32],const char *ascii){memset(out,0,64);for(int i=0;ascii&&ascii[i]&&i<31;i++)out[i]=(unsigned char)ascii[i];}
-static int failed,torn,calls;
+static int failed,torn,calls,hooked_entries;
 static uint32_t failed_at,mismatch_at,torn_at;
 static const unsigned char guards[3][16]={
  {0xf0,0x4f,0x2d,0xe9,0x04,0x8b,0x2d,0xed,0xfc,0xd0,0x4d,0xe2,0x59,0x6b,0xfe,0xeb},
@@ -21,6 +21,10 @@ int xz_read_memory(uint32_t at,void *out,size_t n){
  if(at==0x1ada958&&n==64)p=browse_text;
  if(at==0x1ada718&&n==64)p=status_text;
  if(!p)return -1;memcpy(out,p,n);
+ /* Our own caution-draw hooks own both entries (native_raw_skin.c, xz_hook_arm: ldr pc,[pc,#-4] + address). */
+ if(hooked_entries&&(at==0x146fcc||at==0x147f08)&&n==16){
+  static const unsigned char jump[8]={0x04,0xf0,0x1f,0xe5,0x10,0x32,0x54,0x76};memcpy(out,jump,8);
+ }
  if(at==mismatch_at||(torn&&++calls%2)||(at==torn_at&&++calls%2))((unsigned char*)out)[0]^=1;
  return 0;
 }

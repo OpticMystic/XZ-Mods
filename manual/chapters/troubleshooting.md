@@ -136,7 +136,7 @@ The player sometimes raises its own warning window, for example about a USB or a
 
 - **MODERN.** The play screen says the warning once, in the player's own words, for example **E-8307: USB ACCESS ERROR**. Browse, the decks and every control keep working.
 - **MODS, in either interface.** MODS stays open on the same page. The strip at the top of the dock turns red with the warning's code and text, and **REPORT THIS**. The strip goes when the warning does.
-- **CLASSIC with MODS closed.** The player's window shows as on a stock XDJ-XZ. Touches, keys and the encoder go to the player until it closes the window.
+- **CLASSIC with MODS closed.** The player's window shows as on a stock XDJ-XZ. Touches, keys and the encoder go to the player until it closes the window. The button above [[LINK]] still does its own job: out of the box it switches to MODERN, which keeps working over the window.
 
 ```figure classic:theme-{look}-support-strip MODS · dock
 A player warning in the dock while MODS is open.

@@ -564,8 +564,16 @@ static void shell_follow_interface_locked(void) {
     if(started&&xz_shell_runtime_follow_interface&&xz_shell_runtime_follow_interface(model.ui_interface==XZ_UI_INTERFACE_MODERN))
         xz_log("FLAGSHIP shell unavailable; the restyled stock screen stays");
 }
-static void appearance_changed(void) {
+/* The lock-free copy of "the interface is CLASSIC" that the stock-window yield reads (stock_dialog_up). Every
+   write of model.ui_interface publishes it. Until 2026-10-29 only an INTERFACE or THEME press did, so a player
+   that booted into MODERN kept the initial CLASSIC value: a live player window then took the screen and every
+   key from MODERN whenever the shell was not drawing (at boot, after MODS closed), and the shell, asked only
+   from the frame that had already yielded, never came back. */
+static void interface_publish_locked(void) {
     __atomic_store_n(&stock_counter_classic,model.ui_interface==XZ_UI_INTERFACE_CLASSIC,__ATOMIC_RELEASE);
+}
+static void appearance_changed(void) {
+    interface_publish_locked();
     int look = xz_settings_look(model.ui_interface, model.classic_theme);
     if (look == model.theme) return;
     model.theme = look; xz_native_skin_request(look); wave_configure();
@@ -2079,8 +2087,33 @@ static enum xz_menu_place classic_menu_place_locked(void){
     return play==0?XZ_MENU_AT_STOCK_MENU:XZ_MENU_AT_PLAY;
 }
 static int menu_owns_keys_locked(void);
+static int rekordbox_run_locked(int action);
+/* A live player window takes CLASSIC's keys, but never the jobs XZ Mods gives the button above LINK: INTERFACE and
+   MODS stay the way out (owner 2026-10-29: "stuck in classic mode view"). Its stock job, and SHIFT's by default,
+   still goes to the player. Decided at the press; the rest of that contact follows it. 1 = the key is taken. */
+static int rekordbox_window_contact;
+static int rekordbox_over_window(const void *input){
+    if(!input||!__atomic_load_n(&started,__ATOMIC_ACQUIRE))return 0;
+    uint16_t key;memcpy(&key,(const unsigned char *)input+8,2);
+    if(key!=REKORDBOX_KEY_CODE)return 0;
+    unsigned operation=((const unsigned char *)input)[11]&15;
+    pthread_mutex_lock(&ui_mutex);
+    int taken=rekordbox_window_contact;
+    if(operation==0){
+        int action=rekordbox_decide_locked();
+        taken=rekordbox_window_contact=action!=XZ_REKORDBOX_STOCK;
+        if(taken){rekordbox_latch.valid=0;rekordbox_run_locked(action);}
+    }else if(operation>=2)rekordbox_window_contact=0;
+    pthread_mutex_unlock(&ui_mutex);
+    return taken;
+}
 static void menu_back_key_hook(void *self,const void *input){
-    if(stock_dialog_up()){stock_global_key(self,input);return;}
+    if(stock_dialog_up()){
+        if(!rekordbox_over_window(input))stock_global_key(self,input);
+        return;
+    }
+    /* A contact that began over a window keeps its owner when the window goes before the release. */
+    if(rekordbox_window_contact&&rekordbox_over_window(input))return;
     uint16_t key=0;unsigned operation=0;
     if(input){memcpy(&key,(const unsigned char *)input+8,2);operation=((const unsigned char *)input)[11]&15;}
     int consumed=0;
@@ -3509,6 +3542,7 @@ static void profile_apply_locked(const struct xz_settings *saved,const char *ori
     requested_stems = saved->stems; model.stem_page = saved->stem_page;
     model.ui_interface = saved->ui_interface; model.classic_theme = saved->classic_theme; model.modern_theme = saved->modern_theme;
     model.theme = xz_settings_look(model.ui_interface, model.classic_theme);
+    interface_publish_locked();
     shell_follow_interface_locked();
     model.shift_pages = 1; model.pad_feedback = saved->pad_feedback;
     model.shift_keysync = 1; model.takeover_assign = saved->takeover_assign == XZ_TAKEOVER_REKORDBOX ? XZ_TAKEOVER_LINK : saved->takeover_assign;
@@ -3831,7 +3865,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     model.settings_status = xz_settings_internal_save ? "SETTINGS SAVE ON THIS XZ" : "SETTINGS NOT SAVED: START FROM USB";
     { struct xz_settings defaults; xz_settings_default(&defaults); browse_settings(&defaults);
       model.ui_interface = defaults.ui_interface; model.classic_theme = defaults.classic_theme; model.modern_theme = defaults.modern_theme;
-      model.theme = xz_settings_look(model.ui_interface, model.classic_theme); }
+      model.theme = xz_settings_look(model.ui_interface, model.classic_theme); interface_publish_locked(); }
     memset(key_sync, 0, sizeof(key_sync));
     __atomic_store_n(&key_sync_led_mask,0,__ATOMIC_RELEASE);
     master_tempo_down=master_tempo_owned=0;
