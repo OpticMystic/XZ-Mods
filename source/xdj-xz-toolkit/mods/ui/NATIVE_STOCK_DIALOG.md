@@ -71,6 +71,13 @@ including recovery. Firmware mismatch therefore cannot permanently remove the
 MODERN screen. The old shell caution filter and mixer's latched-ID gating are
 no longer the runtime authority.
 
+Since preview.22.13.3 our own hooks own both caution-draw entries (the E-8307
+removal below). `xz_hook_arm` writes `ldr pc,[pc,#-4]` and the hook's address
+over the first 8 bytes, so the observer also accepts that form when bytes 8..15
+still match. 22.13.3 shipped without this: the browse guard mismatched on every
+poll, the observer failed open, and no live window and no deck counter error was
+seen at all (emulator log: `STOCK_DIALOG: observation browse prologue mismatch`).
+
 Only the complete, evidenced counter error IDs 101..105 are mapped, in
 `stock_counter.h`:
 
@@ -111,6 +118,22 @@ screen, touches, keys and the encoder go to stock. Their translated multi-row
 text, runtime substitutions, buttons and scope still have no complete proven
 mapping to the per-deck alert model, and stock alone dismisses them.
 
+The button above LINK is the exception (owner, 2026-10-29: "it keeps getting
+stuck in classic mode view"). While a window holds CLASSIC, a press whose job is
+one of XZ Mods' own (INTERFACE, MODS, VJ.TOOLS SCREEN, DECK VIEW, STEMS,
+NOTHING) runs that job at the press and the player never sees the contact; only
+its stock job (SHIFT's by default) still goes to the player. INTERFACE therefore
+always leaves CLASSIC, and MODERN then keeps the screen over the window.
+
+The yield reads a lock-free copy of "the interface is CLASSIC". Every write of
+the interface publishes it (`interface_publish_locked`). Until 2026-10-29 only an
+INTERFACE or THEME press did, so a player that booted into MODERN kept the
+initial CLASSIC value: with a live window up while the shell was not drawing (at
+boot, after MODS closed, after a hand-off) the frame yielded before it asked the
+shell, the shell never claimed the screen, and MODERN stayed on the stock screen
+with every key going to the player. Reproduced in the emulator on the 22.13.2
+runtime with a window cell and text written into the player's memory.
+
 MODERN and an open MODS panel (either interface) never yield to a live window
 (owner, 2026-10-28: handing MODERN to stock put the old interface on screen,
 answering the controls and leaving browse). The window waits behind and its own
@@ -142,9 +165,23 @@ to it meant MODS never came back with the cable plugged in.
 64 bytes, read twice). A text that starts with `E-8307: HUBS ARE NOT SUPPORTED`
 or `E-8307: UNSUPPORTED DEVICE` (the firmware's English
 `STR_CHAR_DEV_UNSUPPORTED` texts) is the hub window: it never takes the screen,
-not even in CLASSIC. Every other text, including `E-8307: USB ACCESS ERROR` and
-`E-8307: DEVICE NO RESPONSE`, other languages, and unreadable or torn text, is an
-ordinary live window.
+not even in CLASSIC. Line breaks and other control characters read as spaces,
+so the hub text split over rows still matches. Every other text, including
+`E-8307: USB ACCESS ERROR` and `E-8307: DEVICE NO RESPONSE`, and other languages,
+is an ordinary live window.
+
+A look at the text can prove nothing: the two reads differ or fail, the buffer
+is empty, or it holds only the start of a hub text. That is what a look sees
+while the caution draw copies the message into the buffer and divides it into
+rows (above); how often the player redraws a standing window is not yet
+measured on hardware. Such a look keeps the verdict the same window (same handle) last had; a new
+window with no clear text yet is an ordinary window, as an unreadable one always
+was. Until 2026-10-29 every such look made the hub window an ordinary window for
+that poll, and the runtime polls several times per frame and per key: CLASSIC
+handed its whole screen to the player for one frame and took it back on the
+next, so the top row flickered and presses on the button above LINK went to the
+player at random (`ui/test_interface_window.c`: 320 of 400 frames dropped at
+the base, none after).
 
 The hub window is never an error (owner, 2026-10-28: eliminate it, it is no
 longer relevant). Nothing says it: no dock strip, no play-screen notice, in any

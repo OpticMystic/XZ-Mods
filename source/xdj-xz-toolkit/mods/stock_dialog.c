@@ -12,24 +12,58 @@ static int stable(xz_stock_dialog_read read,uint32_t at,void *out,size_t n){
  if(n>sizeof again||read(at,out,n)||read(at,again,n))return 1;
  return memcmp(out,again,n)?2:0;
 }
+/* The prologue as the firmware ships it, or as xz_hook_arm (runtime.c) leaves it once our own hook owns the entry:
+   ldr pc,[pc,#-4] and the hook's address over the first 8 bytes, the rest untouched. ui/native_raw_skin.c hooks both
+   caution draws since 2026-10-29 (preview.22.13.3); before this the observer saw a mismatch there, failed open and
+   never saw a player window or a deck's counter error again. */
 static int guard(xz_stock_dialog_read read,uint32_t at,const unsigned char expected[16]){
- unsigned char actual[16];if(read(at,actual,sizeof actual))return 1;return memcmp(actual,expected,sizeof actual)?2:0;
+ static const unsigned char hooked[4]={0x04,0xf0,0x1f,0xe5};
+ unsigned char actual[16];if(read(at,actual,sizeof actual))return 1;
+ if(!memcmp(actual,expected,sizeof actual))return 0;
+ return !memcmp(actual,hooked,4)&&!memcmp(actual+8,expected+8,8)?0:2;
 }
 /* Firmware-1.26 English STR_CHAR_DEV_UNSUPPORTED texts the kernel's hub refusal raises (the loopback cable's hub at
-   the second level). A window whose text starts with one of them is the hub warning, whatever follows. USB ACCESS
-   ERROR and DEVICE NO RESPONSE, other languages and any unreadable text are ordinary windows. */
+   the second level). A window whose text starts with one of them is the hub warning, whatever follows; the row
+   breaks the player puts between its lines read as spaces. USB ACCESS ERROR and DEVICE NO RESPONSE and other
+   languages are ordinary windows. */
 static const char *const usb_hub_text[2]={"E-8307: HUBS ARE NOT SUPPORTED","E-8307: UNSUPPORTED DEVICE"};
-static unsigned usb_hub_window(xz_stock_dialog_read read,uint32_t at){
- uint16_t a[32],b[32];
- if(read(at,a,sizeof a)||read(at,b,sizeof b)||memcmp(a,b,sizeof a))return 0;
- for(unsigned k=0;k<2;k++){
-  const char *t=usb_hub_text[k];size_t i=0;
-  while(t[i]&&a[i]==(unsigned char)t[i])i++;
-  if(!t[i])return k+1;
+/* What one look at a window's text proves: 1 or 2 the hub text, TEXT_ORDINARY another text, TEXT_UNCLEAR nothing.
+   Unclear is a text with nothing whole to judge: the two reads failed or differed, the buffer is empty, or it holds
+   only the start of a hub text. The player rewrites the text while its window is up, so a look can land in the
+   middle of that. */
+enum { TEXT_ORDINARY=0, TEXT_UNCLEAR=-1 };
+static int text_class(xz_stock_dialog_read read,uint32_t at){
+ uint16_t a[32],b[32];char t[33];size_t n=0;
+ if(read(at,a,sizeof a)||read(at,b,sizeof b)||memcmp(a,b,sizeof a))return TEXT_UNCLEAR;
+ for(unsigned i=0;i<32&&a[i];i++){
+  char c=a[i]>0x20&&a[i]<0x7f?(char)a[i]:a[i]<=0x20?' ':'?';
+  if(c==' '&&(!n||t[n-1]==' '))continue;
+  t[n++]=c;
  }
- return 0;
+ while(n&&t[n-1]==' ')n--;
+ t[n]=0;
+ if(!n)return TEXT_UNCLEAR;
+ for(unsigned k=0;k<2;k++)if(!strncmp(t,usb_hub_text[k],strlen(usb_hub_text[k])))return (int)k+1;
+ for(unsigned k=0;k<2;k++)if(n<strlen(usb_hub_text[k])&&!strncmp(t,usb_hub_text[k],n))return TEXT_UNCLEAR;
+ return TEXT_ORDINARY;
 }
-unsigned xz_stock_usb_hub_at(xz_stock_dialog_read read,uint32_t text){return read?usb_hub_window(read,text):0;}
+unsigned xz_stock_usb_hub_at(xz_stock_dialog_read read,uint32_t text){
+ int k=read?text_class(read,text):TEXT_UNCLEAR;return k>0?(unsigned)k:0;
+}
+/* Per family: the live window last judged and what its last clear text said. A window keeps that verdict through
+   unclear looks, so the hub warning being redrawn never reads as an error for a frame (owner 2026-10-29: CLASSIC's
+   top buttons flickered and the button above LINK went to the player at random). A new window is an ordinary
+   window until its text proves the hub warning, as before. Several threads observe; a spin lock guards the pair. */
+static struct { uint32_t window; unsigned hub; } judged[2];
+static unsigned judged_lock;
+static unsigned judge(unsigned family,uint32_t window,int seen){
+ while(__atomic_exchange_n(&judged_lock,1u,__ATOMIC_ACQUIRE));
+ if(judged[family].window!=window){judged[family].window=window;judged[family].hub=0;}
+ if(window&&seen!=TEXT_UNCLEAR)judged[family].hub=(unsigned)seen;
+ unsigned hub=judged[family].hub;
+ __atomic_store_n(&judged_lock,0u,__ATOMIC_RELEASE);
+ return hub;
+}
 int xz_stock_dialog_snapshot(xz_stock_dialog_read read,struct xz_stock_dialog_state *s){
  static const unsigned char browse[16]={0xf0,0x4f,0x2d,0xe9,0x04,0x8b,0x2d,0xed,0xfc,0xd0,0x4d,0xe2,0x59,0x6b,0xfe,0xeb};
  static const unsigned char status[16]={0xf0,0x4f,0x2d,0xe9,0xa4,0xd0,0x4d,0xe2,0x55,0x67,0xfe,0xeb,0x00,0x00,0x50,0xe3};
@@ -49,10 +83,11 @@ int xz_stock_dialog_snapshot(xz_stock_dialog_read read,struct xz_stock_dialog_st
    a=stable(read,cell[i],&window,4);
    if(a)failure=a==1?XZ_STOCK_WINDOW_READ:XZ_STOCK_WINDOW_TORN;
    else if(window){
-    unsigned hub=usb_hub_window(read,text[i]);
+    unsigned hub=judge(i,window,text_class(read,text[i]));
     if(!hub){s->window=1;s->usb_hub=0;s->text_at=text[i];s->failure=XZ_STOCK_OK;return 1;}
     s->usb_hub=hub;
    }
+   else judge(i,0,TEXT_UNCLEAR);
   }
   if(!s->failure)s->failure=failure;
  }
