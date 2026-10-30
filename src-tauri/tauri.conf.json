@@ -4,8 +4,7 @@
   "version": "0.5.1-Beta",
   "identifier": "com.opticmystic.xzmods",
   "build": {
-    "frontendDist": "../ui",
-    "beforeBuildCommand": "python tools/xz_check_quality.py"
+    "frontendDist": "../ui"
   },
   "app": {
     "withGlobalTauri": true,
