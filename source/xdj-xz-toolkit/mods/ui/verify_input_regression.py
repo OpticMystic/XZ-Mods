@@ -1,10 +1,10 @@
 """Replay actual UI runtime input at the stock-call boundary, without hardware."""
 from pathlib import Path
-import argparse,subprocess,tempfile
+import argparse,gzip,subprocess,tempfile
 from ui_sources import UI_SOURCES
 HERE=Path(__file__).resolve().parent
 parser=argparse.ArgumentParser(description=__doc__)
-parser.add_argument('case',nargs='?',default='all',choices=['all','scene','shortcut','buttons','redraw','ram','back'])
+parser.add_argument('case',nargs='?',default='all',choices=['all','scene','shortcut','buttons','redraw','ram','back','keys'])
 args=parser.parse_args()
 with tempfile.TemporaryDirectory(prefix='xz-input-') as folder:
  binary=Path(folder)/'input'
@@ -16,5 +16,7 @@ with tempfile.TemporaryDirectory(prefix='xz-input-') as folder:
  sources += [HERE.parent/'kart'/n for n in ('xz_kart_input.c','xz_kart_runtime.c')]
  subprocess.run(['cc','-std=c11','-O1','-g','-UNDEBUG','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
                  '-fsanitize=address,undefined','-fno-sanitize-recover=all',*map(str,sources),'-pthread','-ldl','-lm','-o',str(binary)],check=True)
- for case in ['scene','shortcut','buttons','redraw','ram','back'] if args.case=='all' else [args.case]:
-  subprocess.run([str(binary),case],check=True)
+ frame=Path(folder)/'key_strip_classic_play.rgb565'
+ frame.write_bytes(gzip.decompress((HERE/'key_strip_classic_play.rgb565.gz').read_bytes()))
+ for case in ['scene','shortcut','buttons','redraw','ram','back','keys'] if args.case=='all' else [args.case]:
+  subprocess.run([str(binary),case,*([str(frame)] if case=='keys' else [])],check=True)

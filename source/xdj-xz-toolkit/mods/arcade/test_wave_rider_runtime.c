@@ -80,6 +80,8 @@ static void jog_and_cue_regression(void){
 }
 int main(void){
     stock_runtime_test();decks[0][0x26]=1;decks[1][0x26]=2;settings_readonly=1;native_active=0;
+    /* Games open from MODS in MODERN too: a touch that leaves the game must not leave it owning the contact. */
+    model.ui_interface=XZ_UI_INTERFACE_MODERN;
     jog_and_cue_regression();
     memset(&source_wave,0,sizeof(source_wave));source_wave.error=XZ_WAVE_RIDER_NO_ANALYSIS;
     open_game(1);tap(400,366);tap(580,180);draw();assert(source_selected==1&&proof.deck==1);
@@ -130,6 +132,7 @@ int main(void){
         assert(key(0,0x4102,0,0)&&key(1,0x4306,0,0));
         contact(touch_fixture,740,24,1);assert(!xz_wave_rider_present()&&model.fb_takeover);
         int before=stock_calls;contact(touch_fixture,740,24,0);assert(stock_calls==before);
+        assert(!xz_wave_rider_touch(400,300,1,xz_game_milliseconds())); /* the release reached the game */
         assert(key(0,0x4102,2,0)&&key(1,0x4306,2,0));assert(!key(1,0x4306,2,0));
     }
     puts("PASS reopened mode selection, independent two-jog/two-deck controls, shared-song source, power LEDs and touch-owner release");

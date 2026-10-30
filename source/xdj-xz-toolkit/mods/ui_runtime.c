@@ -3255,7 +3255,17 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
     /* A touch that closes MODS in MODERN (CLOSE, UTILITY, a setup that ends on the play screen) keeps the rest
        of its contact: the shell under it never sees it as a tap on its own MODS button. */
     if(fresh)panel_contact=touch.visible&&model.ui_interface==XZ_UI_INTERFACE_MODERN;
-    if(panel_contact&&!touch.visible){if(!status->down)panel_contact=0;pthread_mutex_unlock(&ui_mutex);return;}
+    /* A game left on the press (its on-screen exit) still owns this contact: hand it the release here, or it
+       keeps the contact and swallows the next tap on the MODERN screen. */
+    if(panel_contact&&!touch.visible){
+        if(!status->down){
+            panel_contact=0;
+            if(!xz_rhythm_lab_present())xz_rhythm_lab_touch((int)status->x,(int)status->y,0,xz_game_milliseconds());
+            if(!xz_wave_rider_present())xz_wave_rider_touch((int)status->x,(int)status->y,0,xz_game_milliseconds());
+            if(!arcade_present)arcade_touch_owned=0;
+        }
+        pthread_mutex_unlock(&ui_mutex);return;
+    }
     if(!status->down)panel_contact=0;
     if(mixer_contact.active&&(play_key.open||play_key.down||dv.contact||touch.visible||model.ui_interface==XZ_UI_INTERFACE_MODERN||
        (model.fb_takeover&&model.connection.connected)||game_locked()!=GAME_NONE||
@@ -3553,7 +3563,8 @@ static void badge(uint16_t *pixels, uint32_t stride) {
         badge_frame_cache.dv=1;badge_frame_cache.dv_view=view;badge_frame_cache.dv_ready=ready;badge_frame_cache.dv_pair=pair;
         badge_frame_cache.dv_open=dv.open;badge_frame_cache.dv_tile=dv.tile;badge_frame_cache.dv_focus=dv.focus==DV_FOCUS_BUTTON;
     }
-    __atomic_store_n(&classic_key_visible,!!classic_keys.shown,__ATOMIC_RELEASE);
+    /* A busy frame can replay the key strip but not a slot's own tile: only painted slots keep the frame back. */
+    __atomic_store_n(&classic_key_visible,!!classic_keys.painted,__ATOMIC_RELEASE);
 }
 
 void xz_ui_runtime_profile_usb(unsigned slot) {
@@ -3705,7 +3716,7 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
     if(!play_key_source_valid_locked()){
         play_key.open=0;play_key_dirty=1;__atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);
     }
-    if(shell_path){classic_keys.shown=0;__atomic_store_n(&classic_key_visible,0,__ATOMIC_RELEASE);}
+    if(shell_path){classic_keys.shown=classic_keys.painted=0;__atomic_store_n(&classic_key_visible,0,__ATOMIC_RELEASE);}
     if(shell_path&&!play_key.open&&!play_key_dirty&&xz_shell_runtime_idle&&xz_shell_runtime_idle()){pthread_mutex_unlock(&ui_mutex);return 0;}
     /* The shell draws from its own model and reads only the key snapshots from this one, so while it
        owns the screen the UI model refreshes at 10 Hz instead of on every 60 Hz frame. */
@@ -3876,7 +3887,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     static const unsigned char link_guard[8] = {0x70,0x40,0x2d,0xe9,0x00,0x50,0xa0,0xe1};
     static const unsigned char rekordbox_guard[8] = {0x38,0x40,0x2d,0xe9,0x00,0x50,0xa0,0xe1};
     if (started) return 0;
-    memset(&play_key,0,sizeof play_key);classic_keys.shown=0;play_key_dirty=play_key_back_contact=play_key_raw_down=0;
+    memset(&play_key,0,sizeof play_key);classic_keys.shown=classic_keys.painted=0;play_key_dirty=play_key_back_contact=play_key_raw_down=0;
     __atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);__atomic_store_n(&classic_key_visible,0,__ATOMIC_RELEASE);
     settings_usb[0] = 0; settings_pending = settings_created = 0; settings_flash_at = 0;
     memset(&settings_profile,0,sizeof(settings_profile)); settings_slot=-1;

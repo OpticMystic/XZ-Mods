@@ -35,6 +35,8 @@ static void valid_source(void){
 }
 int main(void){
     stock_runtime_test();decks[0][0x26]=1;decks[1][0x26]=2;settings_readonly=1;native_active=0;
+    /* Games open from MODS in MODERN too: a touch that leaves the game must not leave it owning the contact. */
+    model.ui_interface=XZ_UI_INTERFACE_MODERN;
     open_lab();tap(150,110);tap(400,365);draw();assert(proof.phase==LAB_SETUP&&!proof.valid);
     tap(400,365);assert(!xz_rhythm_lab_present()&&model.fb_takeover);
     valid_source();
@@ -50,6 +52,7 @@ int main(void){
         assert(!key(1,0x4305,4,20)&&!key(1,0x4102,0,0));
         source_wave.playing=0;draw();assert(proof.phase==LAB_PAUSE);source_wave.playing=1;draw();assert(proof.phase==LAB_RUN);
         assert(key(0,0x4102,0,0));tap(750,24);assert(!xz_rhythm_lab_present()&&model.fb_takeover);
+        assert(!xz_rhythm_lab_touch(400,300,1,xz_game_milliseconds())); /* the release reached the lab */
         assert(key(0,0x4102,2,0)&&!key(0,0x4102,2,0));
     }
     open_lab();tap(500,450);tap(180,120);tap(400,365);draw();

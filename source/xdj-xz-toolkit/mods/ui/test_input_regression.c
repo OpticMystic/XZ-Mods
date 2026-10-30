@@ -82,6 +82,42 @@ static void busy_buttons(void){
  }
  puts("PASS actual busy renderer retains top-right buttons with key feedback on/off and respects panel/takeover");
 }
+/* The key strip over the stock CLASSIC play screen (key_strip_classic_play.rgb565.gz, a captured stock frame): a
+   busy renderer replays the last coherent strip instead of exposing the native countdown for a flip, and draws
+   nothing over it with key feedback off, MODS open or the takeover linked. Replaces verify_key_stability.py,
+   which compiled a copy of xz_mods_render_v1 and needed a hardware capture that is not in the source. */
+static int key_boxes_equal(const uint16_t *a,const uint16_t *b,const struct xz_key_strip_box box[2]){
+ for(int d=0;d<2;d++)for(int y=box[d].y;y<box[d].y+box[d].h;y++)
+  if(memcmp(a+(size_t)y*800+box[d].x,b+(size_t)y*800+box[d].x,(size_t)box[d].w*2))return 0;
+ return 1;
+}
+static void key_strip_busy(const char *path){
+ static uint16_t stock[800*480],normal[800*480],busy[800*480];
+ FILE *f=fopen(path,"rb");assert(f&&fread(stock,2,800*480,f)==800*480);fclose(f);
+ struct xz_key_strip_box box[2];
+ for(int d=0;d<2;d++)assert(xz_key_strip_area(stock,800,0,d,&box[d])&&box[d].w>0&&box[d].h>0);
+ reset_input();model.ui_interface=XZ_UI_INTERFACE_CLASSIC;model.key_feedback=1;
+ memcpy(normal,stock,sizeof stock);assert(xz_mods_render_v1(normal,800,480,800,NULL)==1);
+ assert(!key_boxes_equal(normal,stock,box));
+ memcpy(busy,stock,sizeof stock);pthread_mutex_lock(&ui_mutex);
+ int rendered=xz_mods_render_v1(busy,800,480,800,NULL);pthread_mutex_unlock(&ui_mutex);
+ if(!rendered||!key_boxes_equal(busy,normal,box)){
+  fprintf(stderr,"FAIL busy render exposed the native key countdown (rendered=%d)\n",rendered);assert(0);
+ }
+ /* Off, MODS open and a linked takeover leave the native strip alone on a busy frame. */
+ xz_mods_key_feedback_proof_v1.enabled=0;memcpy(busy,stock,sizeof stock);pthread_mutex_lock(&ui_mutex);
+ xz_mods_render_v1(busy,800,480,800,NULL);pthread_mutex_unlock(&ui_mutex);assert(key_boxes_equal(busy,stock,box));
+ xz_mods_key_feedback_proof_v1.enabled=1;
+ __atomic_store_n(&visible,1,__ATOMIC_RELEASE);memcpy(busy,stock,sizeof stock);pthread_mutex_lock(&ui_mutex);
+ assert(!xz_mods_render_v1(busy,800,480,800,NULL));pthread_mutex_unlock(&ui_mutex);assert(key_boxes_equal(busy,stock,box));
+ __atomic_store_n(&visible,0,__ATOMIC_RELEASE);
+ __atomic_store_n(&fb_takeover_active,1,__ATOMIC_RELEASE);__atomic_store_n(&network_enabled,1,__ATOMIC_RELEASE);
+ __atomic_store_n(&network_connected,1,__ATOMIC_RELEASE);memcpy(busy,stock,sizeof stock);pthread_mutex_lock(&ui_mutex);
+ assert(!xz_mods_render_v1(busy,800,480,800,NULL));pthread_mutex_unlock(&ui_mutex);assert(key_boxes_equal(busy,stock,box));
+ __atomic_store_n(&fb_takeover_active,0,__ATOMIC_RELEASE);__atomic_store_n(&network_enabled,0,__ATOMIC_RELEASE);
+ __atomic_store_n(&network_connected,0,__ATOMIC_RELEASE);
+ puts("PASS key strip over the stock CLASSIC play screen survives a busy renderer; off, MODS and a linked takeover leave the native strip");
+}
 static void paint_only_redraw(void){
  reset_input();unsigned char self[32]={0};
  fixture_pc_metadata_redraws=fixture_repaints=0;
@@ -147,8 +183,9 @@ static void menu_back_navigation(void){
  puts("PASS onscreen Back on every page/theme; previous page/root close; physical press/long/release capture; stock-held and other-key passthrough");
 }
 int main(int argc,char **argv){
- assert(argc==2);
- if(!strcmp(argv[1],"scene"))scene_release();
+ assert(argc==2||(argc==3&&!strcmp(argv[1],"keys")));
+ if(!strcmp(argv[1],"keys"))key_strip_busy(argv[2]);
+ else if(!strcmp(argv[1],"scene"))scene_release();
  else if(!strcmp(argv[1],"shortcut"))shortcut_drag();
  else if(!strcmp(argv[1],"buttons"))busy_buttons();
  else if(!strcmp(argv[1],"redraw"))paint_only_redraw();
