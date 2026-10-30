@@ -18,14 +18,14 @@ window.XZ_SUPPORT_KB = Object.freeze({
       source: 'Manual: Four decks, Set up four decks'
     },
     {
-      entry_id: 'e8307-loopback-hub', revision: 1, kind: 'NOT_A_BUG', component: 'loopback',
-      title: 'E-8307 with the loopback cable in',
+      entry_id: 'e8307-loopback-hub', revision: 2, kind: 'NOT_A_BUG', component: 'loopback',
+      title: 'A USB warning with the loopback cable in',
       need: ['e-8307', 'e8307', '8307', 'hub', 'hubs', 'unsupported device'],
       terms: ['e-8307', 'e8307', '8307', 'hub', 'hubs', 'not supported', 'unsupported', 'warning', 'error', 'loopback', 'cable', 'usb'],
       not: ['access error'],
       answer: 'This warning is expected while the loopback cable is in. Play on. If you see it without the loopback cable, a device the player does not support is in a top USB port: remove it.',
       action: null,
-      source: 'Manual: Messages and troubleshooting, E-8307'
+      source: 'Manual: Messages and troubleshooting, LOOPBACK CABLE CONNECTED'
     },
     {
       entry_id: 'sync-labels-decks-3-4', revision: 1, kind: 'QUESTION', component: 'sync_tempo',

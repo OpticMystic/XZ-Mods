@@ -1,6 +1,6 @@
 #define RBP_SHA "3a7c6c507ea67b2484d0cbc58136a495374c8ede5eeef1ffdffcfe86c7a3dae3"
-#define RUNTIME_SHA "e4b897e6cc281c8a6663714e40aace1ad7ca0325603f14ea39348631c3d08b8e"
-#define RECEIVER_SHA "e777f486796c8aa327dad8c1b14bfd06382425765414210c4a77054ba9f438f5"
+#define RUNTIME_SHA "baba82b889cfd604074f8d5bf794687d447d7fde877bcfb51cba13e46ee43bd9"
+#define RECEIVER_SHA "102cd2978111c21c3957b5197e6ef9ce160f8532ba6e37fb344f9da1e993b772"
 #define MODULE_SHA "19f44ded027304d3ea62a84c4e325bb422949c2cf2eeaa6e49e40d3f1c635101"
 #define KERNEL_RELEASE "3.0.101-2790-gc248ed7-svn2808"
 static const struct kernel_crc { const char *name; unsigned int value; } kernel_crcs[] = {

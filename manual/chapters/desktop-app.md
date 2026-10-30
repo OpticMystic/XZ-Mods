@@ -24,7 +24,7 @@ The bar along the top has five sections for your work, then the Manual and About
 
 Tools, Updates and the Manual list what they hold down the left, beside the page: the tools, the three Updates pages, or the manual's chapters. The button at the far left of the top bar hides that list and shows it again, and the app remembers your choice.
 
-The top left names the player firmware the app prepares USBs for, XDJ-XZ 1.26. The app version is at the top right. In a narrower window point at **Preview** to see it.
+The top left names the player firmware the app prepares USBs for, XDJ-XZ 1.26. The app version is at the top right. In a narrower window point at **Beta** to see it.
 
 The app opens as large as its pages need, but never larger than your screen. In a narrow window the sections show only their icons. Point at one to see its name. The list on the left then opens over the page from the button at the top left, and closes when you pick something.
 
@@ -739,4 +739,4 @@ For local generation, open the independent provider section. Detect saved resour
 
 Choose **Generate all languages** to resume the full corpus. Progress and logs remain in the XZ application data directory. **Cancel translation** stops this job and retains checkpoints. Publication replaces the complete language set only after every locale passes structural validation. This does not establish native-speaker approval. The packaged source snapshot belongs to this XZ release; updating the app supplies a new snapshot.
 
-Printed hardware names such as [[CUE]], [[SHIFT]], [[SYNC]], [[MENU]] and [[BACK]] stay as printed. Track names and stock alerts are not translated. Arabic uses browser right-to-left text layout; fonts come from the operating system. Controller screenshots keep their original labels. Controller mod text still needs Unicode font and layout integration; choosing a desktop language does not change it.
+Printed hardware names such as [[CUE]], [[SHIFT]], [[SYNC]], [[MENU]] and [[BACK]] stay as printed. Track names and stock alerts are not translated. Arabic uses browser right-to-left text layout; fonts come from the operating system. Pictures of the player's screens keep their English labels. The MODS menu on the player has its own language choice, under MODS > EXTRAS > LANGUAGE ([Language](extras#language)); choosing a desktop language does not change it.

@@ -166,6 +166,7 @@ CONNECT links the player to you and to computers.
 2 @ 557,110 USB APPS | Apps for the XZ from the USB.
 3 @ 225,288 REPORT AN ISSUE | Sends a problem, a question or an idea, in three presses.
 4 @ 557,288 ABOUT XZ MODS | Credits, links and support.
+5 @ 300,382 LANGUAGE | The language of the MODS menu.
 ```
 
 [Extras](extras) explains every page here.

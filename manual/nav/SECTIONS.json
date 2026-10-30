@@ -241,7 +241,7 @@
       "title": "VJ.Tools {experimental}",
       "level": 2,
       "chapter": "connect.md",
-      "sha256": "bb44b5833e9c16a5d0a43cd253f808a7302210f1a60cb6b0d8d8e677853cb307",
+      "sha256": "211e9c0cd0fd6469c620caf0ccb93a4276ed44cf5c5836731b66bf9198eb2b8b",
       "flows": [
         "vj-tools"
       ],
@@ -277,7 +277,7 @@
       "title": "Around the app",
       "level": 2,
       "chapter": "desktop-app.md",
-      "sha256": "105ac8f4135d78c24f8d460ab1e1fa62caf22a9fd606b4b87fac375a9340fcce",
+      "sha256": "515cec35fec08f5e89354047c129524417f43df61e0e22bbd41c1941591ea6f6",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -547,10 +547,20 @@
       "title": "Maintainer inbox",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "fac0798936688888acd3dc9a833dc426435c0ee1b8f56c18a6f47f5389d1ae27",
+      "sha256": "4c3e1ab5bf2b41cac67282c47282e9a163c82c2971fbbcceabbbc70db2c71c25",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#desktop-language",
+      "title": "Desktop language",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "b04c1e8aa9c54b876ef030d761cf10982827b4d1f0360ba295a265dde07053fe",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Every action is in the computer app."
     },
     {
       "section": "desktop-app#manual",
@@ -577,7 +587,7 @@
       "title": "The EXTRAS page",
       "level": 2,
       "chapter": "extras.md",
-      "sha256": "e594329a649f36d1c47f6a831dc9eeec568ac1356fd45061d82d7c5a56119db8",
+      "sha256": "8b255c51301df04eb12f84a0538e67502653d61f5b75f8e6787a9b2eb663afeb",
       "flows": [
         "mods-extras"
       ],
@@ -713,6 +723,16 @@
       "flows": null,
       "reason": "informational",
       "detail": "Report payload explanation; no player action."
+    },
+    {
+      "section": "extras#language",
+      "title": "Language",
+      "level": 2,
+      "chapter": "extras.md",
+      "sha256": "c4061827b5f0cd2b81b6bbbdc45019c581496b26752e9db1906340c1cc80afe2",
+      "flows": null,
+      "reason": "informational",
+      "detail": "One page of 15 choices; no navigation flow is captured for it yet."
     },
     {
       "section": "extras#about-xz-mods",
@@ -1232,7 +1252,7 @@
       "title": "EXTRAS",
       "level": 2,
       "chapter": "mods-menu.md",
-      "sha256": "40c8502979ba0e009f429fa07ba3a435070962e2f8c0c53c9e9a265744b8bc10",
+      "sha256": "df9caa542a0688a3df7d94b3a0dd5e839442c44b78834672cb146e8365f4a00c",
       "flows": [
         "mods-extras"
       ],

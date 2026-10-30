@@ -57,6 +57,8 @@ fn created_at() -> Result<String,String> {
 }
 pub(crate) fn canonical_installation(id:&str)->bool { contract::parse_installation_id(id).and_then(contract::format_installation_id).as_deref()==Some(id) }
 pub(crate) fn canonical_loader(id:&str)->bool { contract::parse_loader_id(id).and_then(contract::format_loader_id).as_deref()==Some(id) }
+/* The support contract and the deployed support service take [a-z0-9.] prerelease tags: 0.5.1-Beta is 0.5.1-beta there. */
+pub(crate) fn contract_version()->String { env!("CARGO_PKG_VERSION").to_ascii_lowercase() }
 impl LoaderIdentity {
     pub(crate) fn valid(&self)->bool {
         self.version==1 && canonical_installation(&self.installation_id) && canonical_loader(&self.loader_id) && support::valid_hex64(&self.loader_key)
@@ -118,7 +120,7 @@ impl Installation {
             if self.loaders.len()>=64{return Err("Loader list is full. Contact support before adding another loader.".into());}
             contract::format_loader_id(random_number()?).ok_or("Invalid loader ID")?
         }};
-        let candidate=LoaderIdentity {version:1,loader_id:id.clone(),loader_key:random_hex(32)?,installation_id:self.installation_id.clone(),created_at:created_at()?,app_version:env!("CARGO_PKG_VERSION").into()};
+        let candidate=LoaderIdentity {version:1,loader_id:id.clone(),loader_key:random_hex(32)?,installation_id:self.installation_id.clone(),created_at:created_at()?,app_version:contract_version()};
         if let Some(loader)=self.loaders.iter_mut().find(|l|l.identity.loader_id==id) {loader.staged=Some(candidate.clone());}
         else {self.loaders.push(Loader {identity:candidate.clone(),staged:Some(candidate.clone()),registered_hash:None,revoke:false,revoked:false});}
         Ok(candidate)
@@ -130,6 +132,12 @@ impl Installation {
 
 #[cfg(test)] mod tests {
     use super::*;
+    #[test] fn staged_identity_version_fits_the_support_contract() {
+        let v=contract_version();
+        assert!(semver::Version::parse(&v).is_ok()&&v.len()<=64);
+        assert!(v.chars().all(|c|c.is_ascii_digit()||c.is_ascii_lowercase()||c=='.'||c=='-'||c=='+'),"{v}");
+        assert!(v.eq_ignore_ascii_case(env!("CARGO_PKG_VERSION")));
+    }
     #[cfg(windows)] #[test] fn identity_is_private_stable_and_rotation_waits_for_verified_write() {
         let root=crate::support_store::tests::temp("controller-identity");let guard=lock(&root).unwrap();let mut install=load(&root).unwrap();
         assert_eq!(load(&root).unwrap().installation_key,install.installation_key);

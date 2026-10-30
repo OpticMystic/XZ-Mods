@@ -29,12 +29,19 @@ def main():
             "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-UNDEBUG", "-pthread",
             "-I" + str(ROOT), "-Wl,-T," + str(ROOT / "xz-relocations.ld")]
     binaries = {}
+    # test_extra_player.c is written for the reference jog scale (XZ_XP_JOG_TICKS_PER_REV 360); the production object
+    # (extra-player-vfp.o) is built for the hardware estimate (build.py --jog-counts-per-rev). Compile the same source
+    # with the production VFP flags at the reference scale; the jog constant is the only difference.
+    reference = args.output / "extra-player-vfp-reference.o"
+    subprocess.run([args.zig, "cc", "-target", "arm-linux-gnueabi.2.13", "-mcpu=cortex_a9", "-mfloat-abi=softfp", "-mfpu=vfpv3",
+                    "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fPIC", "-fvisibility=hidden", "-c",
+                    str(ROOT / "extra_player.c"), "-o", str(reference)], check=True)
     for name, sources, flags in (
         ("stretch", [ROOT / "test_extra_stretch.c"], ["-mfloat-abi=softfp", "-mfpu=vfpv3"]),
         ("aiff", [ROOT / "audio/tests/test_aiff.c"], []),
         ("seek", [args.build / "stem-media-vfp.o", ROOT / "audio/stem_mp3.c",
                   ROOT / "audio/stem_decode.c", ROOT / "audio/tests/test_media_seek.c"], []),
-        ("player", [args.build / "extra-player-vfp.o", args.build / "stem-media-vfp.o",
+        ("player", [reference, args.build / "stem-media-vfp.o",
                     *[ROOT / name for name in ("key/keyshift.c", "key/music.c", "key/control.c", "deck_select.c", "anlz_extra.c", "shell_analysis.c", "ui/layered_wave_source.c",
                                                "ui/layered_wave.c", "audio/stem_mp3.c",
                                                "audio/stem_decode.c", "test_extra_player.c")]], []),
@@ -49,7 +56,7 @@ def main():
             command.append(linux(data))
         elif name == "seek":
             command.append(linux(data / "seek.mp3"))
-        result = subprocess.run(command, capture_output=True, text=True, timeout=180)
+        result = subprocess.run(command, capture_output=True, text=True, timeout=3600)  # the whole player suite under qemu
         (args.output / (name + ".log")).write_text(result.stdout + result.stderr, encoding="utf-8")
         result.check_returncode()
         print(result.stdout.splitlines()[-1], flush=True)

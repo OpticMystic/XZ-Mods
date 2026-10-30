@@ -110,7 +110,8 @@ def whole_json(path,limit):
 def build_facts():
     # These are host-selected packaged resources, never metadata from a USB or request.
     from .service import VERSION
-    result={'app_version':VERSION,'runtime_sha256':None,'bridge_sha256':None,'module_sha256':None}
+    # The support contract (and the deployed support service) takes lowercase prerelease tags: 0.5.1-Beta -> 0.5.1-beta.
+    result={'app_version':VERSION.lower(),'runtime_sha256':None,'bridge_sha256':None,'module_sha256':None}
     configured=os.environ.get('XZ_BUILDER_RESOURCES')
     if not configured or not Path(configured).is_absolute():return result
     resource=Path(configured)
@@ -359,7 +360,7 @@ def dispatch_v2(request,job):
     included=eligible([i for i in items if i['item_id'] not in removed],category,hint,request.get('include_diagnostics'))
     coverage={**coverage,'omitted_items':min(1000000,coverage['omitted_items']+len(items)-len(included))}
     from .service import VERSION
-    desktop=VERSION if len(VERSION)<=64 and sources.VERSION.fullmatch(VERSION) else 'unknown'
+    desktop=VERSION.lower() if len(VERSION)<=64 and sources.VERSION.fullmatch(VERSION.lower()) else 'unknown'
     contact_consent=request.get('contact_opt_in') is True
     body={'schema':'xz-support-report/2','report_id':secrets.token_hex(16),'origin':'loader','kind_hint':hint,
           'description':text(request.get('description',old['description'] if old else ''),4096,True),'category':category,'reporter_hints':hints,

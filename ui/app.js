@@ -236,7 +236,7 @@ $('ota-start').onclick=async()=>{
   $('ota-status').textContent=XZText('Starting on ')+address+XZText('. On the XZ, open Extras → Network updates.');
   await run({method:'serve_runtime_updates',address},'Serving signed XZ updates',origin);
 };
-$('verify-inputs').onclick=async()=>{const origin=$('verify-inputs');if(!required(['firmware'],origin))return;const result=await run({method:'inspect_firmware',firmware:$('firmware').value},'Checking firmware',origin);if(result?.ok)$('input-result').textContent=result.result.key_verified_against_input?XZText('XZ 1.26 firmware and boot support verified.'):XZText('XZ 1.26 application verified. Choose the official firmware ZIP to verify complete boot support.');};
+$('verify-inputs').onclick=async()=>{const origin=$('verify-inputs');if(!required(['firmware'],origin))return;const result=await run({method:'inspect_firmware',firmware:$('firmware').value},'Checking firmware',origin);if(result?.ok)$('input-result').textContent=result.result.key_verified_against_input?XZText('XZ 1.26 firmware and boot support verified.'):XZText('XZ 1.26 application verified. Choose the firmware 1.26 file to verify complete boot support.');};
 $('build').onclick=async()=>{
   const origin=$('build');
   if(!required(['volume','firmware'],origin))return;

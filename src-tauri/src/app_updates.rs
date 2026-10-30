@@ -194,6 +194,9 @@ mod tests{
         assert_eq!(beta_comparison("0.3.0-preview.13","0.3.0-preview.12").unwrap(),std::cmp::Ordering::Less);
         assert_eq!(beta_comparison("0.3.0-preview.13","0.3.0-preview.13").unwrap(),std::cmp::Ordering::Equal);
         assert!(beta_comparison("0.3.0-preview.12","0.3.0").is_err());assert!(beta_comparison("0.3.0-preview.12","bad").is_err());
+        /* 0.5.1-Beta follows every 0.5.0 preview on the beta channel. */
+        assert!(beta_build("0.5.1-Beta"));assert_eq!(beta_comparison("0.5.0-preview.22.13.4","0.5.1-Beta").unwrap(),std::cmp::Ordering::Greater);
+        assert_eq!(beta_comparison("0.5.1-Beta","0.5.0-preview.22.13.4").unwrap(),std::cmp::Ordering::Less);
         assert!(BETA_FEED.starts_with(BETA_PAGE));assert!(!BETA_FEED.contains("releases/latest"));
     }
     #[test]fn versions_do_not_downgrade(){assert_eq!(newer("0.1.7","v0.1.5").unwrap(),std::cmp::Ordering::Less);assert_eq!(newer("0.1.7","0.1.8").unwrap(),std::cmp::Ordering::Greater);assert!(newer("0.1.7","garbage").is_err());}

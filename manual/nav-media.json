@@ -1,5 +1,5 @@
 {
- "capture_inputs_sha256": "d23c8d3186b101705b38c03943e0515af69f3d57edaa9f0f05c1ba1e06b8f17c",
+ "capture_inputs_sha256": "ce9bc9fc3423a120253336d5bed36b1e01df78e6e772549a554aae3a11d79a9a",
  "compositor_sha256": "6e1982915100c029ae4c8f1a2479e4b427224b976fa0d99ca355d1e254b09ccb",
  "controls": "out-v2",
  "crf": 30,
@@ -15,7 +15,7 @@
    "poster": "assets/manual/nav/about.webp",
    "seconds": 3.452,
    "sha256": {
-    "capture": "6794009f4c6ad12a962ad0860c30b05209c5f79d814f837e6e5ab30625256a84",
+    "capture": "7fd47dcffbfbc59dffd2d827c7050d7de68a99471257ee888c3c0d7a34a26b70",
     "clips": {
      "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
      "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
@@ -23,7 +23,7 @@
     },
     "poster": "33dc9c04626886d80a0c661b4dfc170a4e1bff937a863336bd5f02bc07e24171",
     "script": "1ae1e1cea29000c794aa938d69a7b66dbf255a3dfad8bd42c2e7c44b5550a242",
-    "video": "42d42290127fb906027b5bc80addc8833445404db67a7cd1432b438757b09082"
+    "video": "d7847ba74552ace686e5518332ad3984f9de80db586f8b5d309aa723052c51cc"
    },
    "steps": [
     {
@@ -58,7 +58,7 @@
    "poster": "assets/manual/nav/apps-setup.webp",
    "seconds": 3.772,
    "sha256": {
-    "capture": "91a738970774e5f52f59bffc4e962d6f0c8006764edf899af6cc8e24418c1c49",
+    "capture": "6d3f1c1402a6b3ad363819a0e0c3c692dc029886b3fef041942f862ac183286b",
     "clips": {
      "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
      "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
@@ -66,7 +66,7 @@
     },
     "poster": "c47e1bf7a80e789f570066b32debacde5f51c6effd4ec73bdcdca1ec75587944",
     "script": "f5b851b754e4d213a46e018a69da809ea73ba015084d7a2f9aaf6da1bb5152aa",
-    "video": "b41d3938cac3c14bdc10972d6f92041de1e5cf0faf6326a45c4c584dd99a4ebd"
+    "video": "3836c421cb67704a1b3d23aa695d89d13fb9ed2f9e91172eaaf5d826ba0e0a74"
    },
    "steps": [
     {
@@ -107,7 +107,7 @@
    "poster": "assets/manual/nav/b-arcade.webp",
    "seconds": 6.032,
    "sha256": {
-    "capture": "48eea20ca33a2ebdb53102bbcfacf892c23b186fc4551d2ba7d1b43854f707d6",
+    "capture": "148ea7f4e2170547f3854dd54066f698e271b53f4ada7f6606f69a7fd99b91ca",
     "clips": {
      "left-cue": "54bdd617ea5b49bb8cbfe54093e985361dacb8e259b44804a7bddf22bb54e0ab",
      "left-pad-g": "1e44ff22a73e68ae4bd6939936b978b5fbdaa08764d59e707361163c1842114c",
@@ -117,7 +117,7 @@
     },
     "poster": "f9486ab0d40e8d7b96a8e26db0c8231755fa4e777542a9e6b1b5b98c53dce347",
     "script": "337ae51cee41a2be1f93ec5675575ea98cb43b69b3a5b0d36b969d78b83eb07a",
-    "video": "5d37105bb20d4fd3a12b64f97ec830da032b107c885cd861a534a1d096dce6de"
+    "video": "046a485ca3f50515b550b2955902751dee0c2727d298b43acdb387c88c7870f8"
    },
    "steps": [
     {
@@ -506,7 +506,7 @@
    "poster": "assets/manual/nav/b-rider.webp",
    "seconds": 7.212,
    "sha256": {
-    "capture": "4ea229e417a0268d30592f6a4817120060298dbe6eadfe1da92d23fa9f059d82",
+    "capture": "8f86d1b0a040343c8d2d2e969f7e51d85ae5b91a705bf985b0315e7bc61a5004",
     "clips": {
      "left-cue": "54bdd617ea5b49bb8cbfe54093e985361dacb8e259b44804a7bddf22bb54e0ab",
      "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
@@ -515,7 +515,7 @@
     },
     "poster": "f4d6e8dfa335984edcc5a43534b83f95a113a7a8d3a8b828f3a30c4e5c7f88d2",
     "script": "529c9c91a92712caa6ff925bf4aced64644b9e503ab417232877e7b639c02a76",
-    "video": "6ce14bafec7134ab657b020d5a6caf500cf28b981004df9c9e98f8173d1d293d"
+    "video": "c4d94ca611aae55e93271f0530aba96b180c6f515032c337b45077d4056c7dd7"
    },
    "steps": [
     {
@@ -1634,7 +1634,7 @@
    "poster": "assets/manual/nav/games.webp",
    "seconds": 3.452,
    "sha256": {
-    "capture": "ded60caedd307024c940f0bb333532a1e3a3ed86b031f68b091818531755d893",
+    "capture": "9332b009059780041cab3bf9f518a9e3b7c3e5973b1228b996f0f20f56d5f468",
     "clips": {
      "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
      "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
@@ -1642,7 +1642,7 @@
     },
     "poster": "3171f299f585bcb63747662bdfab2cbe1d8afd749c6f8c73e4141f812e41acea",
     "script": "ab8fe1b2751bc0eaeade4a6f6d378de3384f925a0a96418b480a8ef7b35b998c",
-    "video": "356086a9c94dbcbb0f07698696e897d363630fc4c96cea763cb79d5bb2cc0a6f"
+    "video": "4896cf9d86e9111f3242cb734e72c9574097906e8446dbb6e61dec61fa9a82ae"
    },
    "steps": [
     {
@@ -1946,7 +1946,7 @@
    "poster": "assets/manual/nav/mods-extras.webp",
    "seconds": 3.632,
    "sha256": {
-    "capture": "2cd337583c2f51b1686fdbbc6fa2dcd4adf31250159828147480f4504e023860",
+    "capture": "a4534009c6dbdb9a585e8936a31afe803d21dd992c135332c564a6acc8c3e007",
     "clips": {
      "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
      "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
@@ -1955,7 +1955,7 @@
     },
     "poster": "c01587c1845bf0980e57e58c6e83a5ee63d6aa243e492b20032c717807c09923",
     "script": "26e80ea76a043e83d0f975fb2193e97f3b37696a14ebc6f6bd5475cc595b372d",
-    "video": "1681b661d0d297d921bbd0f3ad5cb2ebb7e096f4ddceb726a7cb041477e1254d"
+    "video": "92b02e25524ad49217d68434af6c2cf1b263ef123eece8c0a260a8b17111ca22"
    },
    "steps": [
     {
@@ -2365,7 +2365,7 @@
    "poster": "assets/manual/nav/my-house-setup.webp",
    "seconds": 3.772,
    "sha256": {
-    "capture": "0830c28245aef099fe48ee9390fa7c76793d94e7b4a9222a2784a26bfdce7a62",
+    "capture": "ea5b7985edbdad8cb7abf5682fd7c4068fa3790e67c8b7f0c433adb6a537aa67",
     "clips": {
      "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
      "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
@@ -2373,7 +2373,7 @@
     },
     "poster": "1db0d8c74a5cd08abd9b10cac7891f2a70b52a2fc3d45273faeb63bacc55a59c",
     "script": "36e65f4b6f9a27ba291ddf7f06a8e22efc4d77954adefd2d687cfa2406680780",
-    "video": "704a50f5939cba02ae6c6034023b5e364638faeec5525347da4b80863cefd5f4"
+    "video": "0d18f81d23f1af19e3149dc64e548c882caeff44101d6cfe3955130dd95a9f40"
    },
    "steps": [
     {
@@ -4474,15 +4474,15 @@
    "poster": "assets/manual/nav/report-edit-recovery.webp",
    "seconds": 17.192,
    "sha256": {
-    "capture": "e5b0da1d931652a21e77ce0b1d9e68d2fb9dbd91b6db6282480cebd57e3e194c",
+    "capture": "eb4c88c0cfbf6188d96c8c263787b84486df3fa43b99f5029040d5af92175560",
     "clips": {
      "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
      "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
      "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
     },
-    "poster": "22a6072d1281835e7a8c82c3da8635f5b5d965c6c70a26657fa425a980cf89b1",
+    "poster": "3b60bc033390d74e691779c6b13e35cee4a5a91e4eaf3de0474d14d1cb195882",
     "script": "191a769c170c21d80e745f6019bce73802a440529e568e5c11b0852a5562ad80",
-    "video": "969ed7e8249c30b6d66916589d90b92405a99e0c1243a27e4c70c6e95cdb8e64"
+    "video": "6c1dd77cd27013213f6618be9c2081d2ecefe5057a02431c30938bc483ff1e6f"
    },
    "steps": [
     {
@@ -4553,7 +4553,7 @@
    "poster": "assets/manual/nav/report-issue.webp",
    "seconds": 7.192,
    "sha256": {
-    "capture": "0ed78554fc0f242ed0ba528193ac5749fc024d0215d59ebc984bb116b4c8774e",
+    "capture": "69c9db8ea1dc080983cffc99c4606d898b8163d4bf1c4f6482793750ce7dab16",
     "clips": {
      "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
      "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
@@ -4561,7 +4561,7 @@
     },
     "poster": "01f6ea5da2f565f9cd63cbc52571b23b834b473dd79eee133b03096fb2230244",
     "script": "5ee17ba59e7ef7a5a80104018d9c5334c10d0d9dbc53f06032be609ed2f5647f",
-    "video": "02cc15c6c2e54bac3a6491c48ea5718c22d11244a30ebce2d7cd51de77604afd"
+    "video": "f2ccddd80ef14988fbd52420f4ef511c407e83260e34efcc0e311fae28116921"
    },
    "steps": [
     {
@@ -5101,7 +5101,7 @@
    "poster": "assets/manual/nav/wad-loader.webp",
    "seconds": 3.772,
    "sha256": {
-    "capture": "7b6ea7a344fffe4a4931772aa874462c1b6f2424c47ba8856246f99690095019",
+    "capture": "d225789f73a4fb1a6c434d588c6d8ce6127a6c6046583ae9cda003e6255fa59e",
     "clips": {
      "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
      "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
@@ -5109,7 +5109,7 @@
     },
     "poster": "fc5ab054f3a53d7f1b9f2dfeaa2a4ffe362717bf42f6ee59c55ac0dbf684dd24",
     "script": "c0a9c50219bb649ca2e913d655534eedc5cd57f39decbf83710046f1c758f28c",
-    "video": "f14a9fb3a91d05efaca24ba44afa7358974a2d97a172a777de9680a2f65cd55c"
+    "video": "e8ab40aff15bddd6ab27ffdd1679066a66f02aa4ca73022831450c43cb72a8e9"
    },
    "steps": [
     {

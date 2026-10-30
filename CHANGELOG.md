@@ -3,6 +3,22 @@
 What changed in each version of XZ Mods for the XDJ-XZ, newest first. XZ Mods is independent and experimental:
 test each build with your own tracks before a set, and keep a known working USB.
 
+## 0.5.1-Beta - 2026-10-30
+
+MODERN and CLASSIC switch reliably, a steadier VJ.Tools screen, and XZ Mods in 15 languages.
+
+- The XZ Mods app, its Manual and the MODS menu on the player can be shown in 15 languages. Choose the language in the app, and on the player under MODS > EXTRAS. The translations are machine-made and still being reviewed.
+- MODERN starts when you chose it, and the button above LINK switches between MODERN and CLASSIC both ways.
+- CLASSIC's top buttons stay steady.
+- In CLASSIC, the key readouts beside the decks stay steady.
+- The VJ.Tools screen stays on while the computer reconnects, and shows only while a computer is connected.
+- Decks 3 and 4 come back when the loopback cable is plugged back in or moved to the other top port, and RETRY works.
+- After you plug the loopback cable back in, the card says what it waits for, for example STOP DECKS 1 AND 2.
+- In MODERN, the first tap after you leave Wave Rider or Rhythm Lab works.
+- Clearer wording across the app, including About, DJ Profile and the help topics.
+- Experimental. For the XDJ-XZ on version 1.26 only.
+- Hardware testing of this build is still in progress.
+
 ## 0.5.0-preview.22.13.4 - 2026-10-29
 
 CLASSIC switches cleanly, and decks 3 and 4 come back after a replug.

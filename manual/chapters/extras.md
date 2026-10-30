@@ -1,9 +1,9 @@
 ---
 interface: both
-settings:
+settings: controller_locale
 ---
 
-EXTRAS holds what is not about playing a set: games, apps from a USB, reporting a problem and the About page. Nothing here starts on its own. The XZ always starts in its normal DJ view, and a game or app opens only when you choose it.
+EXTRAS holds what is not about playing a set: games, apps from a USB, reporting a problem, the About page and the language of the MODS menu. Nothing here starts on its own. The XZ always starts in its normal DJ view, and a game or app opens only when you choose it.
 
 Open MODS with [[MENU]], then choose **EXTRAS** in the section rail.
 
@@ -13,12 +13,13 @@ Open MODS with [[MENU]], then choose **EXTRAS** in the section rail.
 ```
 
 ```figure classic:theme-{look}-extras MODS · EXTRAS
-The four parts of EXTRAS.
+The parts of EXTRAS.
 1 @ 230,88 GAMES | Doom and Chex Quest, Beat Arcade, Wave Rider, Rhythm Lab and Static Surfer.
 2 @ 560,88 USB APPS | XZ SDK apps from a USB.
 3 @ 230,266 REPORT AN ISSUE | Send a problem, a question or an idea from the player.
 4 @ 560,266 ABOUT XZ MODS | Credits, links and support.
 5 @ 85,425 Dock | Explains the highlighted card. For GAMES it reminds you that audio keeps playing.
+6 @ 300,382 LANGUAGE | The language of the MODS menu on the player.
 ```
 
 The HOME card for EXTRAS counts the games and the apps found on your USBs, for example **6 games | no USB apps**.
@@ -321,6 +322,18 @@ The report holds facts the player can check, never text read from its screens:
 - known status codes from decks 3 and 4 and the player, and the recent entries of the USB diary on this stick.
 
 It never holds music, track or playlist names, file names or network addresses. Only the maintainer reads it. You can also report from the XZ Mods app. See [Messages and troubleshooting](troubleshooting).
+
+## Language
+
+LANGUAGE sets the language of the MODS menu on the player. All 15 languages show in their own names. Tap one, or turn the encoder to it and push. The choice is saved on the USB with your other settings, and [[BACK]] returns to EXTRAS.
+
+```figure classic:theme-{look}-language MODS · LANGUAGE
+The LANGUAGE page with English chosen.
+1 @ 248,84 Chosen language | The language the MODS menu uses now.
+2 @ 464,240 Other languages | Each one in its own name and script.
+```
+
+The translations are machine-made and still being reviewed. Some lines stay in English, and track names, the player's own screens and the printed button names never change. The XZ Mods app has its own language choice; see [Desktop language](desktop-app#desktop-language).
 
 ## About XZ Mods
 
