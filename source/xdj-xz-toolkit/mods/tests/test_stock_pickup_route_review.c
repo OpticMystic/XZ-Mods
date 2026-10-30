@@ -115,7 +115,7 @@ static void extended_routes(void){
   xz_xp_set_master_observer(p,extended_observe);xz_xp_set_native_sync_clock(p,extended_native);
   press(0,XZ_EXTRA_IN_PLAY);press(1,XZ_EXTRA_IN_PLAY);seek(d,805);
   sim_native.playing=0;sim_native.anchor_phase=1.;press(d,XZ_EXTRA_IN_SYNC);clock_ms+=10;step();EXPECT(view.deck[d].tempo_x100==500);
-  press(d,XZ_EXTRA_IN_SYNC);seek(d,805);press(d,XZ_EXTRA_IN_SYNC);
+  press(d,XZ_EXTRA_IN_SYNC);seek(d,805);uint64_t seeked=debug(d).position;press(d,XZ_EXTRA_IN_SYNC);
   uint64_t before=debug(d).position;uint32_t gen=debug(d).generation,old_route=fake_link(NULL);
   sim_native.bpm=129.6;clock_ms+=10;extended_observations=0;extended_arm=stage!=0;
   stepping_side=d;xz_xp_step(p,d);extended_arm=0;xz_xp_read(p,&view);
@@ -127,7 +127,9 @@ static void extended_routes(void){
    EXPECT(view.deck[d].tempo_x100==(stage==5?800:500));
   }else{
    EXPECT(fake_link(NULL)==old_route);EXPECT(view.deck[d].tempo_x100==800);
-   EXPECT(quantize?debug(d).position!=before:debug(d).position==before);
+   /* Since dfb6917 an explicit QUANTIZE engage snaps on the first qualified pass, inside the press: the snap is
+      measured from the position before the press, and the BPM step after it never moves the deck. */
+   EXPECT(quantize?before!=seeked:before==seeked);EXPECT(debug(d).position==before);
   }
   xz_xp_destroy(p);p=NULL;
  }

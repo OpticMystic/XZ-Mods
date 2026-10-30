@@ -19,6 +19,8 @@ sources = [root / name for name in (
 sources += [root.parent / "ui" / name for name in UI_SOURCES]
 sources += [root.parent / "ui" / name for name in (
     "native_touch.c", "stem_pads.c", "beat_jump.c", "wave_viewport.c",
+    # The included runtime-controls checks need the deck-detail notices, as verify_runtime_controls.py links them.
+    "extra_detail.c", "extra_lane.c", "layered_wave.c",
 )]
 sources += [root.parent / name for name in (
     "key/music.c", "key/control.c", "key/browser.c", "key/catalog.c", "key/traffic.c", "settings.c", "usb_profile.c", "doom/native_bridge.c", "doom/wad_catalog.c",

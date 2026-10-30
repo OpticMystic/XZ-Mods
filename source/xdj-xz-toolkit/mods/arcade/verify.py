@@ -40,7 +40,7 @@ runtime_sources = [root / 'test_runtime_arcade.c', *[root / n for n in ('arcade.
                    *[root.parent / 'ui' / n for n in UI_SOURCES],
                    *[root.parent / 'ui' / n for n in ('native_touch.c', 'stem_pads.c', 'beat_jump.c', 'wave_viewport.c')],
                    root.parent / 'settings.c', root.parent / 'usb_profile.c', root.parent / 'doom/native_bridge.c', root.parent / 'doom/wad_catalog.c', root.parent / 'ota/native_update.c', root.parent / 'audio/vendor/sha256/sha256.c',root.parent/'pc_control/stems.c']
-runtime_sources += [root.parent/'key'/name for name in ('music.c','browser.c','catalog.c','traffic.c')]
+runtime_sources += [root.parent/'key'/name for name in ('music.c','control.c','browser.c','catalog.c','traffic.c')]
 runtime_sources += [root.parent/'kart'/name for name in ('xz_kart_input.c','xz_kart_runtime.c')]
 subprocess.run([str(args.zig.resolve()), 'cc', '-target', 'arm-linux-gnueabi.2.13', '-mcpu=cortex_a9',
                 '-O2', '-s', '-std=c11', '-Wall', '-Wextra', '-Werror', '-UNDEBUG', *map(str, runtime_sources), '-pthread', '-ldl', '-lm', '-o', str(runtime)], check=True)

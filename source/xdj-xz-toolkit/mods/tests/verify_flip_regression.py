@@ -41,6 +41,14 @@ static int original_primary_flip(IDirectFBSurface *s,const DFBRegion *region,uns
  return 19;
 }
 static void write_runtime_stats_if_due(void){}
+/* Helpers the hook gained with the kart primary-display diagnostic. The regression models the stock
+   primary (no diagnostic writer), so the native-primary branch is off and its counters are inert. */
+static void capture_mods_native(IDirectFBSurface *s){(void)s;}
+static int diagnostic_primary_active(int overlay){(void)overlay;return 0;}
+static uint32_t xz_kart_primary_display_proof_v1[16];
+static uint32_t diagnostic_primary_logged;
+static int diagnostic_writer_claim(unsigned owner){(void)owner;return 1;}
+static void diagnostic_writer_release(void){}
 '''
 checks=r'''
 int main(void){

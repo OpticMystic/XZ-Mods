@@ -56,6 +56,8 @@ int xz_xp_start(struct xz_xp_players *p){(void)p;return 0;}
 void xz_xp_stop(struct xz_xp_players *p){(void)p;}
 void xz_xp_destroy(struct xz_xp_players *p){(void)p;}
 int xz_xp_read_held(struct xz_xp_players *p,struct xz_extra_decks *o,struct xz_extra_analysis_hold *h){(void)p;(void)h;memset(o,0,sizeof *o);return 1;}
+/* extra_decks.c reads the players for the key owner (key shift, 227cbd0); the fake has no loaded deck. */
+void xz_xp_read(struct xz_xp_players *p,struct xz_extra_decks *o){(void)p;memset(o,0,sizeof *o);}
 void xz_xp_release_analysis(struct xz_extra_decks *o,struct xz_extra_analysis_hold *h){(void)o;(void)h;}
 void xz_xp_notice(struct xz_xp_players *p,const char *s){(void)p;(void)s;}
 void xz_xp_set_native_sync_clock(struct xz_xp_players *p,int(*f)(struct xz_sync_native_snapshot *)){(void)p;(void)f;}
