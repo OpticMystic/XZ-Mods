@@ -728,3 +728,15 @@ The inbox, scrolled right to show Reference and Item.
 ```
 
 The reference and item number identify a report; the owner key is still required to read the inbox.
+
+## Desktop language
+
+Choose **Language / Idioma** below the navigation to open XZ language setup. It detects the bundled offline catalogs, lets you choose a language, imports an optional JSON catalog, then applies the text so you can verify it on screen. No account or translation service is required. This setting belongs to XZ Mods only.
+
+Coverage counts describe extracted desktop and manual text. Machine translations require language review. Export a catalog to review text offline; import rejects changed sources, missing placeholders and altered printed control names. After a source change, regenerate all languages against a fresh source snapshot.
+
+For local generation, open the independent provider section. Detect saved resources, enter the Python executable and Small100 model folder, then choose **Connect and live verify**. The test translates a sentence into all 14 languages. **Install pinned dependencies** creates an XZ-only Python environment using the selected Python and installs the pinned provider packages. It needs network access for those packages, but translation runs locally without credentials or paid services. The Small100 folder must already contain model.bin, shared_vocabulary.json and sentencepiece.bpe.model.
+
+Choose **Generate all languages** to resume the full corpus. Progress and logs remain in the XZ application data directory. **Cancel translation** stops this job and retains checkpoints. Publication replaces the complete language set only after every locale passes structural validation. This does not establish native-speaker approval. The packaged source snapshot belongs to this XZ release; updating the app supplies a new snapshot.
+
+Printed hardware names such as [[CUE]], [[SHIFT]], [[SYNC]], [[MENU]] and [[BACK]] stay as printed. Track names and stock alerts are not translated. Arabic uses browser right-to-left text layout; fonts come from the operating system. Controller screenshots keep their original labels. Controller mod text still needs Unicode font and layout integration; choosing a desktop language does not change it.

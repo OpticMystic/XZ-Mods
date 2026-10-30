@@ -1,3 +1,4 @@
+#include "l10n.h"
 /* SPDX-License-Identifier: MIT */
 #include "deck_view.h"
 #include "route_card.h"
@@ -87,7 +88,7 @@ void xz_deck_view_button_draw(struct xz_canvas c, const struct xz_deck_view_styl
  int gy=y+(h-12)/2,pitch=12/n;
  for(int i=0;i<n;i++)xz_rect(c,x+6,gy+i*pitch,14,pitch-1,lanes[i]<=2||ready?s->ink:s->off);
  int ty=y+(h-9)/2,tx=x+26;
- xz_text(c,tx,ty,"DECKS",1,99,s->dim);tx+=xz_text_width(c,"DECKS",1,99)+5;
+ xz_text(c,tx,ty,xz_l10n_authored("DECKS"),1,99,s->dim);tx+=xz_text_width(c,xz_l10n_authored("DECKS"),1,99)+5;
  for(int i=0;i<n;i++){
   char digit[2]={(char)('0'+lanes[i]),0};
   int live=lanes[i]<=2||ready;
@@ -188,7 +189,7 @@ void xz_deck_view_picker_draw(struct xz_canvas c, const struct xz_deck_view_styl
   xz_rect(c,p.x,p.y,p.w,p.h,s->panel_fill);xz_border(c,p.x,p.y,p.w,p.h,s->panel_edge);
   xz_rect(c,p.x,p.y,p.w,3,s->accent);
  }
- xz_text(c,p.x+12,p.y+11,"DECK VIEW",1,99,s->ink);
+ xz_text(c,p.x+12,p.y+11,xz_l10n_authored("DECK VIEW"),1,99,s->ink);
  text_right(c,p.x+p.w-12,p.y+11,"WHAT THE PLAY SCREEN SHOWS",1,s->dim);
  for(int i=0;i<XZ_DECK_VIEW_TILES;i++){
   struct xz_dv_rect t=xz_deck_view_tile(s,i);

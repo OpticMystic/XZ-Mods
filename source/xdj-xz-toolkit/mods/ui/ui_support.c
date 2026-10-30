@@ -1,3 +1,4 @@
+#include "l10n.h"
 /* SPDX-License-Identifier: MIT */
 /* REPORT AN ISSUE on the XZ: one question per screen, then SEND. Everything the player can tell about itself is
    collected automatically by the support helper; the DJ only says what it is about and, if they like, what
@@ -48,30 +49,30 @@ size_t xz_ui_support_controls(const struct xz_ui *u, const struct xz_ui_model *m
     switch (step(u)) {
     case XZ_UI_REPORT_TOPIC:
         for (int i = 0; i < XZ_SUPPORT_TOPICS; i++) add(w, &n, XZ_UI_SUPPORT_TOPIC, i, topic_text[i].name);
-        add(w, &n, XZ_UI_SUPPORT_TOPIC, -1, "NOT SURE");
+        add(w, &n, XZ_UI_SUPPORT_TOPIC, -1, xz_l10n_authored("NOT SURE"));
         break;
     case XZ_UI_REPORT_TEXT:
         for (int r = 0; r < 4; r++) {
             const char *row = xz_ui_kb_row(u, r);
             for (int k = 0; k < 10 && row[k]; k++) add(w, &n, XZ_UI_SUPPORT_KEY, xz_ui_kb_byte(u, row[k]), "");
         }
-        add(w, &n, XZ_UI_SUPPORT_KEY, XZ_UI_KB_SHIFT, u->kb_shift ? "SHIFT ON" : "SHIFT");
-        add(w, &n, XZ_UI_SUPPORT_KEY, XZ_UI_KB_SYMBOLS, u->kb_symbols ? "ABC" : "#+=");
-        add(w, &n, XZ_UI_SUPPORT_KEY, ' ', "SPACE");
-        add(w, &n, XZ_UI_SUPPORT_KEY, XZ_UI_KB_DELETE, "DELETE");
-        add(w, &n, XZ_UI_SUPPORT_SKIP, 0, "SKIP, I'LL ADD IT ON MY COMPUTER");
-        add(w, &n, XZ_UI_SUPPORT_NEXT, 0, "NEXT");
+        add(w, &n, XZ_UI_SUPPORT_KEY, XZ_UI_KB_SHIFT, u->kb_shift ? xz_l10n_authored("SHIFT ON") : "SHIFT");
+        add(w, &n, XZ_UI_SUPPORT_KEY, XZ_UI_KB_SYMBOLS, u->kb_symbols ? xz_l10n_authored("ABC") : "#+=");
+        add(w, &n, XZ_UI_SUPPORT_KEY, ' ', xz_l10n_authored("SPACE"));
+        add(w, &n, XZ_UI_SUPPORT_KEY, XZ_UI_KB_DELETE, xz_l10n_authored("DELETE"));
+        add(w, &n, XZ_UI_SUPPORT_SKIP, 0, xz_l10n_authored("SKIP, I'LL ADD IT ON MY COMPUTER"));
+        add(w, &n, XZ_UI_SUPPORT_NEXT, 0, xz_l10n_authored("NEXT"));
         break;
     case XZ_UI_REPORT_SEND:
-        add(w, &n, XZ_UI_SUPPORT_STEP, XZ_UI_REPORT_TOPIC, "CHANGE");
-        add(w, &n, XZ_UI_SUPPORT_STEP, XZ_UI_REPORT_TEXT, u->support.skipped || blank(u->support.text) ? "ADD TEXT" : "CHANGE");
-        add(w, &n, XZ_UI_SUPPORT_SEND, 0, "SEND REPORT");
+        add(w, &n, XZ_UI_SUPPORT_STEP, XZ_UI_REPORT_TOPIC, xz_l10n_authored("CHANGE"));
+        add(w, &n, XZ_UI_SUPPORT_STEP, XZ_UI_REPORT_TEXT, u->support.skipped || blank(u->support.text) ? xz_l10n_authored("ADD TEXT") : xz_l10n_authored("CHANGE"));
+        add(w, &n, XZ_UI_SUPPORT_SEND, 0, xz_l10n_authored("SEND REPORT"));
         break;
     default:
         if (phase(m) == XZ_SUPPORT_UNSAVED || phase(m) == XZ_SUPPORT_ERROR) {
-            add(w, &n, XZ_UI_SUPPORT_RETRY, 0, "TRY AGAIN");
-            add(w, &n, XZ_UI_SUPPORT_EDIT, 0, "EDIT REPORT");
-        } else add(w, &n, XZ_UI_SUPPORT_DONE, 0, "DONE");
+            add(w, &n, XZ_UI_SUPPORT_RETRY, 0, xz_l10n_authored("TRY AGAIN"));
+            add(w, &n, XZ_UI_SUPPORT_EDIT, 0, xz_l10n_authored("EDIT REPORT"));
+        } else add(w, &n, XZ_UI_SUPPORT_DONE, 0, xz_l10n_authored("DONE"));
         break;
     }
     return n;
@@ -407,7 +408,7 @@ static void text_step(const struct xz_ui_scene *s, const struct look *l) {
     int hw = xz_text_width(c, "WHAT HAPPENED?", 2, 40);
     if (hw > 440) hw = 440;
     xz_round_rect(c, X0 + hw + 12, 58, xz_text_width(c, "OPTIONAL", 1, 20) + 16, 18, 9, 15, xz_blend(l->bg, l->ink, 40));
-    xz_text(c, X0 + hw + 20, 62, "OPTIONAL", 1, 20, l->ink);
+    xz_text(c, X0 + hw + 20, 62, xz_l10n_authored("OPTIONAL"), 1, 20, l->ink);
     /* The box: the end of what is typed, with a caret, and the count. */
     xz_round_rect(c, X0, 84, CW, 50, 8, 15, xz_blend(l->bg, l->accent, 120));
     xz_round_rect(c, X0 + 2, 86, CW - 4, 46, 7, 15, xz_blend(l->bg, l->ink, 10));

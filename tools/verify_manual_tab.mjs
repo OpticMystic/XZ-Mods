@@ -31,6 +31,7 @@ function installMock() {
   const jobs = [];
   window.__TAURI__ = { core: { invoke: async (command, args) => {
     fx.calls.push(command);
+    if (command === 'translation_action') { fx.providerAction = args.action; return args.action === 'detect' ? {python:'C:/XZ/python/Scripts/python.exe',model:'C:/XZ/model'} : {running:false,ok:true}; }
     if (command === 'app_information') return { version: '0.5.0-preview.22.10', platform: 'windows', installed: true, update_channel: 'stable', release_page: 'https://github.com/OpticMystic/XZ-Mods/releases/latest', portable_url: '', release_notes: { releases: [] } };
     if (command === 'check_app_update') return { phase: 'current', message: 'Up to date' };
     if (command === 'support_reports') return { reports: [], limit: 200, migrated: 0 };
@@ -128,6 +129,45 @@ try {
   const drawings = `(()=>{const found=[...document.querySelectorAll('#manual .m-hero svg,#manual .mt-card svg,#manual .mx svg')].filter(s=>!s.closest('button'));return found.length?found.length+' drawing(s): '+found.map(s=>s.closest('.mx,.m-hero,.mt-card').className).slice(0,3).join('; '):true;})()`;
   const fits = `(()=>{const out=[];if(document.documentElement.scrollWidth>innerWidth+1)out.push('page '+document.documentElement.scrollWidth+' wide');for(const item of document.querySelectorAll('#manual .m-chapter>*,#manual .m-start>*,#manual .m-side'))if(item.getBoundingClientRect().right>innerWidth+1)out.push((item.className||item.tagName)+' '+Math.round(item.getBoundingClientRect().right));return out.length?out.slice(0,4).join('; '):true;})()`;
 
+  await open();
+  await waitFor(`!!window.XZLocalization`, 'XZ localization loaded');
+  await check(`!!document.getElementById('xz-language-setup')?.closest('.top-version')&&document.querySelector('.topbar').getBoundingClientRect().height<=56`, 'language setup button sits cleanly in topbar .top-version without growing the topbar');
+  await evaluate(`document.getElementById('xz-language-setup').click()`);
+  await waitFor(`document.getElementById('xz-provider-python').value==='C:/XZ/python/Scripts/python.exe'`, 'independent resources detected');
+  await shot('00-language-provider');
+  await evaluate(`document.getElementById('xz-provider-connect').click()`);
+  await check(`window.fx.providerAction==='connect'`, 'provider wizard requests real native verification');
+  await evaluate(`document.getElementById('xz-language-close').click()`);
+  for (const locale of ['es','fr','de','pt','it','ja','ko','zh-Hans','zh-Hant','nl','pl','tr','uk','ar']) {
+    await evaluate(`document.getElementById('xz-language-setup').click();document.getElementById('xz-language-choice').value=${JSON.stringify(locale)};document.getElementById('xz-language-apply').click();document.getElementById('xz-language-close').click()`);
+    await check(`document.documentElement.lang===${JSON.stringify(locale)}&&document.documentElement.dir===${JSON.stringify(locale === 'ar' ? 'rtl' : 'ltr')}&&document.querySelector('nav button[data-page=tools] span').textContent!=='Tools'`, locale + ' applies translated navigation and direction');
+    if (process.env.XZ_FULL_CORPUS === '1') {
+      await check(`Object.keys(XZ_L10N_DATA.catalogs[${JSON.stringify(locale)}].entries).length===Object.keys(XZ_L10N_DATA.source.entries).length`, locale + ' contains the full corpus');
+      await evaluate(`openManual('desktop-app')`);
+      const sourceTitle = book.chapters.find(chapter => chapter.slug === 'desktop-app').title;
+      const translatedTitle = await evaluate(`XZLocalization.text(${JSON.stringify(sourceTitle)},'manual')`);
+      assert.notEqual(translatedTitle, sourceTitle, locale + ' translated manual title');
+      await waitFor(`document.querySelector('#m-view').textContent.includes(${JSON.stringify(translatedTitle)})`, locale + ' translated manual');
+      await evaluate(`(()=>{const input=document.getElementById('m-q');input.value=${JSON.stringify(translatedTitle)};input.dispatchEvent(new Event('input'));})()`);
+      await waitFor(`document.querySelector('.m-hit[data-slug="desktop-app"]')`, locale + ' translated search');
+      await check(`XZLocalization.text('E-8307: UNSUPPORTED DEVICE')==='E-8307: UNSUPPORTED DEVICE'&&XZTemplate(['Live ? ',''],'<private-name> {xz1}').includes('<private-name> {xz1}')`, locale + ' preserves stock alerts and runtime user text');
+      if (shots) await shot('locale-' + locale);
+    }
+  }
+  await evaluate(`localStorage.setItem('xz-mods.localization.v1', JSON.stringify({locale:'pt-BR'}));localStorage.setItem('xz-mods.localization.v1.imports', JSON.stringify({'pt-BR':{...XZ_L10N_DATA.catalogs.pt,locale:'pt-BR',entries:Object.fromEntries(Object.entries(XZ_L10N_DATA.catalogs.pt.entries).slice(0,1))}}))`);
+  await open();
+  await check(`XZLocalization.locale==='pt'&&JSON.parse(localStorage.getItem('xz-mods.localization.v1')).locale==='pt'&&document.querySelector('#xz-language-choice option[value="pt"]').textContent==='Portugu\u00eas'`, 'legacy Portuguese preference and catalog migrate to generic pt');
+  await evaluate(`localStorage.removeItem('xz-mods.localization.v1.imports')`);
+  await evaluate(`document.getElementById('xz-language-setup').click();document.getElementById('xz-language-choice').value='es';document.getElementById('xz-language-apply').click();document.getElementById('xz-language-close').click();openManual('browse')`);
+  await waitFor(`document.querySelector('#manual').textContent.includes(XZLocalization.text('Goes up one level.','manual'))&&XZLocalization.text('Goes up one level.','manual')!=='Goes up one level.'`, 'manual prose translated after lazy load');
+  await check(`document.querySelector('#manual').textContent.includes('BACK')`, 'printed BACK retained in translated manual');
+  await evaluate(`(async()=>{const c=structuredClone(XZ_L10N_DATA.catalogs.es);const id=Object.keys(c.entries).find(id=>XZ_L10N_DATA.source.entries[id].source==='Tools');c.entries[id].text='Herramientas importadas';const input=document.getElementById('xz-language-import');const transfer=new DataTransfer();transfer.items.add(new File([JSON.stringify(c)],'xz-es.json',{type:'application/json'}));input.files=transfer.files;await input.onchange({target:input});document.getElementById('xz-language-choice').value='es';document.getElementById('xz-language-apply').click();})()`);
+  await check(`document.querySelector('nav button[data-page=tools] span').textContent==='Herramientas importadas'`, 'offline file import installs and applies reviewed text');
+  await open();
+  await check(`XZLocalization.locale==='es'&&document.querySelector('nav button[data-page=tools] span').textContent==='Herramientas importadas'`, 'XZ language and imported catalog survive restart');
+  await evaluate(`localStorage.removeItem('xz-mods.localization.v1.imports')`);
+  await check(`(()=>{const c=structuredClone(XZ_L10N_DATA.catalogs.es);c.source_revision='stale';try{XZLocalization.valid(c);return false;}catch{return true;}})()`, 'stale import rejected');
+  await evaluate(`document.getElementById('xz-language-setup').click();document.getElementById('xz-language-choice').value='en';document.getElementById('xz-language-apply').click();document.getElementById('xz-language-close').click()`);
   await open();
   await check(`[...document.querySelectorAll('.topbar nav button')].map(b=>b.dataset.page).join()==='setup,stems,dj-profile,updates,tools,manual,licenses,my-reports'&&document.querySelector('nav button[data-page=manual] use').getAttribute('href')==='#i-book'&&txt('nav button[data-page=manual]')==='Manual'`, 'the top bar has Manual, with its book glyph, between Tools and About');
   await evaluate(`document.querySelector('nav button[data-page=manual]').click()`);
@@ -524,7 +564,7 @@ try {
     await evaluate(`openManual()`); await waitFor(`manualPage.state().view==='start'`, 'start');
     await check(fits, `the start page fits ${w} x ${h}`);
   }
-  await size(760, 520);
+  await size(760, 520); await sleep(150);
   await check(`getComputedStyle(document.getElementById('ctx')).display==='none'&&!!document.getElementById('ctx-toggle').offsetWidth&&document.getElementById('ctx-toggle').getAttribute('aria-expanded')==='false'`, 'in a narrow window the chapter list folds behind the side list button');
   await evaluate(`document.getElementById('ctx-toggle').click()`);
   await check(`getComputedStyle(document.getElementById('ctx')).display==='block'&&!!document.querySelector('.m-side-body .m-toc').offsetWidth&&document.getElementById('ctx-toggle').getAttribute('aria-expanded')==='true'`, 'the side list button opens it as a drawer');

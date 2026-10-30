@@ -24,7 +24,8 @@
     47,
     50,
     56,
-    57
+    57,
+    58
   ],
   "fields": [
     {
@@ -1566,6 +1567,16 @@
       "max": 2047,
       "kind": "number",
       "readonly": false
+    },
+    {
+      "key": "controller_locale",
+      "label": "Controller language",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 14,
+      "kind": "number",
+      "readonly": false
     }
   ],
   "wire_order": [
@@ -1625,7 +1636,8 @@
     "wave_zoom",
     "usb_colors",
     "hidden_parts",
-    "modern_browse_columns"
+    "modern_browse_columns",
+    "controller_locale"
   ],
   "retired_fields": {
     "jump_shift_page": {

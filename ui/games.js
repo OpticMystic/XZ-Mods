@@ -12,8 +12,8 @@ const GAMES=[
   {id:'static-surfer',name:'Static Surfer',kind:'builtin',bit:3,blurb:'Jump a glitch cat over the waveform on the beat'}
 ];
 const GROUPS=[
-  {kind:'builtin',title:'Your games',note:'Built into the loader.',fixed:'Built into the loader. Always in MODS › EXTRAS › GAMES.'},
-  {kind:'download',title:'Free downloads',note:'Copied to VJTOOLS\\Games on the USB.'}
+  {kind:'builtin',title:XZText('Your games'),note:XZText('Built into the loader.'),fixed:'Built into the loader. Always in MODS › EXTRAS › GAMES.'},
+  {kind:'download',title:XZText('Free downloads'),note:XZText('Copied to VJTOOLS\\Games on the USB.')}
 ];
 const mb=bytes=>(bytes/1048576).toFixed(bytes>=104857600?0:1)+' MB';
 const gameNote=game=>game.blurb||'';
@@ -21,7 +21,7 @@ const gameNote=game=>game.blurb||'';
 function dot(tone){return el('span',{class:'tree-dot',dataset:{tone},'aria-hidden':'true'});}
 function menuSwitch(game,menu){
   const on=Boolean(menu.value&1<<game.bit);
-  return el('label',{class:'games-switch'},el('input',{type:'checkbox',role:'switch',checked:on,dataset:{bit:game.bit},onchange:event=>menu.set(game.bit,event.target.checked)}),el('span',{text:'Show in GAMES menu'}));
+  return el('label',{class:'games-switch'},el('input',{type:'checkbox',role:'switch',checked:on,dataset:{bit:game.bit},onchange:event=>menu.set(game.bit,event.target.checked)}),el('span',{text:XZText('Show in GAMES menu')}));
 }
 // {status, tone, plan, control} for a row. Built-ins only depend on the loader; downloads on the inspection and the ticks.
 function rowState(game,found,props){
@@ -41,7 +41,7 @@ function gameRow(game,found,props){
 // Built-in games are compiled into the loader. Without games_menu they cannot be left out, so they are one line, not rows.
 function builtinLine(){
   const names=GAMES.filter(game=>game.kind==='builtin').map(game=>game.name);
-  return el('p',{class:'games-builtin-line',text:names.slice(0,-1).join(', ')+' and '+names.at(-1)+' are built into the loader and always come with it.'});
+  return el('p',{class:'games-builtin-line',text:names.slice(0,-1).join(', ')+' and '+names.at(-1)+XZText(' are built into the loader and always come with it.')});
 }
 // props: {inspection, games:Set, loaderOnUsb, menu:{value,set(bit,on)}|null, toggleGame(id,on), allGames(), noGames()}
 function createGamesChooser(props){
@@ -51,8 +51,8 @@ function createGamesChooser(props){
   return el('div',{class:'games'},...GROUPS.map(group=>group.kind==='builtin'&&!props.menu?builtinLine():el('section',{class:'games-group',dataset:{kind:group.kind}},
     el('div',{class:'games-head'},el('h3',{text:group.title}),el('small',{class:'games-note',text:!props.menu&&group.fixed||group.note}),
       group.kind==='download'&&missing?el('span',{class:'games-bulk'},
-        el('button',{type:'button',class:'text-button',text:'Add all free games',onclick:props.allGames}),
-        el('button',{type:'button',class:'text-button',text:'None',onclick:props.noGames})):null),
+        el('button',{type:'button',class:'text-button',text:XZText('Add all free games'),onclick:props.allGames}),
+        el('button',{type:'button',class:'text-button',text:XZText('None'),onclick:props.noGames})):null),
     el('div',{class:'games-rows',role:'list'},...offered.filter(game=>game.kind===group.kind).map(game=>gameRow(game,found.get(game.id),props))))));
 }
 Object.assign(window,{GAMES,createGamesChooser,gameNote});

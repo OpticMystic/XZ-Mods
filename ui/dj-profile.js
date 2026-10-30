@@ -60,8 +60,8 @@ function openUsbUpdate(){
 function runtimeNotice(){
   if(!P.data?.runtime_update_needed)return null;
   return el('div',{class:'djp-moved djp-runtime',role:'status'},
-    el('p',{class:'djp-hint',text:'Your USB still has an older XZ Mods runtime. Update the USB to finish moving your profiles.'}),
-    el('div',{class:'actions'},el('button',{type:'button',class:'secondary',id:'djp-update-usb',text:'Update the USB',onclick:openUsbUpdate})));
+    el('p',{class:'djp-hint',text:XZText('Your USB still has an older XZ Mods runtime. Update the USB to finish moving your profiles.')}),
+    el('div',{class:'actions'},el('button',{type:'button',class:'secondary',id:'djp-update-usb',text:XZText('Update the USB'),onclick:openUsbUpdate})));
 }
 function publish(data){
   if(!W.inspection||W.usb!==P.volume)return;
@@ -243,8 +243,8 @@ async function pickTrackFolder(){
   catch(error){P.track.error={kind:'failed',message:String(error)};render();}
 }
 async function copyPath(button,path){
-  try{await navigator.clipboard.writeText(path);button.textContent='Copied';}
-  catch{const field=button.parentElement.querySelector('input');field?.select();button.textContent='Press Ctrl+C';}
+  try{await navigator.clipboard.writeText(path);button.textContent=XZText('Copied');}
+  catch{const field=button.parentElement.querySelector('input');field?.select();button.textContent=XZText('Press Ctrl+C');}
 }
 
 // --- shared pieces ---
@@ -257,7 +257,7 @@ function tile(preview,name,accent,{fit=false}={}){
 function banner(error,actions){
   if(!error)return null;
   return el('div',{class:'djp-banner',dataset:{kind:error.kind},role:'alert'},el('p',{text:error.message}),
-    el('div',{class:'actions'},error.kind==='conflict'?el('button',{type:'button',class:'primary',text:'Reload',onclick:()=>load(P.volume,P.phase==='editing'?'editing':'list')}):null,...(actions||[])));
+    el('div',{class:'actions'},error.kind==='conflict'?el('button',{type:'button',class:'primary',text:XZText('Reload'),onclick:()=>load(P.volume,P.phase==='editing'?'editing':'list')}):null,...(actions||[])));
 }
 function deviceTheme(){
   // The new interface draws in FLAGSHIP (24); the standard one in its classic theme. Older schemas carry theme.
@@ -272,54 +272,54 @@ function viewNoUsb(){
   // Only USBs a profile can be saved on are offered, as on the USB page.
   const list=W.usbs&&setupWizard.usable(W.usbs);
   return el('section',{class:'wz-pane'},
-    el('h2',{text:'Your DJ profile'}),
-    el('p',{class:'wz-lead',text:'A DJ profile lives on your USB. Find the USB first to see or make one.'}),
-    el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'djp-find',disabled:W.finding?true:null,text:W.finding?'Looking…':list?'Look again':'Find my USB',onclick:event=>setupWizard.findAndChoose(event.currentTarget)})),
-    list&&!list.length?el('p',{class:'notice',role:'status',text:'No USB drive was found. Plug in the USB, wait a moment, then choose Look again.'}):null,
+    el('h2',{text:XZText('Your DJ profile')}),
+    el('p',{class:'wz-lead',text:XZText('A DJ profile lives on your USB. Find the USB first to see or make one.')}),
+    el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'djp-find',disabled:W.finding?true:null,text:W.finding?'Looking…':list?XZText('Look again'):XZText('Find my USB'),onclick:event=>setupWizard.findAndChoose(event.currentTarget)})),
+    list&&!list.length?el('p',{class:'notice',role:'status',text:XZText('No USB drive was found. Plug in the USB, wait a moment, then choose Look again.')}):null,
     list?.length>1?el('div',{class:'wz-usb-list',role:'list'},...list.map(setupWizard.usbCard)):null);
 }
 function viewLoading(){
-  return el('section',{class:'wz-pane'},el('h2',{text:'DJ profiles on '+driveName()}),el('p',{class:'wz-lead',role:'status',text:'Reading the profiles on this USB…'}));
+  return el('section',{class:'wz-pane'},el('h2',{text:XZText('DJ profiles on ')+driveName()}),el('p',{class:'wz-lead',role:'status',text:XZText('Reading the profiles on this USB…')}));
 }
 function card(profile){
   const folder=profile.source==='folder',canActivate=!profile.active;
   return el('article',{class:'djp-card',role:'listitem',dataset:{id:profile.dj_id,source:profile.source,active:profile.active?'1':null,highlight:profile.dj_id===P.saved?'1':null}},
     tile(tileImage(profile),profile.dj_name,profile.accent,{fit:!profile.tile}),
     el('div',{class:'djp-card-text'},el('strong',{text:profile.dj_name}),profile.tagline?el('span',{text:profile.tagline}):null,
-      folder?el('small',{class:'djp-hand',text:'Made by hand on the USB'}):null,
-      profile.track?el('small',{text:'Profile track on this USB · '+kb(profile.track.bytes)}):null),
+      folder?el('small',{class:'djp-hand',text:XZText('Made by hand on the USB')}):null,
+      profile.track?el('small',{text:XZText('Profile track on this USB · ')+kb(profile.track.bytes)}):null),
     el('div',{class:'djp-card-foot'},
-      profile.active?el('span',{class:'djp-active'},el('span',{class:'tree-dot',dataset:{tone:'ok'},'aria-hidden':'true'}),'Active on the XZ'):null,
-      canActivate?el('button',{type:'button',class:'text-button',text:'Make active',onclick:()=>makeActive(profile)}):null,
-      el('button',{type:'button',class:'secondary djp-edit',text:'Edit',dataset:{edit:profile.dj_id},onclick:()=>edit(profile)})));
+      profile.active?el('span',{class:'djp-active'},el('span',{class:'tree-dot',dataset:{tone:'ok'},'aria-hidden':'true'}),XZText('Active on the XZ')):null,
+      canActivate?el('button',{type:'button',class:'text-button',text:XZText('Make active'),onclick:()=>makeActive(profile)}):null,
+      el('button',{type:'button',class:'secondary djp-edit',text:XZText('Edit'),dataset:{edit:profile.dj_id},onclick:()=>edit(profile)})));
 }
 function trackPanel(){
   const saved=savedProfiles();
   if(!saved.length)return null;
   const lead=saved.find(profile=>profile.active)||saved[0];
   return el('div',{class:'djp-track-panel'},
-    el('h3',{text:'Profile track for newer players'}),
+    el('h3',{text:XZText('Profile track for newer players')}),
     el('p',{class:'wz-lead',text:TRACK_LEAD}),
     el('div',{class:'djp-track-rows',role:'list'},...saved.map(profile=>el('div',{class:'djp-track-row',role:'listitem',dataset:{id:profile.dj_id}},
-      el('span',{class:'djp-track-name'},el('strong',{text:profile.dj_name}),el('small',{text:profile.track?'Profile track on this USB · '+kb(profile.track.bytes):'No profile track yet'})),
-      el('button',{type:'button',class:profile===lead&&!P.saved?'primary':'secondary',text:profile.track?'Make a new profile track':'Create profile track',onclick:()=>openTrack(profile)})))));
+      el('span',{class:'djp-track-name'},el('strong',{text:profile.dj_name}),el('small',{text:profile.track?XZText('Profile track on this USB · ')+kb(profile.track.bytes):XZText('No profile track yet')})),
+      el('button',{type:'button',class:profile===lead&&!P.saved?'primary':'secondary',text:profile.track?XZText('Make a new profile track'):XZText('Create profile track'),onclick:()=>openTrack(profile)})))));
 }
 function viewList(){
-  if(!P.data)return el('section',{class:'wz-pane'},el('h2',{text:'DJ profiles on '+driveName()}),
-    banner(P.error||{kind:'failed',message:'The USB could not be read.'},[el('button',{type:'button',class:'secondary',text:'Try again',onclick:()=>load(P.volume)})]));
+  if(!P.data)return el('section',{class:'wz-pane'},el('h2',{text:XZText('DJ profiles on ')+driveName()}),
+    banner(P.error||{kind:'failed',message:'The USB could not be read.'},[el('button',{type:'button',class:'secondary',text:XZText('Try again'),onclick:()=>load(P.volume)})]));
   const data=P.data,empty=!data.profiles.length&&!data.problems.length,saved=data.profiles.find(profile=>profile.dj_id===P.saved);
-  const newButton=el('button',{type:'button',class:saved?'secondary':'primary',id:'djp-new',text:'New DJ profile',onclick:()=>edit(null)});
+  const newButton=el('button',{type:'button',class:saved?'secondary':'primary',id:'djp-new',text:XZText('New DJ profile'),onclick:()=>edit(null)});
   return el('section',{class:'wz-pane djp-list'},
-    el('h2',{text:'DJ profiles on '+driveName()}),
+    el('h2',{text:XZText('DJ profiles on ')+driveName()}),
     banner(P.error),
     P.notes.length?el('div',{class:'djp-moved',role:'status'},...P.notes.map(text=>el('p',{class:'djp-hint',text}))):null,
     runtimeNotice(),
-    saved?el('div',{class:'djp-saved',role:'status'},el('p',{text:'Saved '+saved.dj_name+' to the USB.'+(saved.active?' It is the active profile on the XZ.':'')+' Next, make its profile track for newer players.'}),
-      el('div',{class:'actions'},el('button',{type:'button',class:'primary',text:'Create profile track',onclick:()=>openTrack(saved)}))):null,
-    empty?el('p',{class:'wz-lead',text:'No DJ profile on this USB yet. A profile puts your name and logo on the XZ and lets VJ software on the same network pick them up.'}):
-      el('p',{class:'wz-lead',text:'The XZ shows each profile as a logo tile. The active one is the DJ the XZ and VJ software see.'}),
+    saved?el('div',{class:'djp-saved',role:'status'},el('p',{text:'Saved '+saved.dj_name+XZText(' to the USB.')+(saved.active?XZText(' It is the active profile on the XZ.'):'')+XZText(' Next, make its profile track for newer players.')}),
+      el('div',{class:'actions'},el('button',{type:'button',class:'primary',text:XZText('Create profile track'),onclick:()=>openTrack(saved)}))):null,
+    empty?el('p',{class:'wz-lead',text:XZText('No DJ profile on this USB yet. A profile puts your name and logo on the XZ and lets VJ software on the same network pick them up.')}):
+      el('p',{class:'wz-lead',text:XZText('The XZ shows each profile as a logo tile. The active one is the DJ the XZ and VJ software see.')}),
     empty?null:el('div',{class:'djp-cards',role:'list'},...data.profiles.map(card)),
-    data.problems.length?el('ul',{class:'djp-problems'},...data.problems.map(problem=>el('li',{text:(problem.dj_name||'A profile')+' could not be read: '+problem.error}))):null,
+    data.problems.length?el('ul',{class:'djp-problems'},...data.problems.map(problem=>el('li',{text:(problem.dj_name||XZText('A profile'))+XZText(' could not be read: ')+problem.error}))):null,
     el('div',{class:'actions'},newButton,el('span',{class:'wz-usb-now',text:'USB '+P.volume})),
     trackPanel());
 }
@@ -335,10 +335,10 @@ function logoRow(logo,index){
   return el('div',{class:'djp-logo',role:'listitem',dataset:{main:main?'1':null}},
     tile(logo.preview,d.dj_name,d.accent,{fit:true}),
     el('div',{class:'djp-logo-text'},
-      el('span',{class:'djp-logo-head'},main?el('span',{class:'djp-main',text:'Main logo'}):el('button',{type:'button',class:'text-button',text:'Make main',onclick:()=>{d.logos.unshift(...d.logos.splice(index,1));render();}}),
+      el('span',{class:'djp-logo-head'},main?el('span',{class:'djp-main',text:XZText('Main logo')}):el('button',{type:'button',class:'text-button',text:XZText('Make main'),onclick:()=>{d.logos.unshift(...d.logos.splice(index,1));render();}}),
         el('small',{text:(logo.width&&logo.height?logo.width+' × '+logo.height+' px · ':'')+kb(logo.bytes||0)})),
       el('input',{type:'text',class:'djp-logo-label',placeholder:'Label (optional)',value:logo.label,maxlength:String(LIMITS.nameBytes),'aria-label':'Logo label',oninput:event=>{logo.label=event.target.value;}})),
-    el('button',{type:'button',class:'djp-remove','aria-label':'Remove this logo',title:'Remove',onclick:()=>{d.logos.splice(index,1);d.logoError='';render();}},'×'));
+    el('button',{type:'button',class:'djp-remove','aria-label':'Remove this logo',title:XZText('Remove'),onclick:()=>{d.logos.splice(index,1);d.logoError='';render();}},'×'));
 }
 function linkRow(link,index){
   const d=P.draft,kinds=LINK_KINDS.some(([id])=>id===link.kind)?LINK_KINDS:[...LINK_KINDS,[link.kind,link.kind]];
@@ -346,21 +346,21 @@ function linkRow(link,index){
     el('div',{class:'djp-link-row'},
       el('select',{'aria-label':'Link kind',onchange:event=>{link.kind=event.target.value;refreshEditor();}},...kinds.map(([id,text])=>el('option',{value:id,selected:id===link.kind?true:null,text}))),
       input({type:'url',value:link.url,placeholder:link.kind==='media-kit'||link.kind==='files'?'https://drive.google.com/…':'https://…','aria-label':kindLabel(link.kind)+' address',spellcheck:'false'},value=>{link.url=value;}),
-      el('button',{type:'button',class:'djp-remove','aria-label':'Remove this link',title:'Remove',onclick:()=>{d.links.splice(index,1);render();}},'×')),
+      el('button',{type:'button',class:'djp-remove','aria-label':'Remove this link',title:XZText('Remove'),onclick:()=>{d.links.splice(index,1);render();}},'×')),
     el('p',{class:'djp-err',dataset:{err:'link-'+index},role:'status'}));
 }
 function preview(){
   const d=P.draft,name=d.dj_name.trim(),main=d.logos[0],links=d.links.filter(link=>link.url.trim()&&!urlProblem(link.url));
   return el('div',{class:'djp-preview-body'},
     el('div',{class:'djp-device',style:deviceTheme()},
-      el('div',{class:'djp-dev-head'},el('span',{class:'dv-title'},el('small',{text:'XZ MODS'}),el('strong',{text:'GENERAL'})),
+      el('div',{class:'djp-dev-head'},el('span',{class:'dv-title'},el('small',{text:XZText('XZ MODS')}),el('strong',{text:'GENERAL'})),
         profileChip({name:name||null,usb:'USB · '+driveName(),preview:main?.preview||null,accent:d.accent})),
       el('div',{class:'djp-dev-body'},tile(main?.preview,name,d.accent,{fit:true}),
-        el('div',{class:'djp-dev-text'},el('small',{text:'DJ PROFILE'}),el('strong',{text:name||'YOUR DJ NAME'}),d.tagline.trim()?el('span',{text:d.tagline.trim()}):null))),
-    el('p',{class:'djp-caption',text:'The header chip and the 160 × 160 logo tile, as the XZ draws them.'}),
-    el('h3',{text:'What VJ software sees'}),
-    el('p',{class:'djp-vj'},el('span',{},el('strong',{text:name||'Your DJ name'}),d.tagline.trim()?' · '+d.tagline.trim():''),
-      links.length?el('span',{class:'djp-vj-links'},...links.map(link=>el('span',{text:kindLabel(link.kind)+' '+urlHost(link.url.trim())}))):el('span',{class:'djp-vj-links',text:'No links yet'})));
+        el('div',{class:'djp-dev-text'},el('small',{text:XZText('DJ PROFILE')}),el('strong',{text:name||XZText('YOUR DJ NAME')}),d.tagline.trim()?el('span',{text:d.tagline.trim()}):null))),
+    el('p',{class:'djp-caption',text:XZText('The header chip and the 160 × 160 logo tile, as the XZ draws them.')}),
+    el('h3',{text:XZText('What VJ software sees')}),
+    el('p',{class:'djp-vj'},el('span',{},el('strong',{text:name||XZText('Your DJ name')}),d.tagline.trim()?' · '+d.tagline.trim():''),
+      links.length?el('span',{class:'djp-vj-links'},...links.map(link=>el('span',{text:kindLabel(link.kind)+' '+urlHost(link.url.trim())}))):el('span',{class:'djp-vj-links',text:XZText('No links yet')})));
 }
 function setAccent(hex){
   P.draft.accent=hex;$('djp-accent').value=hex;$('djp-accent-pick').value=hex;refreshEditor();
@@ -375,11 +375,11 @@ function colourNote(d){
 function colourField(d){
   const stick=P.data?.stick_colour;
   return el('div',{class:'djp-group'},
-    el('div',{class:'djp-group-head'},el('h3',{text:'Colour'}),el('small',{class:'djp-colour-note',role:'status'})),
+    el('div',{class:'djp-group-head'},el('h3',{text:XZText('Colour')}),el('small',{class:'djp-colour-note',role:'status'})),
     el('div',{class:'djp-colour'},
       el('div',{class:'djp-swatches',role:'group','aria-label':'USB colours'},...STICK_SWATCHES.map(([hex,name])=>el('button',{type:'button',class:'djp-swatch',style:'--swatch:'+hex,
-        dataset:{hex,stick:hex===stick?'1':null},title:name+(hex===stick?' · this USB\'s colour':''),'aria-label':name+(hex===stick?', this USB\'s colour':''),onclick:()=>setAccent(hex)}))),
-      el('span',{class:'djp-custom'},el('input',{type:'color',id:'djp-accent-pick','aria-label':'Any colour',title:'Any colour',value:/^#[0-9a-fA-F]{6}$/.test(d.accent)?d.accent.toLowerCase():DEFAULT_ACCENT,oninput:event=>{d.accent=event.target.value;$('djp-accent').value=d.accent;refreshEditor();}}),
+        dataset:{hex,stick:hex===stick?'1':null},title:name+(hex===stick?XZText(' · this USB\'s colour'):''),'aria-label':name+(hex===stick?', this USB\'s colour':''),onclick:()=>setAccent(hex)}))),
+      el('span',{class:'djp-custom'},el('input',{type:'color',id:'djp-accent-pick','aria-label':'Any colour',title:XZText('Any colour'),value:/^#[0-9a-fA-F]{6}$/.test(d.accent)?d.accent.toLowerCase():DEFAULT_ACCENT,oninput:event=>{d.accent=event.target.value;$('djp-accent').value=d.accent;refreshEditor();}}),
       input({type:'text',id:'djp-accent',value:d.accent,maxlength:'7','aria-label':'Colour hex',spellcheck:'false'},value=>{d.accent=value.trim();if(/^#[0-9a-fA-F]{6}$/.test(d.accent))$('djp-accent-pick').value=d.accent.toLowerCase();}))),
     el('p',{class:'djp-err',dataset:{err:'accent'},role:'status'}));
 }
@@ -389,28 +389,28 @@ function logoZone(d){
   return el('div',{class:'djp-drop',dataset:{empty:empty?'1':null,full:full?'1':null},onclick:event=>{if(!full&&!event.target.closest('button'))addLogo();}},
     el('span',{class:'djp-drop-icon','aria-hidden':'true'}),
     el('span',{class:'djp-drop-text'},
-      el('strong',{text:full?'8 logos is the most a profile holds.':empty?'Drop your logo here':'Drop another logo here'}),
-      el('small',{text:empty?'PNG or JPEG, up to 8 MB. A transparent PNG looks best on the XZ.':'Alternates, like a wordmark and a square mark. PNG or JPEG, up to 8 MB each.'})),
-    el('button',{type:'button',class:empty?'primary':'secondary',id:'djp-add-logo',disabled:full?true:null,text:'Choose file',onclick:addLogo}));
+      el('strong',{text:full?XZText('8 logos is the most a profile holds.'):empty?XZText('Drop your logo here'):XZText('Drop another logo here')}),
+      el('small',{text:empty?XZText('PNG or JPEG, up to 8 MB. A transparent PNG looks best on the XZ.'):XZText('Alternates, like a wordmark and a square mark. PNG or JPEG, up to 8 MB each.')})),
+    el('button',{type:'button',class:empty?'primary':'secondary',id:'djp-add-logo',disabled:full?true:null,text:XZText('Choose file'),onclick:addLogo}));
 }
 function logoGroup(d){
   const total=logoBytes(d);
   return el('div',{class:'djp-group'},
-    el('div',{class:'djp-group-head'},el('h3',{text:'Logo'}),el('small',{text:'The main logo goes on the XZ tile and in the header.'})),
+    el('div',{class:'djp-group-head'},el('h3',{text:XZText('Logo')}),el('small',{text:XZText('The main logo goes on the XZ tile and in the header.')})),
     d.logos.length?el('div',{class:'djp-logos',role:'list'},...d.logos.map(logoRow)):null,
     logoZone(d),
-    total>=BUDGET_SHOWN_FROM?el('small',{class:'djp-hint',id:'djp-budget',text:total>LIMITS.totalBytes?'Over the 24 MB logo limit by '+mb(total-LIMITS.totalBytes)+'.':mb(LIMITS.totalBytes-total)+' of 24 MB left for logos.'}):null,
+    total>=BUDGET_SHOWN_FROM?el('small',{class:'djp-hint',id:'djp-budget',text:total>LIMITS.totalBytes?XZText('Over the 24 MB logo limit by ')+mb(total-LIMITS.totalBytes)+'.':mb(LIMITS.totalBytes-total)+XZText(' of 24 MB left for logos.')}):null,
     el('p',{class:'djp-err',dataset:{err:'logos'},role:'status',text:d.logoError}));
 }
 function extras(d){
   return el('details',{class:'djp-more',open:d.moreOpen?true:null,ontoggle:event=>{d.moreOpen=event.target.open;}},
-    el('summary',{text:'Tagline, links and more (optional)'}),
+    el('summary',{text:XZText('Tagline, links and more (optional)')}),
     el('div',{class:'djp-more-body'},
       field('Tagline',input({type:'text',id:'djp-tagline',value:d.tagline,autocomplete:'off'},value=>{d.tagline=value;}),{key:'tagline',hint:'Up to 80 characters.'}),
       el('div',{class:'djp-group'},
-        el('div',{class:'djp-group-head'},el('h3',{text:'Links'}),el('small',{text:'Link to your EPK or files (Google Drive, Dropbox…). https:// only.'})),
+        el('div',{class:'djp-group-head'},el('h3',{text:XZText('Links')}),el('small',{text:XZText('Link to your EPK or files (Google Drive, Dropbox…). https:// only.')})),
         d.links.length?el('div',{class:'djp-links',role:'list'},...d.links.map(linkRow)):null,
-        el('div',{class:'actions'},el('button',{type:'button',class:'secondary',id:'djp-add-link',disabled:d.links.length>=LIMITS.links?true:null,text:'Add link',
+        el('div',{class:'actions'},el('button',{type:'button',class:'secondary',id:'djp-add-link',disabled:d.links.length>=LIMITS.links?true:null,text:XZText('Add link'),
           onclick:()=>{d.links.push({kind:d.links.some(link=>link.kind==='media-kit')?'website':'media-kit',url:''});render();}})),
         el('p',{class:'djp-err',dataset:{err:'links'},role:'status'})),
       field('Other names',el('textarea',{rows:'3',id:'djp-aliases',placeholder:'One per line',oninput:event=>{d.aliases=event.target.value;refreshEditor();}},d.aliases),{key:'aliases',hint:'Names VJ software should also match, like a B2B alias. Up to 8.'}),
@@ -424,25 +424,25 @@ function editorPane({wizard}){
     logoGroup(d),
     colourField(d),
     extras(d),
-    d.first?el('p',{class:'djp-hint',text:'This is the first profile on the USB, so the XZ shows it.'}):
-      others&&!d.wasActive?el('label',{class:'check'},el('input',{type:'checkbox',id:'djp-make-active',checked:d.makeActive?true:null,onchange:event=>{d.makeActive=event.target.checked;}}),' Make this the active profile on the XZ'):null);
+    d.first?el('p',{class:'djp-hint',text:XZText('This is the first profile on the USB, so the XZ shows it.')}):
+      others&&!d.wasActive?el('label',{class:'check'},el('input',{type:'checkbox',id:'djp-make-active',checked:d.makeActive?true:null,onchange:event=>{d.makeActive=event.target.checked;}}),XZText(' Make this the active profile on the XZ')):null);
   const status=el('span',{class:'djp-save-why',role:'status'});
-  const editor=el('div',{class:'djp-editor'},fields,el('div',{class:'djp-preview',role:'complementary','aria-label':'Preview'},el('h3',{text:'On the XZ'}),el('div',{class:'djp-preview-slot'})));
+  const editor=el('div',{class:'djp-editor'},fields,el('div',{class:'djp-preview',role:'complementary','aria-label':'Preview'},el('h3',{text:XZText('On the XZ')}),el('div',{class:'djp-preview-slot'})));
   if(wizard){
     const pane=el('div',{class:'djp-edit djp-step-edit',dataset:{busy:saving?'1':null}},banner(P.error),editor,
-      el('div',{class:'actions djp-save-row'},status,d.dj_id?el('button',{type:'button',class:'text-button',text:'Keep the saved profile',onclick:()=>set({phase:'list',draft:null,error:null})}):null));
+      el('div',{class:'actions djp-save-row'},status,d.dj_id?el('button',{type:'button',class:'text-button',text:XZText('Keep the saved profile'),onclick:()=>set({phase:'list',draft:null,error:null})}):null));
     editorParts={pane,saveButton:null,status,wizard:true};
     return pane;
   }
   const title=d.source==='folder'?'Save '+d.original+' as a profile':d.dj_id?'Edit '+d.original:'New DJ profile';
   const lead=d.source==='folder'?'Made by hand on the USB. Saving keeps your folder and your logo, and adds the details you fill in.':
     d.dj_id?'Saved on the USB only. Nothing is uploaded.':'Your name and logo on the XZ, and for VJ software on the same network. Saved on the USB only, nothing is uploaded.';
-  const saveButton=el('button',{type:'button',class:'primary',id:'djp-save',text:saving?'Saving…':'Save to USB',onclick:save});
+  const saveButton=el('button',{type:'button',class:'primary',id:'djp-save',text:saving?'Saving…':XZText('Save to USB'),onclick:save});
   const pane=el('section',{class:'wz-pane djp-edit',dataset:{busy:saving?'1':null}},
     el('h2',{text:title}),el('p',{class:'wz-lead',text:lead}),
     banner(P.error),
     editor,
-    el('div',{class:'actions djp-save-row'},saveButton,el('button',{type:'button',class:'secondary',text:'Cancel',disabled:saving?true:null,onclick:()=>set({phase:'list',draft:null,error:null})}),status));
+    el('div',{class:'actions djp-save-row'},saveButton,el('button',{type:'button',class:'secondary',text:XZText('Cancel'),disabled:saving?true:null,onclick:()=>set({phase:'list',draft:null,error:null})}),status));
   editorParts={pane,saveButton,status,wizard:false};
   return pane;
 }
@@ -455,18 +455,18 @@ function stepStatus(){
 }
 // The wizard's DJ Profile step: the saved profile at a glance, or the editor when there is none yet.
 function viewStep(){
-  if(!P.data&&P.error)return el('div',{},banner(P.error,[el('button',{type:'button',class:'secondary',text:'Try again',onclick:()=>load(P.volume)})]));
-  if(!P.data)return el('p',{class:'wz-lead',role:'status',text:'Reading the profiles on this USB…'});
+  if(!P.data&&P.error)return el('div',{},banner(P.error,[el('button',{type:'button',class:'secondary',text:XZText('Try again'),onclick:()=>load(P.volume)})]));
+  if(!P.data)return el('p',{class:'wz-lead',role:'status',text:XZText('Reading the profiles on this USB…')});
   const saved=savedProfiles();
   if(P.phase!=='editing'&&P.phase!=='saving'&&!saved.length){const draft=draftFrom(P.data.profiles[0]||null);draft.start=draftKey(draft);Object.assign(P,{phase:'editing',draft,saved:null});}
   if(P.phase==='editing'||P.phase==='saving')return editorPane({wizard:true});
   const active=saved.find(profile=>profile.active)||saved[0];
   return el('div',{class:'djp-have',dataset:{id:active.dj_id}},
     tile(tileImage(active),active.dj_name,active.accent,{fit:!active.tile}),
-    el('div',{class:'djp-have-text'},el('small',{text:'ON THIS USB'}),el('strong',{text:active.dj_name}),active.tagline?el('span',{text:active.tagline}):null,
-      el('span',{class:'djp-active'},el('span',{class:'tree-dot',dataset:{tone:'ok'},'aria-hidden':'true'}),active.active?'Active on the XZ':'Saved')),
-    el('div',{class:'actions'},el('button',{type:'button',class:'secondary',id:'djp-step-edit',text:'Edit',onclick:()=>edit(active)}),
-      el('button',{type:'button',class:'text-button',text:saved.length>1?'All '+saved.length+' profiles':'Add another profile',onclick:()=>showPage('dj-profile')})));
+    el('div',{class:'djp-have-text'},el('small',{text:XZText('ON THIS USB')}),el('strong',{text:active.dj_name}),active.tagline?el('span',{text:active.tagline}):null,
+      el('span',{class:'djp-active'},el('span',{class:'tree-dot',dataset:{tone:'ok'},'aria-hidden':'true'}),active.active?XZText('Active on the XZ'):XZText('Saved'))),
+    el('div',{class:'actions'},el('button',{type:'button',class:'secondary',id:'djp-step-edit',text:XZText('Edit'),onclick:()=>edit(active)}),
+      el('button',{type:'button',class:'text-button',text:saved.length>1?'All '+saved.length+' profiles':XZText('Add another profile'),onclick:()=>showPage('dj-profile')})));
 }
 function refreshEditor(){
   if(!editorParts||!P.draft)return;
@@ -487,22 +487,22 @@ function trackSteps(current){
 }
 function pathLine(path){
   return el('div',{class:'djp-path'},el('input',{type:'text',readonly:true,value:path,'aria-label':'Track file'}),
-    el('button',{type:'button',class:'secondary',text:'Copy path',onclick:event=>copyPath(event.currentTarget,path)}));
+    el('button',{type:'button',class:'secondary',text:XZText('Copy path'),onclick:event=>copyPath(event.currentTarget,path)}));
 }
 function trackWhere(t){
   return [el('p',{class:'wz-lead',text:TRACK_LEAD}),
     el('div',{class:'djp-dest'},
       el('div',{class:'djp-dest-row',dataset:{dest:'folder'}},el('span',{class:'tree-dot',dataset:{tone:'ok'},'aria-hidden':'true'}),
-        el('span',{class:'djp-dest-text'},el('strong',{text:'Save to this computer for your DJ software'}),el('small',{id:'djp-track-folder',text:t.folder||'Music › DJ Profile in your user folder'})),
-        el('button',{type:'button',class:'text-button',text:'Choose folder',onclick:pickTrackFolder})),
+        el('span',{class:'djp-dest-text'},el('strong',{text:XZText('Save to this computer for your DJ software')}),el('small',{id:'djp-track-folder',text:t.folder||XZText('Music › DJ Profile in your user folder')})),
+        el('button',{type:'button',class:'text-button',text:XZText('Choose folder'),onclick:pickTrackFolder})),
       el('label',{class:'djp-dest-row'},el('input',{type:'checkbox',id:'djp-usb-copy',checked:t.usbCopy?true:null,onchange:event=>{t.usbCopy=event.target.checked;}}),
-        el('span',{class:'djp-dest-text'},el('strong',{text:'Also put a copy on this USB'}),el('small',{text:'In your profile folder in DJPROFILE. VJ software on the network can read it from there.'})))),
-    el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'djp-track-create',text:'Create profile track',onclick:writeTrack}),
-      el('button',{type:'button',class:'secondary',text:'Cancel',onclick:()=>set({phase:'list',track:null})}))];
+        el('span',{class:'djp-dest-text'},el('strong',{text:XZText('Also put a copy on this USB')}),el('small',{text:XZText('In your profile folder in DJPROFILE. VJ software on the network can read it from there.')})))),
+    el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'djp-track-create',text:XZText('Create profile track'),onclick:writeTrack}),
+      el('button',{type:'button',class:'secondary',text:XZText('Cancel'),onclick:()=>set({phase:'list',track:null})}))];
 }
 function trackCreate(t){
-  if(t.running)return [el('p',{class:'wz-lead',role:'status',text:'Writing the track and checking every sample…'})];
-  if(!t.result)return [banner(t.error,[el('button',{type:'button',class:t.error?.kind==='conflict'?'secondary':'primary',text:'Try again',onclick:writeTrack}),el('button',{type:'button',class:'secondary',text:'Back',onclick:()=>{t.step='where';t.error=null;render();}})])];
+  if(t.running)return [el('p',{class:'wz-lead',role:'status',text:XZText('Writing the track and checking every sample…')})];
+  if(!t.result)return [banner(t.error,[el('button',{type:'button',class:t.error?.kind==='conflict'?'secondary':'primary',text:XZText('Try again'),onclick:writeTrack}),el('button',{type:'button',class:'secondary',text:XZText('Back'),onclick:()=>{t.step='where';t.error=null;render();}})])];
   const r=t.result,links=t.links.map(link=>kindLabel(link.kind));
   const facts=[['File',baseName(r.path)],['Length',Math.round(r.duration_seconds)+' seconds of silence'],
     ['Logos',r.logos_embedded?plural(r.logos_embedded,'logo')+' embedded at full resolution':'No logo embedded']];
@@ -510,11 +510,11 @@ function trackCreate(t){
   facts.push(['Links',links.length?links.join(', '):'None']);
   facts.push(['Sound','Every sample is silent. Checked.'+(r.ffmpeg_verified?' ffmpeg played it back and heard nothing.':'')]);
   if(t.usb)facts.push(['On the USB','A copy is in DJPROFILE on '+driveName()+'.']);
-  return [el('h3',{text:'Your profile track is ready'}),
+  return [el('h3',{text:XZText('Your profile track is ready')}),
     el('dl',{class:'djp-facts'},...facts.flatMap(([term,text])=>[el('dt',{text:term}),el('dd',{text})])),
     pathLine(r.path),
     banner(t.error),
-    el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'djp-track-next',text:'Next: add it to your library',onclick:()=>{t.step='library';render();}}))];
+    el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'djp-track-next',text:XZText('Next: add it to your library'),onclick:()=>{t.step='library';render();}}))];
 }
 // One line per library, from dj_profile_track_status. A stick may carry either library or both.
 function libraryLine(entry){
@@ -539,7 +539,7 @@ async function checkTrack(){
 }
 function trackCheck(c){
   if(!c)return null;
-  if(c.running)return el('p',{class:'wz-lead',role:'status',text:'Reading the exported libraries on '+driveName()+'…'});
+  if(c.running)return el('p',{class:'wz-lead',role:'status',text:XZText('Reading the exported libraries on ')+driveName()+'…'});
   if(c.error)return banner(c.error);
   return el('div',{class:'djp-dest djp-check',role:'status'},...TRACK_LIBRARIES.map(([key,label],i)=>{
     const [tone,text]=libraryLine(c.entries[i]);
@@ -550,24 +550,24 @@ function trackCheck(c){
 function trackLibrary(t){
   const file=baseName(t.result.path),c=t.check,finish=()=>{P.track=null;P.saved=null;P.notes=[];load(P.volume);};
   const actions=c?.running?[]:c?.found
-    ?[el('button',{type:'button',class:'primary',id:'djp-track-done',text:'Done',onclick:finish}),el('button',{type:'button',class:'secondary',text:'Check again',onclick:checkTrack})]
-    :[el('button',{type:'button',class:'primary',id:'djp-track-check',text:'Check the USB',onclick:checkTrack}),
-      el('button',{type:'button',class:'secondary',text:'Check later',onclick:finish})];
-  return [el('p',{class:'wz-lead',text:'Your DJ software puts the track on the USB like any other song. Players that block extra files still read your name, logo and links from it.'}),
+    ?[el('button',{type:'button',class:'primary',id:'djp-track-done',text:XZText('Done'),onclick:finish}),el('button',{type:'button',class:'secondary',text:XZText('Check again'),onclick:checkTrack})]
+    :[el('button',{type:'button',class:'primary',id:'djp-track-check',text:XZText('Check the USB'),onclick:checkTrack}),
+      el('button',{type:'button',class:'secondary',text:XZText('Check later'),onclick:finish})];
+  return [el('p',{class:'wz-lead',text:XZText('Your DJ software puts the track on the USB like any other song. Players that block extra files still read your name, logo and links from it.')}),
     el('ol',{class:'djp-howto'},
-      el('li',{text:'Open your DJ software on this computer.'}),
-      el('li',{},'Drag ',el('b',{text:file}),' into Collection.'),
-      el('li',{},'Make a playlist named ',el('b',{text:'DJ PROFILE'}),' and put the track in it.'),
-      el('li',{text:'Export the DJ PROFILE playlist to this USB ('+driveName()+').'}),
-      el('li',{text:'Leave the USB plugged in and check it here.'})),
-    el('p',{class:'djp-caption',text:'Other DJ apps that export the newer library format can put the track on the USB too.'}),
+      el('li',{text:XZText('Open your DJ software on this computer.')}),
+      el('li',{},'Drag ',el('b',{text:file}),XZText(' into Collection.')),
+      el('li',{},XZText('Make a playlist named '),el('b',{text:XZText('DJ PROFILE')}),XZText(' and put the track in it.')),
+      el('li',{text:XZText('Export the DJ PROFILE playlist to this USB (')+driveName()+').'}),
+      el('li',{text:XZText('Leave the USB plugged in and check it here.')})),
+    el('p',{class:'djp-caption',text:XZText('Other DJ apps that export the newer library format can put the track on the USB too.')}),
     pathLine(t.result.path),
     trackCheck(c),
     el('div',{class:'actions'},...actions)];
 }
 function viewTrack(){
   const t=P.track,body=t.step==='where'?trackWhere(t):t.step==='create'?trackCreate(t):trackLibrary(t);
-  return el('section',{class:'wz-pane djp-track',dataset:{step:t.step}},el('h2',{text:'Profile track for '+t.name}),trackSteps(t.step),...body);
+  return el('section',{class:'wz-pane djp-track',dataset:{step:t.step}},el('h2',{text:XZText('Profile track for ')+t.name}),trackSteps(t.step),...body);
 }
 
 const VIEWS={'no-usb':viewNoUsb,loading:viewLoading,list:viewList,editing:viewEditor,saving:viewEditor,track:viewTrack};

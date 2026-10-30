@@ -11,6 +11,7 @@ mod controller_notify;
 mod app_updates;
 mod eject;
 mod host;
+mod translation;
 mod live_stream;
 mod screen_protocol;
 mod screen_transport;
@@ -193,11 +194,12 @@ fn list_volumes()->Vec<String>{
     volumes
 }
 fn main(){
-    tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(support::Support::default()).manage(controller_queue::Queue::default()).manage(Jobs::default()).manage(app_updates::Updates::default()).manage(live_stream::LiveStream::default())
-        .invoke_handler(tauri::generate_handler![controller_queue::support_pending_details,controller_queue::support_pending_reports,controller_queue::support_poll_pending,controller_queue::support_loader_identities,controller_queue::support_complete_pending,controller_queue::support_dismiss_pending,controller_queue::support_revoke_loader,controller_notify::support_notify_pending,support::support_send,support::support_export,support::support_cancel,support::support_connect,support::support_owner_status,support::support_inbox,support::support_inbox_page,support_store::support_reports,support_store::support_report_seen,support_store::support_forget,support_tracking::support_check_statuses,support_tracking::support_tracking_link,support_tracking::support_open_tracking,support_tracking::support_revoke_links,start_job,job_status,cancel_job,pick_path,pick_stem_files,open_link,open_licenses,list_volumes,eject::eject_volume,app_updates::app_information,app_updates::acknowledge_release_notes,app_updates::app_update_status,app_updates::check_app_update,app_updates::install_app_update,live_stream::live_stream_start,live_stream::live_stream_status,live_stream::live_stream_stop,live_stream::live_stream_detect,live_stream::live_stream_privacy])
+    tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(support::Support::default()).manage(controller_queue::Queue::default()).manage(Jobs::default()).manage(translation::Translation::default()).manage(app_updates::Updates::default()).manage(live_stream::LiveStream::default())
+        .invoke_handler(tauri::generate_handler![translation::translation_action,controller_queue::support_pending_details,controller_queue::support_pending_reports,controller_queue::support_poll_pending,controller_queue::support_loader_identities,controller_queue::support_complete_pending,controller_queue::support_dismiss_pending,controller_queue::support_revoke_loader,controller_notify::support_notify_pending,support::support_send,support::support_export,support::support_cancel,support::support_connect,support::support_owner_status,support::support_inbox,support::support_inbox_page,support_store::support_reports,support_store::support_report_seen,support_store::support_forget,support_tracking::support_check_statuses,support_tracking::support_tracking_link,support_tracking::support_open_tracking,support_tracking::support_revoke_links,start_job,job_status,cancel_job,pick_path,pick_stem_files,open_link,open_licenses,list_volumes,eject::eject_volume,app_updates::app_information,app_updates::acknowledge_release_notes,app_updates::app_update_status,app_updates::check_app_update,app_updates::install_app_update,live_stream::live_stream_start,live_stream::live_stream_status,live_stream::live_stream_stop,live_stream::live_stream_detect,live_stream::live_stream_privacy])
         .on_window_event(|window,event|{
             if matches!(event,tauri::WindowEvent::CloseRequested{..}) {
                 window.state::<controller_queue::Queue>().stopping.store(true,Ordering::Release);
+                let _=translation::translation_action(window.app_handle().clone(),"cancel".into(),String::new(),String::new());
                 let _=live_stream::stop(&window.state::<live_stream::LiveStream>());
                 if let Ok(entries)=window.state::<Jobs>().entries.lock(){
                     for(value,path) in entries.values(){if value["running"]==true{let _=std::fs::write(path,b"cancel");}}

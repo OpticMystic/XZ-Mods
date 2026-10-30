@@ -1,3 +1,4 @@
+#include "l10n.h"
 /* SPDX-License-Identifier: MIT */
 #include "classic_column.h"
 #include "ui_skin.h"
@@ -36,18 +37,18 @@ static void deck_tag(struct xz_canvas c, int k, int id, const struct xz_classic_
  uint32_t fill=driven?DRIVEN:live?TAB:OFF_TAB;
  tab(c,ty,fill,live?TAB_EDGE:OFF_EDGE);
  xz_deck_box(c,4,ty+2,20,18,id,live,fill,2,0);
- xz_text(c,28,ty+4,"DECK",2,99,driven?DRIVEN_INK:live?INK:OFF_INK);
- if(driven)xz_text(c,74,ty+8,(id&1)?"RIGHT":"LEFT",1,99,DRIVEN_INK);
+ xz_text(c,28,ty+4,xz_l10n_authored("DECK"),2,99,driven?DRIVEN_INK:live?INK:OFF_INK);
+ if(driven)xz_text(c,74,ty+8,(id&1)?xz_l10n_authored("RIGHT"):xz_l10n_authored("LEFT"),1,99,DRIVEN_INK);
  if(!live){
-  xz_text(c,6,ty+28,"NOT CONNECTED",1,99,AMBER);
-  xz_text(c,6,ty+43,"SEE THE CARD",1,99,OFF_NOTE);
+  xz_text(c,6,ty+28,xz_l10n_authored("NOT CONNECTED"),1,99,AMBER);
+  xz_text(c,6,ty+43,xz_l10n_authored("SEE THE CARD"),1,99,OFF_NOTE);
   return;
  }
  usb(c,4,ty+27,INK);
  xz_ui_chrome_fit(c,19,ty+28,45,source_name(d->source),2,INK);
- xz_border(c,66,ty+27,15,15,INK);xz_text(c,68,ty+30,"b#",1,99,INK);
+ xz_border(c,66,ty+27,15,15,INK);xz_text(c,68,ty+30,xz_l10n_authored("b#"),1,99,INK);
  xz_ui_chrome_fit(c,86,ty+28,42,d->key[0]?d->key:"--",2,d->key_color?d->key_color:INK);
- if(id>=2&&!d->cents_known){xz_text(c,6,ty+48,"TRACK KEY",1,99,SOFTWARE);return;}
+ if(id>=2&&!d->cents_known){xz_text(c,6,ty+48,xz_l10n_authored("TRACK KEY"),1,99,SOFTWARE);return;}
  int x=6;
  if(d->original[0]){
   xz_text(c,x,ty+48,d->original,1,99,SOFT);x+=xz_text_width(c,d->original,1,99)+4;
@@ -87,16 +88,16 @@ int xz_classic_column_half_draw(uint16_t *pixels, size_t stride, size_t count, i
  usb(c,6,ty+48,STOCK_ICON);xz_ui_chrome_fit(c,26,ty+48,100,source_name(d->source),2,INK);
  dotted(c,ty+70);
  /* The stock key mark: a filled box with b# cut out of it. */
- xz_rect(c,4,ty+76,17,17,STOCK_ICON);xz_text(c,6,ty+80,"b#",1,99,0x000000);
+ xz_rect(c,4,ty+76,17,17,STOCK_ICON);xz_text(c,6,ty+80,xz_l10n_authored("b#"),1,99,0x000000);
  xz_ui_chrome_fit(c,28,ty+77,100,d->key[0]?d->key:"--",2,d->key_color?d->key_color:INK);
  dotted(c,ty+99);
  /* The key slot (play_key_classic.h): opens this deck's key controls, as the stock key strip does. */
  int ky=ty+101,x=6;
- xz_text(c,x,ky+3,"KEY",1,99,STOCK_LABEL);x+=xz_text_width(c,"KEY",1,99)+6;
+ xz_text(c,x,ky+3,xz_l10n_authored("KEY"),1,99,STOCK_LABEL);x+=xz_text_width(c,"KEY",1,99)+6;
  xz_ui_chrome_fit(c,x,ky+3,60,d->key[0]?d->key:"---",1,INK);
  xz_text(c,100,ky+3,">",1,99,STOCK_ACCENT);
  if(d->cents_known&&d->cents){char cents[16];snprintf(cents,sizeof cents,"%+dc",d->cents);xz_text(c,6,ky+19,cents,1,99,d->key_color?d->key_color:STOCK_DIM);}
- else xz_text(c,6,ky+19,d->cents_known?"SOFTWARE DECK":"TRACK KEY",1,99,STOCK_DIM);
+ else xz_text(c,6,ky+19,d->cents_known?xz_l10n_authored("SOFTWARE DECK"):xz_l10n_authored("TRACK KEY"),1,99,STOCK_DIM);
  return 1;
 }
 void xz_classic_column_half_identity(uint16_t *pixels, size_t stride, size_t count, int deck) {

@@ -1,3 +1,4 @@
+#include "l10n.h"
 /* SPDX-License-Identifier: MIT */
 #include "key_strip.h"
 #include "ui_skin.h"
@@ -101,7 +102,7 @@ static void render_key_tile(uint16_t *pixels,int theme,int deck,const struct xz_
         if(d->valid&&d->moved){triangle(c,x,4,2,0,muted);x+=8;xz_text(c,x,-1,d->effective,1,4,key_ink);x+=xz_text_width(c,d->effective,1,4)+4;}
         if(cents[0]){xz_text(c,x,-1,cents,1,10,d->synced?green:amber);x+=xz_text_width(c,cents,1,10)+4;}
         if(d->synced)xz_text(c,x,-1,"SYNC",1,6,green);
-        else if(d->sync_master)xz_text(c,x,-1,"MASTER",1,8,green);
+        else if(d->sync_master)xz_text(c,x,-1,xz_l10n_authored("MASTER"),1,8,green);
     }
 }
 
@@ -158,7 +159,7 @@ int xz_browse_head_render(uint16_t *pixels, size_t stride, int theme, const stru
     }
     /* The stock shortcut, drawn as a keycap so the MENU button is recognisable. */
     int kx = XZ_BROWSE_HEAD_LEFT;
-    xz_text(c, kx, y + 7, "TAP", 1, 6, muted);
+    xz_text(c, kx, y + 7, xz_l10n_authored("TAP"), 1, 6, muted);
     kx += xz_text_width(c, "TAP", 1, 6) + 4;
     int kw = xz_text_width(c, "MENU", 1, 6) + 8;
     xz_round_rect(c, kx, y + 4, kw, 17, 3, 15, muted);

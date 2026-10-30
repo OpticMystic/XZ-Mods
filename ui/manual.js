@@ -71,12 +71,12 @@
     ui.ring = svgEl('circle', { class: 'm-ring-fill', cx: 17, cy: 17, r: 14, 'stroke-dasharray': '87.96', 'stroke-dashoffset': '87.96' });
     ui.progressText = h('b'); ui.progressNote = h('span');
     const progress = h('div', { class: 'm-progress', role: 'status' }, svgEl('svg', { viewBox: '0 0 34 34', 'aria-hidden': 'true' }, svgEl('circle', { class: 'm-ring-track', cx: 17, cy: 17, r: 14 }), ui.ring), h('div', null, ui.progressText, ui.progressNote));
-    ui.home = h('button', { class: 'm-home', type: 'button', onclick: () => showStart(true) }, bookGlyph(), h('span', { text: 'Start page' }));
+    ui.home = h('button', { class: 'm-home', type: 'button', onclick: () => showStart(true) }, bookGlyph(), h('span', { text: XZText('Start page') }));
     ui.mapCount = h('small');
-    ui.map = h('button', { class: 'm-home m-mapnav', type: 'button', hidden: true, onclick: () => showMap(null, true) }, mapGlyph(), h('span', { text: 'Menu map' }), ui.mapCount);
+    ui.map = h('button', { class: 'm-home m-mapnav', type: 'button', hidden: true, onclick: () => showMap(null, true) }, mapGlyph(), h('span', { text: XZText('Menu map') }), ui.mapCount);
     ui.toc = h('ol', { class: 'm-toc', 'aria-label': 'Chapters' });
-    ui.seg = h('div', { class: 'm-seg', role: 'group', 'aria-label': 'Interface' }, ['modern', 'classic', 'both'].map(name => h('button', { type: 'button', dataset: { iface: name }, 'aria-pressed': String(state.iface === name), text: name === 'both' ? 'Both' : name.toUpperCase(), onclick: () => setIface(name, true) })));
-    const iface = h('div', { class: 'm-iface' }, h('p', { text: 'Show the parts for the interface you play on.' }), ui.seg);
+    ui.seg = h('div', { class: 'm-seg', role: 'group', 'aria-label': 'Interface' }, ['modern', 'classic', 'both'].map(name => h('button', { type: 'button', dataset: { iface: name }, 'aria-pressed': String(state.iface === name), text: name === 'both' ? XZText('Both') : name.toUpperCase(), onclick: () => setIface(name, true) })));
+    const iface = h('div', { class: 'm-iface' }, h('p', { text: XZText('Show the parts for the interface you play on.') }), ui.seg);
     side = h('div', { class: 'm-side', role: 'navigation', 'aria-label': 'Manual' }, search, h('div', { class: 'm-side-body', id: 'm-side-body' }, progress, ui.home, ui.map, ui.toc, iface));
     bar = h('span');
     view = h('div', { class: 'm-view', id: 'm-view', tabindex: '-1' });
@@ -146,7 +146,7 @@
     const share = book.chapters.reduce((sum, chapter) => sum + fraction(chapter.slug), 0) / total;
     ui.ring.setAttribute('stroke-dashoffset', String(87.96 * (1 - share)));
     ui.progressText.textContent = Math.round(share * 100) + '% read';
-    ui.progressNote.textContent = read + ' of ' + total + ' chapters finished';
+    ui.progressNote.textContent = read + ' of ' + total + XZText(' chapters finished');
   }
 
   // ---------------------------------------------------------------- interface filter
@@ -195,13 +195,13 @@
     const first = book.chapters[0], last = state.last && book.chapters.find(chapter => chapter.slug === state.last.slug);
     const lastSection = last && state.last.anchor ? last.sections.find(([, anchor]) => anchor === state.last.anchor) : null;
     const actions = h('div', { class: 'm-hero-actions' },
-      h('button', { class: 'primary', type: 'button', text: 'Start with ' + first.title, onclick: () => openChapter(first.slug, '', { focus: true }) }),
-      h('button', { class: 'secondary', type: 'button', text: 'Search the manual', onclick: () => { shell().showContext(); input.focus(); } }));
+      h('button', { class: 'primary', type: 'button', text: XZText('Start with ') + first.title, onclick: () => openChapter(first.slug, '', { focus: true }) }),
+      h('button', { class: 'secondary', type: 'button', text: XZText('Search the manual'), onclick: () => { shell().showContext(); input.focus(); } }));
     // The hero picture is a render of the true-scale model of the XDJ-XZ (ui/manual-art.js), above the title.
     const hero = h('header', { class: 'm-hero' }, window.manualArt?.hero() || null,
-      h('div', { class: 'm-hero-body' }, h('div', null, h('p', { class: 'mc-eyebrow', text: 'XZ Mods manual' }), h('h2', { tabindex: '-1', class: 'm-start-title', text: book.title }), h('p', { class: 'm-lede', text: book.summary })), actions));
+      h('div', { class: 'm-hero-body' }, h('div', null, h('p', { class: 'mc-eyebrow', text: XZText('XZ Mods manual') }), h('h2', { tabindex: '-1', class: 'm-start-title', text: book.title }), h('p', { class: 'm-lede', text: book.summary })), actions));
     const resume = last ? h('button', { class: 'm-continue', type: 'button', onclick: () => openChapter(last.slug, state.last.anchor || '', { focus: true }) },
-      ring(fraction(last.slug)), h('div', null, h('small', { text: 'Continue where you left off' }), h('b', { text: last.title + (lastSection ? ' · ' + lastSection[2] : '') }), h('span', { text: Math.round(fraction(last.slug) * 100) + '% of this chapter read' })), icon('i-chevron')) : null;
+      ring(fraction(last.slug)), h('div', null, h('small', { text: XZText('Continue where you left off') }), h('b', { text: last.title + (lastSection ? ' · ' + lastSection[2] : '') }), h('span', { text: Math.round(fraction(last.slug) * 100) + XZText('% of this chapter read') })), icon('i-chevron')) : null;
     const pick = h('div', { class: 'm-pick', role: 'group', 'aria-label': 'Which interface do you play on?' },
       [['modern', 'MODERN', 'XZ Mods draws the whole play screen.', ['assets/wizard/new-interface-poster.webp']],
         ['classic', 'CLASSIC', "The player's own play screen with MODS added.", ['assets/wizard/standard-interface.webp']],
@@ -219,15 +219,15 @@
     // The menu map: a doorway with real screens from it, the play screen first.
     const mapCard = book.map ? h('button', { class: 'm-mapcard', type: 'button', onclick: () => showMap(null, true) },
       h('span', { class: 'm-mapcard-art', 'aria-hidden': 'true' }, book.map.preview.flatMap(step => [
-        step.move ? h('span', { class: 'm-mapcard-move' }, step.move[0] === 'touch' ? [h('span', { class: 'mm-g', text: 'Tap' }), h('span', { class: 'mm-scr', text: step.move[2] })] : h('kbd', { text: step.move[0] }), h('i')) : null,
+        step.move ? h('span', { class: 'm-mapcard-move' }, step.move[0] === 'touch' ? [h('span', { class: 'mm-g', text: XZText('Tap') }), h('span', { class: 'mm-scr', text: step.move[2] })] : h('kbd', { text: step.move[0] }), h('i')) : null,
         h('span', { class: 'm-mapcard-screen' }, h('img', { src: step.th, alt: '', width: 240, height: 144, loading: 'lazy', decoding: 'async' }), h('b', { text: step.t }))])),
-      h('span', { class: 'm-mapcard-text' }, h('small', { text: 'Menu map' }), h('b', { text: 'Every screen, and how to get there' }),
-        h('span', { text: book.map.screens.modern + ' screens, laid out from the play screen. Follow any path, see the control that opens each screen, and jump to the part of the manual that explains it.' }),
-        h('span', { class: 'm-mapcard-go' }, 'Open the menu map', icon('i-chevron')))) : null;
+      h('span', { class: 'm-mapcard-text' }, h('small', { text: XZText('Menu map') }), h('b', { text: XZText('Every screen, and how to get there') }),
+        h('span', { text: book.map.screens.modern + XZText(' screens, laid out from the play screen. Follow any path, see the control that opens each screen, and jump to the part of the manual that explains it.') }),
+        h('span', { class: 'm-mapcard-go' }, XZText('Open the menu map'), icon('i-chevron')))) : null;
     const howto = h('div', { class: 'm-howto' },
-      h('div', null, h('span', { class: 'mf-chip', text: '1' }), h('b', { text: 'Numbered points' }), 'Point at a number on a picture, or tab to it, to see what it is. Play steps through them all.'),
-      h('div', null, xzKey('SHIFT'), h('b', { text: 'Keys on the player' }), 'A button drawn like this is that control on the XDJ-XZ, lamp colour included.'),
-      h('div', null, h('span', { class: 'tag tag--experimental', text: 'experimental' }), h('b', { text: 'Experimental' }), 'Works, but test it with your own tracks before you rely on it in a set.'));
+      h('div', null, h('span', { class: 'mf-chip', text: '1' }), h('b', { text: XZText('Numbered points') }), XZText('Point at a number on a picture, or tab to it, to see what it is. Play steps through them all.')),
+      h('div', null, xzKey('SHIFT'), h('b', { text: XZText('Keys on the player') }), XZText('A button drawn like this is that control on the XDJ-XZ, lamp colour included.')),
+      h('div', null, h('span', { class: 'tag tag--experimental', text: 'experimental' }), h('b', { text: XZText('Experimental') }), XZText('Works, but test it with your own tracks before you rely on it in a set.')));
     const groups = [];
     for (const chapter of book.chapters) {
       if (!groups.length || groups.at(-1).name !== chapter.group) groups.push({ name: chapter.group, list: [] });
@@ -241,13 +241,13 @@
         h('span', null, h('b', { text: chapter.title }), h('span', { text: chapter.minutes + ' min · ' + chapter.summary }), h('span', { class: 'm-meter' }, meter))));
     })))));
     swap([h('div', { class: 'm-start' },
-      book.draft ? h('p', { class: 'm-draft', role: 'note', text: 'Draft copy: this manual has not been checked against this build yet.' }) : null,
+      book.draft ? h('p', { class: 'm-draft', role: 'note', text: XZText('Draft copy: this manual has not been checked against this build yet.') }) : null,
       hero, resume,
-      h('h3', { class: 'm-h3', text: 'Which interface do you play on?' }), pick,
-      mapCard ? h('h3', { class: 'm-h3', text: 'Find your way around the player' }) : null, mapCard,
-      h('h3', { class: 'm-h3', text: 'What XZ Mods adds' }), tour,
-      h('h3', { class: 'm-h3', text: 'Reading this manual' }), howto,
-      h('h3', { class: 'm-h3', text: 'The guide, chapter by chapter' }), path)], 'start');
+      h('h3', { class: 'm-h3', text: XZText('Which interface do you play on?') }), pick,
+      mapCard ? h('h3', { class: 'm-h3', text: XZText('Find your way around the player') }) : null, mapCard,
+      h('h3', { class: 'm-h3', text: XZText('What XZ Mods adds') }), tour,
+      h('h3', { class: 'm-h3', text: XZText('Reading this manual') }), howto,
+      h('h3', { class: 'm-h3', text: XZText('The guide, chapter by chapter') }), path)], 'start');
     renderToc();
     bar.style.transform = 'scaleX(0)';
     window.manualArt?.startHero(view);
@@ -271,12 +271,12 @@
     article.innerHTML = html;
     article.querySelector('.mc-title').id = 'm-title-' + slug;
     const chapter = book.chapters[index];
-    const meta = h('p', { class: 'm-meta' }, h('span', { text: chapter.minutes + ' min read' }), h('span', { text: 'Chapter ' + (index + 1) + ' of ' + book.chapters.length }));
+    const meta = h('p', { class: 'm-meta' }, h('span', { text: chapter.minutes + XZText(' min read') }), h('span', { text: 'Chapter ' + (index + 1) + ' of ' + book.chapters.length }));
     article.querySelector('.mc-head').append(meta);
     const prev = book.chapters[index - 1], next = book.chapters[index + 1];
     const pager = h('div', { class: 'm-pager', role: 'navigation', 'aria-label': 'Previous and next chapter' },
-      prev ? h('button', { class: 'm-prev', type: 'button', onclick: () => openChapter(prev.slug, '', { focus: true }) }, h('small', { text: 'Previous' }), h('b', { text: prev.title }), h('span', { text: prev.summary })) : null,
-      next ? h('button', { class: 'm-next', type: 'button', onclick: () => openChapter(next.slug, '', { focus: true }) }, h('small', { text: 'Next' }), h('b', { text: next.title }), h('span', { text: next.summary })) : null);
+      prev ? h('button', { class: 'm-prev', type: 'button', onclick: () => openChapter(prev.slug, '', { focus: true }) }, h('small', { text: XZText('Previous') }), h('b', { text: prev.title }), h('span', { text: prev.summary })) : null,
+      next ? h('button', { class: 'm-next', type: 'button', onclick: () => openChapter(next.slug, '', { focus: true }) }, h('small', { text: XZText('Next') }), h('b', { text: next.title }), h('span', { text: next.summary })) : null);
     swap([article, pager], 'chapter');
     current.slug = slug;
     enhance(article);
@@ -284,7 +284,7 @@
     const onMap = book.map?.sections || {};
     for (const heading of article.querySelectorAll('h3[data-anchor],h4[data-anchor]')) {
       const key = onMap[slug + '#' + heading.dataset.anchor];
-      if (key) heading.append(h('button', { class: 'm-onmap', type: 'button', dataset: { map: key }, 'aria-label': 'Show ' + heading.textContent.trim() + ' on the menu map' }, mapGlyph(), h('span', { text: 'On the menu map' })));
+      if (key) heading.append(h('button', { class: 'm-onmap', type: 'button', dataset: { map: key }, 'aria-label': 'Show ' + heading.textContent.trim() + ' on the menu map' }, mapGlyph(), h('span', { text: XZText('On the menu map') })));
     }
     renderToc();
     shell().closeDrawer();
@@ -390,7 +390,7 @@
     const tools = h('div', { class: 'mf-tools' });
     if (marks.length > 1) {
       steps = h('span', { class: 'mf-steps', 'aria-hidden': 'true' }, marks.map(() => h('i')));
-      const play = h('button', { class: 'mf-tool', type: 'button', 'aria-pressed': 'false', 'aria-label': 'Step through the numbered points' }, playGlyph(), h('span', { text: 'Play' }));
+      const play = h('button', { class: 'mf-tool', type: 'button', 'aria-pressed': 'false', 'aria-label': 'Step through the numbered points' }, playGlyph(), h('span', { text: XZText('Play') }));
       play.onclick = () => playing ? stop() : start();
       const label = play.querySelector('span');
       function start() {
@@ -401,12 +401,12 @@
           activate(marks[i].dataset.n);
           playing = setTimeout(i === marks.length - 1 ? () => { stop(); activate(null); } : tick, 2900);
         };
-        playing = -1; play.setAttribute('aria-pressed', 'true'); label.textContent = 'Pause'; tick();
+        playing = -1; play.setAttribute('aria-pressed', 'true'); label.textContent = XZText('Pause'); tick();
       }
       figure.stopPlay = stop;
       function stop() {
         if (!playing) return;
-        clearTimeout(playing); playing = null; play.setAttribute('aria-pressed', 'false'); label.textContent = 'Play';
+        clearTimeout(playing); playing = null; play.setAttribute('aria-pressed', 'false'); label.textContent = XZText('Play');
         if (steps) for (const item of steps.children) item.classList.remove('is-on', 'is-done');
       }
       tools.append(steps, play);
@@ -452,9 +452,9 @@
     };
     const step = by => { at = (at + by + items.length) % items.length; show(); };
     const foot = h('div', { class: 'm-box-foot' }, caption,
-      items.length > 1 ? h('button', { class: 'secondary', type: 'button', text: 'Previous', onclick: () => step(-1) }) : null,
-      items.length > 1 ? h('button', { class: 'secondary', type: 'button', text: 'Next', onclick: () => step(1) }) : null,
-      h('button', { class: 'primary', type: 'button', text: 'Close', onclick: () => dialog.close() }));
+      items.length > 1 ? h('button', { class: 'secondary', type: 'button', text: XZText('Previous'), onclick: () => step(-1) }) : null,
+      items.length > 1 ? h('button', { class: 'secondary', type: 'button', text: XZText('Next'), onclick: () => step(1) }) : null,
+      h('button', { class: 'primary', type: 'button', text: XZText('Close'), onclick: () => dialog.close() }));
     dialog.replaceChildren(img, foot);
     dialog.onkeydown = event => { if (items.length > 1 && (event.key === 'ArrowRight' || event.key === 'ArrowLeft')) { event.preventDefault(); step(event.key === 'ArrowRight' ? 1 : -1); } };
     const opener = document.activeElement;
@@ -473,10 +473,13 @@
   }
 
   // ---------------------------------------------------------------- search
-  const norm = text => ' ' + String(text || '').toLowerCase().replace(/[‘’`]/g, "'").replace(/[^a-z0-9'/+.-]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+  const norm = text => ' ' + String(text || '').toLowerCase().replace(/[‘’`]/g, "'").replace(/[^\p{L}\p{N}'/+.-]+/gu, ' ').replace(/\s+/g, ' ').trim() + ' ';
   let normed = null;
+  document.addEventListener('xz-language-changed', () => { normed = null; });
   function find(query) {
-    const entries = window.XZ_MANUAL_SEARCH || [];
+    const entries = (window.XZ_MANUAL_SEARCH || []).map(entry => ({...entry,
+      t: window.XZLocalization?.text(entry.t, 'manual') || entry.t,
+      x: window.XZLocalization?.text(entry.x, 'manual') || entry.x}));
     normed ||= entries.map(entry => ({ entry, t: norm(entry.t), x: norm(entry.x) }));
     const phrase = norm(query).trim(), terms = phrase.split(' ').filter(term => term.length > 0);
     if (!terms.length) return [];
@@ -485,7 +488,7 @@
       if (item.entry.i && state.iface !== 'both' && item.entry.i !== state.iface) continue;
       let score = 0, ok = true;
       for (const term of terms) {
-        const word = ' ' + term;
+        const word = /[\u3000-\u9fff\uac00-\ud7af]/u.test(term) ? term : ' ' + term;
         const inTitle = item.t.includes(word), inText = item.x.includes(word);
         if (!inTitle && !inText) { ok = false; break; }
         score += (inTitle ? 8 : 0) + (inText ? 1 + Math.min(5, item.x.split(word).length - 2) : 0);
@@ -531,9 +534,9 @@
       if (event.key === 'ArrowUp' && at <= 0) return input.focus();
       hits[Math.min(hits.length - 1, at + (event.key === 'ArrowDown' ? 1 : -1))]?.focus();
     });
-    const head = h('div', { class: 'm-results-head' }, h('h2', { text: 'Search' }), h('p', { role: 'status', text: results.length ? results.length + (results.length === 40 ? '+' : '') + ' places mention “' + query + '”' : 'Nothing in the manual mentions “' + query + '”' }));
+    const head = h('div', { class: 'm-results-head' }, h('h2', { text: XZText('Search') }), h('p', { role: 'status', text: results.length ? results.length + (results.length === 40 ? '+' : '') + XZText(' places mention “') + query + '”' : XZText('Nothing in the manual mentions “') + query + '”' }));
     leaveMap();
-    view.replaceChildren(head, results.length ? list : h('p', { class: 'm-empty', text: 'Try a shorter word, the name printed on a button, or a message shown on the screen.' }));
+    view.replaceChildren(head, results.length ? list : h('p', { class: 'm-empty', text: XZText('Try a shorter word, the name printed on a button, or a message shown on the screen.') }));
     window.manualArt?.stopAll();
     current.view = 'search';
     renderToc();

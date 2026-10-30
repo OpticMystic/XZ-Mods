@@ -1,0 +1,11 @@
+.xz-language-dialog { width: min(640px, calc(100vw - 64px)); max-height: calc(100vh - 64px); overflow: auto; background: #141617; color: #ededeb; border: 1px solid #696828; border-radius: 6px; padding: 24px; font: 14px/1.6 system-ui, -apple-system, 'Segoe UI', 'Yu Gothic UI', 'Microsoft YaHei UI', 'Malgun Gothic', sans-serif; }
+.xz-language-dialog::backdrop { background: #000b; }
+.xz-language-dialog select { max-inline-size: 100%; background: #080a0a; color: #f1f3ef; border: 1px solid #3a4040; border-radius: 3px; padding: 6px 10px; font: inherit; }
+.xz-language-dialog button { margin-block: 6px; margin-inline-end: 6px; }
+.xz-language-dialog fieldset { border: 1px solid #333738; border-radius: 5px; padding: 14px; margin: 14px 0; }
+.xz-language-dialog legend { color: #ddd78a; padding: 0 6px; font-size: 12px; }
+.xz-import { display: inline-block; margin-block: 8px; }
+#xz-language-setup { margin: 0; padding: 3px 9px; font-size: 11px; line-height: 1.25; border-radius: 5px; border: 1px solid #3c4240; background: #171a19; color: #cfd5d1; white-space: nowrap; }
+#xz-language-setup:hover { border-color: #7d8580; color: #f3f5f2; }
+html[dir=rtl] main { text-align: start; }
+html[dir=rtl] input[type=url], html[dir=rtl] code { direction: ltr; unicode-bidi: isolate; }

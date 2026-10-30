@@ -1,3 +1,4 @@
+#include "l10n.h"
 #include "../key/view.h"
 /* SPDX-License-Identifier: MIT */
 #include "extra_lane.h"
@@ -234,7 +235,7 @@ static int tag(struct xz_canvas c,unsigned number,int lit,int more){
  xz_four_number_box(c,3,2,number);
  if(lit)xz_rect(c,x,2,w,13,0x9cc8ff);
  else{xz_rect(c,x,2,w,13,0x1c2632);xz_border(c,x,2,w,13,0x55606c);}
- xz_text(c,x+5,4,"DECK",1,12,ink);
+ xz_text(c,x+5,4,xz_l10n_authored("DECK"),1,12,ink);
  if(more)for(int i=0;i<4;i++)xz_rect(c,x+w-9+i,5+i,1,7-2*i,ink);
  return x-3+w;
 }

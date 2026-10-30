@@ -1,0 +1,2606 @@
+{
+  "schema": 1,
+  "product": "xz-mods",
+  "entries": {
+    "ja": {
+      "manual:4b0940764f647091c717": {
+        "source": "With no sticks yet,",
+        "source_sha256": "4b0940764f647091c717e1fdfb989608ec5828f67ab372d5386d468df373a5a4",
+        "text": "まだドライブがない場合、",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft in the USB/removable-drive context; replaces a Small100 unknown-token result. Native-speaker approval remains open."
+        }
+      },
+      "manual:5637e89d42bfc29e2a5d": {
+        "source": "2: Loader ID",
+        "source_sha256": "5637e89d42bfc29e2a5d053c0f2f8741474d141260fd0d8b8d4da92f0cfc4d1d",
+        "text": "2: ローダーID",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "desktop:74dc23c32a33fcc0089b": {
+        "source": "[[CH 3 INPUT]] and [[CH 4 INPUT]] set to USB",
+        "source_sha256": "74dc23c32a33fcc0089bfd725d52999cbf977df839ea7a20264f802f445c2640",
+        "text": "[[CH 3 INPUT]] と [[CH 4 INPUT]] を USB に設定",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      }
+    },
+    "ko": {
+      "desktop:f4284d64cfb809a9d445": {
+        "source": "A complete free base game compatible with Doom II mods, with different artwork. It comes with XZ Mods when you install it on a USB and appears in Doom's WAD picker. Full commercial Doom and Doom II require your own licensed WAD.",
+        "source_sha256": "f4284d64cfb809a9d445f1fc460f2c6980857d4e02e5d405e02beb805414c448",
+        "text": "Doom II 모드와 호환되는 완전한 무료 기본 게임으로, 다른 그래픽을 사용합니다. USB에 XZ Mods를 설치하면 함께 설치되며 Doom의 WAD 선택기에 표시됩니다. 상용 Doom 및 Doom II 정식판에는 사용자가 라이선스를 보유한 WAD가 필요합니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing an unknown-token result after model retry and fragment repair. Retains licensing distinction and protected product names."
+        }
+      },
+      "desktop:0b8002b0553ddb9c6eaf": {
+        "source": "The XDJ-XZ seen from behind and above, with one cable from the rear USB-B socket over the back edge into top USB1. The view turns to the rear panel, where the square USB-B plug with beveled top corners comes out to show the socket and goes back in, then to the top, where the flat USB-A plug lifts out of USB1 and goes back in. USB2 is beside it. No computer is involved.",
+        "source_sha256": "0b8002b0553ddb9c6eaf75238622aceb9d1d9997650dd2b2cf9be072d74e20a3",
+        "text": "뒤쪽 위에서 본 XDJ-XZ입니다. 케이블 하나가 뒤쪽 USB-B 단자에서 뒤 가장자리를 넘어 위쪽 USB1에 연결되어 있습니다. 화면이 뒤쪽 패널로 돌아가면 위 모서리가 비스듬한 사각형 USB-B 플러그가 빠져 단자를 보여 준 뒤 다시 꽂힙니다. 이어서 위쪽으로 돌아가면 납작한 USB-A 플러그가 USB1에서 빠졌다가 다시 꽂힙니다. 그 옆에는 USB2가 있습니다. 컴퓨터는 사용하지 않습니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:661ff40a07e037bbd5f7": {
+        "source": "Queued",
+        "source_sha256": "661ff40a07e037bbd5f7d4ec97a4df1503096ca910e7c9e2d7a4e9abd4e4e1a0",
+        "text": "대기 중",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:183f00f483d3844e875d": {
+        "source": "Keep",
+        "source_sha256": "183f00f483d3844e875d26eac74c676054383aef38ed5a8e4d1505ef21008585",
+        "text": "유지",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:ccaffa45824307fc7257": {
+        "source": "Lining up and levelling",
+        "source_sha256": "ccaffa45824307fc7257a547e659fe0dae3fe0ac4e046947c993c7c9edc12dff",
+        "text": "위치와 음량 맞추는 중",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:7d465fb9b9314846b726": {
+        "source": "Purple",
+        "source_sha256": "7d465fb9b9314846b72698017691e756af05e0a548e347a3b7c54ca5b85270de",
+        "text": "보라색",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:37c6f9ca6828128d32fd": {
+        "source": "Pong and Breakout played to the beat with the jog wheels",
+        "source_sha256": "37c6f9ca6828128d32fd23fe7b9b1afbdf504bf6806a229fa82a6dd00e21a175",
+        "text": "조그 휠로 박자에 맞춰 즐기는 Pong과 Breakout",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:59c8041034cbcb36c963": {
+        "source": "Jump a glitch cat over the waveform on the beat",
+        "source_sha256": "59c8041034cbcb36c963cbe61e55fc152c76111c143cc45244a4495f64374d6d",
+        "text": "박자에 맞춰 글리치 고양이를 점프시켜 파형을 넘으세요",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:f6f4688ff23d50c67053": {
+        "source": "Send",
+        "source_sha256": "f6f4688ff23d50c67053963c251fa0ce64a925cf283537cf066b1f362cb9b778",
+        "text": "보내기",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:c16bc82bf1f04ede04d1": {
+        "source": "Sent",
+        "source_sha256": "c16bc82bf1f04ede04d1bc0bdf714b1a2e523ac5fa06fee7b9466c6d2d54af1e",
+        "text": "보냄",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:da4c868d761222ebc16b": {
+        "source": "Beat jump pads",
+        "source_sha256": "da4c868d761222ebc16bb661e3686f0f28e54485b6c273d97a65bafcf07fcf25",
+        "text": "비트 점프 패드",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:58203e92618e57f4caed": {
+        "source": "Eject USB",
+        "source_sha256": "58203e92618e57f4caed83d13d6f964fa8d1396b15f78a571c91b69bc4a8d5c4",
+        "text": "USB 꺼내기",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:ba9bc644d5fe66913dcd": {
+        "source": "Buttons, pads or lamps",
+        "source_sha256": "ba9bc644d5fe66913dcd734756d7ac57f118a4d38d668a3788dc4ff64e53fab8",
+        "text": "버튼, 패드 또는 표시등",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:92bc82ed04a2f82f363b": {
+        "source": "Diary found, times unknown (",
+        "source_sha256": "92bc82ed04a2f82f363b58abd3966febd4748d01711fef17ff5d0fe02ae8395e",
+        "text": "기록을 찾았지만 시간은 알 수 없음 (",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:734986c59dca11907730": {
+        "source": "Rows still on their way from the USB stay blank for a moment",
+        "source_sha256": "734986c59dca119077303eadee91d7fa1c62b46eba9397606f3b8486ec4cff0d",
+        "text": "USB에서 아직 불러오는 중인 행은 잠시 비어 있습니다",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:b708724a23bf11c2a509": {
+        "source": "With",
+        "source_sha256": "b708724a23bf11c2a5095adfe16cd12cda8c74437093bb2a33ea32850521f691",
+        "text": "다음 기능을 사용하면",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:130011756125313c72f2": {
+        "source": "On",
+        "source_sha256": "130011756125313c72f2cab730db4347e2841526d236a89cb25f38789fa49229",
+        "text": "켜짐",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:d2e0d1b3867cb163e397": {
+        "source": "TYPE YOUR DJ NAME FIRST",
+        "source_sha256": "d2e0d1b3867cb163e397f6a557f3a323d341f48a22f77d8be4bc1df6643b8c96",
+        "text": "먼저 DJ 이름을 입력하세요",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:dba0706a1affdcbadd34": {
+        "source": "Wait. Do not pull the USB",
+        "source_sha256": "dba0706a1affdcbadd34887ac5fc3f2b3ff021f959a160df7ffd20dd874ff683",
+        "text": "기다리세요. USB를 분리하지 마세요",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:bdd254b65baac169f6ac": {
+        "source": "Build",
+        "source_sha256": "bdd254b65baac169f6ac50e8175ce6d930c1fcb086dec59808d3e0170ae2291d",
+        "text": "만들기",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:ed251864987c367e9641": {
+        "source": "Done.",
+        "source_sha256": "ed251864987c367e9641fbdc89c1d83e9bf0fa2e3eecef8f301c79f619bfac81",
+        "text": "완료.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:58203e92618e57f4caed": {
+        "source": "Eject USB",
+        "source_sha256": "58203e92618e57f4caed83d13d6f964fa8d1396b15f78a571c91b69bc4a8d5c4",
+        "text": "USB 꺼내기",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:c634f9f0f0fb0334edfc": {
+        "source": "source, paste the",
+        "source_sha256": "c634f9f0f0fb0334edfc6f4110d7583457c2eb30d711657723b016454b76b9c1",
+        "text": "소스를 선택하고 다음 내용을 붙여 넣으세요:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:98c95268220bddfe87be": {
+        "source": "Tick",
+        "source_sha256": "98c95268220bddfe87be5b5b26859bc35353518f5ab7ec1ce654a30e4e64c0e2",
+        "text": "선택",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:21a71f3e3356eeab8cba": {
+        "source": "Opens",
+        "source_sha256": "21a71f3e3356eeab8cbae61736116231eec6eeaf454e245da16f05088118c8bc",
+        "text": "열기",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:87a79d787960f1df3748": {
+        "source": "A stick with the XZ Mods loader on it.",
+        "source_sha256": "87a79d787960f1df3748f9f904536290b123e6d563f059ed6f5b0e6168067def",
+        "text": "XZ Mods 로더가 들어 있는 드라이브입니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:f6f4688ff23d50c67053": {
+        "source": "Send",
+        "source_sha256": "f6f4688ff23d50c67053963c251fa0ce64a925cf283537cf066b1f362cb9b778",
+        "text": "보내기",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:edebbd9efcef4f59673d": {
+        "source": "When XZ Mods last wrote the stick.",
+        "source_sha256": "edebbd9efcef4f59673d11dcabe70c9af0ec4eca7d3276c8856ad270f6511a57",
+        "text": "XZ Mods가 마지막으로 드라이브에 기록한 시간입니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:185d730334d1d6c127de": {
+        "source": "How much of the manual you have read. A chapter's circle fills as you read and turns into a tick at its end.",
+        "source_sha256": "185d730334d1d6c127dea6e6f09cf960882d0b00246f141a19efcae9be9ec268",
+        "text": "설명서를 얼마나 읽었는지 표시합니다. 읽는 동안 각 장의 원이 채워지고, 끝까지 읽으면 확인 표시로 바뀝니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:b24b160be3b13d94b7d6": {
+        "source": "Pong and Breakout scored on the beat, played with the jog.",
+        "source_sha256": "b24b160be3b13d94b7d6eedddb2621a0139ad9eeab6f040ff4f6a93becc75a18",
+        "text": "조그로 플레이하고 박자에 맞춰 점수를 얻는 Pong과 Breakout입니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:ace2c7ba26bc63cab232": {
+        "source": "on each beat as the moving light meets the target. Good notes build charge. Eight good notes in a row earn a shield, and sixteen build a Drop that fires on the next downbeat.",
+        "source_sha256": "ace2c7ba26bc63cab232f55ab71a24cd5d81b19ad58d4311ddc30a5b52df214b",
+        "text": "움직이는 불빛이 목표에 도달할 때마다 박자에 맞추세요. 정확히 맞히면 충전됩니다. 여덟 번 연속으로 맞히면 보호막을 얻고, 열여섯 번이면 다음 강박에 발동하는 드롭이 준비됩니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:bed1628d2322a038c3d9": {
+        "source": "Moves the paddle. In the menu, chooses a game",
+        "source_sha256": "bed1628d2322a038c3d92ee86369613563fcabf76e3ec2b792eb97dbb7219a3b",
+        "text": "패들을 움직입니다. 메뉴에서는 게임을 선택합니다",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:e93d42068f34acc36776": {
+        "source": "Strikes on the beat. Starts, resumes and rematches",
+        "source_sha256": "e93d42068f34acc367762b3cd7f809a31dd2697091a75507e043222170657712",
+        "text": "박자에 맞춰 칩니다. 시작, 계속하기, 재대결에도 사용합니다",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:e0ba1dbc9a607d8e1d54": {
+        "source": "Pad B",
+        "source_sha256": "e0ba1dbc9a607d8e1d541b42751a7830cefb9e2cea7189ca0b9ba46808a22bac",
+        "text": "패드 B",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:fa7e325096b5ba88906a": {
+        "source": "Wide paddle for 16 beats",
+        "source_sha256": "fa7e325096b5ba88906ad591fde560e7afc799b41621d119dec70ab27acf5818",
+        "text": "16박 동안 넓은 패들 사용",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:b316e8d4b12c439bb4b9": {
+        "source": "Queues a Drop on the next downbeat",
+        "source_sha256": "b316e8d4b12c439bb4b94767c941947df89a17a65a652baa5d3aa5be5552f49e",
+        "text": "다음 강박에 드롭이 발동하도록 예약합니다",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:42e7920fe88dd438b663": {
+        "source": "Pad G",
+        "source_sha256": "42e7920fe88dd438b663d77fc5c0e0ec06da9c184d1759e3023542a828f007b7",
+        "text": "패드 G",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:8e685d5409b3a543b1ca": {
+        "source": "Hold",
+        "source_sha256": "8e685d5409b3a543b1cadcc35b095d64847867539c12b21a36d55991ca0cdce1",
+        "text": "길게 누르기",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:c0316619e532d9385578": {
+        "source": "Turn the jog to tilt the board. Clockwise points the nose down.",
+        "source_sha256": "c0316619e532d93855781381e06688295848da42a5241e96fb30b822890e8f6f",
+        "text": "조그를 돌려 보드를 기울이세요. 시계 방향으로 돌리면 앞부분이 아래로 향합니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:70731d4697b3102c9a64": {
+        "source": "PUT .WAD FILES ON USB, THEN RESCAN",
+        "source_sha256": "70731d4697b3102c9a6447b6e64f38e9c872849f67a30beba07d8c016d6625ef",
+        "text": "USB에 .WAD 파일을 넣은 다음 다시 검색하세요",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:12a8453894a5b43cf243": {
+        "source": "is on.",
+        "source_sha256": "12a8453894a5b43cf2431e1a07719dcd5f2764959c84908f558afda0be7cfd3d",
+        "text": "켜져 있습니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:17388cc28fc6b542f226": {
+        "source": "NOT SENT YET",
+        "source_sha256": "17388cc28fc6b542f226feb871ef50708e0aa55c3d8950c9aa1588c3df0f70ec",
+        "text": "아직 보내지 않음",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:409aa4b564bcfed04255": {
+        "source": "Cue, loop and hot cue points land on the beat.",
+        "source_sha256": "409aa4b564bcfed04255d129697b985b565eb3aaf7bba4353629bdda8251308f",
+        "text": "큐, 루프, 핫 큐 지점이 박자에 맞춰집니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:a213ec081ace2b8273f3": {
+        "source": "If the beats drift apart, press",
+        "source_sha256": "a213ec081ace2b8273f38e2ac64f426a6f8732f172fbcccd0c5b349902e912a4",
+        "text": "박자가 어긋나면 다음 버튼을 누르세요:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:e4a4fc73f2a1d2bf307b": {
+        "source": "off and on again. With QUANTIZE on, every engage snaps to the nearest position at the selected beat value, even for a small drift. The beat value can be 1, 1/2, 1/4 or 1/8 beat. With QUANTIZE off, only the tempo follows.",
+        "source_sha256": "e4a4fc73f2a1d2bf307b69f5af9a2338361dfd230f08dddcc57e96d2ff2663ba",
+        "text": "껐다가 다시 켜세요. QUANTIZE가 켜져 있으면 약간만 어긋나도 작동할 때마다 선택한 박자 값의 가장 가까운 위치에 맞춰집니다. 박자 값은 1, 1/2, 1/4 또는 1/8박입니다. QUANTIZE가 꺼져 있으면 템포만 따라갑니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:6ba2a0e0afd03fb08322": {
+        "source": "Shown",
+        "source_sha256": "6ba2a0e0afd03fb083223d57fd1b4497d5a6bdc48471816d2d9d82ee31481117",
+        "text": "표시 내용",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:9226273ae1a4f7152eb5": {
+        "source": "A track has no beat grid, so only the tempo follows.",
+        "source_sha256": "9226273ae1a4f7152eb5dc628764fdd3d1fc7f5bc248e2d5afffd31f14cc8eaa",
+        "text": "트랙에 비트 그리드가 없어 템포만 따라갑니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:dc5880258036a6f6b9b3": {
+        "source": "SYNC ON / JOG CONTROL",
+        "source_sha256": "dc5880258036a6f6b9b36a903583f2680758e25f210a61fa2440183968da4d38",
+        "text": "SYNC 켜짐 / 조그 조작",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:e8b22d83b417e85ba4f2": {
+        "source": "hold",
+        "source_sha256": "e8b22d83b417e85ba4f24101a49a49cc3246a5e5e4ce6574623063e4e32801e0",
+        "text": "길게 누르기",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:c48eb726e593721f7e58": {
+        "source": "Moves the highlight to the next card, row or button in MODS. On a beat jump pair, after a push, it steps the jump size.",
+        "source_sha256": "c48eb726e593721f7e584a1478aa1a1e56736634ca14a5bf36a3f6c3a0bbe39a",
+        "text": "MODS에서 강조 표시를 다음 카드, 행 또는 버튼으로 옮깁니다. 비트 점프 쌍에서는 한 번 누른 뒤 점프 크기를 단계별로 바꿉니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:8b3e853bf61bbdd88e71": {
+        "source": "ONSCREEN",
+        "source_sha256": "8b3e853bf61bbdd88e710b350498c959456db3b37ab28db81df902d7609f7c4c",
+        "text": "화면에 표시",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:ce995bde7ae9fed07357": {
+        "source": "Press for beat jump page 1. SHIFT + BEAT JUMP gives page 2.",
+        "source_sha256": "ce995bde7ae9fed073578e80957af83e563ce122e507e370cc158e1dd281d7f6",
+        "text": "누르면 비트 점프 1페이지가 열립니다. SHIFT + BEAT JUMP를 누르면 2페이지가 열립니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:6a5373bd5e811c2bc4b7": {
+        "source": "Beat jump mode with page 1 of your jump sizes.",
+        "source_sha256": "6a5373bd5e811c2bc4b7e03c37dc167412660f24820866b43c6b0f00cb02ff79",
+        "text": "사용자가 정한 점프 크기 1페이지를 사용하는 비트 점프 모드입니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:7bbcfe835de3aaff1df1": {
+        "source": "Beat jump mode with page 2 of your jump sizes. Let go of",
+        "source_sha256": "7bbcfe835de3aaff1df133da661b1226474004896306bb799cc3efbaf5d5b0fb",
+        "text": "사용자가 정한 점프 크기 2페이지를 사용하는 비트 점프 모드입니다. 다음 버튼에서 손을 떼세요:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:a66f86e4bb31fb877dd8": {
+        "source": "Pads with XZ Mods",
+        "source_sha256": "a66f86e4bb31fb877dd887e32f92e8dc799561646e27c77835670fc1bf116639",
+        "text": "XZ Mods의 패드",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:9e9eb7a1ec45be3f66e6": {
+        "source": "Beat jump",
+        "source_sha256": "9e9eb7a1ec45be3f66e6127c91037146ca7295a3bbe0322ec5abdcf38aa18db6",
+        "text": "비트 점프",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:6863067eb0a2c7499425": {
+        "source": "See",
+        "source_sha256": "6863067eb0a2c7499425c6c189b2c88bac55ca754285a6ab1ef37b75b4cfad4d",
+        "text": "참조:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:5a339bf101a011a28886": {
+        "source": "The state of the section's main setting. Green means ready, amber means it needs you.",
+        "source_sha256": "5a339bf101a011a28886f109311c26c78cdedd53274d976aa4af7132d8cfe461",
+        "text": "이 구역의 기본 설정 상태입니다. 초록색은 준비 완료, 주황색은 사용자의 조치가 필요함을 뜻합니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:19fc4c410c1f1063cebf": {
+        "source": "Your beat jump sizes, page 1 then page 2",
+        "source_sha256": "19fc4c410c1f1063cebf7fd37e13257c4f6c42253a084545b35901b07ad9cc60",
+        "text": "사용자 비트 점프 크기: 1페이지, 이어서 2페이지",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:73717627d96926f30d96": {
+        "source": "Your own beat jump distances for both pad pages. The row shows the sizes now in use.",
+        "source_sha256": "73717627d96926f30d961d0dfcb0ec75bb703c06ffe4263a5debd6c6542a8daa",
+        "text": "두 패드 페이지에서 사용할 비트 점프 거리를 직접 정합니다. 행에는 현재 사용 중인 크기가 표시됩니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:2cd27d7d4e19edb16b6f": {
+        "source": "No stick is in. The change is kept on this XZ.",
+        "source_sha256": "2cd27d7d4e19edb16b6f80e31a20566472edfbc4dabd884878fdcb62cc0f6ebe",
+        "text": "드라이브가 연결되어 있지 않습니다. 변경 사항은 이 XZ에 유지됩니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:26164d6a8b50734ba180": {
+        "source": "Beat jump distances, gate cue, smart cue, key sync and RAM tracks.",
+        "source_sha256": "26164d6a8b50734ba18040f0e5a119c458fe61373e38f98e5c9431119ec3a72b",
+        "text": "비트 점프 거리, 게이트 큐, 스마트 큐, 키 동기화 및 RAM 트랙입니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:a6653a455d7d82ee466a": {
+        "source": "Opens the beat jump editor. The numbers are your page 1 and page 2 sizes in beats.",
+        "source_sha256": "a6653a455d7d82ee466a610d3b8628843978bcff0bb8e62a3f8371669ed26787",
+        "text": "비트 점프 편집기를 엽니다. 숫자는 1페이지와 2페이지의 크기를 박자 단위로 나타냅니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:c5ef5b3387e459096253": {
+        "source": ", let go of",
+        "source_sha256": "c5ef5b3387e4590962530a2d15cda3ea9db739178a212469da5a0405bbce54b7",
+        "text": ", 다음 버튼에서 손을 떼세요:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:a444147df665ff7d151f": {
+        "source": "Let go of",
+        "source_sha256": "a444147df665ff7d151f5d853f91413010bc71cff74424c6bc784f2f3e845bde",
+        "text": "다음 버튼에서 손을 떼세요:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:665679268a0165900311": {
+        "source": "Editing page 2. Pads A and B are selected and jump 16 beats.",
+        "source_sha256": "665679268a01659003117584be2e50aa5d72a5e0983f86e618c8ab5b4dba7582",
+        "text": "2페이지 편집 중입니다. 패드 A와 B가 선택되어 있으며 16박을 점프합니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:3fbe8de3cd4d23892a46": {
+        "source": "STOCK keeps the player's own 1, 2, 4 and 8 beats on page 1. MY SIZES uses yours. Page 2 always uses yours.",
+        "source_sha256": "3fbe8de3cd4d23892a466405a9c237d4d5243b74c4dfe355eca27b3b20f0d37f",
+        "text": "STOCK은 1페이지에 플레이어의 기본값인 1, 2, 4, 8박을 유지합니다. MY SIZES는 사용자 설정을 사용합니다. 2페이지는 항상 사용자 설정을 사용합니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:7f2b7f031fa01c43cead": {
+        "source": "The same size in bars. 4 beats make 1 bar.",
+        "source_sha256": "7f2b7f031fa01c43ceadb9a128b810515a140b308ccb6767ffd1bca0feee693c",
+        "text": "같은 크기를 마디 단위로 표시합니다. 4박이 1마디입니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:b0e2784aa79a09244e63": {
+        "source": "JUMP UNAVAILABLE: BEFORE TRACK START",
+        "source_sha256": "b0e2784aa79a09244e63df01b6379bb90e48afaffa125a5e91b50e7d286b02e7",
+        "text": "점프할 수 없음: 트랙 시작 이전",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:d3ee3d60e64a756c9069": {
+        "source": "JUMP UNAVAILABLE: AFTER TRACK END",
+        "source_sha256": "d3ee3d60e64a756c90698c03bf5e7f43af551655231b7506af34dd5238b83764",
+        "text": "점프할 수 없음: 트랙 끝 이후",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:9e5bcd1d5d36cabb9897": {
+        "source": "JUMP UNAVAILABLE: LOOP MOVE OUT OF TRACK",
+        "source_sha256": "9e5bcd1d5d36cabb9897486d8a83248cc885ae07cc45fd3840568716602c5ffc",
+        "text": "점프할 수 없음: 루프 이동이 트랙 범위를 벗어남",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:0ca1cf5c1f48038214c7": {
+        "source": "JUMP UNAVAILABLE: NO BEAT GRID OR BPM",
+        "source_sha256": "0ca1cf5c1f48038214c76c1be83ef36a49581ce48c088f71eeca346862481f0b",
+        "text": "점프할 수 없음: 비트 그리드 또는 BPM 없음",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:8ecb20d44400b39b4bd9": {
+        "source": "PLAYING KEY is on by default. Turn it off in MODS > SCREEN to show the track's own key instead. In CLASSIC, off brings the beat countdown back. Key notation (AS ON THE USB, MUSICAL or WHEEL) is set on the same page; see",
+        "source_sha256": "8ecb20d44400b39b4bd9dca3a9ed7c727b4b14598224fac072fa5a406b9edf80",
+        "text": "PLAYING KEY는 기본적으로 켜져 있습니다. 트랙 자체의 키를 표시하려면 MODS > SCREEN에서 끄세요. CLASSIC에서는 끄면 박자 카운트다운이 다시 표시됩니다. 키 표기법(AS ON THE USB, MUSICAL 또는 WHEEL)도 같은 페이지에서 설정합니다. 참조:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:e35d82864acd34282173": {
+        "source": "Lit while AUTO CUE is on, so the cue point lands where the music starts. Tap to switch it.",
+        "source_sha256": "e35d82864acd34282173223eaaee87fa486da4d9beb9d61442ff9f6714cd2fbe",
+        "text": "AUTO CUE가 켜져 있으면 불이 켜지고 큐 지점이 음악이 시작되는 위치에 놓입니다. 탭하여 전환하세요.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:0082a4bfca4921431c3c": {
+        "source": "The effect, its beat and time, the FX BPM and the channel it is on. It fills red while the effect is on.",
+        "source_sha256": "0082a4bfca4921431c3c146864d965b0d9fa80363792dd29fcf9d229a55a1706",
+        "text": "효과, 박자와 시간, FX BPM 및 적용 채널을 표시합니다. 효과가 켜져 있는 동안 빨간색으로 채워집니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:f253938de123b6321b07": {
+        "source": "ECHO on: the readout fills red, with the beat, the time in milliseconds and the FX BPM",
+        "source_sha256": "f253938de123b6321b07e1e092f2984a2abe238409bc1b2df404ad2296010941",
+        "text": "ECHO 켜짐: 표시 영역이 빨간색으로 채워지고 박자, 밀리초 단위 시간 및 FX BPM이 표시됩니다",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:fec0dff4c654e212c525": {
+        "source": "Enlarge: An effect without beats shows its name alone",
+        "source_sha256": "fec0dff4c654e212c5257ecb961d2ef9d65cc05335465d90dabeee22f08624ce",
+        "text": "확대: 박자 설정이 없는 효과는 이름만 표시됩니다",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:7a96554827e8c463e2b3": {
+        "source": "An effect without beats shows its name alone",
+        "source_sha256": "7a96554827e8c463e2b3569d87e292a8ca6b98bbd8db8bd59a8a49c6ccad3dbe",
+        "text": "박자 설정이 없는 효과는 이름만 표시됩니다",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:56126595f97dfab709c6": {
+        "source": "7: Beat countdown",
+        "source_sha256": "56126595f97dfab709c6ddb3bbf676f645c6057694cb26852762de9711d4b79a",
+        "text": "7: 남은 박자 수",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:b30f671d1cbf9d897678": {
+        "source": "Beat countdown",
+        "source_sha256": "b30f671d1cbf9d897678087fba3e655f939fab21e1703f41faeb7ffbaa303b54",
+        "text": "남은 박자 수",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:bcfec7a287778f718e44": {
+        "source": "Bars and beats to the next cue ahead of the playhead, as bars.beats.",
+        "source_sha256": "bcfec7a287778f718e449493e32e45fde47b8b04a30405bb0b7f8fa0e041e2fc",
+        "text": "재생 위치 앞의 다음 큐까지 남은 마디와 박자 수를 bars.beats(마디.박자) 형식으로 표시합니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:f2f6a01889951edcdb1d": {
+        "source": "Loop",
+        "source_sha256": "f2f6a01889951edcdb1dc93a152a36d1b40e778f2bc6ff90cd5a83ebaed79201",
+        "text": "루프",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:1b931c3799dd669d1cb6": {
+        "source": "Pads A to H in their cue colours. A dark lamp is an empty pad.",
+        "source_sha256": "1b931c3799dd669d1cb64a6b271dac7a737b9f543726ed82e8db3591eb87e60e",
+        "text": "패드 A부터 H까지 각각의 큐 색상으로 표시합니다. 불이 꺼져 있으면 빈 패드입니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:b5e1e2cca8aa051f7a64": {
+        "source": "MASTER TEMPO. It blinks while KEY SYNC holds the key.",
+        "source_sha256": "b5e1e2cca8aa051f7a642e948db5b34b534e5bd3abbaf69b7590f2e369546f37",
+        "text": "MASTER TEMPO입니다. KEY SYNC가 키를 유지하는 동안 깜박입니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:d1379098d2c8d2d35b98": {
+        "source": "Lows blue, mids amber, highs white, or the colours you chose in",
+        "source_sha256": "d1379098d2c8d2d35b98ac500dbe004c126df16f7160cdb0d23db7d568023589",
+        "text": "저음은 파란색, 중음은 주황색, 고음은 흰색으로 표시되며 다음 위치에서 선택한 색상을 사용할 수도 있습니다:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:c04881b1de6bba36912f": {
+        "source": ", in the waveform's place. See",
+        "source_sha256": "c04881b1de6bba36912f4b000b59666cb28be96ad5bb13864777a57472fc31c1",
+        "text": ", 파형이 있던 자리에 표시됩니다. 참조:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:cdb7c3128a518dc4b435": {
+        "source": "6: Jumps",
+        "source_sha256": "cdb7c3128a518dc4b43500f3a1231330807f8076ebdc717a4b5857b4bf3e5256",
+        "text": "6: 점프",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:4bdeb15ef7871034ca83": {
+        "source": "Jumps",
+        "source_sha256": "4bdeb15ef7871034ca83790fa448568a48d67c30f624a3c503676116163de351",
+        "text": "점프",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:beb46f70a343ef1b0390": {
+        "source": "where the waveform was. See",
+        "source_sha256": "beb46f70a343ef1b0390df99fba32eed7f2f2f5c385ae25cc1e27272f6cee3e6",
+        "text": "파형이 있던 자리에 표시됩니다. 참조:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:b86d3186050763b7b212": {
+        "source": "Shown where the beat countdown sits",
+        "source_sha256": "b86d3186050763b7b21280cfd7d725c92109a7ea8f835ad8025e6134d3700ca6",
+        "text": "남은 박자 수가 있던 자리에 표시됩니다",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:38cca6bea010af8adaf4": {
+        "source": "OFF",
+        "source_sha256": "38cca6bea010af8adaf4be7d270456fa9adef8c0252db91f2767c607d077319b",
+        "text": "꺼짐",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:0334dea4fce031b29683": {
+        "source": "Mids sit around them, in amber.",
+        "source_sha256": "0334dea4fce031b296837cdcc07f0cb138843eceb44db6cda38eed688ddbbfab",
+        "text": "중음은 그 주위에 주황색으로 표시됩니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:6fee8c83f37e3d4f8b14": {
+        "source": "STANDARD, BLUE, RED, GREEN, AMBER, PURPLE, CYAN, PINK, WHITE",
+        "source_sha256": "6fee8c83f37e3d4f8b142a993a41e4cabafc09d1f4857cf71aa341df7a90676b",
+        "text": "표준, 파란색, 빨간색, 초록색, 주황색, 보라색, 청록색, 분홍색, 흰색",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:cedcaa9ebd72f358b912": {
+        "source": "Am",
+        "source_sha256": "cedcaa9ebd72f358b912775153ce984aa792a38c4fa928a7c80908612e1de241",
+        "text": "Am",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Preserved musical notation or exact instrument-channel label; not translation credit."
+        }
+      },
+      "manual:e8a01133b1351e5fa434": {
+        "source": "ON",
+        "source_sha256": "e8a01133b1351e5fa434167135400d1998d3daa8ce74e3dd9bb57582fa4d7b97",
+        "text": "켜짐",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:ca7981b46ecf2c1787b6": {
+        "source": "Off",
+        "source_sha256": "ca7981b46ecf2c1787b6d76d81d9fd7fa0ca95842e2fcc2a452869891a9334d1",
+        "text": "꺼짐",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:3ea3286309c7bb63b1be": {
+        "source": "INST",
+        "source_sha256": "3ea3286309c7bb63b1be251d188ff6b509e8acf064ae653a523ff9b51b59f50f",
+        "text": "INST",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Preserved musical notation or exact instrument-channel label; not translation credit."
+        }
+      },
+      "manual:99557271bba6acf499b3": {
+        "source": "Tap to mute. Slide sideways to set the level. The fill and the percentage show it.",
+        "source_sha256": "99557271bba6acf499b3caf9d1a54ce156f5eff58b54cff28193d268db2abd74",
+        "text": "탭하면 음소거됩니다. 옆으로 밀어 음량을 설정하세요. 채워진 영역과 백분율로 음량을 표시합니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:ae395b84ce1c5745ff53": {
+        "source": "Muted. It goes dark and keeps its level in the label.",
+        "source_sha256": "ae395b84ce1c5745ff533364a876149f5ae00b59075059e93389fcc0105f0bbd",
+        "text": "음소거 상태입니다. 어두워지지만 음량 값은 라벨에 유지됩니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:e149d4432135c60f9db2": {
+        "source": "Tap to mute. Slide sideways to set the level.",
+        "source_sha256": "e149d4432135c60f9db2322dcd88ef877fa87bde82571768f35aa9d310d101e6",
+        "text": "탭하면 음소거됩니다. 옆으로 밀어 음량을 설정하세요.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:2346f214ad56b180a078": {
+        "source": "Muted",
+        "source_sha256": "2346f214ad56b180a07802e162dd7c9c8f9c77ad344ee37050a1a57488d67fc1",
+        "text": "음소거됨",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:034034ce3e8ca5362648": {
+        "source": "stays dark. A tap changes nothing and says",
+        "source_sha256": "034034ce3e8ca5362648588230bafd717511ac749b74cad2d4c6fcb83e2370c5",
+        "text": "어두운 상태를 유지합니다. 탭해도 바뀌지 않으며 다음 메시지가 표시됩니다:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:75419ae543878768e6a4": {
+        "source": "PLAY TO ALIGN",
+        "source_sha256": "75419ae543878768e6a4bc8847bacb50c09bbfc507b4eed8e5b3df74eb98e3da",
+        "text": "PLAY를 눌러 정렬",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:ee8b81d4edf1b9cea5ff": {
+        "source": "PLAY TO ALIGN does not go away",
+        "source_sha256": "ee8b81d4edf1b9cea5ffa6231fe3d84fccaeabe6439cd82a7581e15726b9ef7e",
+        "text": "PLAY를 눌러 정렬하라는 메시지가 사라지지 않음",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:f9550fe9744e79ef6a5c": {
+        "source": ", open",
+        "source_sha256": "f9550fe9744e79ef6a5c2baecaf22a661077366f88258e8db67cf8f5d1f98d42",
+        "text": ", 여세요:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:ee8baba03870354b0a74": {
+        "source": "TURN ON",
+        "source_sha256": "ee8baba03870354b0a743f663dddeb3451d6952b40a426c7ef369b0e9a6167ef",
+        "text": "켜기",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:1fa91474cfdfc52dc22e": {
+        "source": "Separating {from} to {to} of {title}. Nothing is written to the USB.",
+        "source_sha256": "1fa91474cfdfc52dc22e66df95f67ca6674153e5b7a1e5a3d2a61a75b7bb6548",
+        "text": "{title}의 {from}~{to} 구간을 분리하는 중입니다. USB에는 아무것도 기록하지 않습니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:919df758644afb5e7ad6": {
+        "source": "Pulling the USB, or loading one without settings, keeps your current settings. The XZ remembers your last settings and restores them when it starts without a USB. The footer says SAVED TO USB or NOT SAVED after each change.",
+        "source_sha256": "919df758644afb5e7ad68fdc0544680fdc2de7ed9df21b9f94308c56e9f81722",
+        "text": "USB를 분리하거나 설정이 없는 드라이브를 불러와도 현재 설정은 유지됩니다. XZ는 마지막 설정을 기억하고 USB 없이 시작할 때 복원합니다. 변경할 때마다 하단에 SAVED TO USB 또는 NOT SAVED가 표시됩니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:64ce3179b906f74d2aa8": {
+        "source": "Replaces the whole screen: bigger waveforms, a browse sidebar and a stems row with mute buttons.",
+        "source_sha256": "64ce3179b906f74d2aa8114e6928276bc35e8ada501e493266e969c12b5482d3",
+        "text": "전체 화면을 바꿉니다. 더 큰 파형, 탐색 사이드바, 음소거 버튼이 있는 스템 행이 표시됩니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:15ad96df0da2781c7ac5": {
+        "source": "Solo Pong, Pong Duel on both jogs, Solo Breaks and a two-player Breakout. Tap CUE on the beat to build charge",
+        "source_sha256": "15ad96df0da2781c7ac5907d3d5ab2df1177512697460f69ab59a955b36565e9",
+        "text": "Solo Pong, 양쪽 조그를 사용하는 Pong Duel, Solo Breaks와 2인용 Breakout이 있습니다. 박자에 맞춰 CUE를 탭하여 충전하세요",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:e7703571b638b77a126b": {
+        "source": "Enlarge: STOP DECKS 1 AND 2, in mixer order. The card splits into two strips",
+        "source_sha256": "e7703571b638b77a126b8f26b5b0e1076c7031250b2f21106ffa413488a86f79",
+        "text": "확대: 믹서 순서로 표시된 '덱 1과 2를 정지하세요'. 카드가 두 개의 띠로 나뉩니다",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:fa965e543f9d7c92f623": {
+        "source": "SYNC 1 to SYNC 4: SYNC is on and follows that deck. BPM 1 to BPM 4: only the tempo follows, because QUANTIZE is off, a track has no beat grid, a loop is running, or the beat position is not available. LIMIT: the master tempo is out of reach, so the deck keeps its last tempo. EXT MASTER: a LINK player is master, which decks 3 and 4 cannot follow. NO BPM: analyse the track in rekordbox.",
+        "source_sha256": "fa965e543f9d7c92f62371cd09b553d72f2283c3e38f83e3ddd04de93623f73f",
+        "text": "SYNC 1~SYNC 4: SYNC가 켜져 있으며 해당 덱을 따릅니다. BPM 1~BPM 4: QUANTIZE가 꺼져 있거나, 트랙에 비트 그리드가 없거나, 루프가 실행 중이거나, 박자 위치를 알 수 없으므로 템포만 따릅니다. LIMIT: 마스터 템포가 조절 범위를 벗어나 덱이 마지막 템포를 유지합니다. EXT MASTER: LINK 플레이어가 마스터이며 덱 3과 4는 따를 수 없습니다. NO BPM: rekordbox에서 트랙을 분석하세요.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:8cdbb88a064095f809e8": {
+        "source": "Follow the master deck's tempo, and with QUANTIZE its beat. Make this deck the master. See",
+        "source_sha256": "8cdbb88a064095f809e8cd74848f33f4ed907b6326aa0ba2b5d43301f5d55300",
+        "text": "마스터 덱의 템포를 따르고, QUANTIZE를 사용하면 박자도 맞춥니다. 이 덱을 마스터로 지정합니다. 참조:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:21b39cf721bb7f87e4b6": {
+        "source": "and the deck takes the master deck's BPM at once. The SYNC button stays lit for as long as SYNC is on. With QUANTIZE on and a beat grid on both tracks, the deck also locks to the master's beat. Press",
+        "source_sha256": "21b39cf721bb7f87e4b69a76ca84769e04c0c3fa76d41b1fd77e3c879d293443",
+        "text": "그러면 덱은 마스터 덱의 BPM을 즉시 받아들입니다. SYNC가 켜져 있는 동안 SYNC 버튼은 계속 켜져 있습니다. QUANTIZE가 켜져 있고 두 트랙 모두 비트 그리드가 있으면 덱이 마스터의 박자에도 동기화됩니다. 다음 버튼을 누르세요:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:efe33b04a20547a3aa73": {
+        "source": "on deck 3. It takes the master's BPM at once and reads SYNC 1. With QUANTIZE on and a beat grid on both tracks, it also locks to the master's beat.",
+        "source_sha256": "efe33b04a20547a3aa73998175231e4c3d8c4a144c8f545b8181b0ec3fd3b218",
+        "text": "덱 3에서 사용합니다. 마스터의 BPM을 즉시 받아들이고 SYNC 1을 표시합니다. QUANTIZE가 켜져 있고 두 트랙 모두 비트 그리드가 있으면 마스터의 박자에도 동기화됩니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:9c2b3a74bc00a6d851d4": {
+        "source": "A pause, a jump, a loop or a new master never turns SYNC off. The deck follows again on its own, with no second press.",
+        "source_sha256": "9c2b3a74bc00a6d851d474ad6a9dfaf0de5319b3c8a1ab2fe0d085dfee2cbb3e",
+        "text": "일시정지, 점프, 루프 또는 마스터 변경으로 SYNC가 꺼지지 않습니다. 버튼을 다시 누르지 않아도 덱이 자동으로 다시 따라갑니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "manual:1410cf4376aea3e139fd": {
+        "source": "XZ Mods is software for the Pioneer DJ XDJ-XZ that starts from a USB stick. It adds a MODS menu, stems you can mute live, custom beat jump, four decks over a loopback cable, DJ profiles, themes and games. It can also replace the whole play screen with its own MODERN interface.",
+        "source_sha256": "1410cf4376aea3e139fda4900988c6700908c9355ebb57571bf13519b2c6e100",
+        "text": "XZ Mods는 USB 드라이브에서 시작하는 Pioneer DJ XDJ-XZ용 소프트웨어입니다. MODS 메뉴, 실시간으로 음소거할 수 있는 스템, 사용자 지정 비트 점프, 루프백 케이블로 연결하는 4개 덱, DJ 프로필, 테마 및 게임을 추가합니다. 전체 재생 화면을 자체 MODERN 인터페이스로 바꿀 수도 있습니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored Korean draft replacing a retained Small100 unknown-token output. Native-speaker review remains open."
+        }
+      },
+      "desktop:da7b17bfa93c7d6b0c8c": {
+        "source": "Jump to",
+        "source_sha256": "da7b17bfa93c7d6b0c8ce02fd2a53194712a3e16bfd95df6944992203a700cb7",
+        "text": "이동",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:da7b17bfa93c7d6b0c8c": {
+        "source": "Jump to",
+        "source_sha256": "da7b17bfa93c7d6b0c8ce02fd2a53194712a3e16bfd95df6944992203a700cb7",
+        "text": "이동",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:20946ae843e3dae102b9": {
+        "source": "wz-later-nav wz-done-nav",
+        "source_sha256": "20946ae843e3dae102b98b93be54f3ee7f4d81d17c15399b3b7e7805baffc850",
+        "text": "wz-later-nav wz-done-nav",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:d5db97f97fc727f8fe10": {
+        "source": "SYNC 1 to SYNC 4: SYNC is on and follows that deck. BPM 1 to BPM 4: only the tempo follows, because QUANTIZE is off, a track has no beat grid, a loop is running, or the beat position is not available. LIMIT: the master tempo is out of reach, so the deck keeps its last tempo. EXT MASTER: a LINK player is master, which decks 3 and 4 cannot follow. NO BPM: analyse the track in your DJ software.",
+        "source_sha256": "d5db97f97fc727f8fe107dcb749b55d71041c2158ae0a7f9cd6e83636ea659e6",
+        "text": "SYNC 1~SYNC 4: SYNC가 켜져 있고 해당 덱을 따릅니다. BPM 1~BPM 4: QUANTIZE가 꺼져 있거나, 트랙에 비트 그리드가 없거나, 루프가 실행 중이거나, 비트 위치를 사용할 수 없어 템포만 따릅니다. LIMIT: 마스터 템포가 범위를 벗어나 덱이 마지막 템포를 유지합니다. EXT MASTER: LINK 플레이어가 마스터이므로 덱 3과 4가 따를 수 없습니다. NO BPM: DJ 소프트웨어에서 트랙을 분석하세요.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:dfaf341bb2653ea716b9": {
+        "source": "Make stems for the tracks on your music USB, or import stems you already have",
+        "source_sha256": "dfaf341bb2653ea716b933d6b6b910a400f8562ab7201224bc1633e6b4f806e6",
+        "text": "음악 USB의 트랙용 스템을 만들거나 이미 보유한 스템을 가져옵니다",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:709210b799a63ef3c323": {
+        "source": "Nudge the jog from the side to move the deck a little off the master's beat. SYNC stays on and the tempo stays matched. The deck keeps the new alignment, also when the master's tempo changes, and the",
+        "source_sha256": "709210b799a63ef3c3231a66ca77c40ec356284bf102c97d752c6cf76673a837",
+        "text": "조그 측면을 살짝 밀어 덱을 마스터 비트에서 조금 이동합니다. SYNC는 켜진 상태로 유지되고 템포도 계속 일치합니다. 마스터 템포가 바뀌어도 덱은 새로운 정렬을 유지하며,",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:ab641a736fa043e08922": {
+        "source": "To line the beats up again, press",
+        "source_sha256": "ab641a736fa043e08922fb559b5df6d1a434a388de25974039e2935464e90374",
+        "text": "비트를 다시 맞추려면",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:32f281c576adabbf1e21": {
+        "source": "off and on. The deck snaps to the nearest beat and the button lights steadily.",
+        "source_sha256": "32f281c576adabbf1e2165073dff32d7a7507bb5d3752bfca57dbbbf68262359",
+        "text": "버튼을 껐다가 다시 켭니다. 덱이 가장 가까운 비트에 맞춰지고 버튼이 계속 켜집니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:948b45d33160f03adbd2": {
+        "source": "Scratching on the platter top takes control of the deck. When you let go, QUANTIZE snaps it back to the beat.",
+        "source_sha256": "948b45d33160f03adbd270a372cc865c7d6bf602186b9fab91fe0643eccd962d",
+        "text": "플래터 윗면을 스크래치하면 덱 제어권을 가져옵니다. 손을 떼면 QUANTIZE가 다시 비트에 맞춥니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:1ae5debbd341fb1d9a70": {
+        "source": "XZ Mods is software for the XDJ-XZ that starts from a USB stick. It adds a MODS menu, stems you can mute live, custom beat jump, four decks over a loopback cable, DJ profiles, themes and games. It can also replace the whole play screen with its own MODERN interface.",
+        "source_sha256": "1ae5debbd341fb1d9a70837ee0cfc62430276c84ecb87e8d44515bcec15396e9",
+        "text": "XZ Mods는 USB 메모리에서 시작되는 XDJ-XZ용 소프트웨어입니다. MODS 메뉴, 실시간으로 음소거할 수 있는 스템, 사용자 지정 비트 점프, 루프백 케이블을 통한 4덱, DJ 프로필, 테마 및 게임을 추가합니다. 또한 전체 재생 화면을 자체 MODERN 인터페이스로 바꿀 수도 있습니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:5e2ee5d73b2b8cbc24d4": {
+        "source": "STEM COLOURS lights stem pads in their stem colours and dims muted stems. OFF leaves the pad lights to the player.",
+        "source_sha256": "5e2ee5d73b2b8cbc24d456f32a7ec7eb6a2949cecb1e74d0e2ac37bd7f482027",
+        "text": "STEM COLOURS는 스템 패드를 스템 색상으로 켜고 음소거된 스템을 어둡게 표시합니다. OFF는 패드 조명을 플레이어에 맡깁니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:7dddf066e000154ab85d": {
+        "source": "STEMS mutes vocals, harmonics and drums from the pads or the screen.",
+        "source_sha256": "7dddf066e000154ab85d93edb6cabbf14e14c4acb76c818636f81e00f17e4818",
+        "text": "STEMS는 패드나 화면에서 보컬, 하모닉스, 드럼을 음소거합니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:e9127940fd3caf46bc0a": {
+        "source": "XZ Mods adds performance features to the pads and deck keys: two pages of beat jump sizes you choose, gate cue, smart cue, key shift and KEY SYNC, and RAM tracks. Their settings live on one MODS page, PLAY. Every change saves to your USB as you make it.",
+        "source_sha256": "e9127940fd3caf46bc0a9150d31b21cf68ba3be9b957f816780af61395e20f6f",
+        "text": "XZ Mods는 패드와 덱 키에 퍼포먼스 기능을 추가합니다: 직접 선택하는 두 페이지의 비트 점프 크기, 게이트 큐, 스마트 큐, 키 시프트 및 KEY SYNC, 그리고 RAM 트랙입니다. 이 설정들은 하나의 MODS 페이지인 PLAY에 모여 있습니다. 모든 변경 사항은 설정하는 즉시 USB에 저장됩니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:02846d0e23cc8c08b94c": {
+        "source": "On decks 3 and 4 the waveform, beat grid and cues already loaded stay with the copy when the USB goes out. Cues you change then are kept for the session and not written to a USB.",
+        "source_sha256": "02846d0e23cc8c08b94c47f9c847f6beb5f30fa7249936b2ba47ca6fd2a154f6",
+        "text": "덱 3과 4에서는 USB가 빠져도 이미 로드된 파형, 비트 그리드, 큐가 복사본에 그대로 유지됩니다. 그 후에 변경한 큐는 현재 세션 동안만 유지되며 USB에는 기록되지 않습니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:91242a0264d620dc5e59": {
+        "source": "MODERN draws every deck the same way: a top bar across the screen, one waveform lane per deck with a narrow info column on its left, a row of hot-cue lamps, and a deck strip at the bottom. Two decks share the screen in halves. For four decks, see",
+        "source_sha256": "91242a0264d620dc5e59ae1b290a2147d355ea5cbbcd5ef041c6160accf172b6",
+        "text": "MODERN은 모든 덱을 같은 방식으로 그립니다: 화면 상단 바, 왼쪽에 좁은 정보 열이 있는 덱별 파형 레인, 핫큐 램프 줄, 그리고 하단의 덱 스트립입니다. 2덱은 화면을 반씩 나눕니다. 4덱은 다음을 참고하세요:",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:0aee2e26e2ece4934524": {
+        "source": "Tap to make this the active deck. The blue tile marks the active deck. The dashes beside the name count the beats of the bar.",
+        "source_sha256": "0aee2e26e2ece49345243e08a495a27104b65d804dfd27dbc4de49181163a3e4",
+        "text": "탭하여 이 덱을 활성 덱으로 만듭니다. 파란색 타일이 활성 덱을 나타냅니다. 이름 옆의 눈금은 마디의 비트를 셉니다.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:4efca0d10c5feb8e9b35": {
+        "source": "About",
+        "source_sha256": "4efca0d10c5feb8e9b35eb1d994f2905bb71714e6a271f511d713b539ea5faa1",
+        "text": "정보",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored navigation/chapter title refinement replacing loanword or mistranslation."
+        }
+      },
+      "manual:4efca0d10c5feb8e9b35": {
+        "source": "About",
+        "source_sha256": "4efca0d10c5feb8e9b35eb1d994f2905bb71714e6a271f511d713b539ea5faa1",
+        "text": "정보",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored navigation/chapter title refinement replacing loanword or mistranslation."
+        }
+      }
+    },
+    "es": {
+      "desktop:33e1939fc7fee2d7710c": {
+        "source": "OBS Browser Source URL",
+        "source_sha256": "33e1939fc7fee2d7710c82daf94bad28ae007741b188708da00292dbd4252b18",
+        "text": "URL de la fuente Navegador de OBS",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "manual:33e1939fc7fee2d7710c": {
+        "source": "OBS Browser Source URL",
+        "source_sha256": "33e1939fc7fee2d7710c82daf94bad28ae007741b188708da00292dbd4252b18",
+        "text": "URL de la fuente Navegador de OBS",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "manual:56126595f97dfab709c6": {
+        "source": "7: Beat countdown",
+        "source_sha256": "56126595f97dfab709c6ddb3bbf676f645c6057694cb26852762de9711d4b79a",
+        "text": "7: Cuenta atrás de pulsos",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      }
+    },
+    "fr": {
+      "desktop:33e1939fc7fee2d7710c": {
+        "source": "OBS Browser Source URL",
+        "source_sha256": "33e1939fc7fee2d7710c82daf94bad28ae007741b188708da00292dbd4252b18",
+        "text": "URL de la source Navigateur OBS",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "desktop:da4c868d761222ebc16b": {
+        "source": "Beat jump pads",
+        "source_sha256": "da4c868d761222ebc16bb661e3686f0f28e54485b6c273d97a65bafcf07fcf25",
+        "text": "Pads de saut de temps",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "manual:33e1939fc7fee2d7710c": {
+        "source": "OBS Browser Source URL",
+        "source_sha256": "33e1939fc7fee2d7710c82daf94bad28ae007741b188708da00292dbd4252b18",
+        "text": "URL de la source Navigateur OBS",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "manual:1f64243262057b918c6f": {
+        "source": "Stock slip loops.",
+        "source_sha256": "1f64243262057b918c6f1e96ca3e3e37388779666d58f6cf2891d581bb5d3a81",
+        "text": "Boucles Slip d’origine.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "manual:56126595f97dfab709c6": {
+        "source": "7: Beat countdown",
+        "source_sha256": "56126595f97dfab709c6ddb3bbf676f645c6057694cb26852762de9711d4b79a",
+        "text": "7: Décompte des temps",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "manual:033b6ae9b53a97f57c1d": {
+        "source": "Off / On",
+        "source_sha256": "033b6ae9b53a97f57c1dff0ea7df8156c3f222353fbe791acf1e8519cbd060a3",
+        "text": "Désactivé / Activé",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      }
+    },
+    "de": {
+      "desktop:c8d7cb0a85e7c03475ef": {
+        "source": "Matched by name",
+        "source_sha256": "c8d7cb0a85e7c03475ef4784641d96c6121bb683d4a9f294a49cf2f87fe8d475",
+        "text": "Nach Namen zugeordnet",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "desktop:10c132e2b83acadddcf6": {
+        "source": "Open DJ Profile",
+        "source_sha256": "10c132e2b83acadddcf6ab4636cdca2a2cf97f1c53162f74dbcf389a25ffd1a7",
+        "text": "DJ-Profil öffnen",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "manual:3865a2bb6decf4f8c867": {
+        "source": "Stock beat loops.",
+        "source_sha256": "3865a2bb6decf4f8c867c9df9e072c9c0e3be935956b2d1800df3b24026e2522",
+        "text": "Standard-Beat-Loops.",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      }
+    },
+    "pt": {
+      "manual:17e9ff4556c9b3340686": {
+        "source": "XZ Mods app · DJ Profile",
+        "source_sha256": "17e9ff4556c9b3340686cff3886cd6152c64bb916f6cf4541dcfafa841dfd788",
+        "text": "Aplicação XZ Mods · Perfil de DJ",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "manual:033b6ae9b53a97f57c1d": {
+        "source": "Off / On",
+        "source_sha256": "033b6ae9b53a97f57c1dff0ea7df8156c3f222353fbe791acf1e8519cbd060a3",
+        "text": "Desligado / Ligado",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      }
+    },
+    "it": {
+      "desktop:33e1939fc7fee2d7710c": {
+        "source": "OBS Browser Source URL",
+        "source_sha256": "33e1939fc7fee2d7710c82daf94bad28ae007741b188708da00292dbd4252b18",
+        "text": "URL della sorgente Browser di OBS",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "manual:33e1939fc7fee2d7710c": {
+        "source": "OBS Browser Source URL",
+        "source_sha256": "33e1939fc7fee2d7710c82daf94bad28ae007741b188708da00292dbd4252b18",
+        "text": "URL della sorgente Browser di OBS",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "manual:ec5753a9cf8153410526": {
+        "source": "6: Deck 3 tag",
+        "source_sha256": "ec5753a9cf8153410526d15cbda426f0e2ecf3a98e05a8969a241b3cd1fccdbf",
+        "text": "6: Etichetta del deck 3",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "manual:1f5fb2a783f12b657b6b": {
+        "source": "Deck 3 tag",
+        "source_sha256": "1f5fb2a783f12b657b6bbb92a97e906ffac9d085ac1abfb2ff79f9f4378971e8",
+        "text": "Etichetta del deck 3",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "manual:56126595f97dfab709c6": {
+        "source": "7: Beat countdown",
+        "source_sha256": "56126595f97dfab709c6ddb3bbf676f645c6057694cb26852762de9711d4b79a",
+        "text": "7: Conteggio alla rovescia dei battiti",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "manual:033b6ae9b53a97f57c1d": {
+        "source": "Off / On",
+        "source_sha256": "033b6ae9b53a97f57c1dff0ea7df8156c3f222353fbe791acf1e8519cbd060a3",
+        "text": "Disattivato / Attivato",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      },
+      "manual:c43c9b174a4c1c483e71": {
+        "source": "1: STANDALONE STEMS SETUP",
+        "source_sha256": "c43c9b174a4c1c483e7124dff111156a871e83b2cdcc278b36080db21da60476",
+        "text": "1: Configurazione degli stem autonomi",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing unchanged English prose found in the full-corpus audit. Native-speaker review remains open."
+        }
+      }
+    },
+    "zh-Hans": {
+      "desktop:0b8002b0553ddb9c6eaf": {
+        "source": "The XDJ-XZ seen from behind and above, with one cable from the rear USB-B socket over the back edge into top USB1. The view turns to the rear panel, where the square USB-B plug with beveled top corners comes out to show the socket and goes back in, then to the top, where the flat USB-A plug lifts out of USB1 and goes back in. USB2 is beside it. No computer is involved.",
+        "source_sha256": "0b8002b0553ddb9c6eaf75238622aceb9d1d9997650dd2b2cf9be072d74e20a3",
+        "text": "从后上方看到的 XDJ-XZ，一根线缆从后部 USB-B 插口越过背板边缘插入顶部的 USB1。画面转向后面板，顶部斜角的方形 USB-B 插头拔出以展示插口，随后重新插回；接着转向顶部，扁平的 USB-A 插头从 USB1 拔出再插回。旁边是 USB2。全程无需电脑。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:682823968acdc595a738": {
+        "source": "Making stems needs a Windows computer or an Apple silicon Mac. You can still import stems here.",
+        "source_sha256": "682823968acdc595a738150ac45ed1af04a83144be90b1e5aae5318132e5ac98",
+        "text": "制作分轨需要 Windows 电脑或配备 Apple 芯片的 Mac。你仍然可以在这里导入分轨。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:f57ec62d1478087d2430": {
+        "source": "MP3s are decoded and lined up with the player before separating, so the stems stay in time with the track.",
+        "source_sha256": "f57ec62d1478087d24303255d1e6f65a5bbffc49fe446e641481ac0e5b685567",
+        "text": "MP3 在分离前会先解码并与播放器对齐，使分轨与曲目保持同步。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:2550a21a4d0b4a27379c": {
+        "source": "XZ Mods will prepare stems on the processor. The stems come out the same, it just takes longer: plan on several minutes per track. Batches can run while you do other things.",
+        "source_sha256": "2550a21a4d0b4a27379cbfadc284f2641c3b204476749ef5dd4e3c9980ce2b1b",
+        "text": "XZ Mods 将使用处理器准备分轨。生成的分轨效果相同，只是耗时更长：每首曲目大约需要几分钟。批量处理可在后台运行，不影响你做其他事。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:e6d0eebd423939a5f221": {
+        "source": "The stems don't sound like this track at all. Pick the track they belong to, or choose other files.",
+        "source_sha256": "e6d0eebd423939a5f2211ea8cf233fec1651510bd17e3fece8a2a1ef812e63fc",
+        "text": "这些分轨听起来与该曲目完全不符。请选择它们所属的曲目，或选择其他文件。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:80ec1092581723ad8c5a": {
+        "source": "The XZ also plays stems prepared in the AZ MODS and RX3 formats. On four-stem tracks pad D mutes bass. Sets that do not match the track are refused and the original audio plays. Not yet tested on an XZ.",
+        "source_sha256": "80ec1092581723ad8c5a0f574bd0c776051b714eb1027286926d6f955d0306ae",
+        "text": "XZ 也可以播放以 AZ MODS 和 RX3 格式准备的分轨。在四分轨曲目上，打击垫 D 会将贝斯静音。与曲目不匹配的分轨组会被拒绝，并改播原始音频。尚未在 XZ 实机上测试。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:dd0ad85a51991f710bd4": {
+        "source": "A stick, or one USB 2.0 hub with several. It can go in later.",
+        "source_sha256": "dd0ad85a51991f710bd466a31ab94186e245cda613a8268bde9299bbc5e841f9",
+        "text": "插入一个 U 盘，或插有多个 U 盘的 USB 2.0 集线器。也可以稍后再插。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:e564c8c3ff4cc26516b2": {
+        "source": "The view turns to the rear panel, where the square USB-B plug with beveled top corners comes out to show the socket and goes back in, then to the top, where the flat USB-A plug lifts out of USB 1 and goes back in. USB 2 is beside it. The loop ends where it began, both ends connected. No computer is involved.",
+        "source_sha256": "e564c8c3ff4cc26516b28d02ed6d1e017fd39cf25a3432aefd6d45d4e603c54b",
+        "text": "画面转向后面板，顶部斜角的方形 USB-B 插头拔出以展示插口，随后重新插回；接着转向顶部，扁平的 USB-A 插头从 USB 1 拔出再插回。旁边是 USB 2。循环回到起点，两端保持连接。全程无需电脑。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:64ce3179b906f74d2aa8": {
+        "source": "Replaces the whole screen: bigger waveforms, a browse sidebar and a stems row with mute buttons.",
+        "source_sha256": "64ce3179b906f74d2aa8114e6928276bc35e8ada501e493266e969c12b5482d3",
+        "text": "替换整个屏幕：更大的波形、浏览侧边栏以及带静音按钮的分轨行。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:a787e54186541528f9b1": {
+        "source": "The XZ keeps a short diary on each stick while it plays. We read only that diary, never your music. Missing sticks never stop you sending.",
+        "source_sha256": "a787e54186541528f9b143ac8bd149f74faa755c1efd094b2a9939cecf1502e4",
+        "text": "XZ 在播放时会在每个 U 盘上保存一份简短日志。我们只读取该日志，绝不读取你的音乐。缺少 U 盘也不会妨碍发送报告。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:cbf4c288c7cba6f58b2b": {
+        "source": "No diary on this stick",
+        "source_sha256": "cbf4c288c7cba6f58b2b74207cd3a8acff1e8fbe3c65ea50540d4110c184cd14",
+        "text": "此 U 盘上没有日志",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:cbf4c288c7cba6f58b2b": {
+        "source": "No diary on this stick",
+        "source_sha256": "cbf4c288c7cba6f58b2b74207cd3a8acff1e8fbe3c65ea50540d4110c184cd14",
+        "text": "此 U 盘上没有日志",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:136832771497b970ff50": {
+        "source": "It could not be sent, and the stick could not take it",
+        "source_sha256": "136832771497b970ff50e0b49e60eaadd71417df98bb223bda160866b7a8ef49",
+        "text": "无法发送，且 U 盘也无法保存该报告",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:5944755023b582e7683f": {
+        "source": "The waveform area holds four narrower lanes, one per deck, in the order DECK VIEW chooses. Decks 3 and 4 draw the same 3-band waveform with beat ticks, hot cue flags A to H, the cue point, loops and the playhead.",
+        "source_sha256": "5944755023b582e7683f027994f7239bbe983d72326332d0c6db9cc30cad9a3f",
+        "text": "波形区域按 DECK VIEW 选择的顺序容纳四条较窄的轨道，每个唱机盘位各占一条。盘位 3 和 4 绘制相同的三频段波形，带有节拍刻度、热键标记 A 至 H、提示点、循环以及播放头。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:409aa4b564bcfed04255": {
+        "source": "Cue, loop and hot cue points land on the beat.",
+        "source_sha256": "409aa4b564bcfed04255d129697b985b565eb3aaf7bba4353629bdda8251308f",
+        "text": "提示点、循环和热键点都会对齐到节拍上。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:1f80a08757a6cb1586a6": {
+        "source": "XZ Mods draws the whole screen: bigger waveforms, a browse sidebar and a stems row with mute buttons. Marked Beta in the app",
+        "source_sha256": "1f80a08757a6cb1586a646af00a6b2501a91816a4a4e3ea9f951856ac8e94eee",
+        "text": "XZ Mods 绘制整个屏幕：更大的波形、浏览侧边栏以及带静音按钮的分轨行。在应用中标记为 Beta",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:ef29adaa77650f0f7ffc": {
+        "source": "HOT CUE, BEAT LOOP, SLIP LOOP, BEAT JUMP. One of them gives stem pads. With SHIFT, they mute stems.",
+        "source_sha256": "ef29adaa77650f0f7ffcb984af0f3bec63b70578cbc28ace847194d5d7dd8ab0",
+        "text": "HOT CUE、BEAT LOOP、SLIP LOOP、BEAT JUMP。其中一个模式可作为分轨打击垫。按住 SHIFT 时，它们会将分轨静音。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:ca7a81fdd115a3ad6c71": {
+        "source": "Four pads (A to D, or E to H) mute stems instead. The other four keep their job in that mode.",
+        "source_sha256": "ca7a81fdd115a3ad6c71c11e34153fd125a270682aba3766bf15ded28e8c7b59",
+        "text": "四个打击垫（A 至 D，或 E 至 H）改为将分轨静音。其余四个打击垫保留该模式原有的功能。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:e76f5bf0cb845b3e1545": {
+        "source": "PADS E-H",
+        "source_sha256": "e76f5bf0cb845b3e154591be9684808b4b811015035a8a243b599638c34236dc",
+        "text": "打击垫 E-H",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:2313e2d0ef4b6e6db1b2": {
+        "source": "Which four pads carry the stems: PADS A-D or PADS E-H.",
+        "source_sha256": "2313e2d0ef4b6e6db1b27ad1a8fafdd13d289bb486bc59dad9ac883d879aebd2",
+        "text": "由哪四个打击垫控制分轨：PADS A-D 或 PADS E-H。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:503fcba95f3f5b7fdcae": {
+        "source": "Stem pads in stem colours, muted stems dim",
+        "source_sha256": "503fcba95f3f5b7fdcaeb57d4e633ed30a874e80636fbe062c38f6b3c02c512e",
+        "text": "分轨打击垫亮起分轨颜色，已静音的分轨变暗",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:17e0474b92852ff1b5f1": {
+        "source": "The HOME page with stems ready and four decks not connected yet.",
+        "source_sha256": "17e0474b92852ff1b5f16bc8444b92da47f385f8ba964f7fdba87fa1cd0c8183",
+        "text": "分轨已就绪、四盘位尚未连接时的 HOME 页面。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:91a29b201e4ff95b9bbb": {
+        "source": "Only decks 1 and 2 are lit. The amber line under it says decks 3 and 4 have no stems.",
+        "source_sha256": "91a29b201e4ff95b9bbb942767ed65250e2f3753e31d3554492e0842a8766666",
+        "text": "仅盘位 1 和 2 亮起。下方的琥珀色提示行表示盘位 3 和 4 没有分轨。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:008029c5f14660a9dfd0": {
+        "source": "The change is on the stick.",
+        "source_sha256": "008029c5f14660a9dfd0520d750467b04c17a0c5c7b7c5c72d08d8065fac495f",
+        "text": "更改已保存在 U 盘上。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:26164d6a8b50734ba180": {
+        "source": "Beat jump distances, gate cue, smart cue, key sync and RAM tracks.",
+        "source_sha256": "26164d6a8b50734ba18040f0e5a119c458fe61373e38f98e5c9431119ec3a72b",
+        "text": "节拍跳跃距离、门限提示、智能提示、调性同步以及 RAM 曲目。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:9a3ce650cf8b57699902": {
+        "source": "gives page 1 again. On page 2 the pads light warm red and amber, so you can see which page you are on.",
+        "source_sha256": "9a3ce650cf8b57699902dfbe74b6543bd4a0a51b7e1e6fa08a648be7f8dd08f8",
+        "text": "再次返回第 1 页。在第 2 页上，打击垫会亮起暖红色和琥珀色，便于你看清当前所在的页面。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:a30895e8ed846b308ee4": {
+        "source": "Gate cue and smart cue work on all four decks. On decks 1 and 2 they need the cue engine; see below.",
+        "source_sha256": "a30895e8ed846b308ee410f29e9bcb7f8a9d8ff4458af2ba2c806f07dff5c4b9",
+        "text": "门限提示和智能提示在全部四个盘位上均可使用。在盘位 1 和 2 上需要启用提示引擎；见下文。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:02846d0e23cc8c08b94c": {
+        "source": "On decks 3 and 4 the waveform, beat grid and cues already loaded stay with the copy when the USB goes out. Cues you change then are kept for the session and not written to a USB.",
+        "source_sha256": "02846d0e23cc8c08b94c47f9c847f6beb5f30fa7249936b2ba47ca6fd2a154f6",
+        "text": "在盘位 3 和 4 上，拔出 USB 后，已加载的波形、节拍网格和提示点会随副本一起保留。此后修改的提示点仅在当前会话中保留，不会写入 USB。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:1b931c3799dd669d1cb6": {
+        "source": "Pads A to H in their cue colours. A dark lamp is an empty pad.",
+        "source_sha256": "1b931c3799dd669d1cb64a6b271dac7a737b9f543726ed82e8db3591eb87e60e",
+        "text": "打击垫 A 至 H 显示各自的提示点颜色。熄灭的灯代表空打击垫。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:450dc78bde618387cecd": {
+        "source": "DECK + WAVE: the deck tile takes the stick's colour and the waveform the stick's waveform colour",
+        "source_sha256": "450dc78bde618387cecd4f22e98b4dc8aaa9e802a52a0e7699e23888994178c9",
+        "text": "DECK + WAVE：盘位方块采用 U 盘颜色，波形采用 U 盘波形颜色",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:559a5f3dc93036424b5b": {
+        "source": "A deck that plays its whole track from RAM after the music USB went out is not in trouble, so its lane says so in teal instead:",
+        "source_sha256": "559a5f3dc93036424b5b2f1185b263b0a6e3b621113555a4e7c29c4ecac575e1",
+        "text": "在音乐 USB 拔出后，从 RAM 播放整首曲目的盘位并非出现故障，因此其轨道会改为以青色显示：",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:ac2ee5999629f6d96b0d": {
+        "source": "The decks this page applies to. Decks 3 and 4 have no stems.",
+        "source_sha256": "ac2ee5999629f6d96b0d904f01d32654835d81efda8d5ba66efd68c72659be12",
+        "text": "此页面适用的盘位。盘位 3 和 4 没有分轨。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:56c72a7e9ffd0417435f": {
+        "source": "On full-height rows each stem button is also a fader. Put a finger on it and slide right to raise the level or left to lower it. One button's width covers the whole range. A tap without a slide toggles the mute. Half-height rows and the small buttons beside the hot cues mute only.",
+        "source_sha256": "56c72a7e9ffd0417435f9ba6888346fdc56d166f970597131d3ebbcc03594380",
+        "text": "在全高行中，每个分轨按钮同时也是推子。用手指按住并向右滑动可提高电平，向左滑动可降低电平。一个按钮的宽度覆盖整个调节范围。轻触而不滑动可切换静音。半高行以及热键旁的小按钮仅用于切换静音。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:9a92c499391d4bde4af1": {
+        "source": "Enlarge: STEMS waveform with stems muted on both decks",
+        "source_sha256": "9a92c499391d4bde4af1636aae5a6278bc56e3d22b67c8d4bc287aeb4c1f76c6",
+        "text": "放大：两个盘位均已将分轨静音的 STEMS 波形",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:d1e06b00b8c96f2b742f": {
+        "source": "Two stems muted on deck 2, with stem colours of the DJ's own choice",
+        "source_sha256": "d1e06b00b8c96f2b742f9c73bc6bca58eda78ae6b989ac646897f1567db8a057",
+        "text": "盘位 2 上有两个分轨已静音，分轨颜色由 DJ 自行选择",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:150aafd5d4857c410cf3": {
+        "source": "If stems are off when you tap",
+        "source_sha256": "150aafd5d4857c410cf3fdc702a260d6d0db4bfde134beebd71a4bd081a369e1",
+        "text": "如果轻触时分轨处于关闭状态，",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:9b4780b4d528226533d6": {
+        "source": "A muted stem goes dark and reads MUTE with the level it returns to.",
+        "source_sha256": "9b4780b4d528226533d6ab35ea9c447665a278eddc4c43054408a63f29100e9f",
+        "text": "静音后的分轨会变暗，并显示 MUTE 以及恢复后的电平。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:a8a7b22a9e0b5fc4e125": {
+        "source": "button in the top right corner of the play screen steps the rows through five layouts: BELOW / FULL, BELOW / HALF, OUTER / FULL, OUTER / HALF and HIDDEN, then back to BELOW / FULL. Its five marks show the current one. Half rows give each waveform more height. HIDDEN gives the player's waveforms their full size back while the stems keep playing. CLASSIC keeps its own layout (",
+        "source_sha256": "a8a7b22a9e0b5fc4e1253547ecb140c6171304d88527c707649014b99c696006",
+        "text": "播放屏幕右上角的按钮可让分轨行在五种布局间循环切换：BELOW / FULL、BELOW / HALF、OUTER / FULL、OUTER / HALF 和 HIDDEN，随后回到 BELOW / FULL。按钮上的五个标记会指示当前布局。半高行可为每条波形留出更多高度。HIDDEN 会在分轨继续播放的同时恢复播放器波形的完整高度。CLASSIC 保持其原有布局（",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:af695a5f4885058271be": {
+        "source": "Mute and bypass are performance state. They are not saved, and every track starts with all stems playing.",
+        "source_sha256": "af695a5f4885058271be951b298950ea22fc330a4c96fd29ae31fdd0a797898b",
+        "text": "静音和旁通属于演出状态，不会被保存，每首曲目开始时所有分轨都会正常播放。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:f81ad08d12d7dbb560ea": {
+        "source": "Press PLAY. The stems lock to the track a few seconds in",
+        "source_sha256": "f81ad08d12d7dbb560ea88bb9e69e019f57b9b4ab3e35c1cecb07f7ed3236280",
+        "text": "按下 PLAY。几秒钟后分轨便会与曲目锁定同步",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:b6fdc581e2c6606c5b02": {
+        "source": "If stems do not play",
+        "source_sha256": "b6fdc581e2c6606c5b022851e4ec628eb6c410d90d28acd382467a011a6d33e0",
+        "text": "如果分轨未播放",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:ebfb53c9026179497732": {
+        "source": "No space left on the stick",
+        "source_sha256": "ebfb53c902617949773245b6eabda141b433beadf1511dae8d24adb42bcdcd30",
+        "text": "U 盘剩余空间不足",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:e8055eb9af619475245f": {
+        "source": "Prepare the USB, make stems and watch the XZ screen live on your computer.",
+        "source_sha256": "e8055eb9af619475245f4d2c000f03ddede4dc977296a08042118e3cb26743ca",
+        "text": "准备 USB、制作分轨，并在电脑上实时查看 XZ 屏幕。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      }
+    },
+    "zh-Hant": {
+      "desktop:0b8002b0553ddb9c6eaf": {
+        "source": "The XDJ-XZ seen from behind and above, with one cable from the rear USB-B socket over the back edge into top USB1. The view turns to the rear panel, where the square USB-B plug with beveled top corners comes out to show the socket and goes back in, then to the top, where the flat USB-A plug lifts out of USB1 and goes back in. USB2 is beside it. No computer is involved.",
+        "source_sha256": "0b8002b0553ddb9c6eaf75238622aceb9d1d9997650dd2b2cf9be072d74e20a3",
+        "text": "從後上方看到的 XDJ-XZ，一根線纜從後部 USB-B 插口越過背板邊緣插入頂部的 USB1。畫面轉向後面板，頂部斜角的方形 USB-B 插頭拔出以展示插口，隨後重新插回；接着轉向頂部，扁平的 USB-A 插頭從 USB1 拔出再插回。旁邊是 USB2。全程無需電腦。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:682823968acdc595a738": {
+        "source": "Making stems needs a Windows computer or an Apple silicon Mac. You can still import stems here.",
+        "source_sha256": "682823968acdc595a738150ac45ed1af04a83144be90b1e5aae5318132e5ac98",
+        "text": "製作分軌需要 Windows 電腦或配備 Apple 芯片的 Mac。你仍然可以在這裏導入分軌。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:f57ec62d1478087d2430": {
+        "source": "MP3s are decoded and lined up with the player before separating, so the stems stay in time with the track.",
+        "source_sha256": "f57ec62d1478087d24303255d1e6f65a5bbffc49fe446e641481ac0e5b685567",
+        "text": "MP3 在分離前會先解碼並與播放器對齊，使分軌與曲目保持同步。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:2550a21a4d0b4a27379c": {
+        "source": "XZ Mods will prepare stems on the processor. The stems come out the same, it just takes longer: plan on several minutes per track. Batches can run while you do other things.",
+        "source_sha256": "2550a21a4d0b4a27379cbfadc284f2641c3b204476749ef5dd4e3c9980ce2b1b",
+        "text": "XZ Mods 將使用處理器準備分軌。生成的分軌效果相同，只是耗時更長：每首曲目大約需要幾分鐘。批量處理可在後臺運行，不影響你做其他事。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:e6d0eebd423939a5f221": {
+        "source": "The stems don't sound like this track at all. Pick the track they belong to, or choose other files.",
+        "source_sha256": "e6d0eebd423939a5f2211ea8cf233fec1651510bd17e3fece8a2a1ef812e63fc",
+        "text": "這些分軌聽起來與該曲目完全不符。請選擇它們所屬的曲目，或選擇其他文件。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:80ec1092581723ad8c5a": {
+        "source": "The XZ also plays stems prepared in the AZ MODS and RX3 formats. On four-stem tracks pad D mutes bass. Sets that do not match the track are refused and the original audio plays. Not yet tested on an XZ.",
+        "source_sha256": "80ec1092581723ad8c5a0f574bd0c776051b714eb1027286926d6f955d0306ae",
+        "text": "XZ 也可以播放以 AZ MODS 和 RX3 格式準備的分軌。在四分軌曲目上，打擊墊 D 會將貝斯靜音。與曲目不匹配的分軌組會被拒絕，並改播原始音頻。尚未在 XZ 實機上測試。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:dd0ad85a51991f710bd4": {
+        "source": "A stick, or one USB 2.0 hub with several. It can go in later.",
+        "source_sha256": "dd0ad85a51991f710bd466a31ab94186e245cda613a8268bde9299bbc5e841f9",
+        "text": "插入一個 U 盤，或插有多個 U 盤的 USB 2.0 集線器。也可以稍後再插。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:e564c8c3ff4cc26516b2": {
+        "source": "The view turns to the rear panel, where the square USB-B plug with beveled top corners comes out to show the socket and goes back in, then to the top, where the flat USB-A plug lifts out of USB 1 and goes back in. USB 2 is beside it. The loop ends where it began, both ends connected. No computer is involved.",
+        "source_sha256": "e564c8c3ff4cc26516b28d02ed6d1e017fd39cf25a3432aefd6d45d4e603c54b",
+        "text": "畫面轉向後面板，頂部斜角的方形 USB-B 插頭拔出以展示插口，隨後重新插回；接着轉向頂部，扁平的 USB-A 插頭從 USB 1 拔出再插回。旁邊是 USB 2。循環回到起點，兩端保持連接。全程無需電腦。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:64ce3179b906f74d2aa8": {
+        "source": "Replaces the whole screen: bigger waveforms, a browse sidebar and a stems row with mute buttons.",
+        "source_sha256": "64ce3179b906f74d2aa8114e6928276bc35e8ada501e493266e969c12b5482d3",
+        "text": "替換整個屏幕：更大的波形、瀏覽側邊欄以及帶靜音按鈕的分軌行。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:a787e54186541528f9b1": {
+        "source": "The XZ keeps a short diary on each stick while it plays. We read only that diary, never your music. Missing sticks never stop you sending.",
+        "source_sha256": "a787e54186541528f9b143ac8bd149f74faa755c1efd094b2a9939cecf1502e4",
+        "text": "XZ 在播放時會在每個 U 盤上保存一份簡短日誌。我們只讀取該日誌，絕不讀取你的音樂。缺少 U 盤也不會妨礙發送報告。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "desktop:cbf4c288c7cba6f58b2b": {
+        "source": "No diary on this stick",
+        "source_sha256": "cbf4c288c7cba6f58b2b74207cd3a8acff1e8fbe3c65ea50540d4110c184cd14",
+        "text": "此 U 盤上沒有日誌",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:cbf4c288c7cba6f58b2b": {
+        "source": "No diary on this stick",
+        "source_sha256": "cbf4c288c7cba6f58b2b74207cd3a8acff1e8fbe3c65ea50540d4110c184cd14",
+        "text": "此 U 盤上沒有日誌",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:136832771497b970ff50": {
+        "source": "It could not be sent, and the stick could not take it",
+        "source_sha256": "136832771497b970ff50e0b49e60eaadd71417df98bb223bda160866b7a8ef49",
+        "text": "無法發送，且 U 盤也無法保存該報告",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:5944755023b582e7683f": {
+        "source": "The waveform area holds four narrower lanes, one per deck, in the order DECK VIEW chooses. Decks 3 and 4 draw the same 3-band waveform with beat ticks, hot cue flags A to H, the cue point, loops and the playhead.",
+        "source_sha256": "5944755023b582e7683f027994f7239bbe983d72326332d0c6db9cc30cad9a3f",
+        "text": "波形區域按 DECK VIEW 選擇的順序容納四條較窄的軌道，每個唱機盤位各佔一條。盤位 3 和 4 繪製相同的三頻段波形，帶有節拍刻度、熱鍵標記 A 至 H、提示點、循環以及播放頭。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:409aa4b564bcfed04255": {
+        "source": "Cue, loop and hot cue points land on the beat.",
+        "source_sha256": "409aa4b564bcfed04255d129697b985b565eb3aaf7bba4353629bdda8251308f",
+        "text": "提示點、循環和熱鍵點都會對齊到節拍上。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:1f80a08757a6cb1586a6": {
+        "source": "XZ Mods draws the whole screen: bigger waveforms, a browse sidebar and a stems row with mute buttons. Marked Beta in the app",
+        "source_sha256": "1f80a08757a6cb1586a646af00a6b2501a91816a4a4e3ea9f951856ac8e94eee",
+        "text": "XZ Mods 繪製整個屏幕：更大的波形、瀏覽側邊欄以及帶靜音按鈕的分軌行。在應用中標記爲 Beta",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:ef29adaa77650f0f7ffc": {
+        "source": "HOT CUE, BEAT LOOP, SLIP LOOP, BEAT JUMP. One of them gives stem pads. With SHIFT, they mute stems.",
+        "source_sha256": "ef29adaa77650f0f7ffcb984af0f3bec63b70578cbc28ace847194d5d7dd8ab0",
+        "text": "HOT CUE、BEAT LOOP、SLIP LOOP、BEAT JUMP。其中一個模式可作爲分軌打擊墊。按住 SHIFT 時，它們會將分軌靜音。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:ca7a81fdd115a3ad6c71": {
+        "source": "Four pads (A to D, or E to H) mute stems instead. The other four keep their job in that mode.",
+        "source_sha256": "ca7a81fdd115a3ad6c71c11e34153fd125a270682aba3766bf15ded28e8c7b59",
+        "text": "四個打擊墊（A 至 D，或 E 至 H）改爲將分軌靜音。其餘四個打擊墊保留該模式原有的功能。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:e76f5bf0cb845b3e1545": {
+        "source": "PADS E-H",
+        "source_sha256": "e76f5bf0cb845b3e154591be9684808b4b811015035a8a243b599638c34236dc",
+        "text": "打擊墊 E-H",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:2313e2d0ef4b6e6db1b2": {
+        "source": "Which four pads carry the stems: PADS A-D or PADS E-H.",
+        "source_sha256": "2313e2d0ef4b6e6db1b27ad1a8fafdd13d289bb486bc59dad9ac883d879aebd2",
+        "text": "由哪四個打擊墊控制分軌：PADS A-D 或 PADS E-H。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:503fcba95f3f5b7fdcae": {
+        "source": "Stem pads in stem colours, muted stems dim",
+        "source_sha256": "503fcba95f3f5b7fdcaeb57d4e633ed30a874e80636fbe062c38f6b3c02c512e",
+        "text": "分軌打擊墊亮起分軌顏色，已靜音的分軌變暗",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:17e0474b92852ff1b5f1": {
+        "source": "The HOME page with stems ready and four decks not connected yet.",
+        "source_sha256": "17e0474b92852ff1b5f16bc8444b92da47f385f8ba964f7fdba87fa1cd0c8183",
+        "text": "分軌已就緒、四盤位尚未連接時的 HOME 頁面。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:91a29b201e4ff95b9bbb": {
+        "source": "Only decks 1 and 2 are lit. The amber line under it says decks 3 and 4 have no stems.",
+        "source_sha256": "91a29b201e4ff95b9bbb942767ed65250e2f3753e31d3554492e0842a8766666",
+        "text": "僅盤位 1 和 2 亮起。下方的琥珀色提示行表示盤位 3 和 4 沒有分軌。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:008029c5f14660a9dfd0": {
+        "source": "The change is on the stick.",
+        "source_sha256": "008029c5f14660a9dfd0520d750467b04c17a0c5c7b7c5c72d08d8065fac495f",
+        "text": "更改已保存在 U 盤上。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:26164d6a8b50734ba180": {
+        "source": "Beat jump distances, gate cue, smart cue, key sync and RAM tracks.",
+        "source_sha256": "26164d6a8b50734ba18040f0e5a119c458fe61373e38f98e5c9431119ec3a72b",
+        "text": "節拍跳躍距離、門限提示、智能提示、調性同步以及 RAM 曲目。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:9a3ce650cf8b57699902": {
+        "source": "gives page 1 again. On page 2 the pads light warm red and amber, so you can see which page you are on.",
+        "source_sha256": "9a3ce650cf8b57699902dfbe74b6543bd4a0a51b7e1e6fa08a648be7f8dd08f8",
+        "text": "再次返回第 1 頁。在第 2 頁上，打擊墊會亮起暖紅色和琥珀色，便於你看清當前所在的頁面。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:a30895e8ed846b308ee4": {
+        "source": "Gate cue and smart cue work on all four decks. On decks 1 and 2 they need the cue engine; see below.",
+        "source_sha256": "a30895e8ed846b308ee410f29e9bcb7f8a9d8ff4458af2ba2c806f07dff5c4b9",
+        "text": "門限提示和智能提示在全部四個盤位上均可使用。在盤位 1 和 2 上需要啓用提示引擎；見下文。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:02846d0e23cc8c08b94c": {
+        "source": "On decks 3 and 4 the waveform, beat grid and cues already loaded stay with the copy when the USB goes out. Cues you change then are kept for the session and not written to a USB.",
+        "source_sha256": "02846d0e23cc8c08b94c47f9c847f6beb5f30fa7249936b2ba47ca6fd2a154f6",
+        "text": "在盤位 3 和 4 上，拔出 USB 後，已加載的波形、節拍網格和提示點會隨副本一起保留。此後修改的提示點僅在當前會話中保留，不會寫入 USB。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:1b931c3799dd669d1cb6": {
+        "source": "Pads A to H in their cue colours. A dark lamp is an empty pad.",
+        "source_sha256": "1b931c3799dd669d1cb64a6b271dac7a737b9f543726ed82e8db3591eb87e60e",
+        "text": "打擊墊 A 至 H 顯示各自的提示點顏色。熄滅的燈代表空打擊墊。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:450dc78bde618387cecd": {
+        "source": "DECK + WAVE: the deck tile takes the stick's colour and the waveform the stick's waveform colour",
+        "source_sha256": "450dc78bde618387cecd4f22e98b4dc8aaa9e802a52a0e7699e23888994178c9",
+        "text": "DECK + WAVE：盤位方塊採用 U 盤顏色，波形採用 U 盤波形顏色",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:559a5f3dc93036424b5b": {
+        "source": "A deck that plays its whole track from RAM after the music USB went out is not in trouble, so its lane says so in teal instead:",
+        "source_sha256": "559a5f3dc93036424b5b2f1185b263b0a6e3b621113555a4e7c29c4ecac575e1",
+        "text": "在音樂 USB 拔出後，從 RAM 播放整首曲目的盤位並非出現故障，因此其軌道會改爲以青色顯示：",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:ac2ee5999629f6d96b0d": {
+        "source": "The decks this page applies to. Decks 3 and 4 have no stems.",
+        "source_sha256": "ac2ee5999629f6d96b0d904f01d32654835d81efda8d5ba66efd68c72659be12",
+        "text": "此頁面適用的盤位。盤位 3 和 4 沒有分軌。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:56c72a7e9ffd0417435f": {
+        "source": "On full-height rows each stem button is also a fader. Put a finger on it and slide right to raise the level or left to lower it. One button's width covers the whole range. A tap without a slide toggles the mute. Half-height rows and the small buttons beside the hot cues mute only.",
+        "source_sha256": "56c72a7e9ffd0417435f9ba6888346fdc56d166f970597131d3ebbcc03594380",
+        "text": "在全高行中，每個分軌按鈕同時也是推子。用手指按住並向右滑動可提高電平，向左滑動可降低電平。一個按鈕的寬度覆蓋整個調節範圍。輕觸而不滑動可切換靜音。半高行以及熱鍵旁的小按鈕僅用於切換靜音。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:9a92c499391d4bde4af1": {
+        "source": "Enlarge: STEMS waveform with stems muted on both decks",
+        "source_sha256": "9a92c499391d4bde4af1636aae5a6278bc56e3d22b67c8d4bc287aeb4c1f76c6",
+        "text": "放大：兩個盤位均已將分軌靜音的 STEMS 波形",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:d1e06b00b8c96f2b742f": {
+        "source": "Two stems muted on deck 2, with stem colours of the DJ's own choice",
+        "source_sha256": "d1e06b00b8c96f2b742f9c73bc6bca58eda78ae6b989ac646897f1567db8a057",
+        "text": "盤位 2 上有兩個分軌已靜音，分軌顏色由 DJ 自行選擇",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:150aafd5d4857c410cf3": {
+        "source": "If stems are off when you tap",
+        "source_sha256": "150aafd5d4857c410cf3fdc702a260d6d0db4bfde134beebd71a4bd081a369e1",
+        "text": "如果輕觸時分軌處於關閉狀態，",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:9b4780b4d528226533d6": {
+        "source": "A muted stem goes dark and reads MUTE with the level it returns to.",
+        "source_sha256": "9b4780b4d528226533d6ab35ea9c447665a278eddc4c43054408a63f29100e9f",
+        "text": "靜音後的分軌會變暗，並顯示 MUTE 以及恢復後的電平。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:a8a7b22a9e0b5fc4e125": {
+        "source": "button in the top right corner of the play screen steps the rows through five layouts: BELOW / FULL, BELOW / HALF, OUTER / FULL, OUTER / HALF and HIDDEN, then back to BELOW / FULL. Its five marks show the current one. Half rows give each waveform more height. HIDDEN gives the player's waveforms their full size back while the stems keep playing. CLASSIC keeps its own layout (",
+        "source_sha256": "a8a7b22a9e0b5fc4e1253547ecb140c6171304d88527c707649014b99c696006",
+        "text": "播放屏幕右上角的按鈕可讓分軌行在五種佈局間循環切換：BELOW / FULL、BELOW / HALF、OUTER / FULL、OUTER / HALF 和 HIDDEN，隨後回到 BELOW / FULL。按鈕上的五個標記會指示當前佈局。半高行可爲每條波形留出更多高度。HIDDEN 會在分軌繼續播放的同時恢復播放器波形的完整高度。CLASSIC 保持其原有佈局（",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:af695a5f4885058271be": {
+        "source": "Mute and bypass are performance state. They are not saved, and every track starts with all stems playing.",
+        "source_sha256": "af695a5f4885058271be951b298950ea22fc330a4c96fd29ae31fdd0a797898b",
+        "text": "靜音和旁通屬於演出狀態，不會被保存，每首曲目開始時所有分軌都會正常播放。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:f81ad08d12d7dbb560ea": {
+        "source": "Press PLAY. The stems lock to the track a few seconds in",
+        "source_sha256": "f81ad08d12d7dbb560ea88bb9e69e019f57b9b4ab3e35c1cecb07f7ed3236280",
+        "text": "按下 PLAY。幾秒鐘後分軌便會與曲目鎖定同步",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:b6fdc581e2c6606c5b02": {
+        "source": "If stems do not play",
+        "source_sha256": "b6fdc581e2c6606c5b022851e4ec628eb6c410d90d28acd382467a011a6d33e0",
+        "text": "如果分軌未播放",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:ebfb53c9026179497732": {
+        "source": "No space left on the stick",
+        "source_sha256": "ebfb53c902617949773245b6eabda141b433beadf1511dae8d24adb42bcdcd30",
+        "text": "U 盤剩餘空間不足",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      },
+      "manual:e8055eb9af619475245f": {
+        "source": "Prepare the USB, make stems and watch the XZ screen live on your computer.",
+        "source_sha256": "e8055eb9af619475245f4d2c000f03ddede4dc977296a08042118e3cb26743ca",
+        "text": "準備 USB、製作分軌，並在電腦上實時查看 XZ 屏幕。",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored draft replacing Small100 unknown-token or dropped-prose output while preserving all protected hardware controls and literals."
+        }
+      }
+    },
+    "nl": {
+      "desktop:ea93d6a262ecb87a9fa4": {
+        "source": "Tools",
+        "source_sha256": "ea93d6a262ecb87a9fa4d09edbd7654c046597936a8e235fc3949eb01775ff99",
+        "text": "Hulpmiddelen",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored navigation/chapter title refinement replacing loanword or mistranslation."
+        }
+      },
+      "manual:ea93d6a262ecb87a9fa4": {
+        "source": "Tools",
+        "source_sha256": "ea93d6a262ecb87a9fa4d09edbd7654c046597936a8e235fc3949eb01775ff99",
+        "text": "Hulpmiddelen",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored navigation/chapter title refinement replacing loanword or mistranslation."
+        }
+      }
+    },
+    "tr": {
+      "desktop:b0b9fe24ffa9629125bd": {
+        "source": "Manual",
+        "source_sha256": "b0b9fe24ffa9629125bdc59b122f80d605ab604eb1b74485c2f2ecfde26576ae",
+        "text": "Kılavuz",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored navigation/chapter title refinement replacing loanword or mistranslation."
+        }
+      },
+      "manual:b0b9fe24ffa9629125bd": {
+        "source": "Manual",
+        "source_sha256": "b0b9fe24ffa9629125bdc59b122f80d605ab604eb1b74485c2f2ecfde26576ae",
+        "text": "Kılavuz",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored navigation/chapter title refinement replacing loanword or mistranslation."
+        }
+      },
+      "desktop:ea93d6a262ecb87a9fa4": {
+        "source": "Tools",
+        "source_sha256": "ea93d6a262ecb87a9fa4d09edbd7654c046597936a8e235fc3949eb01775ff99",
+        "text": "Araçlar",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored navigation/chapter title refinement replacing loanword or mistranslation."
+        }
+      },
+      "manual:ea93d6a262ecb87a9fa4": {
+        "source": "Tools",
+        "source_sha256": "ea93d6a262ecb87a9fa4d09edbd7654c046597936a8e235fc3949eb01775ff99",
+        "text": "Araçlar",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored navigation/chapter title refinement replacing loanword or mistranslation."
+        }
+      },
+      "manual:9a95d43111848756ad4b": {
+        "source": "The XZ Mods app",
+        "source_sha256": "9a95d43111848756ad4b719ee5bb697678df3b64ca710d923c88c71ef01731a5",
+        "text": "XZ Mods uygulaması",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored navigation/chapter title refinement replacing loanword or mistranslation."
+        }
+      }
+    },
+    "uk": {
+      "manual:9a95d43111848756ad4b": {
+        "source": "The XZ Mods app",
+        "source_sha256": "9a95d43111848756ad4b719ee5bb697678df3b64ca710d923c88c71ef01731a5",
+        "text": "Застосунок XZ Mods",
+        "provenance": {
+          "author": "assistant",
+          "review": "machine-unreviewed",
+          "reason": "Authored navigation/chapter title refinement replacing loanword or mistranslation."
+        }
+      }
+    }
+  },
+  "terminology": {
+    "ja": [
+      {
+        "sources": [
+          "stem",
+          "stems"
+        ],
+        "target": "ステム",
+        "author": "assistant",
+        "review": "machine-unreviewed",
+        "reason": "Audio stem terminology, not the botanical sense that Small100 rendered as an unknown token. Surrounding prose remains machine-unreviewed.",
+        "reference": "https://www.native-instruments.com/ja/blogs/blog/how-to-mix-stems"
+      }
+    ],
+    "ko": [
+      {
+        "sources": [
+          "firmware"
+        ],
+        "target": "펌웨어",
+        "author": "assistant",
+        "review": "machine-unreviewed",
+        "reason": "Authored Korean firmware term; Small100 repeatedly emits an unknown marker for the first syllable. Surrounding prose remains machine-unreviewed."
+      },
+      {
+        "sources": [
+          "stem",
+          "stems"
+        ],
+        "target": "스템",
+        "author": "assistant",
+        "review": "machine-unreviewed",
+        "reason": "Authored audio stem term, avoiding botanical mistranslation and unknown tokens. Surrounding prose remains machine-unreviewed."
+      },
+      {
+        "sources": [
+          "deck",
+          "decks"
+        ],
+        "target": "덱",
+        "author": "assistant",
+        "review": "machine-unreviewed",
+        "reason": "Authored DJ deck term. Small100 emits an unknown marker or the unrelated meaning of a cover. Surrounding prose remains machine-unreviewed."
+      }
+    ]
+  }
+}

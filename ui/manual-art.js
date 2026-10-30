@@ -49,7 +49,7 @@
     const label = box.getAttribute('aria-label') || 'Explainer';
     const single = scenes.length === 1;
     const video = clipVideo(def.w, def.h, label);
-    const head = el('div', { class: 'mx-head' }, el('span', { class: 'mx-badge', text: 'Video' }), el('h5', { text: label }));
+    const head = el('div', { class: 'mx-head' }, el('span', { class: 'mx-badge', text: XZText('Video') }), el('h5', { text: label }));
     const caption = el('div', { class: 'mx-cap', 'aria-live': 'off' });
     const play = el('button', { type: 'button', class: 'mx-play', 'aria-label': 'Play' }, glyph(PLAY));
     const count = el('span', { class: 'mx-count', 'aria-hidden': single ? null : 'true' });
@@ -166,8 +166,8 @@
     const big = document.fullscreenEnabled ? el('button', { type: 'button', class: 'mn-big', 'aria-label': 'Show larger' }, glyph(EXPAND)) : null;
     const stage = el('div', { class: 'mn-stage' }, video, el('span', { class: 'mn-bar', 'aria-hidden': 'true' }, el('i')));
     const list = el('ol', { class: 'mn-list' });
-    box.replaceChildren(el('div', { class: 'mn-head' }, el('span', { class: 'mn-badge', text: 'How to' }), title, big), stage, tabs, list,
-      el('div', { class: 'mn-ctl' }, play, el('span', { class: 'mn-note', text: "The player's screen, and the control you use" })));
+    box.replaceChildren(el('div', { class: 'mn-head' }, el('span', { class: 'mn-badge', text: XZText('How to') }), title, big), stage, tabs, list,
+      el('div', { class: 'mn-ctl' }, play, el('span', { class: 'mn-note', text: XZText("The player's screen, and the control you use") })));
     let at = 0, userPaused = false, items = [];
     const bar = stage.querySelector('.mn-bar i');
     const sync = () => {

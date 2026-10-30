@@ -27,6 +27,7 @@ enum xz_ui_page { XZ_UI_STEMS, XZ_UI_XPAD, XZ_UI_SETTINGS, XZ_UI_THEMES, XZ_UI_C
     XZ_UI_SCREEN_LOOK,
     /* SCREEN > 3-BAND COLOURS: a colour per band (model.band_colors), both interfaces. */
     XZ_UI_BAND_COLORS,
+    XZ_UI_LANGUAGE_PAGE,
     XZ_UI_PAGE_COUNT };
 /* The section rail in order; EXTRAS is the old page of that name. */
 enum { XZ_UI_SECTIONS=7 };
@@ -130,6 +131,7 @@ enum xz_ui_action_kind {
     XZ_UI_SHELL_DISPLAY, /* appended: shell item id in index, stored choice in value */
     XZ_UI_SHELL_BROWSE_COLUMNS, /* appended: MODERN column mask in value; zero means automatic */
     XZ_UI_RAM_SETUP_OPEN, XZ_UI_RAM_SETUP_STEP, XZ_UI_RAM_CHOOSE, XZ_UI_RAM_CONNECT, XZ_UI_RAM_MANAGE,
+    XZ_UI_LANGUAGE,
 };
 /* The REKORDBOX key's choices, numbered as settings.h enum xz_rekordbox_action (stored values). */
 enum xz_ui_rekordbox { XZ_UI_RB_MODS, XZ_UI_RB_STOCK, XZ_UI_RB_INTERFACE, XZ_UI_RB_VJ_SCREEN, XZ_UI_RB_STEMS,
@@ -278,6 +280,7 @@ struct xz_ui_dj {
     struct xz_ui_dj_entry entry[XZ_UI_DJ_ENTRIES];
 };
 struct xz_ui_model {
+    unsigned controller_locale;
     struct xz_ui_deck deck[4];
     uint32_t enabled;
     int theme, server_auto; /* theme: the look drawn now, xz_settings_look(ui_interface, classic_theme) */

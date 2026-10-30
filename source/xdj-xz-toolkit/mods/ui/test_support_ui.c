@@ -10,7 +10,7 @@
 #error Assertions required
 #endif
 
-_Static_assert(XZ_UI_SUPPORT == 34 && XZ_UI_HOME == 35 && XZ_UI_SCREEN_LOOK == 42 && XZ_UI_BAND_COLORS == 43 && XZ_UI_PAGE_COUNT == 44, "append-only page IDs: support, the MODS sections, LAMPS AND TITLES, then 3-BAND COLOURS");
+_Static_assert(XZ_UI_SUPPORT == 34 && XZ_UI_HOME == 35 && XZ_UI_SCREEN_LOOK == 42 && XZ_UI_BAND_COLORS == 43 && XZ_UI_LANGUAGE_PAGE == 44 && XZ_UI_PAGE_COUNT == 45, "append-only page IDs: support, the MODS sections, LAMPS AND TITLES, then 3-BAND COLOURS");
 _Static_assert(XZ_UI_SUPPORT_ALERT - XZ_UI_SUPPORT_STEP == 9, "REPORT AN ISSUE keeps its ten action slots");
 
 static uint16_t pixels[800 * 480];

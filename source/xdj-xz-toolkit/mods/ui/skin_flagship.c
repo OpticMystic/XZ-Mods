@@ -1,3 +1,4 @@
+#include "l10n.h"
 /* SPDX-License-Identifier: MIT */
 /* FLAGSHIP MODS skin: the UTILITY / SHORTCUT / browse chrome of the current
    flagship club players, adapted to 800x480. Measurements come from
@@ -7,6 +8,7 @@
    alarms, white caps text with #a4a4a4 captions, outlined caption boxes that
    carry a big value, and hatched #313131 quick-menu tiles. */
 #include "ui_skin.h"
+#include "l10n.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -74,16 +76,16 @@ static const unsigned char kind_style[XZ_UI_REKORDBOX_ASSIGN+1]={
 static const char *tagline(const struct xz_ui_widget *a){
  switch(a->kind){
  case XZ_UI_PANEL:switch(a->index){
-  case XZ_UI_CONNECTION:return "COMPUTER SCREEN AND FILMSTRIP LINK";
-  case XZ_UI_GAMES:return "CLASSIC GAMES AND BEAT ARCADE";
-  case XZ_UI_APPS:return "XZ SDK APPS FROM USB";
-  case XZ_UI_UPDATES:return "SIGNED UPDATES, ACTIVE NEXT BOOT";
+  case XZ_UI_CONNECTION:return xz_l10n_authored("COMPUTER SCREEN AND FILMSTRIP LINK");
+  case XZ_UI_GAMES:return xz_l10n_authored("CLASSIC GAMES AND BEAT ARCADE");
+  case XZ_UI_APPS:return xz_l10n_authored("XZ SDK APPS FROM USB");
+  case XZ_UI_UPDATES:return xz_l10n_authored("SIGNED UPDATES, ACTIVE NEXT BOOT");
   case XZ_UI_DOOM_FILES:return "BASE GAME + ADD-ON";
   case XZ_UI_MYHOUSE_SETUP:return "NEEDS THE NATIVE GZDOOM PORT";
-  case XZ_UI_PROFILE_SETUP:return "YOUR NAME AND LOGO FOR VJ SCREENS";
-  case XZ_UI_NETWORK:return "ADAPTER, ADDRESS, APPLY FOR THIS BOOT";
-  case XZ_UI_SUPPORT:return "SEND A PROBLEM OR AN IDEA";
-  case XZ_UI_ABOUT:return "CREDITS, LINKS AND SUPPORT";
+  case XZ_UI_PROFILE_SETUP:return xz_l10n_authored("YOUR NAME AND LOGO FOR VJ SCREENS");
+  case XZ_UI_NETWORK:return xz_l10n_authored("ADAPTER, ADDRESS, APPLY FOR THIS BOOT");
+  case XZ_UI_SUPPORT:return xz_l10n_authored("SEND A PROBLEM OR AN IDEA");
+  case XZ_UI_ABOUT:return xz_l10n_authored("CREDITS, LINKS AND SUPPORT");
   default:return NULL;}
  case XZ_UI_GAME_SELECT:return a->index?"ORIGINAL GAME + PATCH":"DOOM AND DOOM II DATA";
  case XZ_UI_ARCADE_OPEN:return "BEAT-SYNCED, JOG WHEEL";
@@ -93,11 +95,12 @@ static const char *tagline(const struct xz_ui_widget *a){
  default:return NULL;}
 }
 /* The header names the open page, as the MODERN path line does. */
-static const char *section_title(enum xz_ui_page page){return xz_ui_page_title((int)page);}
+static const char *section_title(enum xz_ui_page page){return xz_l10n_authored(xz_ui_page_title((int)page));}
 /* MODERN's look rows: a SHOW / HIDE switch, or one of WAVEFORM COLOURS' or TRACK COLOURS' choices. */
 static int look_choice(const struct xz_ui_widget *a){return a->kind==XZ_UI_SHELL_LOOK&&(a->index/8==XZ_UI_LOOK_WAVE_COLOR||a->index/8==XZ_UI_LOOK_USB_COLORS);}
 static int show_hide(const struct xz_ui_widget *a){return a->kind==XZ_UI_SHELL_LOOK&&!look_choice(a);}
 static enum style style_of(const struct xz_ui_widget *a){
+ if(a->kind==XZ_UI_LANGUAGE)return CHOICE;
  enum style s=(unsigned)a->kind<=(unsigned)XZ_UI_SET_MODERN_THEME?(enum style)kind_style[a->kind]:ROW;
  if((a->kind==XZ_UI_PANEL||a->kind==XZ_UI_OPEN_UTILITY)&&a->x<XZ_UI_RAIL_W)return RAIL_CELL;
  if(show_hide(a))return TOGGLE;
@@ -117,7 +120,7 @@ static void text(struct xz_canvas c,int x,int y,int w,int h,const char *s,int sc
  int tw=xz_text_width(c,s,scale,200);if(tw>w)tw=w;
  int tx=align==ALIGN_L?0:align==ALIGN_C?(w-tw)/2:w-tw;
  struct xz_canvas box=xz_sub(c,x,y,w,h);
- xz_text(box,tx,(h-glyph_h(scale))/2,s,scale,200,col);
+ xz_text(box,tx,(h-xz_l10n_height(s,scale,glyph_h(scale)))/2,s,scale,200,col);
 }
 static void hline(struct xz_canvas c,int x,int y,int w,uint32_t col){xz_rect(c,x,y,w,1,col);}
 /* Outlined caption box: NOT READY, READ ONLY and the flagship status tags. Returns its width. */
@@ -267,12 +270,12 @@ static void row(struct xz_canvas c,const struct xz_ui_widget *a,enum style s,int
  }
  int lw=right-(a->x+10);
  /* Link labels end in " >" for skins without a chevron; this one draws the arrow itself. */
- char plain[64];size_t n=strlen(a->label);
- if(s==LINK&&n>2&&n<sizeof(plain)&&!strcmp(a->label+n-2," >")){memcpy(plain,a->label,n-2);plain[n-2]=0;}
- else{strncpy(plain,a->label,sizeof(plain)-1);plain[sizeof(plain)-1]=0;}
- if(s==PRIMARY&&available)text(c,a->x+10,a->y,a->w-20,a->h,plain,2,ALIGN_C,WHITE);
- else if(strip)text(c,a->x+8,a->y+3,a->w-16,14,plain,1,ALIGN_L,ink);   /* the swatch strip takes the lower half */
- else text(c,a->x+10,tall?a->y+8:a->y,lw,tall?16:a->h,plain,scale,ALIGN_L,ink);
+ const char *label=a->label;char plain[64];size_t n=strlen(a->label);
+ if(s==LINK&&n>2&&n<sizeof(plain)&&!strcmp(a->label+n-2," >")){memcpy(plain,a->label,n-2);plain[n-2]=0;label=plain;}
+
+ if(s==PRIMARY&&available)text(c,a->x+10,a->y,a->w-20,a->h,label,2,ALIGN_C,WHITE);
+ else if(strip)text(c,a->x+8,a->y+3,a->w-16,14,label,1,ALIGN_L,ink);   /* the swatch strip takes the lower half */
+ else text(c,a->x+10,tall?a->y+8:a->y,lw,tall?16:a->h,label,scale,ALIGN_L,ink);
 }
 
 static void render(const struct xz_ui_scene *s){

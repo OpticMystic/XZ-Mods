@@ -1,3 +1,4 @@
+#include "l10n.h"
 /* SPDX-License-Identifier: MIT */
 /* Chrome shared by every MODS skin: section icons, the hardware focus ring,
    toggle switches and the info dock that explains the focused control. */
@@ -161,6 +162,7 @@ void xz_ui_chrome_focus(const struct xz_ui_scene *s,uint32_t color){
 }
 /* Greedy word wrap into at most `lines` rows of `width` px; returns rows used. */
 int xz_ui_wrap_lines(struct xz_canvas c,int width,const char *text){
+ int h=xz_l10n_box_height(text,width,14);if(h>=0)return h/14;
  char row[160];int used=0;
  while(text&&*text){
   while(*text==' ')text++;
@@ -177,6 +179,7 @@ int xz_ui_wrap_lines(struct xz_canvas c,int width,const char *text){
  return used;
 }
 static int wrap(struct xz_canvas c,int x,int y,int width,int lines,int pitch,const char *text,uint32_t color){
+ int localized=xz_l10n_wrap(c,x,y,width,pitch,lines,text,color);if(localized>=0)return localized;
  char row[160];int used=0;
  while(text&&*text&&used<lines){
   while(*text==' ')text++;
@@ -279,12 +282,12 @@ void xz_ui_chrome_dock(const struct xz_ui_scene *s,uint32_t bg,uint32_t ink,uint
     A fresh save result takes the first two lines. */
  xz_rect(c,560,y+10,1,48,xz_blend(bg,ink,40));
  const char *status=xz_ui_footer_text(u,m);
- int news=m->settings_flash||(m->dj&&m->dj->flash&&m->dj->status)||(u->notice[0]&&!noticed);
+ int news=xz_l10n_box_height(status,218,13)>13||m->settings_flash||(m->dj&&m->dj->flash&&m->dj->status)||(u->notice[0]&&!noticed);
  int ky=y+40;
  if(info.feature&&!news){
   /* Chips, the save state, then the amber reason a deck is left out: DESIGN 3.2 and 3.4. */
   int x=574;
-  x+=xz_text_width(c,"WORKS ON",1,20)+8;xz_text(c,574,y+9,"WORKS ON",1,20,dim);
+  x+=xz_text_width(c,xz_l10n_authored("WORKS ON"),1,20)+8;xz_text(c,574,y+9,xz_l10n_authored("WORKS ON"),1,20,dim);
   static const int order[4]={2,0,1,3};
   for(int k=0;k<4;k++){
    int d=order[k];char num[2]={(char)('1'+d),0};int lit=(info.works_on>>d)&1;
@@ -299,7 +302,9 @@ void xz_ui_chrome_dock(const struct xz_ui_scene *s,uint32_t bg,uint32_t ink,uint
  static const char *keys[3][2]={{"TURN","MOVE"},{"PUSH","SELECT"},{"BACK","UP"}};
  int x=574;
  for(int k=0;k<3;k++){
-  const char *cap=k==0&&u->adjusting?"TURN":keys[k][0],*word=k==0&&u->adjusting?"EDIT":keys[k][1];
+  const char *cap=k==0&&u->adjusting?"TURN":keys[k][0],*word=k==0&&u->adjusting?xz_l10n_authored("EDIT"):keys[k][1];
+  if(k!=2)cap=xz_l10n_authored(cap);word=xz_l10n_authored(word);
+  if(m->controller_locale&&ky<=y+40){struct xz_canvas keybox=xz_sub(c,574+k*74,y+38,70,28);xz_text(keybox,2,0,cap,1,100,ink);xz_text(keybox,2,14,word,1,100,dim);continue;}
   int cw=xz_text_width(c,cap,1,8)+10;
   xz_round_rect(c,x,ky,cw,16,4,15,xz_blend(bg,ink,48));
   xz_text(c,x+5,ky+4,cap,1,8,ink);
@@ -378,10 +383,10 @@ void xz_ui_chrome_profile(const struct xz_ui_scene *s,uint32_t bg,uint32_t ink,u
   int x=XZ_UI_PROFILE_LIST_X,y=XZ_UI_PROFILE_LIST_Y,w=XZ_UI_PROFILE_LIST_W,h=xz_ui_profile_list_bottom(u,m)-y;
   xz_round_rect(c,x,y,w,h,12,15,xz_blend(bg,ink,70));
   xz_round_rect(c,x+1,y+1,w-2,h-2,11,15,xz_blend(bg,ink,12));
-  xz_text(c,x+14,y+11,"DJ PROFILES ON YOUR USB",1,40,dim);
+  xz_text(c,x+14,y+11,xz_l10n_authored("DJ PROFILES ON YOUR USB"),1,40,dim);
   if(!m->dj->count){
-   xz_text(c,x+14,y+34,m->dj->reading?"READING USB...":m->dj->usb_present?"NO DJ PROFILE ON THIS USB":"INSERT YOUR USB",2,30,ink);
-   xz_text(c,x+14,y+58,"SET UP ONCE AND IT TRAVELS WITH YOUR MUSIC",1,60,dim);
+   xz_text(c,x+14,y+34,m->dj->reading?xz_l10n_authored("READING USB..."):m->dj->usb_present?xz_l10n_authored("NO DJ PROFILE ON THIS USB"):xz_l10n_authored("INSERT YOUR USB"),2,30,ink);
+   xz_text(c,x+14,y+58,xz_l10n_authored("SET UP ONCE AND IT TRAVELS WITH YOUR MUSIC"),1,60,dim);
   }
  }
  for(size_t i=0;i<s->n;i++){

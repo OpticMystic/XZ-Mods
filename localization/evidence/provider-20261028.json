@@ -1,0 +1,831 @@
+{
+  "provider": {
+    "provider": "xz-small100-ct2",
+    "review": "machine-unreviewed",
+    "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+    "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+    "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+    "ctranslate2": "4.8.2",
+    "recipe": 2,
+    "beam": 1,
+    "no_repeat_ngram_size": 4,
+    "script_conversion": "opencc-0.1.7"
+  },
+  "source": {
+    "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+    "entries": {
+      "0": {
+        "source": "Choose a language.",
+        "surface": "desktop",
+        "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+        "protected": [],
+        "placeholders": [],
+        "immutable": false
+      },
+      "1": {
+        "source": "Press BACK to go up one level.",
+        "surface": "manual",
+        "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+        "protected": [
+          "BACK"
+        ],
+        "placeholders": [],
+        "immutable": false
+      },
+      "2": {
+        "source": "Connect the player, then choose the network adapter.",
+        "surface": "manual",
+        "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+        "protected": [],
+        "placeholders": [],
+        "immutable": false
+      }
+    }
+  },
+  "catalogs": {
+    "es": {
+      "schema": 1,
+      "product": "xz-mods",
+      "locale": "es",
+      "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+      "entries": {
+        "0": {
+          "text": "Elige un idioma.",
+          "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "1": {
+          "text": "Presión BACK para subir a un nivel.",
+          "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "2": {
+          "text": "Conecte el jugador y seleccione el adaptador de red.",
+          "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        }
+      }
+    },
+    "fr": {
+      "schema": 1,
+      "product": "xz-mods",
+      "locale": "fr",
+      "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+      "entries": {
+        "0": {
+          "text": "Choisissez une langue.",
+          "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "1": {
+          "text": "Presses BACK pour aller au niveau.",
+          "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "2": {
+          "text": "Connectez le lecteur, puis choisissez l'adaptateur réseau.",
+          "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        }
+      }
+    },
+    "de": {
+      "schema": 1,
+      "product": "xz-mods",
+      "locale": "de",
+      "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+      "entries": {
+        "0": {
+          "text": "Wählen Sie eine Sprache.",
+          "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "1": {
+          "text": "Presses BACK um auf eine Ebene zu gehen.",
+          "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "2": {
+          "text": "Schließen Sie den Player an und wählen Sie dann den Netzwerkadapter aus.",
+          "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        }
+      }
+    },
+    "pt": {
+      "schema": 1,
+      "product": "xz-mods",
+      "locale": "pt",
+      "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+      "entries": {
+        "0": {
+          "text": "Escolha uma língua.",
+          "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "1": {
+          "text": "Pressão BACK para subir a um nível.",
+          "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "2": {
+          "text": "Conecte o jogador e selecione o adaptador de rede.",
+          "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        }
+      }
+    },
+    "it": {
+      "schema": 1,
+      "product": "xz-mods",
+      "locale": "it",
+      "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+      "entries": {
+        "0": {
+          "text": "Scegliete una lingua.",
+          "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "1": {
+          "text": "Pressione BACK per salire a un livello.",
+          "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "2": {
+          "text": "Collegare il lettore e quindi selezionare l'adattatore di rete.",
+          "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        }
+      }
+    },
+    "ja": {
+      "schema": 1,
+      "product": "xz-mods",
+      "locale": "ja",
+      "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+      "entries": {
+        "0": {
+          "text": "言語を選択します。",
+          "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "1": {
+          "text": "プレス BACK 1レベル上昇するために",
+          "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "2": {
+          "text": "プレイヤーを接続して、ネットワークアダプタを選択します。",
+          "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        }
+      }
+    },
+    "ko": {
+      "schema": 1,
+      "product": "xz-mods",
+      "locale": "ko",
+      "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+      "entries": {
+        "0": {
+          "text": "언어를 선택하십시오.",
+          "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "1": {
+          "text": "프레스 BACK 1 단계를 올라가기 위해서.",
+          "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "2": {
+          "text": "플레이어를 연결하고 네트워크 어댑터를 선택합니다.",
+          "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        }
+      }
+    },
+    "zh-Hans": {
+      "schema": 1,
+      "product": "xz-mods",
+      "locale": "zh-Hans",
+      "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+      "entries": {
+        "0": {
+          "text": "选择一个语言。",
+          "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "1": {
+          "text": "新闻 BACK 要上一层。",
+          "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "2": {
+          "text": "连接播放器,然后选择网络适配器。",
+          "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        }
+      }
+    },
+    "zh-Hant": {
+      "schema": 1,
+      "product": "xz-mods",
+      "locale": "zh-Hant",
+      "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+      "entries": {
+        "0": {
+          "text": "選擇一個語言。",
+          "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "1": {
+          "text": "新聞 BACK 要上一層。",
+          "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "2": {
+          "text": "連接播放器,然後選擇網絡適配器。",
+          "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        }
+      }
+    },
+    "nl": {
+      "schema": 1,
+      "product": "xz-mods",
+      "locale": "nl",
+      "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+      "entries": {
+        "0": {
+          "text": "Kies een taal.",
+          "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "1": {
+          "text": "Pers BACK om op één niveau te gaan.",
+          "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "2": {
+          "text": "Sluit de speler aan en kies vervolgens de netwerkadapter.",
+          "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        }
+      }
+    },
+    "pl": {
+      "schema": 1,
+      "product": "xz-mods",
+      "locale": "pl",
+      "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+      "entries": {
+        "0": {
+          "text": "Wybierz język .",
+          "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "1": {
+          "text": "PRZECZ BACK Wzrosz do jednego poziomu.",
+          "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "2": {
+          "text": "Podłącz odtwarzaczkę, a następnie wybierz adapter sieciowy.",
+          "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        }
+      }
+    },
+    "tr": {
+      "schema": 1,
+      "product": "xz-mods",
+      "locale": "tr",
+      "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+      "entries": {
+        "0": {
+          "text": "Bir dil seçin.",
+          "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "1": {
+          "text": "Basın BACK Bir seviyede yükselmek için.",
+          "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "2": {
+          "text": "Oyuncu bağlayın, ardından ağ adaptörü seçin.",
+          "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        }
+      }
+    },
+    "uk": {
+      "schema": 1,
+      "product": "xz-mods",
+      "locale": "uk",
+      "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+      "entries": {
+        "0": {
+          "text": "Виберіть мову.",
+          "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "1": {
+          "text": "Прес BACK Щоб піднятися на один рівень.",
+          "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "2": {
+          "text": "Підключіть гравця, потім виберіть мережевий адаптер.",
+          "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        }
+      }
+    },
+    "ar": {
+      "schema": 1,
+      "product": "xz-mods",
+      "locale": "ar",
+      "source_revision": "89d16ad4e87b2fd8dd86b22843f8da6632a0563f262c9e8f79700f3e126a88ed",
+      "entries": {
+        "0": {
+          "text": "اختر لغة.",
+          "source_sha256": "9e35697809859e187661e74bb5f47628d32b66b447fb2bb3a69fd226e8369c55",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "1": {
+          "text": "الصحافة BACK للذهاب إلى مستوى واحد.",
+          "source_sha256": "52d79cb18a0a73c2140a5cae8e70e36238be73e1299ff653aa8a6016375c6f5b",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        },
+        "2": {
+          "text": "قم بتوصيل اللاعب ثم اختر محول الشبكة.",
+          "source_sha256": "df3905c62ec4d7090e8397edfc1a630264ecdd113577276d0bbbd23f48a17244",
+          "provenance": {
+            "provider": "xz-small100-ct2",
+            "review": "machine-unreviewed",
+            "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+            "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+            "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+            "ctranslate2": "4.8.2",
+            "recipe": 2,
+            "beam": 1,
+            "no_repeat_ngram_size": 4,
+            "script_conversion": "opencc-0.1.7"
+          }
+        }
+      }
+    }
+  }
+}
