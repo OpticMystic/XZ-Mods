@@ -9,6 +9,7 @@
 #define main controls_original_main
 #include "test_runtime_controls.c"
 #undef main
+#include <time.h>
 void xz_layered_wave_configure(int mode,const uint32_t rgb[3]){(void)mode;(void)rgb;}
 /* The stock play scene (0x3c6fc7c) stays the same, so CLASSIC's busy frames may reuse the cached top row. */
 int xz_read_memory(uint32_t address,void *out,size_t n){
@@ -39,6 +40,8 @@ static int busy_present(void){
  memset(frame,0,sizeof frame);pthread_mutex_lock(&ui_mutex);
  int drawn=xz_mods_render_v1(frame,800,480,800,link_now)!=0;pthread_mutex_unlock(&ui_mutex);return drawn;
 }
+/* Frames for ms of real time, one per 16 ms: the link counts as up or gone only after it has stayed so. */
+static void run_for(uint32_t ms){uint32_t t0=xz_game_milliseconds();while(xz_game_milliseconds()-t0<ms){present();nanosleep(&(struct timespec){0,16000000L},NULL);}}
 static int shell_on_screen(void){return frame[240*800+400]==0x1234&&xz_mods_visible_v1();}
 static int top_bar_drawn(void){
  for(unsigned y=0;y<XZ_TOP_BAR_H;y++)for(unsigned x=XZ_TOP_MODS_X;x<800;x++)if(frame[y*800+x])return 1;
@@ -90,24 +93,24 @@ int main(void){
  boot(XZ_UI_INTERFACE_MODERN);pc(0);for(int i=0;i<2;i++)present();
  EXPECT("MODERN owns before the PC links",fake_owns&&shell_on_screen());
  unsigned repaints=fixture_repaints;
- pc(1);for(int i=0;i<3;i++)present();
+ pc(1);run_for(500);
  EXPECT("the linked PC's takeover takes the screen from MODERN",xz_mods_takeover_v1()&&!fake_owns&&!xz_mods_full_frame_v1());
  EXPECT("the hand-over repaints the stock frame",fixture_repaints>repaints);
- pc(0);for(int i=0;i<3;i++)present();
+ pc(0);run_for(2400);
  EXPECT("MODERN takes the screen back when the PC drops",!xz_mods_takeover_v1()&&fake_owns&&shell_on_screen());
  /* With the PC linked the button above LINK still switches the interface; MODERN waits behind the takeover. */
- pc(1);present();rekordbox_contact(0,0);present();
+ pc(1);run_for(500);rekordbox_contact(0,0);present();
  EXPECT("INTERFACE switches under a shown takeover",model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&xz_mods_takeover_v1());
  rekordbox_contact(0,0);present();
  EXPECT("MODERN stays behind a shown takeover",model.ui_interface==XZ_UI_INTERFACE_MODERN&&!fake_owns);
- pc(0);present();present();EXPECT("and owns again once it drops",fake_owns&&shell_on_screen());
+ pc(0);run_for(2400);EXPECT("and owns again once it drops",fake_owns&&shell_on_screen());
 
  /* 5. The same in CLASSIC: the takeover replaces CLASSIC's screen while linked, the top row returns when it drops. */
  boot(XZ_UI_INTERFACE_CLASSIC);pc(0);
  EXPECT("CLASSIC with no PC draws its top row",present()&&top_bar_drawn()&&!xz_mods_takeover_v1());
- pc(1);present();
+ pc(1);run_for(500);
  EXPECT("the linked PC's takeover is reported in CLASSIC",xz_mods_takeover_v1());
- pc(0);present();
+ pc(0);run_for(2400);
  EXPECT("CLASSIC's top row returns when the PC drops",present()&&top_bar_drawn()&&!xz_mods_takeover_v1());
 
  /* 6. Doom keeps the screen while it runs, whatever the link (it forces the preference on). */

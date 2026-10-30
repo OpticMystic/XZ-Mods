@@ -149,7 +149,7 @@ When a link control shows **READ ONLY**, MODS cannot change it on this player. P
 
 To switch the view without opening MODS, use the key you chose under SCREEN SWITCH KEY. You can also give the button above [[LINK]] the job **VJ.TOOLS SCREEN** in **PLAY** › **BUTTON ABOVE LINK**. It needs an enabled, connected VJ.Tools link, and says so when there is none. In CLASSIC, a **VJ.TOOLS** button can appear on the top bar. It reads **EXIT VJ** while the view is on.
 
-With VJ.TOOLS VIEW on and no computer connected, the player shows the interface you chose, MODERN or CLASSIC, and the button above [[LINK]] switches between them as usual. The VJ.Tools screen takes over when the computer connects and gives the screen back when it disconnects.
+With VJ.TOOLS VIEW on and no computer connected, the player shows the interface you chose, MODERN or CLASSIC, and the button above [[LINK]] switches between them as usual. The VJ.Tools screen takes over when the computer connects. When the computer disconnects, its last picture stays for about 2 seconds and then the player screen comes back; if the computer reconnects within that time, the view stays on without a blink.
 
 > **Experimental.** The VJ.Tools view has shown video on the player during development. Long playback and touch while the view is on have not been accepted yet. Keep it off during a set unless you have tested it.
 

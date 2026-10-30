@@ -271,6 +271,26 @@ static int takeover_on_screen(void){
     return takeover_link_shown()||__atomic_load_n(&doom_phase,__ATOMIC_ACQUIRE)!=0||xz_doom_running();
 }
 static char device_ip[16];
+/* The receiver keeps one VJ.Tools client: the last one that sent a valid header (xz_directfb_hook.c accept loop,
+   connected = vjfs_client_fd >= 0). A reconnect, or a second short connection that sends a header and closes, drops
+   that to 0 for a moment; the VJ.Tools Library reconnected about every 4 s on 2026-10-30. The link counts as live
+   only once it has stayed up LINK_SETTLE_MS, and as gone only once it has stayed down LINK_HOLD_MS. The hold is
+   shorter than the receiver's 2.5 s picture grace (VJFS_OVERLAY_GRACE_MS, frame_is_fresh), which keeps the last VJ
+   frame on screen through the gap, so a real disconnect hands back to MODERN or CLASSIC before that picture would
+   give way to the bare stock screen. Header-less probes never reach it: the receiver closes them unaccepted. */
+#define LINK_SETTLE_MS 250u
+#define LINK_HOLD_MS 2000u
+struct link_hold { int live, raw; uint32_t since; };
+static struct link_hold link_hold;
+static uint32_t (*link_clock)(void)=xz_game_milliseconds;
+static int link_hold_step(struct link_hold *h,int raw,uint32_t now){
+    raw=!!raw;
+    if(raw!=h->raw||!h->since){h->raw=raw;h->since=now?now:1;}
+    uint32_t held=now-h->since;
+    if(!h->live&&raw&&held>=LINK_SETTLE_MS)h->live=1;
+    else if(h->live&&!raw&&held>=LINK_HOLD_MS)h->live=0;
+    return h->live;
+}
 static struct xz_stem_pads pads;
 static struct xz_jump_state jump_state;
 static int deck_page[2] = {-1,-1};
@@ -3696,7 +3716,7 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
         memcpy(device_ip, connection->ipv4, sizeof(device_ip)); device_ip[15] = 0;
         model.connection.ready = 1;
         model.connection.enabled = connection->listening != 0;
-        model.connection.connected = connection->connected != 0;
+        model.connection.connected = link_hold_step(&link_hold,connection->listening&&connection->connected,link_clock());
         __atomic_store_n(&network_enabled, model.connection.enabled, __ATOMIC_RELEASE);
         __atomic_store_n(&network_connected, model.connection.connected, __ATOMIC_RELEASE);
         model.connection.discoverable = connection->discovery != 0;
@@ -3879,6 +3899,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     __atomic_store_n(&fb_takeover_active, 0, __ATOMIC_RELEASE);
     __atomic_store_n(&network_enabled, 0, __ATOMIC_RELEASE);
     __atomic_store_n(&network_connected, 0, __ATOMIC_RELEASE);
+    memset(&link_hold, 0, sizeof(link_hold));
     requested_stems = !!stems_enabled;
     model.settings_status = xz_settings_internal_save ? "SETTINGS SAVE ON THIS XZ" : "SETTINGS NOT SAVED: START FROM USB";
     { struct xz_settings defaults; xz_settings_default(&defaults); browse_settings(&defaults);

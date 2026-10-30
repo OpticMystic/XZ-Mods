@@ -1508,14 +1508,11 @@ static void *vjfs_client_thread(void *argument) {
     handle_vjfs_client(client);
     close(client);
     pthread_mutex_lock(&frame_mutex);
-    if (vjfs_client_fd == client) {
-        vjfs_client_fd = -1;
-        latest_visible = 0;
-        latest_exclusive = 0;
-        preview_valid = 0;
-        tick_valid = 0;
-        last_activity_ms = 0u;
-    }
+    /* Only the link ends here. The last frame, preview and filmstrip stay until their own age limits (2.5 s,
+     * 1 s, 2.5 s) and the overlay until VJFS_OVERLAY_GRACE_MS, so a client that reconnects at once (the VJ.Tools
+     * Library did about every 4 s) never blinks the takeover off and on. The runtime holds the link for 2 s
+     * (ui_runtime.c LINK_HOLD_MS) and then switches the overlay off itself for a real disconnect. */
+    if (vjfs_client_fd == client) vjfs_client_fd = -1;
     pthread_mutex_unlock(&frame_mutex);
     log_line("VJFS_CLIENT_DISCONNECTED");
     return NULL;
