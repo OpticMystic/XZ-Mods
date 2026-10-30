@@ -288,7 +288,7 @@ The profiles on a USB after a save.
 6 @ 356,733 Profile track | A track that carries your profile to players that cannot read extra files.
 ```
 
-Some newer players block reading extra files from the USB. A profile track is a silent song that carries your name, logos and links, so it reaches them through your DJ software like any other track.
+For players that only read tracks, a profile track carries your name, logos and links. It is a silent song, so it goes through your DJ software like any other track.
 
 ```figure app:dj-profile-track XZ Mods app · DJ Profile
 Making a profile track.
@@ -338,7 +338,7 @@ The saved build choice.
 Lower on the page:
 
 - **Restore or update a loader by hand** updates the loader on a USB you choose and keeps a backup of the old one. Music and saved settings stay in place.
-- **Prepare from a downloaded firmware file** builds a loader from an official XDJ-XZ 1.26 firmware file into a folder you choose.
+- **Prepare from a firmware 1.26 file** builds the loader from a firmware 1.26 file you choose, into a folder you choose.
 
 **Import a build** takes a prepared XZ Mods `resources` folder, or a whole XZ Mods app folder that holds one. The app checks every file before it adds the build. Imported builds are not checked on a real XDJ-XZ.
 
@@ -455,10 +455,10 @@ Four decks open in the Manual, at the video of how the sound of decks 3 and 4 re
 8 @ 150,250 Menu map | Every screen of the player as a flow chart. See [The menu map](#the-menu-map).
 5 @ 203,559 Chapter list | Every chapter, on the left beside the page. The one you are reading is outlined and lists its sections.
 6 @ 1068,78 Chapter | The chapter you are reading. Previous and Next at its end move through the manual in order.
-7 @ 998,335 Video | A clip rendered from a true-scale model of the XDJ-XZ shows how a feature works. It plays when it comes into view, and Play pauses it. A video in several steps also has arrows and numbered steps, and its caption follows the step.
+7 @ 998,335 Video | An illustration of the XDJ-XZ shows how a feature works. It plays when it comes into view, and Play pauses it. A video in several steps also has arrows and numbered steps, and its caption follows the step.
 ```
 
-- **How-to videos.** Many sections show how to get there on the player: the player's screen, beside a true-scale picture of the key, rotary selector or pad you use, pressed in time with the screen. The steps under the video light up as it reaches them. Click a step to play from there. Where a section shows more than one way, the tabs above the steps switch between them.
+- **How-to videos.** Many sections show how to get there on the player: the player's screen, beside a picture of the key, rotary selector or pad you use, pressed in time with the screen. The steps under the video light up as it reaches them. Click a step to play from there. Where a section shows more than one way, the tabs above the steps switch between them.
 - **Numbers on pictures.** Point at a number, or tab to it and use the arrow keys, to light up that part of the picture and read what it is. **Play** steps through every number. The list under the picture says the same.
 - **Your interface.** Choose MODERN, CLASSIC or Both on the start page or at the foot of the chapter list. The manual then hides what does not apply to you. A MODS page drawn in both interfaces has a MODERN and CLASSIC switch on its picture.
 - **Where you stopped.** The manual remembers the chapter and section you read last. The start page offers **Continue where you left off**.
@@ -501,7 +501,7 @@ About.
 5 @ 574,421 Links | The source code, issues and releases on GitHub, xzmods.com and vj.tools. Each opens in your browser.
 6 @ 641,720 Feedback | Opens [Feedback](#feedback) in the app.
 7 @ 770,773 Support XZ Mods (optional) | Voluntary support on Cash App. Every feature stays available.
-8 @ 178,867 Disclaimers | XZ Mods is independent of the maker of the XDJ-XZ, experimental, runs from the USB, and builds its loader from the official firmware for your own use.
+8 @ 178,867 Disclaimers | XZ Mods is independent of the maker of the XDJ-XZ, is experimental and runs from the USB.
 9 @ 822,1066 Open license notices | Every open-source project XZ Mods uses and its license.
 ```
 

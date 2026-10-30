@@ -51,7 +51,7 @@ With a loop on | With a loop on, the loop moves by the jump instead.
 2. Let go of [[SHIFT]].
 3. Press a pad. The first pad of a pair jumps back, the second forward.
 
-Each deck remembers its own page. Choosing another pad mode and coming back with [[BEAT JUMP]] gives page 1 again. On page 2 the pads light warm red and amber, so you can see which page you are on. [[SHIFT]] + pad keeps its stock job on decks 1 and 2.
+Each deck remembers its own page. Choosing another pad mode and coming back with [[BEAT JUMP]] gives page 1 again. On page 2 the pads light warm red and amber, so you can see which page you are on. [[SHIFT]] + pad keeps its normal job on decks 1 and 2.
 
 ### Change the jump sizes
 
@@ -167,7 +167,7 @@ physical-key-sync | KEY SYNC on the deck
 2. Hold [[SHIFT]] and press [[SYNC]] on the deck you want to move. On a side that drives deck 3 or 4, this moves that deck.
 3. The deck shifts to a key that fits the master deck and MASTER TEMPO turns on. A notice shows the new key and the master deck, with RELATIVE KEY when it matches the relative major or minor.
 
-To end KEY SYNC, press [[SHIFT]] + [[SYNC]] again, or press [[MASTER TEMPO]]. Both return the deck to its own key and put MASTER TEMPO back the way it was. After that, [[MASTER TEMPO]] works as on a stock player.
+To end KEY SYNC, press [[SHIFT]] + [[SYNC]] again, or press [[MASTER TEMPO]]. Both return the deck to its own key and put MASTER TEMPO back the way it was. After that, [[MASTER TEMPO]] does its normal job.
 
 KEY SYNC changes the key only. The tempo, SYNC and the master deck stay as they were.
 
@@ -365,7 +365,7 @@ On decks 3 and 4 the waveform loaded before the USB went out stays, so the card 
 
 ## Quantize
 
-On decks 1 and 2, quantize is the player's own: [[DECK QUANTIZE]] and UTILITY work as on a stock player. In MODERN each deck shows its QUANTIZE lamp and beat value above its time. You can hide them in MODS > SCREEN > LAMPS AND TITLES.
+On decks 1 and 2, quantize is the player's own: [[DECK QUANTIZE]] and UTILITY work as without XZ Mods. In MODERN each deck shows its QUANTIZE lamp and beat value above its time. You can hide them in MODS > SCREEN > LAMPS AND TITLES.
 
 ```nav physical-quantize Quantize
 ```

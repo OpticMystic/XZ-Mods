@@ -510,7 +510,7 @@ def settings_table(schema, explained):
         else: values, default = f"{field['min']} to {field['max']}", str(field['default'])
         chapter = explained.get(field['key'])
         where = f"[{chapter['title']}]({chapter['slug']})" if chapter else 'Not shown in the menu'
-        rows.append(f"| **{field['label']}** `{field['key']}` | {values} | {default} | {where} |")
+        rows.append(f"| **{field['label']}** | {values} | {default} | {where} |")  # the key is an internal name: label only
     return '\n'.join(rows)
 
 
@@ -532,7 +532,8 @@ def menu_key_table():
 
 def theme_gallery(render_dir):
     names = [line.split('\t') for line in (Path(render_dir) / 'ui/themes.txt').read_text(encoding='utf-8').splitlines()]
-    return '```gallery {classic}\n' + '\n'.join(f'classic:theme-{n}-home {name.title()}' for n, name in names) + '\n```'
+    label = {'FLAGSHIP': 'MODERN'}  # theme 24 is MODERN's MODS look; the manual names it after its interface
+    return '```gallery {classic}\n' + '\n'.join(f'classic:theme-{n}-home {label.get(name, name).title()}' for n, name in names) + '\n```'
 
 
 GENERATED = {'menu-key': lambda render_dir: menu_key_table(), 'themes': theme_gallery}

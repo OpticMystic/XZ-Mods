@@ -3,11 +3,11 @@ interface: both
 settings:
 ---
 
-MODS is the menu XZ Mods adds to the player. Everything the mod can change lives here, sorted by what you want to do rather than by how the firmware is built. Both interfaces open the same menu, so what you learn here works in MODERN and CLASSIC. MODERN draws it in the FLAGSHIP look. CLASSIC draws it in the theme you chose.
+MODS is the menu XZ Mods adds to the player. Everything the mod can change lives here, sorted by what you want to do. Both interfaces open the same menu, so what you learn here works in MODERN and CLASSIC. In MODERN, MODS uses the MODERN look. In CLASSIC, it uses the theme you chose.
 
 ## Open and close MODS
 
-Press [[MENU]] on the play screen. A short press opens MODS wherever the player's own firmware has no job for [[MENU]], and leaves the stock job alone everywhere else. Hold [[MENU]] to open the player's own UTILITY, exactly as on a stock XDJ-XZ.
+Press [[MENU]] on the play screen. A short press opens MODS wherever [[MENU]] has no other job, and leaves its normal job alone everywhere else. Hold [[MENU]] to open the player's own UTILITY, as without XZ Mods.
 
 ```nav menu-close Open and close MODS
 ```
@@ -172,13 +172,13 @@ CONNECT links the player to you and to computers.
 
 ## UTILITY, the player's own settings
 
-[[MENU]] held opens the player's own UTILITY: quantize, auto cue, play mode, the display and the other stock settings.
+[[MENU]] held opens the player's own UTILITY: quantize, auto cue, play mode, the display and the player's other settings.
 
 ```nav utility UTILITY, the player's own settings
 ```
 
 - In CLASSIC you see the player's own UTILITY screen, unchanged.
-- In MODERN, XZ Mods draws UTILITY in the MODERN look. It is the same list of stock settings, in the stock order.
+- In MODERN, UTILITY shows the player's settings in the MODERN colours.
 - In MODERN, MODS also has a **UTILITY** cell at the bottom of the section rail. It closes MODS and opens UTILITY. Until MODERN has read the player's settings, it reads NOT READY.
 
 ### MODERN UTILITY {modern}
@@ -205,7 +205,7 @@ A lock next to a setting comes with one of these notes:
 |---|---|
 | PLAYER CONTROLLED | The player sets this itself. XZ Mods only shows it. |
 | FIRMWARE LIMIT | XZ Mods cannot read or set it on this firmware version. |
-| READ-ONLY BUILD | A RAM trial shows settings but changes none. Start from the USB loader to change them. |
+| READ-ONLY BUILD | This start of XZ Mods shows settings but changes none. Start from the USB loader to change them. |
 | READ ONLY HERE | XZ Mods shows this setting but cannot change it here. |
 
 Pushing a locked setting does nothing.

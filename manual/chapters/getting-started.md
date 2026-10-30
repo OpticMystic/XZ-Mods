@@ -5,24 +5,24 @@ settings: interface
 
 XZ Mods is software for the XDJ-XZ that starts from a USB stick. It adds a MODS menu, stems you can mute live, custom beat jump, four decks over a loopback cable, DJ profiles, themes and games. It can also replace the whole play screen with its own MODERN interface.
 
-## What changes and what stays stock
+## What changes and what stays the same
 
-XZ Mods runs in the player's memory. It never writes to the player's firmware, so the XDJ-XZ itself stays stock.
+XZ Mods runs from the USB. Start the player without the USB and it is as it was.
 
-```nav utility What changes and what stays stock
+```nav utility What changes and what stays the same
 ```
 
 - The player picks up the XZ Mods loader (`autoexec.bin`) from the USB at start and runs XZ Mods from there.
 - Your music, the library your DJ software exported and your playlists stay as they are. XZ Mods adds its own folders beside them.
-- The player's own settings are still there. Hold [[MENU]] to open UTILITY, exactly as on a stock XDJ-XZ.
+- The player's own settings are still there. Hold [[MENU]] to open UTILITY, as without XZ Mods.
 - Settings you change in MODS are saved on the USB, so they travel with it to another XZ running XZ Mods.
 
-### Go back to stock
+### Start without XZ Mods
 
 1. Switch the player off.
 2. Start it without the XZ Mods USB, or with a USB that has no `autoexec.bin` on it.
 
-The player starts stock. Plug the XZ Mods USB back in and start again to load XZ Mods. If you play from a separate music stick, that stick works on the stock player as before.
+The player starts without XZ Mods. Plug the XZ Mods USB back in and start again to load XZ Mods. If you play from a separate music stick, that stick works without XZ Mods as before.
 
 ## What you need
 
@@ -34,7 +34,7 @@ The player starts stock. Plug the XZ Mods USB back in and start again to load XZ
 | USB | A USB stick for the loader. It can be your music USB, or a separate loader stick |
 | Four decks | A USB-B to USB-A cable. See [Four decks](four-decks#what-you-need) {experimental} |
 
-The app downloads the official firmware it needs from the manufacturer and checks it. No firmware or boot files come with the XZ Mods download.
+The app gets and checks the files it needs. Nothing from the player's maker is included in the XZ Mods download.
 
 > **Caution.** XZ Mods is a preview. Test every new USB at home before you use it in a set.
 

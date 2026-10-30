@@ -33,7 +33,7 @@ Every game runs on the XZ itself. The music keeps playing while you play, and PL
 ```figure classic:theme-{look}-games MODS · GAMES
 Every game, plus USB WAD LOADER and MY HOUSE / SETUP.
 1 @ 410,68 DOOM / CHOOSE WAD | Classic Doom or Doom II. Choose the game files next.
-2 @ 700,68 CHEX QUEST | The original Chex Quest with its patch.
+2 @ 700,68 CHEX QUEST | The original Chex Quest.
 3 @ 410,156 BEAT ARCADE | Pong and Breakout scored on the beat, played with the jog.
 4 @ 700,156 WAVE RIDER | Surf the playing track's waveform with the jog.
 5 @ 410,244 USB WAD LOADER | Choose a Doom base game and an optional add-on from the USB.
@@ -318,7 +318,7 @@ The report holds facts the player can check, never text read from its screens:
 - the XZ Mods version and a fingerprint of your settings, with a few of them (stems, gate cue, interface, theme, deck view, browse preview);
 - the loader ID from ABOUT and the ID of the computer that made the loader, so the report reaches your own XZ Mods app;
 - the screen MODS was opened from (PLAY, BROWSE and so on), the interface, the deck view and the code of any error on screen;
-- known status codes from the four-deck bridge and the player, and the recent entries of the USB diary on this stick.
+- known status codes from decks 3 and 4 and the player, and the recent entries of the USB diary on this stick.
 
 It never holds music, track or playlist names, file names or network addresses. Only the maintainer reads it. You can also report from the XZ Mods app. See [Messages and troubleshooting](troubleshooting).
 

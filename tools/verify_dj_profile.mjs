@@ -334,7 +334,7 @@ try {
   await check(`(()=>{const r=last('save_dj_profile');return r.logos.map(l=>l.path).join('|')==='C:\\\\Logos\\\\kai-square.png|C:\\\\Logos\\\\kai-wordmark.png'&&JSON.stringify(r.profile.links)===JSON.stringify([{kind:'media-kit',url:'https://drive.google.com/drive/folders/kai-epk'},{kind:'website',url:'https://djkai.example'}]);})()`, 'save request: main logo first, EPK link as media-kit');
   await check(`cardOf('djp_dj_kai').dataset.active==='1'&&cardOf('djp_dj_kai').dataset.highlight==='1'&&txt('.djp-active',cardOf('djp_dj_kai'))==='Active on the XZ'`, 'list: the saved profile is highlighted with the active badge');
   await check(`cardOf('djp_dj_kai').querySelector('.djp-tile img')&&txt('.djp-saved').startsWith('Saved DJ Kai to the USB.')&&button('Create profile track',page().querySelector('.djp-saved')).classList.contains('primary')&&button('New DJ profile').classList.contains('secondary')`, 'list: the tile shows, and the profile track is offered right after the save');
-  await check(`txt('.djp-track-panel h3')==='Profile track for newer players'&&txt('.djp-track-panel .wz-lead').startsWith('Some newer players block reading extra files from the USB.')`, 'track section with its one sentence');
+  await check(`txt('.djp-track-panel h3')==='Profile track for newer players'&&txt('.djp-track-panel .wz-lead').startsWith('For players that only read tracks,')`, 'track section with its one sentence');
   await check(`setupWizard.state.inspection.dj_profiles.count===1&&setupWizard.state.inspection.dj_profiles.active_name==='DJ Kai'`, 'the wizard learns the new profile count without another inspection');
   await shot('04-list');
 
@@ -351,23 +351,23 @@ try {
   await shot('06-track-done');
   await click('Next: add it to your library');
   await check(`(()=>{const steps=[...page().querySelectorAll('.djp-howto li')].map(li=>li.textContent);return steps.length===5&&steps[0]==='Open your DJ software on this computer.'&&steps[1].includes('DJ PROFILE - DJ Kai.mp3')&&steps[1].includes('Collection')&&steps[2]==='Make a playlist named DJ PROFILE and put the track in it.'&&steps[3].includes('Export the DJ PROFILE playlist to this USB')&&steps[4]==='Leave the USB plugged in and check it here.';})()`, 'DJ software steps: drag into Collection, DJ PROFILE playlist, export to this USB, then check it here');
-  await check(`txt('.djp-track .djp-caption')==='Other DJ apps that export OneLibrary can put the track on the USB too.'`, 'one sentence says other OneLibrary apps work too, naming none');
+  await check(`txt('.djp-track .djp-caption')==='Other DJ apps that export the newer library format can put the track on the USB too.'`, 'one sentence says other OneLibrary apps work too, naming none');
   await check(`button('Check the USB').classList.contains('primary')&&!button('Done')&&Boolean(button('Check later'))&&!page().querySelector('.djp-check')`, 'the last step ends on a primary Check the USB, not a bare Done');
   await shot('07-track-library');
   const lines = `[...page().querySelectorAll('.djp-check .djp-dest-row')].map(row=>row.dataset.library+'|'+row.dataset.tone+'|'+txt('strong',row)+'|'+txt('small',row)).join(' / ')`;
   await evaluate(`fx.trackStatus={device_library:{library:'present',track:'missing'}}`);
   await click('Check the USB');
   await check(`last('dj_profile_track_status').volume==='E:\\\\'&&count('dj_profile_track_status')===1`, 'Check the USB asks the backend about this USB');
-  await check(`${lines}==='device_library|off|Device library|Your track is not in it yet. / onelibrary|off|OneLibrary|Not on this USB.'`, 'missing: one plain line per library, OneLibrary not on this USB');
+  await check(`${lines}==='device_library|off|Device library|Your track is not in it yet. / onelibrary|off|Newer library format|Not on this USB.'`, 'missing: one plain line per library, OneLibrary not on this USB');
   await check(`button('Check the USB').classList.contains('primary')&&!button('Done')`, 'missing: still no Done, Check the USB stays primary');
   await evaluate(`fx.trackStatus={device_library:{library:'present',track:'stale',playlists:['DJ PROFILE'],in_profile_playlist:true},onelibrary:{library:'unreadable'}}`);
   await click('Check the USB');
-  await check(`${lines}==='device_library|warn|Device library|Found, but made before your last edit. Export the new track to this USB. / onelibrary|warn|OneLibrary|Could not be read. Export the USB again from your DJ software.'`, 'stale: made before the last edit; an unreadable OneLibrary says so on its own line');
+  await check(`${lines}==='device_library|warn|Device library|Found, but made before your last edit. Export the new track to this USB. / onelibrary|warn|Newer library format|Could not be read. Export the USB again from your DJ software.'`, 'stale: made before the last edit; an unreadable OneLibrary says so on its own line');
   await check(`!button('Done')`, 'stale: not done yet');
   await shot('08-track-check-stale');
   await evaluate(`fx.trackStatus={device_library:{library:'present',track:'found',playlists:['DJ PROFILE'],in_profile_playlist:true},onelibrary:{library:'present',track:'found',playlists:['Friday']}}`);
   await click('Check the USB');
-  await check(`${lines}==='device_library|ok|Device library|Found in DJ PROFILE. / onelibrary|warn|OneLibrary|Found, but not in a playlist named DJ PROFILE.'`, 'found: found in DJ PROFILE, and a track outside the playlist is flagged');
+  await check(`${lines}==='device_library|ok|Device library|Found in DJ PROFILE. / onelibrary|warn|Newer library format|Found, but not in a playlist named DJ PROFILE.'`, 'found: found in DJ PROFILE, and a track outside the playlist is flagged');
   await check(`button('Done').classList.contains('primary')&&Boolean(button('Check again'))&&!button('Check the USB')&&count('dj_profile_track_status')===3`, 'found: Done is the primary action, with Check again');
   await shot('09-track-check-found');
   await click('Done');

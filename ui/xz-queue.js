@@ -28,7 +28,7 @@ window.xzQueue = (() => {
   const TOPIC = { GOT_WORSE: ['Got worse', 'worse'], NOT_WORKING: ['Problem', 'problem'], WORK_DIFFERENTLY: ['Works differently', 'expect'], NEW_IDEA: ['Idea', 'idea'], HOW_DO_I: ['Question', 'question'] };
   const STOCK = { BROWSE: 'browse screen', TAG_LIST: 'tag list', INFO: 'track info screen', MENU: 'MENU screen', UTILITY: 'UTILITY screen', PERFORMANCE: 'play screen', SOURCE: 'source screen', SEARCH: 'search screen' };
   const DECKS = { TWO: '2 decks', FOUR: '4 decks', MIXER: 'mixer view' };
-  const ALERTS = { EMERGENCY_LOOP: 'EMERGENCY LOOP', READ_ERROR: 'a read error', UNSUPPORTED_FILE: 'UNSUPPORTED', DEVICE_ERROR: 'a device error', HUB_UNSUPPORTED: 'the hub warning', UNKNOWN: 'an alert' };
+  const ALERTS = { EMERGENCY_LOOP: 'EMERGENCY LOOP', READ_ERROR: 'a read error', UNSUPPORTED_FILE: 'UNSUPPORTED', DEVICE_ERROR: 'a device error', HUB_UNSUPPORTED: 'a USB warning', UNKNOWN: 'an alert' };
   const SLOTS = { app: 'this computer', package: 'this app', xz_a: 'the XZ' };
   function screen(s) {
     if (!s) return 'Not recorded';

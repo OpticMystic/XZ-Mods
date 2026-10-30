@@ -54,12 +54,12 @@ physical-above-link | The button above LINK
 ```
 
 - **MODERN** is a full-screen layout drawn by XZ Mods, with bigger waveforms and a browse sidebar.
-- **CLASSIC** keeps the player's own play screen and adds MODS to it. The classic themes restyle that screen.
+- **CLASSIC** keeps the familiar play screen and adds MODS to it, in the classic theme you choose.
 
 | | MODERN | CLASSIC |
 |---|---|---|
-| Play screen | Drawn by XZ Mods, full screen | The XDJ-XZ's own layout, restyled |
-| Themes | One look, STANDARD. MODS is drawn in FLAGSHIP | 24 themes. MODS is drawn in the theme you pick |
+| Play screen | Drawn by XZ Mods, full screen | The familiar layout, in your theme |
+| Themes | One look, STANDARD. MODS uses the MODERN look | 24 themes. MODS uses the theme you pick |
 | Waveform colours | STOCK, RGB, 3-BAND, STEMS | STOCK, 3-BAND, STEMS |
 | Lamps and titles | Each part can be shown or hidden | Not available |
 | Playing key | Shown as the big key in each deck's column | Shown where the beat countdown sits |
@@ -124,7 +124,7 @@ Most families come in a light and a **DARK** version. Pick the dark one for dim 
 
 ## MODERN look {modern}
 
-MODERN has one look, **STANDARD**, so it has no theme list. The MODS menu is drawn in FLAGSHIP: black pages, a grey section rail and blue selections. More MODERN looks are planned.
+MODERN has one look, **STANDARD**, so it has no theme list. MODS uses the MODERN look: black pages, a grey section rail and blue selections. More MODERN looks are planned.
 
 ```nav lamps-and-titles MODERN look {modern}
 ```

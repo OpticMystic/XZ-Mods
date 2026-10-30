@@ -204,14 +204,14 @@ The keypad for an address, mask or gateway.
 
 ## Updates over the network {experimental}
 
-UPDATES fetches a newer signed XZ Mods runtime from the XZ Mods app on your computer and saves it to the USB. The update starts at the next power cycle. Your music stays where it is.
+UPDATES fetches a newer signed XZ Mods version from the XZ Mods app on your computer and saves it to the USB. The update starts at the next power cycle. Your music stays where it is.
 
 ```nav updates Updates over the network
 ```
 
 ```figure classic:theme-{look}-network-updates MODS · UPDATES
 UPDATES before the update server has been found.
-1 @ 375,93 What it does | Downloads a signed runtime to the USB. Power cycle to activate.
+1 @ 375,93 What it does | Downloads a signed XZ Mods version to the USB. Power cycle to activate.
 2 @ 425,168 Recovery | Updates change XZ Mods only. The original USB loader is the way back.
 3 @ 700,216 SET UP NETWORK UPDATES | Opens UPDATE SETUP, which finds the update server.
 4 @ 360,272 DOWNLOAD UPDATE | Downloads the update to the USB. It activates after a power cycle.
@@ -223,7 +223,7 @@ UPDATES before the update server has been found.
 ```figure classic:theme-{look}-update-setup UPDATE SETUP
 The three things the player needs before it can update over the network.
 1 @ 420,125 Steps | Use the updated USB loader, start network updates in the desktop app, connect the XZ to that network.
-2 @ 700,264 DETECT UPDATE SERVER | Asks the update server for a newer signed runtime.
+2 @ 700,264 DETECT UPDATE SERVER | Asks the update server for a newer signed XZ Mods version.
 3 @ 440,356 BACK TO UPDATES | Returns to UPDATES.
 ```
 
