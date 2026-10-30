@@ -140,19 +140,16 @@ modern:card-11-ready-wipe The card wipes away and decks 3 and 4 appear
 
 When the route comes up, a banner says **DECKS 3 AND 4 ARE READY** for a few seconds. If the play screen shows two decks at that moment, the banner says **DECKS 3 AND 4 ARE READY. TAP DECKS AT THE TOP FOR FOUR DECKS.** The view does not change by itself.
 
-### The E-8307 hub warning {experimental}
+### The LOOPBACK CABLE CONNECTED card {experimental}
 
-The player sees the loopback cable as a USB hub. When you plug it in, the player raises its own warning **E-8307: HUBS ARE NOT SUPPORTED** and keeps it up while the cable stays in. That is not an error, so XZ Mods never shows it, whether four decks are on or not.
-
-- MODERN and MODS show nothing and keep working as usual.
-- In CLASSIC the player's own warning window turns into a calm card: **LOOPBACK CABLE CONNECTED**, **USED BY DECKS 3 AND 4 · NOT AN ERROR**.
+With the loopback cable in, CLASSIC shows a **LOOPBACK CABLE CONNECTED** card, and decks 3 and 4 work as described here. MODERN and MODS keep working as usual.
 
 ```gallery {classic}
-classic:hub-card The player's window with the loopback cable in
+classic:hub-card The LOOPBACK CABLE CONNECTED card in CLASSIC
 classic:hub-card-large The same card in a larger window
 ```
 
-The warning can also appear when you connect a music hub. With the loopback cable connected, stop or pause decks 1 and 2 and let the music hub finish connecting. A hub in the loopback port, a second hub behind the first, or a hub that does not support high-speed USB 2.0 is not supported. Remove that hub or connect the music stick directly.
+When you connect a music hub with the loopback cable in, stop or pause decks 1 and 2 and let the hub finish connecting. A hub in the loopback port, a second hub behind the first, or a hub that does not support high-speed USB 2.0 does not work. Remove that hub or connect the music stick directly.
 
 ## DECK VIEW
 
@@ -286,7 +283,7 @@ CLASSIC keeps the player's own look and adds what four decks need.
 - **Side column.** The left column has one tag per lane. The tag of a deck a side controls is pale blue with LEFT or RIGHT. Decks 1 and 2 show the analysed key, the playing key and its cents. Decks 3 and 4 show their playing key and its cents the same way, TRACK KEY until they report it, or NOT CONNECTED and SEE THE CARD while they are not running.
 - **Bottom panel.** Four channels in mixer order 3 1 2 4. Each shows the deck's title, time, QUANTIZE, tempo and range, AUTO CUE and MT, what SYNC follows, what the pads do, the BPM (orange with MASTER for the master deck) and the whole-track overview. A deck that is not connected shows a dim band with NOT CONNECTED and DECK n WAITS FOR THE LOOPBACK CABLE.
 - **Stem rows** are not drawn while four decks show, because there is no room, and **STEMS** stays dark. Your stem layout comes back when you return to two decks. Pressing STEMS meanwhile changes nothing and says **STEM BUTTONS SHOW IN 2 DECKS VIEW**.
-- **2 DECKS** shows the decks the sides control. A side on deck 3 or 4 gets a whole half in the player's own style: its waveform, its side tag and its bottom panel.
+- **2 DECKS** shows the decks the sides control. A side on deck 3 or 4 gets a whole half: its waveform, its side tag and its bottom panel.
 
 Tap a lane, side tag or channel title of deck 3 or 4 to open its detail panel. Touch the overview in the bottom channel to search the track. NEEDLE LOCK refuses a search while the deck plays.
 
@@ -352,7 +349,7 @@ On a side that controls deck 3 or 4, these controls work on that deck {experimen
 | Control | What it does on deck 3 or 4 |
 |---|---|
 | [[PLAY/PAUSE]], [[CUE]] | Play and pause, back cue and cue audition. With VINYL on, pause brakes to a stop at the VINYL SPEED ADJUST rate. |
-| [[HOT CUE]], [[BEAT LOOP]], [[SLIP LOOP]], [[BEAT JUMP]] | Set the pad mode of the software deck. The native deck keeps its own mode. |
+| [[HOT CUE]], [[BEAT LOOP]], [[SLIP LOOP]], [[BEAT JUMP]] | Set the pad mode of deck 3 or 4. Deck 1 or 2 on that side keeps its own mode. |
 | Pads | Hot cues, beat loops, slip loops and beat jumps, as on decks 1 and 2. |
 | [[IN/CUE]], [[OUT]], [[RELOOP/EXIT]] | Manual loops, loop adjustment with the jog, reloop and exit. |
 | [[SLIP]], [[DIRECTION REV]], [[VINYL]] | Slip, reverse and vinyl mode. |
@@ -432,6 +429,6 @@ The detail panel adds a line about the reason, for example:
 - A handover never changes the tempo.
 - A master set by another player over LINK is never taken.
 - Some lamps on the player do not yet light as they do for decks 1 and 2. The beat loop and slip loop pad colours are provisional.
-- Four decks, the handover of MASTER between native and software decks, and scratching on decks 3 and 4 are experimental in this version.
+- Four decks, the handover of MASTER between decks 1 and 2 and decks 3 and 4, and scratching on decks 3 and 4 are experimental in this version.
 
 If something goes wrong, the card or the 4 DECKS page names the state. [Messages and troubleshooting](troubleshooting) lists every notice.

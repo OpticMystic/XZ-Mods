@@ -266,7 +266,7 @@
       "title": "Updates over the network {experimental}",
       "level": 2,
       "chapter": "connect.md",
-      "sha256": "860cb2b53abc164dde524142bb6491fc571ec6ded1804cc421ca7cd96a7acd0c",
+      "sha256": "f06270a2dfb994c04cd6bb4b2a04e498c5d7154ff3f3986cadf8191d1eba371d",
       "flows": [
         "updates"
       ],
@@ -387,7 +387,7 @@
       "title": "DJ Profile",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "75af50c59676e5314e86ff8cd14677f85335001dd2bd4c29f606a72e584d7092",
+      "sha256": "2026ea3031eb5d1eeb6170ceb1f1b59244a13f83c9c2a9a63479cab48f672af3",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -427,7 +427,7 @@
       "title": "XZ Mods version",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "701e066fdd4fb22ac90800f01b9550d947773829e9c00b546bb1604bdbe99806",
+      "sha256": "0d2b660955ea09d114e04c5c61f5bcd71651a3ffca536c05f9fc8ad4bad7967b",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -457,7 +457,7 @@
       "title": "About",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "507ee5c3befc62357fe4ec5ef017e011f0907d8873f8dd980de32309af8b1647",
+      "sha256": "62e1e5ceffe1f43ca38b9a621fc3adb9e944a72659601d28118c00b3b8817a5b",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -557,7 +557,7 @@
       "title": "Manual",
       "level": 2,
       "chapter": "desktop-app.md",
-      "sha256": "418a73905da15c0893c5428d31560c93af3ad0a7b617ba28ef814fd9ea6457cc",
+      "sha256": "452c1fb143ed1c83e38f18b5c6138692fc1e87789d8905e455c91b998d646917",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -567,7 +567,7 @@
       "title": "The menu map",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "547855686102652e2432185edbbdd33578e2e20145616849e3663f3bb6d1ca42",
+      "sha256": "0a1be11a7a29cf17b4e5006f60f6fa18f557e351bfd8cdcedc305d4dfd95498b",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -588,7 +588,7 @@
       "title": "Games",
       "level": 2,
       "chapter": "extras.md",
-      "sha256": "0e10b92419957656b53a8bef3fea28bb6e14b29f84db05786ef8e69500886988",
+      "sha256": "ec965359fb8c6f7a6f72609d6c7e7e1969f1b313be4520962a52ff6cea000d34",
       "flows": [
         "games"
       ],
@@ -709,7 +709,7 @@
       "title": "What the player sends",
       "level": 3,
       "chapter": "extras.md",
-      "sha256": "b157808b798501e76c5e7826e113c13821471e90a9e6b779118a8ef4ef44dcd0",
+      "sha256": "b1b02340d430e08388d282a3e759786ec13aecc74dd35ea5fba1794f2cb5373a",
       "flows": null,
       "reason": "informational",
       "detail": "Report payload explanation; no player action."
@@ -779,14 +779,14 @@
       "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
-      "section": "four-decks#the-e-8307-hub-warning",
-      "title": "The E-8307 hub warning {experimental}",
+      "section": "four-decks#the-loopback-cable-connected-card",
+      "title": "The LOOPBACK CABLE CONNECTED card {experimental}",
       "level": 3,
       "chapter": "four-decks.md",
-      "sha256": "0a766dbf776ab9ffc30921d7d37f72d8f98047acfa96c137ab81b1aa9f53072d",
+      "sha256": "d858d350be09c098e369dc878d7a16c97f4134f868888805b70223433a9fe3f8",
       "flows": null,
       "reason": "physical_usb",
-      "detail": "The warning and hub admission need real stock USB enumeration; no hardware touched."
+      "detail": "The cable card and music hubs need a real player; no hardware touched."
     },
     {
       "section": "four-decks#deck-view",
@@ -839,7 +839,7 @@
       "title": "The CLASSIC four-deck screen {classic}",
       "level": 2,
       "chapter": "four-decks.md",
-      "sha256": "28d9bb6315388c143f2a92f3c4dedf9005bf628d568832048563d74da4bbaf0a",
+      "sha256": "bac24463bab15649f6598fc885c2da44892ffc0d8534e0932ec1c10103c3d922",
       "flows": [
         "nav-a-classic-four",
         "nav-c-classic-full"
@@ -873,7 +873,7 @@
       "title": "What decks 3 and 4 can do {experimental}",
       "level": 2,
       "chapter": "four-decks.md",
-      "sha256": "e1ca480b27fc170619d0543dd1c7ce95540efdd4c40fdae123818300841d94a1",
+      "sha256": "c5e9a0e8aa861adab36449777aa7bd117c4b87dac393e81cb829c8b6fa674085",
       "flows": [
         "nav-c-player-3",
         "nav-c-player-4"
@@ -895,38 +895,38 @@
       "title": "Limits",
       "level": 2,
       "chapter": "four-decks.md",
-      "sha256": "901cf4a64b3777e854a9849f703b75bdd1ca42c00fce7fa2d9fb5b9460821937",
+      "sha256": "838da9c0de51e5c1d4d0b94bdbd97e57d871b817f7425aa89adc48479a8f603a",
       "flows": null,
       "reason": "informational",
       "detail": "Format, readiness, master handover and experimental-limit reference; no additional navigation procedure."
     },
     {
-      "section": "getting-started#what-changes-and-what-stays-stock",
-      "title": "What changes and what stays stock",
+      "section": "getting-started#what-changes-and-what-stays-the-same",
+      "title": "What changes and what stays the same",
       "level": 2,
       "chapter": "getting-started.md",
-      "sha256": "b7c6cdc6db37993837e43f605dcc06552b636ba0690b8b72e726b2f797d3cf31",
+      "sha256": "a461cdecbb4480c986c3f2a04d2355a439ce203c70ca9e1963b7385ada85c238",
       "flows": [
         "utility"
       ],
-      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+      "scope": "Scripted host excerpts. Physical USB, start-up, network and audio remain separate acceptance; see REPORT-B.md for operation-level limits."
     },
     {
-      "section": "getting-started#go-back-to-stock",
-      "title": "Go back to stock",
+      "section": "getting-started#start-without-xz-mods",
+      "title": "Start without XZ Mods",
       "level": 3,
       "chapter": "getting-started.md",
-      "sha256": "12b933452fd6b7103c82d77900487129f82aa212eaf71364957d885da35a7656",
+      "sha256": "00b6642353b8c688fa3c6b876a2354d3256d51a154b3f6962106633675649575",
       "flows": null,
       "reason": "usb_or_boot",
-      "detail": "Power-off and boot with the loader USB absent require a player boot; no host screen owns these actions."
+      "detail": "Power-off and start with the loader USB absent need a player; no host screen owns these actions."
     },
     {
       "section": "getting-started#what-you-need",
       "title": "What you need",
       "level": 2,
       "chapter": "getting-started.md",
-      "sha256": "82867861ea294066f786138e3dbd7fdf30cd52c6a3e8b640e4a1f7d770766b29",
+      "sha256": "119e0cc7deb61e8a6fc6dcdea7699f89900998476c01a0b9b8c93b82c48798c0",
       "flows": null,
       "reason": "informational",
       "detail": "Requirements table; no player action."
@@ -1015,7 +1015,7 @@
       "title": "The top panel",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "20fdf6a7fdcd9b5d03bcbb728eb293e168a3b05f7ed58f63d8b9ff8e68313292",
+      "sha256": "528a8967a50487992440d33611d92a7566c52fa45b9fb8fae3c53522cc980853",
       "flows": null,
       "reason": "informational",
       "detail": "Annotated physical control map; per-control actions are assigned under Browse section keys and Deck keys."
@@ -1025,7 +1025,7 @@
       "title": "Browse section keys",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "6f79a778b4268f62a3afef0c5025c0566f2de9f1ea988586e4c1f20507b7dd82",
+      "sha256": "a3fc1ebdcd06c9d16921573ceb769c6b65e887e37a766ebd841e26751f2480c6",
       "flows": [
         "b-browse-keys",
         "encoder-settings",
@@ -1038,7 +1038,7 @@
       "title": "The button above LINK",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "beb249bb978e3a6271c19e16183681bfb633b96eb5facc22637b1bd08201ae4b",
+      "sha256": "7bf26ba9d71e95d219cf32abb342db1cdee87bf557df54f8846eddcafcfaf5c6",
       "flows": [
         "physical-above-link",
         "above-link-button",
@@ -1051,7 +1051,7 @@
       "title": "LINK and the VJ.Tools view",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "e920e6415edf1693c469f4bdfa06e87e97b456e30d55c2dedcef7c457193a7ab",
+      "sha256": "6246223946a22e53c8ead8312eead8fded49f4a1517b54aa42b332a3db34b112",
       "flows": [
         "vj-tools"
       ],
@@ -1062,7 +1062,7 @@
       "title": "Deck keys",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "3a8d44a2f9c6f5570111fca37dfb4f4d2d000187826e5fdfd3dfccd637d00350",
+      "sha256": "8f2b4cb5f3e50ac03bc61d04b856b58805627b3643da10685d54331d72809223",
       "flows": [
         "b-master-tempo",
         "physical-key-sync",
@@ -1078,7 +1078,7 @@
       "title": "Performance pads",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "80b0ca9e8f30428f85233e5841da32d3313eb35ece1aa5588f37181675d99701",
+      "sha256": "555f8966ed7ba4e64eb025cb3d76235ceb675928c47451e1758896ad968c9ada",
       "flows": [
         "physical-pad-mode-pages"
       ],
@@ -1089,7 +1089,7 @@
       "title": "Stem pads",
       "level": 3,
       "chapter": "hardware.md",
-      "sha256": "9573429cd2836ea4968a856c9dbac81eead13c4ac79ebb9d7d610c0c5d27fae5",
+      "sha256": "e12ad74fb2a76e5d59b1fcea8cc7c0f890d276085061360ca5ae1b0390e3fb90",
       "flows": [
         "stem-pads-values",
         "physical-stem-pads"
@@ -1101,7 +1101,7 @@
       "title": "Pad lights",
       "level": 3,
       "chapter": "hardware.md",
-      "sha256": "fd4ac0bffc98162fc57eb16f5621448711bd6278418ecfcb0a0de4f4ad023ab6",
+      "sha256": "0863b58709f16769a1c2e378d4621b4f37592d2ca106c07993a398963585d769",
       "flows": [
         "stem-pads-values",
         "physical-pad-mode-pages"
@@ -1125,7 +1125,7 @@
       "title": "When a control does not respond",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "5efc473d3332159c40137f0d42c61e2f9d9313a815ed6dc15d8146d0bdc33b2e",
+      "sha256": "92ec36a29e43de43d607b3def90e50cea2218e61427c7e9ef2d1a24c6d4c22fc",
       "flows": [
         "b-browse-keys",
         "above-link-button-values",
@@ -1138,7 +1138,7 @@
       "title": "Open and close MODS",
       "level": 2,
       "chapter": "mods-menu.md",
-      "sha256": "be92e361b7fe8ed0d3d36509451ad2a26d1a4b9e2dcd4c2a2bd376c811df7601",
+      "sha256": "6ca9bbf461fb81e1a00ad78561b418ce6fed430221d30431a7bf43ef11d31512",
       "flows": [
         "menu-close"
       ],
@@ -1243,7 +1243,7 @@
       "title": "UTILITY, the player's own settings",
       "level": 2,
       "chapter": "mods-menu.md",
-      "sha256": "92a2d4a3bafa2d511a5db1269f9b2fff306d00318002be87806e4ab352b25477",
+      "sha256": "b3aff798ecca89173447268a31422f7b01e0c665708288cb3d01ad5f7b4d2bab",
       "flows": [
         "utility"
       ],
@@ -1254,7 +1254,7 @@
       "title": "MODERN UTILITY {modern}",
       "level": 3,
       "chapter": "mods-menu.md",
-      "sha256": "41ad4948291e5cb3a983e46edbc0d7d51c3fab4ac3b02f0fe61a06c2ed18d488",
+      "sha256": "8e4c2bfc7781de2b9cf6541307988a11225cc3acad9d9a66e423872c1b325d9e",
       "flows": [
         "needle-lock",
         "utility"
@@ -1313,7 +1313,7 @@
       "title": "Beat jump",
       "level": 2,
       "chapter": "performance.md",
-      "sha256": "28dafd661adca0a12ade5c8d1fbbf3399dd98c7fa67560c9b2e991538ec47387",
+      "sha256": "6e51b1789d62220191298886a4c2a843c000bed51c1a17d79e9fbf053fd49afb",
       "flows": [
         "beat-jump",
         "physical-beat-jump"
@@ -1392,7 +1392,7 @@
       "title": "From the deck",
       "level": 3,
       "chapter": "performance.md",
-      "sha256": "0ae97d36204defc7bd70f74c0143db83c8fcb37adec0e06a9571a825d6c75771",
+      "sha256": "fce76f1de956e0ad2c1e0dd92b75c75be895c77e0cdf95e5042fe6e589f4ae32",
       "flows": [
         "physical-key-sync"
       ],
@@ -1470,7 +1470,7 @@
       "title": "Quantize",
       "level": 2,
       "chapter": "performance.md",
-      "sha256": "d0163c34cc4e42332db31412bb9ce15fd28e050a8201e683d63289541ce85db9",
+      "sha256": "155e3778546cf0e4bc2ba6436dd6fa5801b1d8ce42bc6a10fc30c2d1f6c8f8f0",
       "flows": [
         "physical-quantize"
       ],
@@ -1570,7 +1570,7 @@
       "title": "The CLASSIC play screen {classic}",
       "level": 2,
       "chapter": "play-screen.md",
-      "sha256": "5c0dfee3ed210373167a66d3ef9ce762f5eeb111232f75113528bed461dad306",
+      "sha256": "a4920febfe72a9c044e0be962f17c74e592bb76136eb302f57b5b7f0176b647b",
       "flows": [
         "classic-stems",
         "nav-a-classic-four"
@@ -1615,7 +1615,7 @@
       "title": "MODERN and CLASSIC",
       "level": 2,
       "chapter": "screen-and-themes.md",
-      "sha256": "b0bda868ff2f800fa9484d5c7d366de8be25b96cb0296e06b5f835027ff698be",
+      "sha256": "b6c8d246b01cd30f66fa008958f73aaeb957d181e5b9ff157b6ceaa7af8fa128",
       "flows": [
         "interface-choice",
         "physical-above-link"
@@ -1653,7 +1653,7 @@
       "title": "MODERN look {modern}",
       "level": 2,
       "chapter": "screen-and-themes.md",
-      "sha256": "397c91a14fba552aa994fab4fbfb214623e97d6992277c6c394caf60d7eea644",
+      "sha256": "2f658ea10ad5213f73e9b10c2e27d8814e7fe63d667820c0cf451a6b7a08eb29",
       "flows": [
         "lamps-and-titles",
         "lamps-and-titles-all"
@@ -1950,7 +1950,7 @@
       "title": "If the player will not start with the USB",
       "level": 2,
       "chapter": "troubleshooting.md",
-      "sha256": "016f7a26d0acf19148e4734f48bc4c0ce8ffbfc4dd66b03a91db004233b2634b",
+      "sha256": "9f0f66e25b91d9cab1e6be538f08b0ef4a3b5471a43f7546938ded865fe2b664",
       "flows": [
         "updates",
         "b-first-menu"
@@ -2017,20 +2017,20 @@
       "title": "The player's own warnings",
       "level": 2,
       "chapter": "troubleshooting.md",
-      "sha256": "d24c5a90202347eafb24650021749b14f47b1520d24ab7f34016905c1bc1a7d7",
+      "sha256": "a59352b72aed5f1222e120c8ed794f86c14d6fb5d8d48b1e31325ce30eeddac0",
       "flows": null,
       "reason": "closed_stock_firmware",
       "detail": "The closed stock firmware owns this screen or operation."
     },
     {
-      "section": "troubleshooting#e-8307-hubs-are-not-supported",
-      "title": "E-8307: HUBS ARE NOT SUPPORTED",
+      "section": "troubleshooting#loopback-cable-connected",
+      "title": "LOOPBACK CABLE CONNECTED",
       "level": 3,
       "chapter": "troubleshooting.md",
-      "sha256": "9842705bdaef1652921279d8e53199e684b74d6d7dd5c80e3b9709539f75003a",
+      "sha256": "d892f5263ddf4ef9887d03b36c5f1e70bc3dd41448ecf29ba7853c956ea6092e",
       "flows": null,
       "reason": "informational",
-      "detail": "Explains automatic warning suppression and the cable card; no player action in this section. Actual cable detection needs hardware."
+      "detail": "Explains the cable card; no player action in this section. Actual cable detection needs hardware."
     },
     {
       "section": "troubleshooting#when-settings-cannot-be-saved",

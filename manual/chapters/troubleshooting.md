@@ -7,13 +7,13 @@ This chapter lists every message XZ Mods can show you, what it means and the one
 
 ## If the player will not start with the USB
 
-XZ Mods never changes the player's firmware, so the player always starts stock without the USB.
+XZ Mods runs from the USB. Without the USB the player starts as it was.
 
 ```nav updates If the player will not start with the USB
 ```
 
 1. Switch the player off.
-2. Remove the XZ Mods USB and switch the player on. It starts stock. Play from a stick without XZ Mods if you are in a set.
+2. Remove the XZ Mods USB and switch the player on. It starts without XZ Mods. Play from a stick without XZ Mods if you are in a set.
 3. On your computer, open the USB in the XZ Mods app. If it says **Update available**, choose **Update USB**. If it says **Up to date**, open **Updates** › **XZ Mods version** › **Restore or update a loader by hand** and update the loader again. The app keeps a backup of the old loader each time.
 4. Try the USB again. If it still does not start, [report the problem](#report-a-problem).
 
@@ -132,20 +132,20 @@ modern:play-4deck-alert-deck3 The same error on deck 3, with four decks
 
 ## The player's own warnings
 
-The player sometimes raises its own warning window, for example about a USB or a device. A warning never takes the screen or the controls away from XZ Mods.
+The player sometimes raises its own warning window, for example about a USB or a device. XZ Mods shows it and keeps working.
 
 - **MODERN.** The play screen says the warning once, in the player's own words, for example **E-8307: USB ACCESS ERROR**. Browse, the decks and every control keep working.
 - **MODS, in either interface.** MODS stays open on the same page. The strip at the top of the dock turns red with the warning's code and text, and **REPORT THIS**. The strip goes when the warning does.
-- **CLASSIC with MODS closed.** The player's window shows as on a stock XDJ-XZ. Touches, keys and the encoder go to the player until it closes the window.
+- **CLASSIC with MODS closed.** CLASSIC shows the player's window. Touches, keys and the encoder go to the player until it closes the window.
 
 ```figure classic:theme-{look}-support-strip MODS · dock
 A player warning in the dock while MODS is open.
 1 @ 40,447 Warning | The player's code and text.
 ```
 
-### E-8307: HUBS ARE NOT SUPPORTED
+### LOOPBACK CABLE CONNECTED
 
-The player sees the loopback cable for four decks as a hub. It raises **E-8307: HUBS ARE NOT SUPPORTED** or **E-8307: UNSUPPORTED DEVICE** and keeps it up while the cable is in. It is not an error, so XZ Mods never shows it: MODERN and MODS show nothing, and in CLASSIC the player's window turns into a calm **LOOPBACK CABLE CONNECTED** card. See [Four decks](four-decks#the-e-8307-hub-warning).
+With the loopback cable in, CLASSIC shows a **LOOPBACK CABLE CONNECTED** card, and decks 3 and 4 work as described in [Four decks](four-decks#the-loopback-cable-connected-card).
 
 ## When settings cannot be saved
 
