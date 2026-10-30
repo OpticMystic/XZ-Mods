@@ -8,8 +8,8 @@ parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--zig", required=True)
 args=parser.parse_args()
 zig=str(Path(args.zig).resolve())
-root = Path(__file__).resolve().parents[4]
-source = (root / 'packages/xdj-xz-toolkit/vendor/tools/xz_runtime/xz_directfb_hook.c').read_text()
+root = Path(__file__).resolve().parents[2]  # the toolkit: packages/xdj-xz-toolkit in the monorepo, source/xdj-xz-toolkit here
+source = (root / 'vendor/tools/xz_runtime/xz_directfb_hook.c').read_text()
 
 def extract(signature):
     start = source.index(signature)
@@ -155,7 +155,7 @@ build=Path(temporary.name)
 test=build/'mods_bridge_test.c'
 test.write_text(declarations+functions+checks)
 subprocess.run([zig,'cc','-O2','-UNDEBUG','-Wall','-Wextra','-Werror',
- '-I',str(root/'packages/xdj-xz-toolkit/vendor/tools/xz_runtime'),str(test),'-o',str(build/'mods_bridge_test.exe')],check=True)
+ '-I',str(root/'vendor/tools/xz_runtime'),str(test),'-o',str(build/'mods_bridge_test.exe')],check=True)
 subprocess.run([str(build/'mods_bridge_test.exe')],check=True)
 
 # Bind readiness must describe a bound socket, never merely a launched thread.

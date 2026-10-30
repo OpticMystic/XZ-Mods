@@ -32,7 +32,8 @@ with tempfile.TemporaryDirectory(prefix='xz-feedback-profile-') as tmp:
     subprocess.run([str(a.zig),'cc','-O2','-std=c11','-UNDEBUG','-Wall','-Wextra','-Werror','-I',str(root),str(c),str(root/'ui/beat_jump.c'),'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)
 schema=json.loads((root/'settings-schema.json').read_text())
-assert schema['accepted_field_counts']==[8,9,10,11,12,22,23,24,30,33,34,35,36,37,38,41,43]
+# Every settings block added after key_feedback (field 34) keeps the counts before it valid.
+assert schema['accepted_field_counts'][:17]==[8,9,10,11,12,22,23,24,30,33,34,35,36,37,38,41,43]
 byname={f['key']:f for f in schema['fields']}
 field=byname['key_feedback'];assert (field['default'],field['min'],field['max'])==(1,0,1)
 retired=schema['retired_fields']

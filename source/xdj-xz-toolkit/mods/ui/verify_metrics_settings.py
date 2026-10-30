@@ -7,7 +7,7 @@ import subprocess
 p=argparse.ArgumentParser(description=__doc__);p.add_argument('--zig',type=Path,required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args()
 root=Path(__file__).resolve().parents[1]
 out=a.output.resolve();out.mkdir(parents=True,exist_ok=True)
-text=(root/'settings.c').read_text();start=text.index('void xz_settings_default(');end=text.index('static int paths(')
+text=(root/'settings.c').read_text();start=text.index('int xz_settings_look(');end=text.index('static int paths(')
 source='''#include "settings.h"
 #include "ui/themes.h"
 #include "ui/wave_viewport.h"

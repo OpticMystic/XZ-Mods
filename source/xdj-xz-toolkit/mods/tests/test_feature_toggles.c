@@ -11,7 +11,7 @@ int main(void) {
  assert(xz_settings_format(&old,text,sizeof(text))>0);
  assert(strstr(text,"shift_pages=0\n")&&strstr(text,"shift_keysync=0\n"));
  assert(strstr(text,"jump_shift_page=0\n")&&strstr(text,"ram_debug=0\n")&&strstr(text,"metrics_enabled=0\n"));
- assert(!xz_settings_parse_present(text,&loaded,&present)&&present==57); /* every field of the current record */
+ assert(!xz_settings_parse_present(text,&loaded,&present)&&present==58); /* every field of the current record (58 with controller_locale) */
  assert(loaded.shift_pages&&loaded.shift_keysync&&loaded.jump.shift_page&&loaded.ram_debug&&loaded.metrics_enabled&&!loaded.jump.enabled);
  current=old;assert(!xz_settings_overlay(&current,&old,43));
  assert(current.shift_pages&&current.shift_keysync&&current.jump.shift_page&&current.ram_debug&&current.metrics_enabled&&!current.jump.enabled);

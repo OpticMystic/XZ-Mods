@@ -29,14 +29,14 @@ static void display_and_bands(void) {
  assert(s.modern_wave_color==2&&!s.wave_position&&!s.key_display&&s.wave_zoom==3&&!s.usb_colors&&!s.hidden_parts);
  for(int band=0;band<3;band++)for(int choice=0;choice<XZ_BAND_COLOR_CHOICES;choice++){
   s.band_colors[band]=choice;assert(xz_settings_format(&s,wire,sizeof wire)>0);
-  assert(!xz_settings_parse_present(wire,&got,&present)&&present==57&&got.band_colors[band]==choice);
+  assert(!xz_settings_parse_present(wire,&got,&present)&&present==58&&got.band_colors[band]==choice);
  }
  s.modern_wave_color=3;s.wave_position=1;s.key_display=2;s.wave_zoom=6;s.usb_colors=2;s.hidden_parts=15|XZ_HIDE_FOUR_STEMS;
  assert(xz_settings_format(&s,wire,sizeof wire)>0);
- for(unsigned fields=47;fields<=57;fields++){
+ for(unsigned fields=47;fields<=58;fields++){ /* 58: controller_locale */
   strcpy(cut,wire);char *line=cut;
   for(unsigned i=0;i<=fields;i++){line=strchr(line,'\n');assert(line);line++;}*line=0;
-  if(fields!=47&&fields!=50&&fields!=56&&fields!=57){assert(xz_settings_parse(cut,&got)<0);continue;}
+  if(fields!=47&&fields!=50&&fields!=56&&fields!=57&&fields!=58){assert(xz_settings_parse(cut,&got)<0);continue;}
   assert(!xz_settings_parse_present(cut,&got,&present)&&present==fields);
   if(fields==47)assert(!got.band_colors[0]);
   if(fields<56)assert(got.modern_wave_color==2&&got.wave_zoom==3&&!got.hidden_parts);
@@ -66,7 +66,7 @@ static void display_and_bands(void) {
  s.rekordbox_press=s.rekordbox_shift=6;s.rekordbox_menu=0;s.modern_browse_columns=2047;
  for(int i=0;i<3;i++)s.stem_colors[i]=s.band_colors[i]=8;
  int n=xz_settings_format(&s,wire,sizeof wire);assert(n>0&&n<=1023&&(size_t)n==strlen(wire));
- assert(!xz_settings_parse_present(wire,&got,&present)&&present==57&&!memcmp(&s,&got,sizeof s));
+ assert(!xz_settings_parse_present(wire,&got,&present)&&present==58&&!memcmp(&s,&got,sizeof s));
  assert(xz_settings_format(&got,again,sizeof again)==n&&!strcmp(wire,again));
  printf("PASS band/display blocks: defaults, choices, partial-block rejection, overlay, ranges, max record %d/1023 bytes round-trip\n",n);
 }
@@ -82,7 +82,7 @@ int main(void) {
  s.ui_interface=XZ_INTERFACE_CLASSIC;s.classic_theme=11;s.theme=0;
  assert(xz_settings_format(&s,text,sizeof text)>0);
  assert(strstr(text,"\ntheme=11\n")&&strstr(text,"\ninterface=0\nclassic_theme=11\nmodern_theme=0\n"));
- assert(!xz_settings_parse_present(text,&loaded,&present)&&present==57);
+ assert(!xz_settings_parse_present(text,&loaded,&present)&&present==58);
  assert(loaded.ui_interface==XZ_INTERFACE_CLASSIC&&loaded.classic_theme==11&&loaded.theme==11);
  s.ui_interface=XZ_INTERFACE_MODERN;
  assert(xz_settings_format(&s,text,sizeof text)>0&&strstr(text,"\ntheme=24\n"));
@@ -113,7 +113,7 @@ int main(void) {
   assert(current.ui_interface==(theme==XZ_THEME_FLAGSHIP?XZ_INTERFACE_MODERN:XZ_INTERFACE_CLASSIC));
   /* Saving the migrated settings round-trips through the new format. */
   assert(xz_settings_format(&current,text,sizeof text)>0);
-  assert(!xz_settings_parse_present(text,&loaded,&present)&&present==57);
+  assert(!xz_settings_parse_present(text,&loaded,&present)&&present==58);
   assert(loaded.ui_interface==current.ui_interface&&loaded.classic_theme==current.classic_theme&&loaded.theme==current.theme);
  }
  /* A record shorter than the theme slot leaves the appearance as it is. */
