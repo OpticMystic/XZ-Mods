@@ -430,7 +430,14 @@ int main(void){
     int passed=stock_calls;contact(self,40,10,1);contact(self,40,10,0);
     assert(!model.fb_takeover&&stock_calls==passed+2);
     native_play=1;contact(self,40,10,1);contact(self,40,10,0);assert(model.fb_takeover);
-    native_play=0;contact(self,40,10,1);contact(self,40,10,0);assert(!model.fb_takeover);
+    /* Off the play screen EXIT VJ is there only while the view shows (VJ.Tools linked); with the preference alone
+       the heading keeps its corner. */
+    struct xz_ui_connection saved_link=model.connection;model.connection.enabled=model.connection.connected=0;
+    native_play=0;passed=stock_calls;contact(self,40,10,1);contact(self,40,10,0);
+    assert(model.fb_takeover&&stock_calls==passed+2);
+    model.connection.enabled=model.connection.connected=network_enabled=network_connected=1;
+    contact(self,40,10,1);contact(self,40,10,0);assert(!model.fb_takeover);
+    network_enabled=network_connected=0;model.connection=saved_link;
     /* STEM PADS: STEMS ON PADS A-D / PADS E-H chooses a bank without muting audio or editing jumps. */
     for(int theme=0;theme<XZ_THEME_COUNT;theme++){
         ui.page=XZ_UI_STEM_PADS;model.theme=theme;

@@ -78,9 +78,13 @@ static void two_pair_runtime_check(void *self){
     fixture_two_pair=0;assert(xz_mods_render_v1(frame_pixels,800,480,800,NULL));
     assert(fixture_pair_frames==2&&!fixture_pair_frame_pair&&!fixture_pair_frame_eligible&&badge_frame_cache.dv_pair==0);
     fixture_two_pair=1;touch.visible=1;xz_mods_render_v1(frame_pixels,800,480,800,NULL);assert(fixture_pair_frames==2);
-    touch.visible=0;model.fb_takeover=1;xz_mods_render_v1(frame_pixels,800,480,800,NULL);
-    assert(fixture_pair_frames==3&&!fixture_pair_frame_eligible);model.fb_takeover=0;
-    xz_deck_layout_set(XZ_LAYOUT_FOUR);xz_mods_render_v1(frame_pixels,800,480,800,NULL);assert(fixture_pair_frames==3);
+    /* A takeover on screen is the VJ.TOOLS view with VJ.Tools linked; the view preference alone changes nothing. */
+    touch.visible=0;model.fb_takeover=1;fb_takeover_active=network_enabled=network_connected=1;
+    xz_mods_render_v1(frame_pixels,800,480,800,NULL);
+    assert(fixture_pair_frames==3&&!fixture_pair_frame_eligible);network_enabled=network_connected=0;
+    xz_mods_render_v1(frame_pixels,800,480,800,NULL);
+    assert(fixture_pair_frames==4&&fixture_pair_frame_eligible);model.fb_takeover=fb_takeover_active=0;
+    xz_deck_layout_set(XZ_LAYOUT_FOUR);xz_mods_render_v1(frame_pixels,800,480,800,NULL);assert(fixture_pair_frames==4);
     xz_deck_layout_set(XZ_LAYOUT_TWO);
     puts("PASS 2 DECKS pair overlay: the pair frame and DECKS button follow the painted pair, not over MODS, a takeover or four-deck views");
 

@@ -257,6 +257,19 @@ static int wave_rider_previous_takeover,lab_previous_takeover;
 struct xz_arcade_proof {uint32_t version,frames,inputs,phase,mode,live,deck;float bpm,x,y;};
 __attribute__((visibility("default"))) struct xz_arcade_proof xz_arcade_proof_v1={.version=1};
 static int network_enabled, network_connected;
+/* fb_takeover_active mirrors model.fb_takeover: the VJ.TOOLS view PREFERENCE (saved on the USB, fb_takeover=). The
+   view is only on screen while VJ.Tools is linked, which is what the receiver shows (xz_mods_takeover_v1), or while
+   Doom runs (it forces the preference on for its lifetime). Every reader that means "the takeover is on screen"
+   asks these two, lock-free. Until 2026-10-30 they read the preference: a USB with the VJ.TOOLS view on and no PC
+   linked kept MODERN ineligible from boot (stuck on CLASSIC, the button above LINK flipped a preference nothing
+   showed), and CLASSIC's busy frames skipped the cached top row. */
+static int takeover_link_shown(void){
+    return __atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE)&&__atomic_load_n(&network_enabled,__ATOMIC_ACQUIRE)&&
+        __atomic_load_n(&network_connected,__ATOMIC_ACQUIRE);
+}
+static int takeover_on_screen(void){
+    return takeover_link_shown()||__atomic_load_n(&doom_phase,__ATOMIC_ACQUIRE)!=0||xz_doom_running();
+}
 static char device_ip[16];
 static struct xz_stem_pads pads;
 static struct xz_jump_state jump_state;
@@ -1911,7 +1924,7 @@ static int shell_input_cached;
 static int shell_eligible_locked(void){
     /* MODS (the shell's own in MODERN) opens over the VJ takeover, as the panel does in CLASSIC. */
     return !touch.visible&&game_locked()==GAME_NONE&&!xz_doom_running()&&
-        (!__atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE)||(xz_shell_runtime_mods_open&&xz_shell_runtime_mods_open()));
+        (!takeover_on_screen()||(xz_shell_runtime_mods_open&&xz_shell_runtime_mods_open()));
 }
 static int shell_owns_locked(void){return xz_shell_runtime_owns&&shell_eligible_locked()&&xz_shell_runtime_owns();}
 static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
@@ -2081,7 +2094,7 @@ static enum game game_locked(void);
 static enum xz_menu_place classic_menu_place_locked(void){
     if(touch.visible)return XZ_MENU_AT_MODS;
     if(game_locked()!=GAME_NONE||xz_doom_running())return XZ_MENU_AT_GAME;
-    if(model.fb_takeover)return XZ_MENU_AT_TAKEOVER;
+    if(takeover_on_screen())return XZ_MENU_AT_TAKEOVER;
     if(!xz_native_play_visible())return XZ_MENU_AT_OTHER;
     int play=xz_shell_runtime_stock_play?xz_shell_runtime_stock_play():-1;
     return play==0?XZ_MENU_AT_STOCK_MENU:XZ_MENU_AT_PLAY;
@@ -2901,7 +2914,7 @@ static int dv_card_current(uint32_t word,int view){
     return state==XZ_NATIVE_CARD_STATE(word);
 }
 static int dv_eligible(void){
-    return model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&!touch.visible&&!model.fb_takeover&&game_locked()==GAME_NONE&&xz_native_play_visible();
+    return model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&!touch.visible&&!takeover_on_screen()&&game_locked()==GAME_NONE&&xz_native_play_visible();
 }
 /* The deck whose stem row lies under (x,y) on the two-deck play screen, else -1. OUTER layouts put deck 1's
    row at the top of the waveform, under the DECKS button's touch band; the row keeps its touches there. */
@@ -3025,7 +3038,7 @@ static int play_key_touch_locked(void *self,const struct xz_touch_status *status
         __atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);xz_native_skin_request_repaint();return 1;
     }
     if(!play_key.open&&!play_key.down){
-        if(touch.visible||model.fb_takeover||game_locked()!=GAME_NONE||!fresh||previous_down||
+        if(touch.visible||takeover_on_screen()||game_locked()!=GAME_NONE||!fresh||previous_down||
            inline_contact||inline_wave_contact||four_contact||mixer_contact.active||touch.capture)return 0;
         if(shell_owns_locked()){
             if(xz_shell_runtime_key_hit)deck=xz_shell_runtime_key_hit((int)status->x,(int)status->y,&source_frame);
@@ -3251,8 +3264,8 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
     if(shell_touch_locked(self,status,mode)){pthread_mutex_unlock(&ui_mutex);return;}
     sdk_refresh();pc_refresh_locked();
     if(touch.visible||model.deck[0].pc_stems.source!=XZ_UI_SOURCE_PC||model.deck[1].pc_stems.source!=XZ_UI_SOURCE_PC)refresh_local();
-    touch.vj_btn_w=(model.fb_takeover||xz_native_play_visible())?XZ_TOP_VJ_W:0;
-    touch.reach=xz_native_play_visible()&&!model.fb_takeover?XZ_TOP_BAR_DEEP_H:XZ_TOP_BAR_TOUCH_H;
+    touch.vj_btn_w=(takeover_on_screen()||xz_native_play_visible())?XZ_TOP_VJ_W:0;
+    touch.reach=xz_native_play_visible()&&!takeover_on_screen()?XZ_TOP_BAR_DEEP_H:XZ_TOP_BAR_TOUCH_H;
     int previous_down=((const unsigned char *)self)[4]!=0;
     if(shortcut_touch(self,status,mode,previous_down)){pthread_mutex_unlock(&ui_mutex);return;}
     if(browse_head_touch(status,previous_down)){pthread_mutex_unlock(&ui_mutex);return;}
@@ -3398,7 +3411,7 @@ __attribute__((visibility("default"))) int xz_mods_visible_v1(void) {
    the receiver can skip copying its base frame under it. */
 __attribute__((visibility("default"))) int xz_mods_full_frame_v1(void) {
     if(stock_dialog_up())return 0;
-    return !__atomic_load_n(&visible, __ATOMIC_ACQUIRE)&&!__atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE)&&
+    return !__atomic_load_n(&visible, __ATOMIC_ACQUIRE)&&!takeover_on_screen()&&
         xz_shell_runtime_owns&&xz_shell_runtime_owns();
 }
 
@@ -3408,9 +3421,7 @@ __attribute__((visibility("default"))) int xz_mods_native_touch_v1(void) {
 
 __attribute__((visibility("default"))) int xz_mods_takeover_v1(void) {
     if(stock_dialog_up())return 0;
-    return __atomic_load_n(&fb_takeover_active, __ATOMIC_ACQUIRE) &&
-        __atomic_load_n(&network_enabled, __ATOMIC_ACQUIRE) &&
-        __atomic_load_n(&network_connected, __ATOMIC_ACQUIRE);
+    return takeover_link_shown();
 }
 
 /* Native Shortcut screen: window index 29 with the shortcut controller alive. */
@@ -3467,11 +3478,12 @@ static int shortcut_touch(void *self, const struct xz_touch_status *status, cons
     return 1;
 }
 static void badge(uint16_t *pixels, uint32_t stride) {
+    int shown=takeover_on_screen();
     __atomic_store_n(&xz_mods_key_feedback_proof_v1.enabled,!!model.key_feedback,__ATOMIC_RELAXED);
     shortcut_wave(pixels, stride);
     int play=xz_native_play_visible();
-    if(model.theme==XZ_THEME_LCARS&&play&&!model.fb_takeover)xz_ui_render_lcars_play_header(pixels,stride);
-    if(!model.fb_takeover){
+    if(model.theme==XZ_THEME_LCARS&&play&&!shown)xz_ui_render_lcars_play_header(pixels,stride);
+    if(!shown){
         /* Each surface draws only when its stock pixels are on this frame (see key_strip.h). */
         for(int deck=0;deck<2;deck++) {
             if(xz_key_strip_render_deck(pixels,stride,model.theme,deck,&key_strip[deck],model.key_feedback)) {
@@ -3492,18 +3504,18 @@ static void badge(uint16_t *pixels, uint32_t stride) {
             head_shown=interactive;__atomic_add_fetch(&xz_mods_key_strip_proof_v1.head_drawn,1,__ATOMIC_RELAXED);
         }
     }else head_shown=0;
-    if(!model.fb_takeover)xz_ui_render_ram_debug(pixels,stride,model.theme,model.ram_debug&&!model.metrics_enabled,model.ram_debug_valid,model.ram_free_mib);
+    if(!shown)xz_ui_render_ram_debug(pixels,stride,model.theme,model.ram_debug&&!model.metrics_enabled,model.ram_debug_valid,model.ram_free_mib);
     xz_ui_notice_restore(&notice_pixels,pixels,stride);
     xz_ui_render_native_buttons(pixels,stride,model.theme,xz_classic_stems_lamp(model.stems_overlay,xz_deck_layout_get()!=XZ_LAYOUT_TWO),
-        model.connection.enabled&&model.connection.connected&&(model.fb_takeover||play),model.fb_takeover);
+        model.connection.enabled&&model.connection.connected&&(shown||play),shown);
     badge_frame_cache.notice=async_notice;
-    if(!model.fb_takeover)xz_ui_notice_badge(pixels,stride,model.theme,&async_notice,xz_game_milliseconds(),&notice_pixels);
+    if(!shown)xz_ui_notice_badge(pixels,stride,model.theme,&async_notice,xz_game_milliseconds(),&notice_pixels);
     xz_metrics_draw(pixels,stride,model.theme,model.metrics_enabled,&model.metrics,xz_game_milliseconds());
     struct xz_extra_decks extra;int have_extra=play_key_extra_locked(&extra);
-    xz_classic_key_render(&classic_keys,&model,classic_key_extra(&extra,have_extra),play&&!model.fb_takeover,
+    xz_classic_key_render(&classic_keys,&model,classic_key_extra(&extra,have_extra),play&&!shown,
         xz_native_four_order(),pixels,stride);
     dv.painted=0;badge_frame_cache.dv=0;
-    if(play&&!model.fb_takeover&&model.ui_interface==XZ_UI_INTERFACE_CLASSIC){
+    if(play&&!shown&&model.ui_interface==XZ_UI_INTERFACE_CLASSIC){
         /* DECK VIEW: the button in every view, decks 3 and 4 grey while their route is down; the open picker. */
         uint32_t now=xz_game_milliseconds();
         int view=xz_deck_view_valid(xz_deck_layout_get()),ready=have_extra&&extra.route_up;
@@ -3626,12 +3638,12 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
         __atomic_add_fetch(&xz_mods_key_present_proof_v1.busy,1,__ATOMIC_RELAXED);
         /* The shell needs nothing from the UI model for one frame: draw it from the previous input. */
         if(shell_input_cached&&xz_shell_runtime_frame&&xz_shell_runtime_owns&&xz_shell_runtime_owns()&&
-           !__atomic_load_n(&visible,__ATOMIC_ACQUIRE)&&!__atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE)){
+           !__atomic_load_n(&visible,__ATOMIC_ACQUIRE)&&!takeover_on_screen()){
             shell_input_cache.cached=1;
             return xz_shell_runtime_frame(pixels,stride,&shell_input_cache)>0;
         }
         if(!__atomic_load_n(&visible,__ATOMIC_ACQUIRE)&&
-           !__atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE)&&!(xz_shell_runtime_owns&&xz_shell_runtime_owns())) {
+           !takeover_on_screen()&&!(xz_shell_runtime_owns&&xz_shell_runtime_owns())) {
             int drawn=0;
             uint32_t scene;
             if(badge_frame_cache.valid&&!xz_read_memory(0x3c6fc7c,&scene,4)&&scene==badge_frame_cache.scene) {
@@ -3695,6 +3707,12 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
         model.connection.frame_hz = connection->frame_hz_milli / 1000.0f;
         model.connection.status = "CONNECTION SERVICE CONFIGURED BY THE MOD LOADER";
     }
+    /* The link coming or going moves the screen between the takeover and MODERN or CLASSIC: stock repaints the
+       whole frame it gets back (the shell's own hand-back does the same in set_owns). */
+    {
+        static int shown_before;int shown=takeover_on_screen();
+        if(shown!=shown_before){shown_before=shown;xz_native_skin_request_repaint();}
+    }
     if(shell_path){
         /* The shell renders under its own mutex only: pads, keys, the encoder and touch never wait
            on ui_mutex for a frame. 0 = it gave the screen up during this call; draw the usual way. */
@@ -3744,23 +3762,23 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
     else if (touch.visible) { model.clock_ms = xz_game_milliseconds(); counter_errors_locked(); result = xz_ui_render(&ui, &model, pixels, (size_t)stride * height, stride); }
     else if (xz_shell_runtime_frame&&(shell=xz_shell_runtime_frame(pixels,stride,&shell_input))!=0) result = shell>0;
     else {
-        xz_key_frame_cache_store(&key_frame_cache,model.theme,model.key_feedback,model.fb_takeover,key_strip);
-        badge_frame_cache.valid=!model.fb_takeover&&!xz_read_memory(0x3c6fc7c,&badge_frame_cache.scene,4);
+        xz_key_frame_cache_store(&key_frame_cache,model.theme,model.key_feedback,takeover_on_screen(),key_strip);
+        badge_frame_cache.valid=!takeover_on_screen()&&!xz_read_memory(0x3c6fc7c,&badge_frame_cache.scene,4);
         badge_frame_cache.ram_debug=model.ram_debug;badge_frame_cache.ram_valid=model.ram_debug_valid;
         badge_frame_cache.ram_free_mib=model.ram_free_mib;
         badge_frame_cache.metrics_enabled=model.metrics_enabled;badge_frame_cache.metrics=model.metrics;
         badge_frame_cache.theme=model.theme;badge_frame_cache.layout=xz_classic_stems_lamp(model.stems_overlay,xz_deck_layout_get()!=XZ_LAYOUT_TWO);
-        badge_frame_cache.takeover=model.fb_takeover;
+        badge_frame_cache.takeover=takeover_on_screen();
         badge_frame_cache.vj=model.connection.enabled&&model.connection.connected&&xz_native_play_visible();
         badge_frame_cache.shortcut=shortcut_visible();
         badge_frame_cache.selected=model.wave_mode==2?3:model.wave_mode==1?2:shortcut_stock_rgb();
         for(int i=0;i<3;i++)badge_frame_cache.colors[i]=xz_ui_model_stem_color(&model,i);
         badge(pixels,stride);result=1;
-        classic=model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&!model.fb_takeover;
+        classic=model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&!takeover_on_screen();
         classic_mixer_present(pixels,stride,(size_t)stride*height,classic,model.theme,key_strip);
     }
     if(!classic&&xz_classic_mixer_runtime_hide)xz_classic_mixer_runtime_hide();
-    if(result&&!touch.visible&&game_locked()==GAME_NONE&&!model.fb_takeover){
+    if(result&&!touch.visible&&game_locked()==GAME_NONE&&!takeover_on_screen()){
         if(!play_key_source_valid_locked()){play_key.open=0;__atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);}
         struct xz_play_key_view view;play_key_view_locked(&view);
         xz_play_key_render(&play_key,&view,pixels,stride);

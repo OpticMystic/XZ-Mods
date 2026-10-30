@@ -122,7 +122,7 @@ VJ.Tools connected and sending frames. The player still shows its own play scree
 3 @ 310,176 PORT | The port VJ.Tools connects to.
 4 @ 214,210 PROTOCOL | What the link carries. You only need it when you report a problem.
 5 @ 320,243 RECEIVED FPS | Frames per second arriving from VJ.Tools. NOT REPORTED until frames arrive.
-6 @ 290,280 Screen in use | NATIVE PLAY SCREEN ACTIVE, or COMPUTER SCREEN ACTIVE while the VJ.Tools view is on.
+6 @ 290,280 Screen in use | NATIVE PLAY SCREEN ACTIVE, or COMPUTER SCREEN ACTIVE while the VJ.Tools view is on and the computer is connected.
 7 @ 660,70 VJ.TOOLS VIEW | Shows the computer's VJ.Tools screen instead of the player screen.
 8 @ 600,103 SCREEN SWITCH KEY | What switches the VJ.Tools view while you play: LINK or an ONSCREEN button.
 9 @ 700,206 VJ.TOOLS CONNECTION | Lets VJ.Tools on a computer connect to this player.
@@ -140,7 +140,7 @@ classic:theme-0-connection Waiting for VJ.Tools. The link controls are read only
 classic:theme-24-connection Waiting for VJ.Tools. The link controls are read only on this player
 ```
 
-| VJ.TOOLS VIEW | ON, OFF | ON shows the computer's VJ.Tools screen on the player. OFF shows the play screen |
+| VJ.TOOLS VIEW | ON, OFF | ON shows the computer's VJ.Tools screen on the player while VJ.Tools is connected. OFF shows the play screen |
 | SCREEN SWITCH KEY | LINK, ONSCREEN | LINK makes the **LINK** key switch the view. ONSCREEN puts a button for it on the screen. See [Controls on the player](hardware) |
 | VJ.TOOLS CONNECTION | ON, OFF | Lets VJ.Tools connect |
 | DISCOVERABLE | ON, OFF | Lets VJ.Tools find the player without typing its address |
@@ -148,6 +148,8 @@ classic:theme-24-connection Waiting for VJ.Tools. The link controls are read onl
 When a link control shows **READ ONLY**, MODS cannot change it on this player. Pushing it shows **CONTROL IS NOT AVAILABLE**.
 
 To switch the view without opening MODS, use the key you chose under SCREEN SWITCH KEY. You can also give the button above [[LINK]] the job **VJ.TOOLS SCREEN** in **PLAY** › **BUTTON ABOVE LINK**. It needs an enabled, connected VJ.Tools link, and says so when there is none. In CLASSIC, a **VJ.TOOLS** button can appear on the top bar. It reads **EXIT VJ** while the view is on.
+
+With VJ.TOOLS VIEW on and no computer connected, the player shows the interface you chose, MODERN or CLASSIC, and the button above [[LINK]] switches between them as usual. The VJ.Tools screen takes over when the computer connects and gives the screen back when it disconnects.
 
 > **Experimental.** The VJ.Tools view has shown video on the player during development. Long playback and touch while the view is on have not been accepted yet. Keep it off during a set unless you have tested it.
 

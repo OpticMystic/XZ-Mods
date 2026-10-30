@@ -71,8 +71,13 @@ static void busy_buttons(void){
   /* Cached buttons never draw over an open mod panel or takeover. */
   __atomic_store_n(&visible,1,__ATOMIC_RELEASE);pthread_mutex_lock(&ui_mutex);
   assert(!xz_mods_render_v1(busy,800,480,800,NULL));pthread_mutex_unlock(&ui_mutex);
+  /* The takeover is on screen only while VJ.Tools is linked; the VJ.TOOLS view preference alone keeps the
+     cached buttons (2026-10-30: busy CLASSIC frames dropped the top row on a USB with the view on and no PC). */
   __atomic_store_n(&visible,0,__ATOMIC_RELEASE);__atomic_store_n(&fb_takeover_active,1,__ATOMIC_RELEASE);
+  pthread_mutex_lock(&ui_mutex);assert(xz_mods_render_v1(busy,800,480,800,NULL));pthread_mutex_unlock(&ui_mutex);
+  __atomic_store_n(&network_enabled,1,__ATOMIC_RELEASE);__atomic_store_n(&network_connected,1,__ATOMIC_RELEASE);
   pthread_mutex_lock(&ui_mutex);assert(!xz_mods_render_v1(busy,800,480,800,NULL));pthread_mutex_unlock(&ui_mutex);
+  __atomic_store_n(&network_enabled,0,__ATOMIC_RELEASE);__atomic_store_n(&network_connected,0,__ATOMIC_RELEASE);
   __atomic_store_n(&fb_takeover_active,0,__ATOMIC_RELEASE);
  }
  puts("PASS actual busy renderer retains top-right buttons with key feedback on/off and respects panel/takeover");

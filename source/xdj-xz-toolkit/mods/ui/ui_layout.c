@@ -363,7 +363,9 @@ void xz_ui_page_details(const struct xz_ui_scene *s){
    xz_rect(c,X0,y-6,320,1,xz_blend(bg,ink,30));
    label(c,X0,y+4,96,labels[k],1,dim);label(c,X0+104,y,216,values[k],2,k==0&&v->ready&&v->connected?p->accent:ink);
   }
-  label(c,X0,276,320,m->fb_takeover?"COMPUTER SCREEN ACTIVE":"NATIVE PLAY SCREEN ACTIVE",1,m->fb_takeover?p->accent:dim);
+  /* The VJ.TOOLS VIEW preference shows the computer's screen only while it is connected. */
+  {int shown=m->fb_takeover&&m->connection.enabled&&m->connection.connected;
+   label(c,X0,276,320,shown?"COMPUTER SCREEN ACTIVE":"NATIVE PLAY SCREEN ACTIVE",1,shown?p->accent:dim);}
   label(c,468,100,324,"SCREEN SWITCH KEY",1,dim);
   label(c,468,296,324,"OPTIONAL VJ.TOOLS LIBRARY CONNECTION",1,dim);
   label(c,468,312,324,"vj.tools",2,ink);

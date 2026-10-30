@@ -173,7 +173,10 @@ static void menu_table(void){
     /* the probe cannot read: the play scene counts as the play screen */
     fake_stock_play=-1;key(0x20b,0);key(0x20b,2);assert(shown());key(0x20b,0);key(0x20b,2);assert(shut());
     /* the VJ takeover and a game keep MENU as before */
-    model.fb_takeover=1;key(0x20b,0);key(0x20b,2);assert(shut());model.fb_takeover=0;
+    model.fb_takeover=fb_takeover_active=network_enabled=network_connected=1;key(0x20b,0);key(0x20b,2);assert(shut());
+    /* The VJ.TOOLS view preference with no PC linked shows the play screen, so MENU opens MODS there. */
+    network_enabled=network_connected=0;key(0x20b,0);key(0x20b,2);assert(shown());key(0x20b,0);key(0x20b,2);assert(shut());
+    model.fb_takeover=fb_takeover_active=0;
     /* other stock keys are untouched in CLASSIC, MODS open or not */
     calls=fake_global_calls;key(0x209,0);key(0x209,2);assert(shut()&&fake_global_calls==calls+2);
     key(0x20b,0);key(0x20b,2);assert(shown());calls=fake_global_calls;key(0x209,0);key(0x209,2);assert(shown()&&fake_global_calls==calls+2);
