@@ -245,7 +245,7 @@ $('build').onclick=async()=>{
   const volume=$('volume').value,settings=await confirmModSettings(volume,version,origin);if(!settings)return;
   run({method:'build_usb',volume,firmware:$('firmware').value,experimental:true,...version,...settings},'Preparing the USB loader',origin);
 };
-$('download-firmware').onclick=async()=>{const result=await run({method:'download_firmware'},'Getting the official firmware',$('download-firmware'));if(result?.ok)$('firmware').value=result.result.firmware_path;};
+$('download-firmware').onclick=async()=>{const result=await run({method:'download_firmware'},'Getting firmware 1.26',$('download-firmware'));if(result?.ok)$('firmware').value=result.result.firmware_path;};
 if(!invoke){$('browser-note').classList.remove('hidden');busy(false);}
 for(const link of document.querySelectorAll('a[target=_blank]'))link.onclick=async event=>{if(invoke){event.preventDefault();try{await invoke('open_link',{url:link.getAttribute('href')});}catch(error){showError(String(error),link);}}};
 

@@ -19,11 +19,11 @@ window.XZ_SUPPORT_KB = Object.freeze({
     },
     {
       entry_id: 'e8307-loopback-hub', revision: 1, kind: 'NOT_A_BUG', component: 'loopback',
-      title: 'E-8307 HUBS ARE NOT SUPPORTED with the loopback cable',
+      title: 'E-8307 with the loopback cable in',
       need: ['e-8307', 'e8307', '8307', 'hub', 'hubs', 'unsupported device'],
       terms: ['e-8307', 'e8307', '8307', 'hub', 'hubs', 'not supported', 'unsupported', 'warning', 'error', 'loopback', 'cable', 'usb'],
       not: ['access error'],
-      answer: 'The player sees the loopback cable as a hub, so this warning is expected while the cable is in. Play on. If you see it without the loopback cable, a hub or another unsupported device is in a top USB port: remove it.',
+      answer: 'This warning is expected while the loopback cable is in. Play on. If you see it without the loopback cable, a device the player does not support is in a top USB port: remove it.',
       action: null,
       source: 'Manual: Messages and troubleshooting, E-8307'
     },

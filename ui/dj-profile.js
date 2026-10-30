@@ -17,8 +17,8 @@ const IMAGE_FILE=/\.(png|jpe?g)$/i;
 const CONFLICT=/changed since they were loaded|changed while its track was written/;
 const CONFLICT_TEXT="This USB's profiles changed since you opened them. Reload and try again.";
 const TRACK_STEPS=[['where','Where'],['create','Create'],['library','Add it to your library']];
-const TRACK_LIBRARIES=[['device_library','Device library'],['onelibrary','OneLibrary']];
-const TRACK_LEAD='Some newer players block reading extra files from the USB. A profile track is a silent song that carries your name, logos and links, so it reaches them through your DJ software like any other track.';
+const TRACK_LIBRARIES=[['device_library','Device library'],['onelibrary','Newer library format']];
+const TRACK_LEAD='For players that only read tracks, a profile track carries your name, logos and links. It is a silent song, so it goes through your DJ software like any other track.';
 const W=setupWizard.state,pageHost=$('djp-host');
 const P={phase:'no-usb',volume:null,data:null,error:null,saved:null,draft:null,track:null,notes:[]};
 
@@ -560,7 +560,7 @@ function trackLibrary(t){
       el('li',{},'Make a playlist named ',el('b',{text:'DJ PROFILE'}),' and put the track in it.'),
       el('li',{text:'Export the DJ PROFILE playlist to this USB ('+driveName()+').'}),
       el('li',{text:'Leave the USB plugged in and check it here.'})),
-    el('p',{class:'djp-caption',text:'Other DJ apps that export OneLibrary can put the track on the USB too.'}),
+    el('p',{class:'djp-caption',text:'Other DJ apps that export the newer library format can put the track on the USB too.'}),
     pathLine(t.result.path),
     trackCheck(c),
     el('div',{class:'actions'},...actions)];

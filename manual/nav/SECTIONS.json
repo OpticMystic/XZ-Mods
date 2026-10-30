@@ -427,7 +427,7 @@
       "title": "XZ Mods version",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "0d2b660955ea09d114e04c5c61f5bcd71651a3ffca536c05f9fc8ad4bad7967b",
+      "sha256": "0dae9856ed722a8d106d62a56f9d73f35a6c02093b76039f7b52eeec2252bbce",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."

@@ -338,7 +338,7 @@ The saved build choice.
 Lower on the page:
 
 - **Restore or update a loader by hand** updates the loader on a USB you choose and keeps a backup of the old one. Music and saved settings stay in place.
-- **Prepare from a downloaded firmware file** builds the loader from a firmware 1.26 file you choose, into a folder you choose.
+- **Prepare from a firmware 1.26 file** builds the loader from a firmware 1.26 file you choose, into a folder you choose.
 
 **Import a build** takes a prepared XZ Mods `resources` folder, or a whole XZ Mods app folder that holds one. The app checks every file before it adds the build. Imported builds are not checked on a real XDJ-XZ.
 

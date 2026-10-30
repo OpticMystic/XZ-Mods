@@ -199,7 +199,7 @@ window.myReports = (() => {
     kinds: { REGRESSION: 'Regression', DEGRADATION: 'Degradation', BUG: 'Bug', EXPECTATION: 'Expectation', FEATURE: 'Feature', NOT_A_BUG: 'Not a bug', QUESTION: 'Question' },
     severities: { LIVE_SET_STOPPER: 'Live-set stopper', WORKAROUND_EXISTS: 'Workaround exists', ANNOYANCE: 'Annoyance', COSMETIC: 'Cosmetic' },
     impacts: { ADDITIVE: 'Additive', RESTORES_EXPECTED: 'Restores expected', OPT_IN_CHANGE: 'Opt-in change', CHANGES_DEFAULT: 'Changes default', BREAKS: 'Breaks' },
-    expectations: { STOCK_XZ: 'Stock XZ', XZ_CONSISTENCY: 'XZ consistency', DJ_CONVENTION: 'DJ convention', XZ_MODS_PREVIOUS: 'Earlier XZ Mods', PREFERENCE: 'Preference', NONE: 'None' },
+    expectations: { STOCK_XZ: 'XZ without mods', XZ_CONSISTENCY: 'XZ consistency', DJ_CONVENTION: 'DJ convention', XZ_MODS_PREVIOUS: 'Earlier XZ Mods', PREFERENCE: 'Preference', NONE: 'None' },
     features: { audio: 'Audio', stems: 'Stems', sync_tempo: 'SYNC tempo', sync_lamp: 'SYNC lamp', master_handoff: 'MASTER hand-off', beat_jump_pads: 'Beat jump pads', buttons_pads_lamps: 'Buttons, pads, lamps',
       screen_display: 'Screen', loading_browsing_usb: 'Loading and USB', four_decks: 'Four decks', loopback: 'Loopback cable', runtime_stability: 'Stability', settings: 'Settings', appearance: 'Appearance', integration: 'Integration', other: 'Other' },
     lifecycles: { received: 'Received', triaged: 'Triaged', needs_info: 'Needs info', cannot_reproduce: 'Cannot reproduce', duplicate: 'Duplicate', fix_in_progress: 'Fix in progress',
