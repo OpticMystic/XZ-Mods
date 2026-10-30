@@ -3,6 +3,16 @@
 What changed in each version of XZ Mods for the XDJ-XZ, newest first. XZ Mods is independent and experimental:
 test each build with your own tracks before a set, and keep a known working USB.
 
+## 0.5.0-preview.22.13.4 - 2026-10-29
+
+CLASSIC switches cleanly, and decks 3 and 4 come back after a replug.
+
+- CLASSIC no longer gets stuck when switching interfaces, and its top buttons no longer flicker while the loopback cable is in.
+- Decks 3 and 4 come back when the loopback cable is plugged back in or moved to the other top port, and RETRY works.
+- After you plug the loopback cable back in, the card says what it waits for, for example STOP DECKS 1 AND 2.
+- Experimental. XDJ-XZ firmware 1.26 only.
+- Hardware testing of this build is still in progress.
+
 ## 0.5.0-preview.22.13.2 - 2026-10-29
 
 Decks 3 and 4 handle SYNC and MASTER like decks 1 and 2.
