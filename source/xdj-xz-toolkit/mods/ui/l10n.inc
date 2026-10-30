@@ -90,7 +90,7 @@ int xz_l10n_wrap(struct xz_canvas c,int x,int y,int width,int pitch,int lines,co
  unsigned end=m->length,begin=0;int row=0;
  while(begin<end&&row<lines){
   unsigned a,b;
-  if(!m->rtl){a=begin;b=a+1;while(b<end){const struct xz_l10n_run *r=&xz_l10n_runs[m->offset+b];if(r->x+xz_l10n_components[r->component].width-xz_l10n_runs[m->offset+a].x>(unsigned)width)break;b++;}if(b<end){unsigned cut=b;while(cut>a+1){const struct xz_l10n_run *r=&xz_l10n_runs[m->offset+cut],*prev=r-1;if(r->x-prev->x-xz_l10n_components[prev->component].width>=3)break;cut--;}if(cut>a+1)b=cut;}begin=b;}
+  if(!m->rtl){a=begin;b=a+1;while(b<end){const struct xz_l10n_run *r=&xz_l10n_runs[m->offset+b];if((unsigned)(r->x+xz_l10n_components[r->component].width-xz_l10n_runs[m->offset+a].x)>(unsigned)width)break;b++;}if(b<end){unsigned cut=b;while(cut>a+1){const struct xz_l10n_run *r=&xz_l10n_runs[m->offset+cut],*prev=r-1;if(r->x-prev->x-xz_l10n_components[prev->component].width>=3)break;cut--;}if(cut>a+1)b=cut;}begin=b;}
   else {b=end;a=b-1;unsigned edge=xz_l10n_runs[m->offset+b-1].x+xz_l10n_components[xz_l10n_runs[m->offset+b-1].component].width;while(a>begin&&edge-xz_l10n_runs[m->offset+a-1].x<=(unsigned)width)a--;if(a>begin){unsigned cut=a;while(cut+1<b){const struct xz_l10n_run *r=&xz_l10n_runs[m->offset+cut],*prev=r-1;if(r->x-prev->x-xz_l10n_components[prev->component].width>=3)break;cut++;}if(cut+1<b)a=cut;}end=a;}
   unsigned origin=xz_l10n_runs[m->offset+a].x;
   unsigned edge=xz_l10n_runs[m->offset+b-1].x+xz_l10n_components[xz_l10n_runs[m->offset+b-1].component].width;
