@@ -1,3 +1,4 @@
+#include "l10n.h"
 /* SPDX-License-Identifier: MIT */
 #include "ui_skin.h"
 #include <stdarg.h>
@@ -75,26 +76,26 @@ static void add(struct xz_ui_widget *w,size_t *n,struct choice c){
 }
 size_t xz_sdk_ui_controls(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget *w,size_t n){
  const struct xz_sdk_ui_model *s=&m->sdk;
- if(u->page==XZ_UI_EXTRAS){add(w,&n,(struct choice){XZ_UI_PANEL,XZ_UI_APPS,"APPLICATIONS"});return n;}
+ if(u->page==XZ_UI_EXTRAS){add(w,&n,(struct choice){XZ_UI_PANEL,XZ_UI_APPS,xz_l10n_authored("APPLICATIONS")});return n;}
  if(u->page==XZ_UI_APPS){
-  add(w,&n,(struct choice){XZ_UI_SDK_AUTOLOAD,0,running(s)&&s->snapshot.autoload_enabled?"AUTOLOAD: ON":"AUTOLOAD: OFF"});
+  add(w,&n,(struct choice){XZ_UI_SDK_AUTOLOAD,0,running(s)&&s->snapshot.autoload_enabled?xz_l10n_authored("AUTOLOAD: ON"):xz_l10n_authored("AUTOLOAD: OFF")});
   int first=first_row(u,s);
   for(int i=first;i<first+XZ_SDK_UI_ROWS&&i<(int)count(s);i++){
    const struct xz_sdk_item *item=&s->snapshot.items[i];
    add(w,&n,row_action(item,i));
-   if(two_buttons(item))add(w,&n,(struct choice){XZ_UI_SDK_SAVE,i,"SAVE"});
+   if(two_buttons(item))add(w,&n,(struct choice){XZ_UI_SDK_SAVE,i,xz_l10n_authored("SAVE")});
   }
-  add(w,&n,(struct choice){XZ_UI_SDK_PAGE,-1,"PREV"});add(w,&n,(struct choice){XZ_UI_SDK_PAGE,1,"NEXT"});
-  add(w,&n,(struct choice){XZ_UI_SDK_SCAN,0,"RESCAN USB"});
-  add(w,&n,(struct choice){XZ_UI_SDK_SETUP,XZ_SDK_UI_DETECT,"SET UP APPS"});
+  add(w,&n,(struct choice){XZ_UI_SDK_PAGE,-1,xz_l10n_authored("PREV")});add(w,&n,(struct choice){XZ_UI_SDK_PAGE,1,xz_l10n_authored("NEXT")});
+  add(w,&n,(struct choice){XZ_UI_SDK_SCAN,0,xz_l10n_authored("RESCAN USB")});
+  add(w,&n,(struct choice){XZ_UI_SDK_SETUP,XZ_SDK_UI_DETECT,xz_l10n_authored("SET UP APPS")});
  }else if(u->page==XZ_UI_APPS_SETUP){
   for(int i=0;i<XZ_SDK_UI_STEPS;i++)add(w,&n,(struct choice){XZ_UI_SDK_STEP,i,step_names[i]});
   if(step_of(u)==XZ_SDK_UI_FOLDERS){
-   add(w,&n,(struct choice){XZ_UI_SDK_CHOICE,0,"START WHEN I TAP RUN"});
-   add(w,&n,(struct choice){XZ_UI_SDK_CHOICE,1,"START ON USB INSERT"});
+   add(w,&n,(struct choice){XZ_UI_SDK_CHOICE,0,xz_l10n_authored("START WHEN I TAP RUN")});
+   add(w,&n,(struct choice){XZ_UI_SDK_CHOICE,1,xz_l10n_authored("START ON USB INSERT")});
   }
   add(w,&n,wizard_action(u,m,0));add(w,&n,wizard_action(u,m,1));
-  add(w,&n,(struct choice){XZ_UI_PANEL,XZ_UI_APPS,"BACK TO APPS"});
+  add(w,&n,(struct choice){XZ_UI_PANEL,XZ_UI_APPS,xz_l10n_authored("BACK TO APPS")});
  }
  return n;
 }

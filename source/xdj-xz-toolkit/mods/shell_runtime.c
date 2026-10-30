@@ -15,6 +15,7 @@
 #pragma weak xz_diary_error_code
 #include "sync_observation.h"
 #include "shell_runtime.h"
+#include "ui/l10n.h"
 #include "shell_model.h"
 #include "stock_dialog.h"
 #include "ram/decks.h"
@@ -2956,6 +2957,7 @@ static int menu_render_frame_locked(uint16_t *pixels,size_t stride) {
     still own stock-style choices and deck backgrounds. */
  shell.display.wave_color_override=last_input.look_known&&last_input.wave_mode==1&&(!wave_color_explicit||shell.display.wave_color==XZ_SHELL_WAVE_3BAND)?XZ_SHELL_WAVE_3BAND:
   last_input.look_known&&last_input.wave_mode==2?XZ_SHELL_WAVE_STEMS:XZ_SHELL_WAVE_BLUE;
+ xz_l10n_frame(last_input.controller_locale);
  return xz_shell_render_frame(&shell,&model,pixels,stride)?1:-1;
 }
 int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shell_runtime_frame_input *in) {

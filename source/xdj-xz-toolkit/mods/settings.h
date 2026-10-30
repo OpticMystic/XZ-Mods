@@ -71,6 +71,7 @@ struct xz_settings {
     int usb_colors;        /* enum xz_shell_usb_colors: 0 ALL (default), 1 TILE, 2 OFF */
     int hidden_parts;      /* bit per enum xz_shell_indicator set: hidden (mode lamps, quantize lamp, bypass, titles),
                               and XZ_HIDE_FOUR_STEMS */
+    int controller_locale; /* wire field 58; 0 English, 1..14 independent mod locales */
     int modern_browse_columns; /* optional field 57: shell column bitmask, 0 keeps automatic columns, 0..2047 */
 };
 /* hidden_parts bit 4: MODERN's 4 DECKS view hides its stem buttons. The STEMS button sets and clears it there

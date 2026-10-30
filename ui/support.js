@@ -64,13 +64,13 @@ window.reportWizard = (() => {
   // so DJ_CONVENTION goes straight to Describe and the reporter says which in their own words.
   const REFERENCES = { XZ_CONSISTENCY: ['DECKS_1_2', 'XZ_MODS_FEATURE'] };
   const SCREENS = {
-    topic: { field: 'topic', title: "What's this about?", label: 'Topic', lede: 'Pick the closest one, or choose Not sure. Only the next box is required.' },
-    timing: { field: 'degradation_timing', title: 'When did it get worse?', label: 'When' },
-    area: { field: 'problem_area', title: 'What kind of problem?', label: 'Problem', lede: 'This decides which details XZ Mods looks at.' },
-    baseline: { field: 'expectation_baseline', title: 'Compared with what?', label: 'Compared with' },
-    reference: { field: 'reference_feature', title: 'Which gear or feature?', label: 'Which one', lede: 'Optional. Pick the one that works the way you expect.', chips: true },
-    idea: { field: 'idea_type', title: 'What kind of idea?', label: 'Idea' },
-    usb: { title: 'Plug in every USB stick that was in the XZ when it happened', label: 'USB sticks' },
+    topic: { field: 'topic', title: XZText("What's this about?"), label: 'Topic', lede: 'Pick the closest one, or choose Not sure. Only the next box is required.' },
+    timing: { field: 'degradation_timing', title: XZText('When did it get worse?'), label: 'When' },
+    area: { field: 'problem_area', title: XZText('What kind of problem?'), label: 'Problem', lede: 'This decides which details XZ Mods looks at.' },
+    baseline: { field: 'expectation_baseline', title: XZText('Compared with what?'), label: 'Compared with' },
+    reference: { field: 'reference_feature', title: XZText('Which gear or feature?'), label: 'Which one', lede: 'Optional. Pick the one that works the way you expect.', chips: true },
+    idea: { field: 'idea_type', title: XZText('What kind of idea?'), label: 'Idea' },
+    usb: { title: XZText('Plug in every USB stick that was in the XZ when it happened'), label: 'USB sticks' },
     describe: { label: 'Describe' }
   };
   // The question screens for a topic, in order. Never more than three before the box with Send.
@@ -111,7 +111,7 @@ window.reportWizard = (() => {
     dialog.replaceChildren(...(labels ? [stepStrip(labels, index)] : []), title, ...view.body.filter(Boolean), el('div', { class: 'st-foot' }, ...view.foot.filter(Boolean)), el('p', { class: 'visually-hidden sr-live', role: 'status', 'aria-live': 'polite' }));
     (dialog.querySelector(view.focus || '[aria-pressed=true]') || dialog.querySelector('.sr-choice,.sr-chip,.sr-box') || title).focus({ preventScroll: true });
   }
-  const cancelButton = () => el('span', { class: 'st-foot-left' }, plainButton('Cancel', close, { text: true, key: 'cancel' }));
+  const cancelButton = () => el('span', { class: 'st-foot-left' }, plainButton(XZText('Cancel'), close, { text: true, key: 'cancel' }));
   function render() {
     const screen = rw.screen, inFlow = steps().includes(screen);
     const view = screen === 'usb' ? usbView() : screen === 'describe' ? describeView() : screen === 'sending' ? sendingView() : screen === 'done' ? doneView()
@@ -150,7 +150,7 @@ window.reportWizard = (() => {
     return {
       title: screen.title,
       body: [screen.lede ? el('p', { class: 'sr-lede', text: screen.lede }) : null, group],
-      foot: [cancelButton(), name !== 'topic' ? plainButton('Back', back, { key: 'back' }) : null, plainButton('Not sure', () => notSure(field), { key: 'skip' })]
+      foot: [cancelButton(), name !== 'topic' ? plainButton(XZText('Back'), back, { key: 'back' }) : null, plainButton(XZText('Not sure'), () => notSure(field), { key: 'skip' })]
     };
   }
 
@@ -160,8 +160,8 @@ window.reportWizard = (() => {
     renderSticks();
     return {
       title: SCREENS.usb.title,
-      body: [el('p', { class: 'sr-lede', text: 'The XZ keeps a short diary on each stick while it plays. We read only that diary, never your music. Missing sticks never stop you sending.' }), ui.sticks],
-      foot: [cancelButton(), plainButton('Back', back, { key: 'back' }), plainButton('Not sure', next, { key: 'skip' }), plainButton("That's all of them", next, { primary: true, key: 'done-sticks' })],
+      body: [el('p', { class: 'sr-lede', text: XZText('The XZ keeps a short diary on each stick while it plays. We read only that diary, never your music. Missing sticks never stop you sending.') }), ui.sticks],
+      foot: [cancelButton(), plainButton(XZText('Back'), back, { key: 'back' }), plainButton(XZText('Not sure'), next, { key: 'skip' }), plainButton(XZText("That's all of them"), next, { primary: true, key: 'done-sticks' })],
       focus: '[data-key="done-sticks"]'
     };
   }
@@ -184,11 +184,11 @@ window.reportWizard = (() => {
     const s = rw.scan, rows = [];
     for (const stick of s.sticks) {
       const loader = stick.sources.usb_session || stick.sources.usb_settings, [tone, line] = diaryLine(s.diary[stick.source_slot], s);
-      rows.push(el('li', { class: 'sr-stick', dataset: { diary: tone } }, icon('i-usb'), el('strong', { text: (loader ? 'USB with XZ Mods loader' : 'Music stick') + ' (' + stick.local_volume.replace(/[\\/]+$/, '') + ')' }), el('span', { text: line })));
+      rows.push(el('li', { class: 'sr-stick', dataset: { diary: tone } }, icon('i-usb'), el('strong', { text: (loader ? XZText('USB with XZ Mods loader') : XZText('Music stick')) + ' (' + stick.local_volume.replace(/[\\/]+$/, '') + ')' }), el('span', { text: line })));
     }
-    for (const other of s.others) rows.push(el('li', { class: 'sr-stick', dataset: { diary: 'none' } }, icon('i-usb'), el('strong', { text: 'Music stick (' + other.local_volume.replace(/[\\/]+$/, '') + ')' }), el('span', { text: 'No diary on this stick' })));
-    if (!rows.length) rows.push(el('li', { class: 'sr-waiting' }, s.state === 'detecting' || s.state === 'collecting' || s.state === 'idle' ? 'Looking for USB sticks...' : 'No USB sticks found yet. Plug them in now; they appear here by themselves.'));
-    if (s.excess) rows.push(el('li', { class: 'st-note', dataset: { tone: 'warn' }, text: 'More than four sticks are plugged in. XZ Mods reads the first four.' }));
+    for (const other of s.others) rows.push(el('li', { class: 'sr-stick', dataset: { diary: 'none' } }, icon('i-usb'), el('strong', { text: XZText('Music stick (') + other.local_volume.replace(/[\\/]+$/, '') + ')' }), el('span', { text: XZText('No diary on this stick') })));
+    if (!rows.length) rows.push(el('li', { class: 'sr-waiting' }, s.state === 'detecting' || s.state === 'collecting' || s.state === 'idle' ? XZText('Looking for USB sticks...') : XZText('No USB sticks found yet. Plug them in now; they appear here by themselves.')));
+    if (s.excess) rows.push(el('li', { class: 'st-note', dataset: { tone: 'warn' }, text: XZText('More than four sticks are plugged in. XZ Mods reads the first four.') }));
     ui.sticks.replaceChildren(...rows);
   }
   // Live detection: the drive list is cheap and touches no media; a change starts a fresh bounded scan.
@@ -276,11 +276,11 @@ window.reportWizard = (() => {
     renderCount(); renderDetails();
     return {
       title,
-      body: [context.length ? el('p', { class: 'sr-context' }, ...context.flatMap((word, index) => [index ? el('span', { text: '·' }) : null, el('b', { text: word })]), plainButton('Change', () => go('topic'), { text: true, key: 'change' })) : null,
+      body: [context.length ? el('p', { class: 'sr-context' }, ...context.flatMap((word, index) => [index ? el('span', { text: '·' }) : null, el('b', { text: word })]), plainButton(XZText('Change'), () => go('topic'), { text: true, key: 'change' })) : null,
         ui.box, ui.note, ui.answers, ui.details,
-        el('p', { class: 'sr-privacy' }, el('b', { text: 'Private. ' }), idea() ? 'Your idea goes only to the maintainer. Nothing is posted publicly.'
-          : 'Your words and the included details go only to the maintainer. Details are deleted after ' + C.retention.diagnostic_days + ' days; your receipt keeps tracking longer.')],
-      foot: [cancelButton(), plainButton('Back', back, { key: 'back' }), plainButton('Send privately', send, { primary: true, key: 'send' })],
+        el('p', { class: 'sr-privacy' }, el('b', { text: XZText('Private. ') }), idea() ? XZText('Your idea goes only to the maintainer. Nothing is posted publicly.')
+          : XZText('Your words and the included details go only to the maintainer. Details are deleted after ') + C.retention.diagnostic_days + XZText(' days; your receipt keeps tracking longer.'))],
+      foot: [cancelButton(), plainButton(XZText('Back'), back, { key: 'back' }), plainButton(XZText('Send privately'), send, { primary: true, key: 'send' })],
       focus: '.sr-box'
     };
   }
@@ -299,18 +299,18 @@ window.reportWizard = (() => {
   function updateAnswers() {
     if (!ui.answers?.isConnected) return;
     rw.cards = K.match(KB, rw.text, 3);
-    ui.answers.replaceChildren(...(rw.cards.length ? [el('h3', { text: 'Is this it?' }), ...rw.cards.map(entry => el('article', { class: 'sr-answer', dataset: { entry: entry.entry_id } },
+    ui.answers.replaceChildren(...(rw.cards.length ? [el('h3', { text: XZText('Is this it?') }), ...rw.cards.map(entry => el('article', { class: 'sr-answer', dataset: { entry: entry.entry_id } },
       el('strong', { text: entry.title }), el('p', {}, ...xzText(entry.answer)), el('small', { class: 'sr-source', text: entry.source }),
       el('div', { class: 'actions' }, entry.action && ACTIONS[entry.action.id] ? plainButton(entry.action.label, () => ACTIONS[entry.action.id](), { key: 'a-' + entry.entry_id }) : null,
-        plainButton('That answers it', () => go('answered'), { text: true, key: 'ok-' + entry.entry_id }))))] : []));
+        plainButton(XZText('That answers it'), () => go('answered'), { text: true, key: 'ok-' + entry.entry_id }))))] : []));
   }
   function answeredView() {
-    return { title: 'Glad that helped', body: [el('p', { text: 'Nothing was sent. If it happens again, report it here and it goes privately to the maintainer.' })],
-      foot: [plainButton('Done', () => { rw = blank(); dialog.close(); }, { primary: true, key: 'done' })] };
+    return { title: XZText('Glad that helped'), body: [el('p', { text: XZText('Nothing was sent. If it happens again, report it here and it goes privately to the maintainer.') })],
+      foot: [plainButton(XZText('Done'), () => { rw = blank(); dialog.close(); }, { primary: true, key: 'done' })] };
   }
   function renderDetails() {
     if (!ui.details) return;
-    if (idea()) { ui.details.replaceChildren(el('div', { class: 'st-note', text: "Ideas don't include logs from this computer or your USB sticks. Only your words are sent." })); return; }
+    if (idea()) { ui.details.replaceChildren(el('div', { class: 'st-note', text: XZText("Ideas don't include logs from this computer or your USB sticks. Only your words are sent.") })); return; }
     const s = rw.scan, all = eligible(), chosen = included(), bytes = chosen.reduce((sum, item) => sum + item.bytes, 0);
     const label = s.state === 'ready' ? 'Included details' : s.state === 'failed' ? "Details couldn't be collected. You can still send." : s.state === 'detecting' ? 'Looking for details to include' : 'Collecting details. You can send now.';
     const meta = s.state === 'ready' ? chosen.length + ' of ' + all.length + ' sources · ' + kb(bytes) + (s.incident ? ' · last ' + Math.round((s.incident.before_seconds + s.incident.after_seconds) / 60) + ' min' : '') : '';
@@ -319,12 +319,12 @@ window.reportWizard = (() => {
     details.ontoggle = () => { rw.detailsOpen = details.open; };
     const body = el('div', { class: 'sr-detail-body' });
     if (s.state === 'ready') {
-      body.append(el('p', { class: 'fine', text: 'Exactly what is sent, already cleaned: no track names, file paths, serial numbers or network addresses. Untick anything you would rather keep.' }),
+      body.append(el('p', { class: 'fine', text: XZText('Exactly what is sent, already cleaned: no track names, file paths, serial numbers or network addresses. Untick anything you would rather keep.') }),
         el('ul', { class: 'sr-items' }, ...all.map(item => itemRow(item))),
-        el('p', { class: 'sr-fingerprint', text: 'Selection SHA256 ' + (s.digest || '...') + ' · Send approves exactly this selection.' }));
+        el('p', { class: 'sr-fingerprint', text: XZText('Selection SHA256 ') + (s.digest || '...') + XZText(' · Send approves exactly this selection.') }));
     } else if (s.state === 'failed') body.append(el('p', { class: 'fine', text: s.error }));
-    else body.append(el('p', { class: 'fine', text: 'XZ Mods reads fixed files only, for at most ' + C.limits.scan_seconds + ' seconds. Pressing Send keeps whatever has been read by then.' }));
-    body.append(el('div', { class: 'actions' }, plainButton('Collect again', () => collect(true), { key: 'recollect', disabled: s.state === 'detecting' || s.state === 'collecting' })));
+    else body.append(el('p', { class: 'fine', text: XZText('XZ Mods reads fixed files only, for at most ') + C.limits.scan_seconds + XZText(' seconds. Pressing Send keeps whatever has been read by then.') }));
+    body.append(el('div', { class: 'actions' }, plainButton(XZText('Collect again'), () => collect(true), { key: 'recollect', disabled: s.state === 'detecting' || s.state === 'collecting' })));
     details.append(body);
     const focused = ui.details.contains(document.activeElement) ? document.activeElement.dataset.key : null;
     ui.details.replaceChildren(details);
@@ -340,11 +340,11 @@ window.reportWizard = (() => {
     box.onchange = async () => { if (box.checked) rw.omit.delete(item.item_id); else rw.omit.add(item.item_id); await updateDigest(); renderDetails(); };
     const row = el('li', { class: 'sr-item', dataset: { omitted: omitted ? '' : undefined } }, box,
       el('label', { for: id, text: (SOURCES[item.source_id] || item.source_id) + ' · ' + slotName(item.source_slot) }), el('small', { text: parts.join(' · ') }),
-      plainButton(open ? 'Hide' : 'Show', () => togglePreview(item.item_id), { text: true, key: 'show-' + item.item_id }));
+      plainButton(open ? XZText('Hide') : XZText('Show'), () => togglePreview(item.item_id), { text: true, key: 'show-' + item.item_id }));
     if (open) {
       row.append(el('pre', { class: 'sr-preview', tabindex: '0', 'aria-label': 'Exact cleaned content', text: rw.preview.text || 'Loading...' }));
-      if (rw.preview.pages > 1) row.append(el('div', { class: 'sr-preview-nav' }, plainButton('Previous', () => loadPreview(rw.preview.page - 1), { key: 'pv-prev', disabled: rw.preview.page === 0 }),
-        el('span', { text: 'Page ' + (rw.preview.page + 1) + ' of ' + rw.preview.pages }), plainButton('Next', () => loadPreview(rw.preview.page + 1), { key: 'pv-next', disabled: rw.preview.page + 1 >= rw.preview.pages })));
+      if (rw.preview.pages > 1) row.append(el('div', { class: 'sr-preview-nav' }, plainButton(XZText('Previous'), () => loadPreview(rw.preview.page - 1), { key: 'pv-prev', disabled: rw.preview.page === 0 }),
+        el('span', { text: 'Page ' + (rw.preview.page + 1) + ' of ' + rw.preview.pages }), plainButton(XZText('Next'), () => loadPreview(rw.preview.page + 1), { key: 'pv-next', disabled: rw.preview.page + 1 >= rw.preview.pages })));
     }
     return row;
   }
@@ -403,28 +403,28 @@ window.reportWizard = (() => {
   function sendingView() {
     const stage = rw.sending?.stage ?? 0;
     return {
-      title: 'Sending privately',
+      title: XZText('Sending privately'),
       body: [stageList([['Keeping the details read so far', ''], ['Sealing your report', ''], ['Sending to the maintainer', '']], stage, null),
-        el('p', { text: stage < 2 ? 'Cancel now and nothing is sent.' : 'If you cancel now, the report may still arrive. My reports checks for you.' })],
-      foot: [plainButton('Cancel', cancelSend, { key: 'cancel-send' })],
+        el('p', { text: stage < 2 ? XZText('Cancel now and nothing is sent.') : XZText('If you cancel now, the report may still arrive. My reports checks for you.') })],
+      foot: [plainButton(XZText('Cancel'), cancelSend, { key: 'cancel-send' })],
       focus: '[data-key="cancel-send"]'
     };
   }
   function doneView() {
     const r = rw.receipt;
     return {
-      title: idea() ? 'Idea received' : 'Report received',
-      body: [el('div', { class: 'sr-receipt' }, icon('i-check'), el('strong', { text: 'Your reference ' + r.report_reference }), el('p', { text: r.status_text || 'Received privately. Track it here.' }),
-        el('dl', {}, el('dt', { text: 'Reference' }), el('dd', { class: 'sr-reference' }, r.report_reference, plainButton('Copy', async () => {
+      title: idea() ? XZText('Idea received') : XZText('Report received'),
+      body: [el('div', { class: 'sr-receipt' }, icon('i-check'), el('strong', { text: XZText('Your reference ') + r.report_reference }), el('p', { text: r.status_text || XZText('Received privately. Track it here.') }),
+        el('dl', {}, el('dt', { text: XZText('Reference') }), el('dd', { class: 'sr-reference' }, r.report_reference, plainButton(XZText('Copy'), async () => {
           const button = dialog.querySelector('[data-key="copy-reference"]');
-          try { await navigator.clipboard.writeText(r.report_reference); button.textContent = 'Copied'; }
-          catch { button.textContent = 'Copy failed. Try again'; }
+          try { await navigator.clipboard.writeText(r.report_reference); button.textContent = XZText('Copied'); }
+          catch { button.textContent = XZText('Copy failed. Try again'); }
         }, { key: 'copy-reference' })),
-          ...(idea() ? [] : [el('dt', { text: 'Details deleted' }), el('dd', { text: day(r.diagnostics_expires_at) })]),
-          el('dt', { text: 'Tracking until' }), el('dd', { text: r.retention_until ? day(r.retention_until) + ', or longer while it is open' : 'While it is open' }))),
-      el('p', { text: 'Your receipt is kept on this computer, protected by Windows. XZ Mods checks for news when it starts and shows a notice here when the status changes.' })],
-      foot: [plainButton('Track my report', () => { const id = r.report_id; rw = blank(); dialog.close(); window.myReports?.show(id); }, { key: 'track' }),
-        plainButton('Done', () => { rw = blank(); dialog.close(); }, { primary: true, key: 'done' })],
+          ...(idea() ? [] : [el('dt', { text: XZText('Details deleted') }), el('dd', { text: day(r.diagnostics_expires_at) })]),
+          el('dt', { text: XZText('Tracking until') }), el('dd', { text: r.retention_until ? day(r.retention_until) + XZText(', or longer while it is open') : XZText('While it is open') }))),
+      el('p', { text: XZText('Your receipt is kept on this computer, protected by Windows. XZ Mods checks for news when it starts and shows a notice here when the status changes.') })],
+      foot: [plainButton(XZText('Track my report'), () => { const id = r.report_id; rw = blank(); dialog.close(); window.myReports?.show(id); }, { key: 'track' }),
+        plainButton(XZText('Done'), () => { rw = blank(); dialog.close(); }, { primary: true, key: 'done' })],
       focus: '[data-key="done"]'
     };
   }
@@ -433,17 +433,17 @@ window.reportWizard = (() => {
   function failedView() {
     const f = rw.failure;
     if (f.kind === 'prepare') return {
-      title: "Your report wasn't prepared", body: [el('div', { class: 'st-fail' }, el('strong', { text: 'Nothing was sent' }), el('p', { text: f.message }))],
-      foot: [cancelButton(), plainButton('Back to my report', () => { rw.scan.frozen = false; go('describe'); }, { key: 'back' }), plainButton('Try again', send, { primary: true, key: 'retry' })]
+      title: XZText("Your report wasn't prepared"), body: [el('div', { class: 'st-fail' }, el('strong', { text: XZText('Nothing was sent') }), el('p', { text: f.message }))],
+      foot: [cancelButton(), plainButton(XZText('Back to my report'), () => { rw.scan.frozen = false; go('describe'); }, { key: 'back' }), plainButton(XZText('Try again'), send, { primary: true, key: 'retry' })]
     };
     const code = /\(([a-z_]+)\)/.exec(f.message)?.[1];
     return {
-      title: 'Not confirmed yet',
-      body: [el('p', { text: "Your report is saved on this computer and nothing is lost. We couldn't confirm that it reached the maintainer." }),
-        el('div', { class: 'st-note', dataset: { tone: 'warn' } }, el('strong', { text: REFUSALS[code] ? 'The report service refused it' : 'No confirmation' }), ' ', REFUSALS[code] || 'The connection failed or was cancelled. Sending again uses the same report, so it never arrives twice.'),
-        el('p', { class: 'fine', text: 'It is listed in My reports as Not confirmed.' })],
-      foot: [el('span', { class: 'st-foot-left' }, plainButton('Close', () => { rw = blank(); dialog.close(); }, { text: true, key: 'close' })),
-        plainButton('Save to a file', exportDraft, { key: 'export' }), plainButton('Set up reporting connection', () => openConnection(rw.draft, receipt => { rw.receipt = receipt; go('done'); }), { primary: true, key: 'setup' })],
+      title: XZText('Not confirmed yet'),
+      body: [el('p', { text: XZText("Your report is saved on this computer and nothing is lost. We couldn't confirm that it reached the maintainer.") }),
+        el('div', { class: 'st-note', dataset: { tone: 'warn' } }, el('strong', { text: REFUSALS[code] ? XZText('The report service refused it') : XZText('No confirmation') }), ' ', REFUSALS[code] || XZText('The connection failed or was cancelled. Sending again uses the same report, so it never arrives twice.')),
+        el('p', { class: 'fine', text: XZText('It is listed in My reports as Not confirmed.') })],
+      foot: [el('span', { class: 'st-foot-left' }, plainButton(XZText('Close'), () => { rw = blank(); dialog.close(); }, { text: true, key: 'close' })),
+        plainButton(XZText('Save to a file'), exportDraft, { key: 'export' }), plainButton(XZText('Set up reporting connection'), () => openConnection(rw.draft, receipt => { rw.receipt = receipt; go('done'); }), { primary: true, key: 'setup' })],
       focus: '[data-key="setup"]'
     };
   }
@@ -463,16 +463,16 @@ window.reportWizard = (() => {
     const online = navigator.onLine, now = new Date();
     const status = conn.state === 'sending' ? 'Sending the same report again...' : conn.message;
     connection.replaceChildren(stepStrip(['Connection', 'Clock', 'Send again'], conn.state === 'sent' ? 3 : 2, conn.state === 'failed' ? 'bad' : 'now'),
-      el('h2', { id: 'report-connection-title', tabindex: '-1', text: 'Set up reporting connection' }),
-      el('h3', { text: '1. Connect to the internet' }),
-      el('div', { class: 'st-note', dataset: { tone: online ? 'ok' : 'warn' } }, el('strong', { text: online ? 'Connected. ' : 'Offline. ' }), online ? 'This computer has a network connection.' : 'Connect to Wi-Fi or a network cable, then send again.'),
-      el('h3', { text: '2. Check the date and time' }),
-      el('p', { text: 'This computer says it is ' + now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + ', ' + now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + '. Secure connections fail when the date is wrong; correct it in the Windows clock settings if needed.' }),
-      el('h3', { text: '3. Send again' }),
-      el('p', { text: 'XZ Mods sends the same report again. If the first attempt arrived, you get its receipt and nothing arrives twice.' }),
+      el('h2', { id: 'report-connection-title', tabindex: '-1', text: XZText('Set up reporting connection') }),
+      el('h3', { text: XZText('1. Connect to the internet') }),
+      el('div', { class: 'st-note', dataset: { tone: online ? 'ok' : 'warn' } }, el('strong', { text: online ? XZText('Connected. ') : XZText('Offline. ') }), online ? XZText('This computer has a network connection.') : XZText('Connect to Wi-Fi or a network cable, then send again.')),
+      el('h3', { text: XZText('2. Check the date and time') }),
+      el('p', { text: XZText('This computer says it is ') + now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + ', ' + now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + XZText('. Secure connections fail when the date is wrong; correct it in the Windows clock settings if needed.') }),
+      el('h3', { text: XZText('3. Send again') }),
+      el('p', { text: XZText('XZ Mods sends the same report again. If the first attempt arrived, you get its receipt and nothing arrives twice.') }),
       el('p', { role: 'status', class: conn.state === 'failed' ? 'sr-error' : '', text: status }),
-      el('div', { class: 'st-foot' }, plainButton('Close', () => connection.close(), { key: 'conn-close' }),
-        plainButton(conn.state === 'sending' ? 'Sending...' : 'Send again', sendAgain, { primary: true, key: 'conn-send', disabled: conn.state === 'sending' })));
+      el('div', { class: 'st-foot' }, plainButton(XZText('Close'), () => connection.close(), { key: 'conn-close' }),
+        plainButton(conn.state === 'sending' ? 'Sending...' : XZText('Send again'), sendAgain, { primary: true, key: 'conn-send', disabled: conn.state === 'sending' })));
     (connection.querySelector('[data-key="conn-send"]:not(:disabled)') || connection.querySelector('h2')).focus({ preventScroll: true });
   }
   async function sendAgain() {

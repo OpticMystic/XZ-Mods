@@ -60,24 +60,24 @@ window.myReports = (() => {
     const xz = window.xzQueue, listed = xz ? reports.filter(r => !xz.has(r.report_id)) : reports;
     const unconfirmed = listed.filter(r => r.state !== 'accepted');
     const head = el('div', { class: 'sr-page-head' },
-      el('div', { class: 'sr-page-head-text' }, el('h2', { text: 'My reports' }),
-        el('p', { text: 'Reports and ideas sent from this computer, with where each one is now. XZ Mods checks for news when it starts and when you open this page. Your words stay on this computer.' })),
-      el('div', { class: 'actions' }, plainButton('Check now', async () => { await Promise.all([check('refresh'), window.xzQueue?.poll()]); }, { key: 'check-now' })));
+      el('div', { class: 'sr-page-head-text' }, el('h2', { text: XZText('My reports') }),
+        el('p', { text: XZText('Reports and ideas sent from this computer, with where each one is now. XZ Mods checks for news when it starts and when you open this page. Your words stay on this computer.') })),
+      el('div', { class: 'actions' }, plainButton(XZText('Check now'), async () => { await Promise.all([check('refresh'), window.xzQueue?.poll()]); }, { key: 'check-now' })));
     const parts = [xz?.section(), head].filter(Boolean);
-    if (error) parts.push(el('div', { class: 'notice', text: 'My reports could not be read. ' + error }));
-    if (!listed.length && !drafts.length && !xz?.count()) parts.push(el('div', { class: 'sr-empty' }, el('strong', { text: loaded ? 'Nothing sent yet' : 'Reading My reports...' }),
-      loaded ? el('span', { text: 'When you send a report or an idea, its receipt appears here so you can follow it.' }) : null));
+    if (error) parts.push(el('div', { class: 'notice', text: XZText('My reports could not be read. ') + error }));
+    if (!listed.length && !drafts.length && !xz?.count()) parts.push(el('div', { class: 'sr-empty' }, el('strong', { text: loaded ? XZText('Nothing sent yet') : XZText('Reading My reports...') }),
+      loaded ? el('span', { text: XZText('When you send a report or an idea, its receipt appears here so you can follow it.') }) : null));
     if (listed.length) parts.push(el('ul', { class: 'sr-reports', 'aria-label': 'Sent reports' }, ...listed.map(r => el('li', {},
       el('button', { type: 'button', class: 'sr-report', dataset: { unseen: r.unseen ? '' : undefined, key: 'r-' + r.report_id }, onclick: () => show(r.report_id) },
-        badge(r), el('strong', { text: r.summary || r.report_reference || 'Report' }), el('span', { class: 'sr-status', text: (r.unseen ? 'New: ' : '') + words(r) }),
-        el('span', { class: 'sr-when' }, el('span', { class: 'sr-reference', text: r.report_reference || 'Reference after receipt' }), r.item_number ? el('span', { class: 'sr-item-number', text: 'Part of ' + r.item_number }) : null, 'Sent ' + day(r.created_at)), icon('i-chevron'))))));
-    if (unconfirmed.length) parts.push(el('p', { class: 'fine', text: 'Not confirmed means the app could not tell whether a report arrived. Open it to check again; it is never sent twice.' }));
+        badge(r), el('strong', { text: r.summary || r.report_reference || XZText('Report') }), el('span', { class: 'sr-status', text: (r.unseen ? 'New: ' : '') + words(r) }),
+        el('span', { class: 'sr-when' }, el('span', { class: 'sr-reference', text: r.report_reference || XZText('Reference after receipt') }), r.item_number ? el('span', { class: 'sr-item-number', text: XZText('Part of ') + r.item_number }) : null, 'Sent ' + day(r.created_at)), icon('i-chevron'))))));
+    if (unconfirmed.length) parts.push(el('p', { class: 'fine', text: XZText('Not confirmed means the app could not tell whether a report arrived. Open it to check again; it is never sent twice.') }));
     if (drafts.length) {
-      parts.push(el('h3', { class: 'sr-section-title', text: 'Saved, not sent' }));
+      parts.push(el('h3', { class: 'sr-section-title', text: XZText('Saved, not sent') }));
       parts.push(el('ul', { class: 'sr-reports sr-drafts', 'aria-label': 'Saved reports not sent' }, ...drafts.map(d => el('li', {}, el('div', { class: 'sr-report' },
-        el('span', { class: 'sr-badge', text: d.schema === 'xz-support-report/2' ? 'Not sent' : 'Older form' }),
-        el('strong', { text: d.readable ? d.title : 'Unreadable saved report' }),
-        el('span', { class: 'sr-status', text: d.readable ? (d.schema === 'xz-support-report/2' ? 'Saved ' + day(d.saved_at) + ' · ' + Math.max(1, Math.round(d.bytes / 1024)) + ' KB, sealed when you pressed Send' : 'Made with an older version of the report form') : 'This copy is damaged' }),
+        el('span', { class: 'sr-badge', text: d.schema === 'xz-support-report/2' ? XZText('Not sent') : XZText('Older form') }),
+        el('strong', { text: d.readable ? d.title : XZText('Unreadable saved report') }),
+        el('span', { class: 'sr-status', text: d.readable ? (d.schema === 'xz-support-report/2' ? 'Saved ' + day(d.saved_at) + ' · ' + Math.max(1, Math.round(d.bytes / 1024)) + XZText(' KB, sealed when you pressed Send') : XZText('Made with an older version of the report form')) : XZText('This copy is damaged') }),
         el('div', { class: 'actions' }, ...draftActions(d)))))));
     }
     if (xz) parts.push(xz.sticks());
@@ -89,11 +89,11 @@ window.myReports = (() => {
     if (again) { again.focus({ preventScroll: true }); if (caret && again.tagName === 'TEXTAREA') again.setSelectionRange(...caret); }
   }
   function draftActions(d) {
-    if (d.confirming) return [plainButton('Send privately', () => sendDraft(d), { primary: true, key: 'ds-' + d.report_id }), plainButton('Keep', () => { d.confirming = false; render(); }, { key: 'dk-' + d.report_id })];
-    const discard = plainButton('Discard', () => discardDraft(d), { key: 'dd-' + d.report_id });
+    if (d.confirming) return [plainButton(XZText('Send privately'), () => sendDraft(d), { primary: true, key: 'ds-' + d.report_id }), plainButton(XZText('Keep'), () => { d.confirming = false; render(); }, { key: 'dk-' + d.report_id })];
+    const discard = plainButton(XZText('Discard'), () => discardDraft(d), { key: 'dd-' + d.report_id });
     if (!d.readable) return [discard];
-    if (d.schema === 'xz-support-report/2') return [plainButton('Send', () => { d.confirming = true; render(); host.querySelector('[data-key="ds-' + d.report_id + '"]')?.focus(); }, { key: 'dsend-' + d.report_id }), discard];
-    return [plainButton('Use this text', () => reuseDraft(d), { key: 'du-' + d.report_id }), discard];
+    if (d.schema === 'xz-support-report/2') return [plainButton(XZText('Send'), () => { d.confirming = true; render(); host.querySelector('[data-key="ds-' + d.report_id + '"]')?.focus(); }, { key: 'dsend-' + d.report_id }), discard];
+    return [plainButton(XZText('Use this text'), () => reuseDraft(d), { key: 'du-' + d.report_id }), discard];
   }
   // A saved report is sent only after this explicit press, bound to its exact sealed bytes.
   async function sendDraft(d) {
@@ -120,7 +120,7 @@ window.myReports = (() => {
     if (!bar) return;
     bar.classList.toggle('hidden', !unseen.length);
     if (!unseen.length) return;
-    $('report-notice-text').textContent = unseen.length === 1 ? 'Update on your report: ' + words(unseen[0]) : unseen.length + ' of your reports have updates.';
+    $('report-notice-text').textContent = unseen.length === 1 ? XZText('Update on your report: ') + words(unseen[0]) : unseen.length + XZText(' of your reports have updates.');
     $('report-notice-view').onclick = () => { showPage('my-reports'); if (unseen.length === 1) show(unseen[0].report_id); };
   }
 
@@ -145,39 +145,39 @@ window.myReports = (() => {
     const r = reports.find(item => item.report_id === current.id);
     if (!r) { track.close(); return; }
     const draft = saved.find(d => d.report_id === r.report_id && d.readable && d.schema === 'xz-support-report/2');
-    const body = [el('p', { class: 'sr-track-words', text: r.summary || '(no summary kept)' }), el('p', { class: 'sr-track-status', text: words(r) })];
-    if (r.item_number) body.unshift(el('p', { class: 'sr-item-number', text: 'Part of ' + r.item_number }));
+    const body = [el('p', { class: 'sr-track-words', text: r.summary || XZText('(no summary kept)') }), el('p', { class: 'sr-track-status', text: words(r) })];
+    if (r.item_number) body.unshift(el('p', { class: 'sr-item-number', text: XZText('Part of ') + r.item_number }));
     if (r.state === 'accepted' && r.question) body.push(el('div', { class: 'sr-question' }, el('strong', { text: r.question }),
-      'Replies from the app come in a later update. For now, answer in a new report that mentions this one.',
-      el('div', { class: 'actions' }, plainButton('Answer in a new report', () => { track.close(); window.reportWizard.open({ text: 'About ' + (r.report_reference || 'my report') + ': ' }); }, { key: 'answer' }))));
+      XZText('Replies from the app come in a later update. For now, answer in a new report that mentions this one.'),
+      el('div', { class: 'actions' }, plainButton(XZText('Answer in a new report'), () => { track.close(); window.reportWizard.open({ text: 'About ' + (r.report_reference || XZText('my report')) + ': ' }); }, { key: 'answer' }))));
     if (r.state === 'unconfirmed' || r.state === 'not_received' || r.state === 'sending') {
-      body.push(el('div', { class: 'st-note', dataset: { tone: 'warn' } }, el('strong', { text: r.state === 'not_received' ? 'This report did not arrive. ' : 'Not confirmed yet. ' }),
-        draft ? 'Set up the reporting connection and send the same report again. If it already arrived, you get its receipt and nothing arrives twice.'
-          : 'Check again to ask the report service whether it arrived.'));
+      body.push(el('div', { class: 'st-note', dataset: { tone: 'warn' } }, el('strong', { text: r.state === 'not_received' ? XZText('This report did not arrive. ') : XZText('Not confirmed yet. ') }),
+        draft ? XZText('Set up the reporting connection and send the same report again. If it already arrived, you get its receipt and nothing arrives twice.')
+          : XZText('Check again to ask the report service whether it arrived.')));
     }
-    body.push(el('dl', { class: 'sr-dates' }, el('dt', { text: 'Sent' }), el('dd', { text: day(r.created_at) }),
-      ...(r.updated_at ? [el('dt', { text: 'Last change' }), el('dd', { text: day(r.updated_at) })] : []),
-      ...(r.diagnostics_expires_at ? [el('dt', { text: 'Details deleted' }), el('dd', { text: day(r.diagnostics_expires_at) })] : []),
-      ...(r.retention_until ? [el('dt', { text: 'Tracking until' }), el('dd', { text: day(r.retention_until) + ', or longer while it is open' })] : []),
-      ...(r.checked_at ? [el('dt', { text: 'Last checked' }), el('dd', { text: new Date(r.checked_at * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) })] : [])));
-    const more = el('details', { class: 'sr-more' }, el('summary', { text: 'Status link and forgetting' }),
-      el('p', { class: 'fine', text: 'The status link opens a read-only page with the same status. It shows no words or details from your report. Anyone with the link can read the status.' }),
-      el('div', { class: 'actions' }, ...(r.state === 'accepted' && !r.links_revoked ? [plainButton('Open status page', () => act('open'), { key: 'open-link' }), plainButton('Copy status link', () => act('copy'), { key: 'copy-link' }),
-        plainButton('Turn off status links', () => act('revoke'), { key: 'revoke' })] : []),
-      plainButton('Forget this report', () => { current.confirm = true; renderTrack(); }, { key: 'forget' })),
-      current.confirm ? el('div', { class: 'sr-confirm' }, 'Forget removes the receipt from this computer. You will no longer see its status here. The maintainer keeps the report.',
-        el('div', { class: 'actions' }, plainButton('Forget this report', () => act('forget'), { primary: true, key: 'forget-yes' }), plainButton('Keep it', () => { current.confirm = false; renderTrack(); }, { key: 'forget-no' }))) : null);
+    body.push(el('dl', { class: 'sr-dates' }, el('dt', { text: XZText('Sent') }), el('dd', { text: day(r.created_at) }),
+      ...(r.updated_at ? [el('dt', { text: XZText('Last change') }), el('dd', { text: day(r.updated_at) })] : []),
+      ...(r.diagnostics_expires_at ? [el('dt', { text: XZText('Details deleted') }), el('dd', { text: day(r.diagnostics_expires_at) })] : []),
+      ...(r.retention_until ? [el('dt', { text: XZText('Tracking until') }), el('dd', { text: day(r.retention_until) + XZText(', or longer while it is open') })] : []),
+      ...(r.checked_at ? [el('dt', { text: XZText('Last checked') }), el('dd', { text: new Date(r.checked_at * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) })] : [])));
+    const more = el('details', { class: 'sr-more' }, el('summary', { text: XZText('Status link and forgetting') }),
+      el('p', { class: 'fine', text: XZText('The status link opens a read-only page with the same status. It shows no words or details from your report. Anyone with the link can read the status.') }),
+      el('div', { class: 'actions' }, ...(r.state === 'accepted' && !r.links_revoked ? [plainButton(XZText('Open status page'), () => act('open'), { key: 'open-link' }), plainButton(XZText('Copy status link'), () => act('copy'), { key: 'copy-link' }),
+        plainButton(XZText('Turn off status links'), () => act('revoke'), { key: 'revoke' })] : []),
+      plainButton(XZText('Forget this report'), () => { current.confirm = true; renderTrack(); }, { key: 'forget' })),
+      current.confirm ? el('div', { class: 'sr-confirm' }, XZText('Forget removes the receipt from this computer. You will no longer see its status here. The maintainer keeps the report.'),
+        el('div', { class: 'actions' }, plainButton(XZText('Forget this report'), () => act('forget'), { primary: true, key: 'forget-yes' }), plainButton(XZText('Keep it'), () => { current.confirm = false; renderTrack(); }, { key: 'forget-no' }))) : null);
     more.open = Boolean(current.more || current.confirm);
     more.ontoggle = () => { if (current) current.more = more.open; };
-    const primary = r.state === 'accepted' || r.state === 'expired' ? plainButton('Close', () => track.close(), { primary: true, key: 'close' })
-      : draft && r.state !== 'sending' ? plainButton('Set up reporting connection', () => window.reportWizard.openConnection({ report_id: r.report_id, sha256: draft.sha256 }, async () => { await load(); renderTrack(); }), { primary: true, key: 'setup' })
-        : plainButton('Check again', () => act('check'), { primary: true, key: 'check' });
+    const primary = r.state === 'accepted' || r.state === 'expired' ? plainButton(XZText('Close'), () => track.close(), { primary: true, key: 'close' })
+      : draft && r.state !== 'sending' ? plainButton(XZText('Set up reporting connection'), () => window.reportWizard.openConnection({ report_id: r.report_id, sha256: draft.sha256 }, async () => { await load(); renderTrack(); }), { primary: true, key: 'setup' })
+        : plainButton(XZText('Check again'), () => act('check'), { primary: true, key: 'check' });
     const focused = track.contains(document.activeElement) ? document.activeElement.dataset.key : null;
     track.replaceChildren(r.state === 'accepted' ? progress(r) : el('span'),
-      el('h2', { id: 'report-track-title', tabindex: '-1' }, badge(r), ' ' + (r.report_reference || 'Report awaiting receipt')), ...body, more,
+      el('h2', { id: 'report-track-title', tabindex: '-1' }, badge(r), ' ' + (r.report_reference || XZText('Report awaiting receipt'))), ...body, more,
       el('p', { class: 'visually-hidden', role: 'status', text: current.message }),
-      el('div', { class: 'st-foot' }, el('span', { class: 'st-foot-left', text: current.message }), r.state === 'accepted' ? plainButton('Check now', () => act('check'), { key: 'check-now' }) : null,
-        r.state === 'accepted' ? null : plainButton('Close', () => track.close(), { key: 'close-2' }), primary));
+      el('div', { class: 'st-foot' }, el('span', { class: 'st-foot-left', text: current.message }), r.state === 'accepted' ? plainButton(XZText('Check now'), () => act('check'), { key: 'check-now' }) : null,
+        r.state === 'accepted' ? null : plainButton(XZText('Close'), () => track.close(), { key: 'close-2' }), primary));
     (focused && track.querySelector('[data-key="' + CSS.escape(focused) + '"]') || track.querySelector('h2')).focus({ preventScroll: true });
   }
   // The view can close while a request runs; results then go to that view only and are not drawn.
@@ -256,9 +256,9 @@ window.myReports = (() => {
   }
   async function read(id, page = 0) {
     try {
-      if (page === 0) { box.reader = { id, page: 0, pages: 0, text: 'Reading and verifying every page...' }; renderInbox(); const r = await invoke('support_inbox', { action: 'read', id, cursor: null }); box.reader.pages = r.pages; }
+      if (page === 0) { box.reader = { id, page: 0, pages: 0, text: XZText('Reading and verifying every page...') }; renderInbox(); const r = await invoke('support_inbox', { action: 'read', id, cursor: null }); box.reader.pages = r.pages; }
       const p = await invoke('support_inbox_page', { page }); Object.assign(box.reader, { page, pages: p.pages, text: p.text });
-    } catch (failure) { box.reader = { id, page: 0, pages: 0, text: 'This report could not be read: ' + String(failure).replace(/^Error: /, '') }; }
+    } catch (failure) { box.reader = { id, page: 0, pages: 0, text: XZText('This report could not be read: ') + String(failure).replace(/^Error: /, '') }; }
     renderInbox();
   }
   async function remove(id) {
@@ -270,31 +270,31 @@ window.myReports = (() => {
     const desk = r.desk || {}, features = desk.affected_features || [], reach = desk.reach || { versions: [], interfaces: [], decks: [] };
     const flagged = r.impact === 'CHANGES_DEFAULT' || r.impact === 'BREAKS';
     return el('tr', { dataset: { changed: box.changed.has(r.report_id) ? '' : undefined, flag: flagged ? '' : undefined } },
-      el('td', {}, LABEL.kinds[r.kind] || 'Unclassified'),
+      el('td', {}, LABEL.kinds[r.kind] || XZText('Unclassified')),
       el('td', {}, r.severity ? tag(LABEL.severities[r.severity], r.severity === 'LIVE_SET_STOPPER' ? 'stop' : undefined) : '-'),
       el('td', {}, r.impact ? tag(LABEL.impacts[r.impact], flagged ? 'flag' : r.impact === 'OPT_IN_CHANGE' ? 'warn' : 'good') : '-',
-        r.impact === 'OPT_IN_CHANGE' && desk.proposed_setting ? el('small', { text: 'Adds a setting: ' + LABEL.features[desk.proposed_setting] }) : null,
-        flagged ? el('small', { text: 'Owner decision. Never automatic; the desk proposes an opt-in version.' }) : null),
+        r.impact === 'OPT_IN_CHANGE' && desk.proposed_setting ? el('small', { text: XZText('Adds a setting: ') + LABEL.features[desk.proposed_setting] }) : null,
+        flagged ? el('small', { text: XZText('Owner decision. Never automatic; the desk proposes an opt-in version.') }) : null),
       el('td', { text: r.expectation ? LABEL.expectations[r.expectation] : '-' }),
       el('td', {}, ...(features.length ? features.map(f => tag(LABEL.features[f])) : ['-'])),
       el('td', { text: desk.in_use_since || '-' }),
       el('td', {}, r.reach_count + ' report' + (r.reach_count === 1 ? '' : 's'),
         el('small', { text: [reach.versions.join(', '), reach.interfaces.join(', '), reach.decks.length ? 'decks ' + reach.decks.join(', ') : ''].filter(Boolean).join(' · ') || ' ' })),
       el('td', {}, LABEL.lifecycles[r.lifecycle], box.changed.has(r.report_id) ? tag('Updated', 'warn') : null,
-        r.automatic_fix_eligible ? el('small', { text: 'Fix rule: eligible' + (r.automation_enabled ? '' : ' · automation off') }) : null,
-        plainButton('Read', () => read(r.report_id), { text: true, key: 'read-' + r.report_id })),
+        r.automatic_fix_eligible ? el('small', { text: XZText('Fix rule: eligible') + (r.automation_enabled ? '' : XZText(' · automation off')) }) : null,
+        plainButton(XZText('Read'), () => read(r.report_id), { text: true, key: 'read-' + r.report_id })),
       el('td', { class: 'sr-reference', text: r.report_reference }), el('td', { class: 'sr-item-number', text: r.item_number || '-' }));
   }
   function renderInbox() {
-    const parts = [el('h2', { id: 'support-inbox-title', tabindex: '-1', text: 'Maintainer inbox' })];
+    const parts = [el('h2', { id: 'support-inbox-title', tabindex: '-1', text: XZText('Maintainer inbox') })];
     if (box.state === 'setup') {
       const input = el('input', { type: 'password', id: 'support-owner-key', autocomplete: 'off', 'aria-describedby': 'support-owner-note' });
       parts.unshift(stepStrip(['Key', 'Live check'], 0, box.message ? 'bad' : 'now'));
-      parts.push(el('p', { id: 'support-owner-note', text: 'For the maintainer only. Paste the report-only owner key. XZ Mods keeps it on this computer under Windows user protection, then reads the inbox to check it.' }),
-        el('div', { class: 'sr-key' }, el('label', { for: 'support-owner-key', text: 'Report-only owner key' }, input),
-          plainButton('Connect and check', () => connect(input), { primary: true, key: 'connect' })),
+      parts.push(el('p', { id: 'support-owner-note', text: XZText('For the maintainer only. Paste the report-only owner key. XZ Mods keeps it on this computer under Windows user protection, then reads the inbox to check it.') }),
+        el('div', { class: 'sr-key' }, el('label', { for: 'support-owner-key', text: XZText('Report-only owner key') }, input),
+          plainButton(XZText('Connect and check'), () => connect(input), { primary: true, key: 'connect' })),
         el('p', { role: 'status', class: 'fine', text: box.message }),
-        el('div', { class: 'st-foot' }, plainButton('Close', () => inbox.close(), { key: 'inbox-close' })));
+        el('div', { class: 'st-foot' }, plainButton(XZText('Close'), () => inbox.close(), { key: 'inbox-close' })));
       inbox.replaceChildren(...parts);
       input.onkeydown = event => { if (event.key === 'Enter') connect(input); };
       input.focus();
@@ -302,25 +302,25 @@ window.myReports = (() => {
     }
     const find = el('input', { type: 'search', id: 'support-inbox-search', value: box.query, placeholder: 'R-4F7K-2M9Q or XZ-1042', maxlength: '64', dataset: { key: 'inbox-query' }, 'aria-label': 'Find a report reference or item number' });
     find.onkeydown = event => { if (event.key === 'Enter') search(find.value); };
-    parts.push(el('div', { class: 'sr-inbox-search' }, find, plainButton('Find', () => search(find.value), { key: 'inbox-search', disabled: box.state === 'loading' }), box.query ? plainButton('Clear', () => search(''), { key: 'inbox-clear', disabled: box.state === 'loading' }) : null));
-    parts.push(el('div', { class: 'sr-inbox-tools' }, plainButton('Refresh', () => list(), { key: 'inbox-refresh', disabled: box.state === 'loading' }),
-      plainButton('Check for changes', changes, { key: 'inbox-changes' }),
-      el('span', { class: 'sr-meta', role: 'status', text: box.message || box.rows.length + ' report' + (box.rows.length === 1 ? '' : 's') + ' · highest priority first' })));
+    parts.push(el('div', { class: 'sr-inbox-search' }, find, plainButton(XZText('Find'), () => search(find.value), { key: 'inbox-search', disabled: box.state === 'loading' }), box.query ? plainButton(XZText('Clear'), () => search(''), { key: 'inbox-clear', disabled: box.state === 'loading' }) : null));
+    parts.push(el('div', { class: 'sr-inbox-tools' }, plainButton(XZText('Refresh'), () => list(), { key: 'inbox-refresh', disabled: box.state === 'loading' }),
+      plainButton(XZText('Check for changes'), changes, { key: 'inbox-changes' }),
+      el('span', { class: 'sr-meta', role: 'status', text: box.message || box.rows.length + ' report' + (box.rows.length === 1 ? '' : 's') + XZText(' · highest priority first') })));
     parts.push(el('div', { class: 'sr-table-wrap' }, el('table', { class: 'sr-table' },
       el('colgroup', {}, ...['kind', 'sev', 'impact', 'base', 'feat', 'since', 'reach', 'status', 'reference', 'item'].map(name => el('col', { class: 'c-' + name }))),
       el('thead', {}, el('tr', {}, ...['Kind', 'Severity', 'Impact', 'Baseline', 'Affected features', 'In use since', 'Reach', 'Status', 'Reference', 'Item'].map(text => el('th', { scope: 'col', text })))),
-      el('tbody', {}, ...(box.rows.length ? box.rows.map(row) : [el('tr', {}, el('td', { colspan: '10', text: box.state === 'loading' ? 'Reading...' : 'No reports.' }))])))));
-    if (box.cursor) parts.push(el('div', { class: 'actions' }, plainButton('Load more', () => list(true), { key: 'inbox-more' })));
+      el('tbody', {}, ...(box.rows.length ? box.rows.map(row) : [el('tr', {}, el('td', { colspan: '10', text: box.state === 'loading' ? 'Reading...' : XZText('No reports.') }))])))));
+    if (box.cursor) parts.push(el('div', { class: 'actions' }, plainButton(XZText('Load more'), () => list(true), { key: 'inbox-more' })));
     if (box.reader) {
       const r = box.reader;
-      parts.push(el('h3', { text: 'Private report ' + (box.rows.find(row => row.report_id === r.id)?.report_reference || '') }), el('pre', { tabindex: '0', 'aria-label': 'Verified private report', text: r.text }),
-        el('div', { class: 'actions' }, r.pages > 1 ? plainButton('Previous page', () => read(r.id, r.page - 1), { key: 'p-prev', disabled: r.page === 0 }) : null,
-          r.pages > 1 ? plainButton('Next page', () => read(r.id, r.page + 1), { key: 'p-next', disabled: r.page + 1 >= r.pages }) : null,
+      parts.push(el('h3', { text: XZText('Private report ') + (box.rows.find(row => row.report_id === r.id)?.report_reference || '') }), el('pre', { tabindex: '0', 'aria-label': 'Verified private report', text: r.text }),
+        el('div', { class: 'actions' }, r.pages > 1 ? plainButton(XZText('Previous page'), () => read(r.id, r.page - 1), { key: 'p-prev', disabled: r.page === 0 }) : null,
+          r.pages > 1 ? plainButton(XZText('Next page'), () => read(r.id, r.page + 1), { key: 'p-next', disabled: r.page + 1 >= r.pages }) : null,
           r.pages ? el('span', { class: 'fine', text: 'Page ' + (r.page + 1) + ' of ' + r.pages }) : null,
-          box.confirmDelete ? plainButton('Delete the private copy', () => remove(r.id), { key: 'del-yes' }) : plainButton('Delete private copy', () => { box.confirmDelete = true; renderInbox(); }, { key: 'del' }),
-          box.confirmDelete ? plainButton('Keep', () => { box.confirmDelete = false; renderInbox(); }, { key: 'del-no' }) : null));
+          box.confirmDelete ? plainButton(XZText('Delete the private copy'), () => remove(r.id), { key: 'del-yes' }) : plainButton(XZText('Delete private copy'), () => { box.confirmDelete = true; renderInbox(); }, { key: 'del' }),
+          box.confirmDelete ? plainButton(XZText('Keep'), () => { box.confirmDelete = false; renderInbox(); }, { key: 'del-no' }) : null));
     }
-    parts.push(el('div', { class: 'st-foot' }, plainButton('Close', () => inbox.close(), { primary: true, key: 'inbox-close' })));
+    parts.push(el('div', { class: 'st-foot' }, plainButton(XZText('Close'), () => inbox.close(), { primary: true, key: 'inbox-close' })));
     const focused = inbox.contains(document.activeElement) ? document.activeElement.dataset.key : null;
     inbox.replaceChildren(...parts);
     (focused && inbox.querySelector('[data-key="' + CSS.escape(focused) + '"]') || inbox.querySelector('h2')).focus({ preventScroll: true });

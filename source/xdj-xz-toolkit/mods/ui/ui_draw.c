@@ -1,6 +1,7 @@
 #include "ui_skin.h"
 #include "font_atlas.h"
 #include "pixel_font.h"
+#include "l10n.inc"
 
 static uint16_t rgb(uint32_t c){return (uint16_t)(((c>>8)&0xf800)|((c>>5)&0x7e0)|((c>>3)&31));}
 uint32_t xz_blend(uint32_t a,uint32_t b,unsigned n){
@@ -56,6 +57,8 @@ void xz_pixel_text(struct xz_canvas c,int x,int y,const char *s,int dot,int limi
 }
 void xz_text(struct xz_canvas c,int x,int y,const char *s,int scale,int limit,uint32_t color){
  if(!s||limit<=0)return;
+ const struct xz_l10n_mask *localized=xz_l10n_mask_for(s,scale,limit);
+ if(localized){xz_l10n_paint(c,x,y,localized,color);return;}
  if(xz_theme_pixel_text(c.theme)){xz_pixel_text(c,x,y,s,scale>1?2:1,limit,color);return;}
  int face=scale>1?1:0,end=x+limit*6*scale;
  while(*s){
@@ -66,6 +69,8 @@ void xz_text(struct xz_canvas c,int x,int y,const char *s,int scale,int limit,ui
 }
 int xz_text_width(struct xz_canvas c,const char *s,int scale,int limit){
  int x=0;if(!s||limit<=0)return 0;
+ const struct xz_l10n_mask *localized=xz_l10n_mask_for(s,scale,limit);
+ if(localized)return (int)localized->width;
  if(xz_theme_pixel_text(c.theme)){
   for(int count=0;*s&&count<limit;count++,x+=6*(scale>1?2:1))codepoint(&s);
   return x;

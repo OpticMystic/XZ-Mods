@@ -1,6 +1,8 @@
+#include "l10n.h"
 /* SPDX-License-Identifier: MIT */
 /* The MODS sections and their picture pages (ui_sections.h). */
 #include "ui_sections.h"
+#include "l10n.h"
 #include "stem_pads.h"
 #include "wave_viewport.h"
 #include "layout_cycle.h"
@@ -32,10 +34,10 @@ enum xz_ui_page xz_ui_page_current(enum xz_ui_page page){
 const char *xz_ui_save_state(const struct xz_ui_model *m, int *alert){
  const char *s=m?m->settings_status:NULL;int bad=0;const char *out="";
  if(s&&*s){
-  if(strstr(s,"SAVING"))out="SAVING...";
-  else if(!strcmp(s,"CHANGES LAST UNTIL REBOOT"))out="NOT SAVED: CHANGES LAST UNTIL POWER OFF.";
+  if(strstr(s,"SAVING"))out=xz_l10n_authored("SAVING...");
+  else if(!strcmp(s,"CHANGES LAST UNTIL REBOOT"))out=xz_l10n_authored("NOT SAVED: CHANGES LAST UNTIL POWER OFF.");
+  else if(!strcmp(s,"SETTINGS NOT SAVED: INSERT A USB")||!strcmp(s,"INSERT USB TO SAVE SETTINGS")){out=xz_l10n_authored("NO SETTINGS USB: CHANGES LAST UNTIL POWER OFF.");bad=1;}
   else if(strstr(s,"NOT SAVED")||strstr(s,"INVALID")||strstr(s,"UNAVAILABLE")){out=s;bad=1;}
-  else if(!strcmp(s,"SETTINGS NOT SAVED: INSERT A USB")||!strcmp(s,"INSERT USB TO SAVE SETTINGS")){out="NO SETTINGS USB: CHANGES LAST UNTIL POWER OFF.";bad=1;}
   else out=s;
  }
  if(alert)*alert=bad;
@@ -76,87 +78,88 @@ size_t xz_ui_section_controls(const struct xz_ui *u, const struct xz_ui_model *m
  switch(u->page){
  case XZ_UI_HOME:
   for(i=1;i<XZ_UI_SECTIONS;i++)add(w,&n,XZ_UI_FEATURE_LINK,xz_ui_sections[i],0,xz_ui_section_label(xz_ui_sections[i]));
-  if(!xz_ui_usb_engine(m))add(w,&n,XZ_UI_HOME_SETUP,XZ_UI_STEM_SECTION,0,"SET UP USB STEMS");
-  if(four_needs_you(m))add(w,&n,XZ_UI_HOME_SETUP,XZ_UI_FOUR_DECKS,0,"SET UP FOUR DECKS");
+  if(!xz_ui_usb_engine(m))add(w,&n,XZ_UI_HOME_SETUP,XZ_UI_STEM_SECTION,0,xz_l10n_authored("SET UP USB STEMS"));
+  if(four_needs_you(m))add(w,&n,XZ_UI_HOME_SETUP,XZ_UI_FOUR_DECKS,0,xz_l10n_authored("SET UP FOUR DECKS"));
   break;
  case XZ_UI_PLAY:{
   uint32_t available=m->deck[0].ready|m->deck[1].ready|m->enabled;
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BEAT_JUMP,0,"BEAT JUMP PADS");
-  if(available&XZ_UI_GATE)add(w,&n,XZ_UI_ENABLE,XZ_UI_GATE,XZ_UI_GATE,"GATE CUE");else add(w,&n,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_GATE,0,"SET UP GATE CUE");
-  if(available&XZ_UI_SMART)add(w,&n,XZ_UI_ENABLE,XZ_UI_SMART,XZ_UI_SMART,"SMART CUE");else add(w,&n,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_SMART,0,"SET UP SMART CUE");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_KEY_SETUP,0,"KEYS");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_RAM_SETUP,0,"RAM TRACKS");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BUTTONS,0,"BUTTON ABOVE LINK");
+  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BEAT_JUMP,0,xz_l10n_authored("BEAT JUMP PADS"));
+  if(available&XZ_UI_GATE)add(w,&n,XZ_UI_ENABLE,XZ_UI_GATE,XZ_UI_GATE,xz_l10n_authored("GATE CUE"));else add(w,&n,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_GATE,0,xz_l10n_authored("SET UP GATE CUE"));
+  if(available&XZ_UI_SMART)add(w,&n,XZ_UI_ENABLE,XZ_UI_SMART,XZ_UI_SMART,xz_l10n_authored("SMART CUE"));else add(w,&n,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_SMART,0,xz_l10n_authored("SET UP SMART CUE"));
+  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_KEY_SETUP,0,xz_l10n_authored("KEYS"));
+  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_RAM_SETUP,0,xz_l10n_authored("RAM TRACKS"));
+  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BUTTONS,0,xz_l10n_authored("BUTTON ABOVE LINK"));
   break;}
  case XZ_UI_STEM_SECTION:
-  if(xz_ui_usb_engine(m))add(w,&n,XZ_UI_ENABLE,XZ_UI_STEM,0,"USB STEMS");
-  else add(w,&n,XZ_UI_LOCAL_STEM_SETUP_OPEN,XZ_UI_STEM,0,"SET UP USB STEMS");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_PC_STEMS,0,"STEMS IN DJ SOFTWARE");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEM_PADS,0,"STEM PADS");
+  if(xz_ui_usb_engine(m))add(w,&n,XZ_UI_ENABLE,XZ_UI_STEM,0,xz_l10n_authored("USB STEMS"));
+  else add(w,&n,XZ_UI_LOCAL_STEM_SETUP_OPEN,XZ_UI_STEM,0,xz_l10n_authored("SET UP USB STEMS"));
+  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_PC_STEMS,0,xz_l10n_authored("STEMS IN DJ SOFTWARE"));
+  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEM_PADS,0,xz_l10n_authored("STEM PADS"));
   {const int *order;int count=stem_layouts_of(m,&order);
    for(i=0;i<count;i++)add(w,&n,XZ_UI_STEMS_OVERLAY,1+order[i],0,stem_layout_label(m,order[i]));}
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEM_COLORS,0,"STEM COLOURS");
-  if(xz_ui_modern_menu(m))look_switch(w,&n,XZ_UI_LOOK_BYPASS,"BYPASS BUTTON");
+  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEM_COLORS,0,xz_l10n_authored("STEM COLOURS"));
+  if(xz_ui_modern_menu(m))look_switch(w,&n,XZ_UI_LOOK_BYPASS,xz_l10n_authored("BYPASS BUTTON"));
   break;
  case XZ_UI_SCREEN:
-  add(w,&n,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_CLASSIC,0,"CLASSIC");
-  add(w,&n,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_MODERN,0,"MODERN");
+  add(w,&n,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_CLASSIC,0,xz_l10n_authored("CLASSIC"));
+  add(w,&n,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_MODERN,0,xz_l10n_authored("MODERN"));
   if(m->route.state!=XZ_UI_ROUTE_NO_ENGINE){
-   for(i=0;i<XZ_LAYOUT_COUNT;i++)add(w,&n,XZ_UI_DECK_VIEW,i,0,i?"4 DECKS":"2 DECKS");
+   for(i=0;i<XZ_LAYOUT_COUNT;i++)add(w,&n,XZ_UI_DECK_VIEW,i,0,i?xz_l10n_authored("4 DECKS"):xz_l10n_authored("2 DECKS"));
   }
   /* MODERN has one look, so no THEME: its slot leads to the MODERN play screen's own parts instead. */
   if(xz_ui_modern_menu(m)){
-   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_SCREEN_LOOK,0,"LAMPS AND TITLES");
-   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BAND_COLORS,0,"3-BAND COLOURS");
-   for(i=0;i<XZ_UI_WAVE_COLORS;i++)add(w,&n,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_WAVE_COLOR*8+i,0,wave_names[i]);
+   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_SCREEN_LOOK,0,xz_l10n_authored("LAMPS AND TITLES"));
+   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BAND_COLORS,0,xz_l10n_authored("3-BAND COLOURS"));
+   for(i=0;i<XZ_UI_WAVE_COLORS;i++)add(w,&n,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_WAVE_COLOR*8+i,0,xz_l10n_authored(wave_names[i]));
   }else{
-   add(w,&n,XZ_UI_PANEL,XZ_UI_THEME_PICK,0,"THEME");
-   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BAND_COLORS,0,"3-BAND COLOURS");
-   add(w,&n,XZ_UI_WAVE_MODE,0,0,"STOCK");add(w,&n,XZ_UI_WAVE_MODE,1,0,"3-BAND");add(w,&n,XZ_UI_WAVE_MODE,2,0,"STEMS");
+   add(w,&n,XZ_UI_PANEL,XZ_UI_THEME_PICK,0,xz_l10n_authored("THEME"));
+   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BAND_COLORS,0,xz_l10n_authored("3-BAND COLOURS"));
+   add(w,&n,XZ_UI_WAVE_MODE,0,0,xz_l10n_authored("STOCK"));add(w,&n,XZ_UI_WAVE_MODE,1,0,xz_l10n_authored("3-BAND"));add(w,&n,XZ_UI_WAVE_MODE,2,0,xz_l10n_authored("STEMS"));
   }
-  add(w,&n,XZ_UI_KEY_FORMAT,0,0,"AS ON THE USB");add(w,&n,XZ_UI_KEY_FORMAT,1,0,"MUSICAL");add(w,&n,XZ_UI_KEY_FORMAT,2,0,"WHEEL");
-  add(w,&n,XZ_UI_KEY_FEEDBACK,0,0,"PLAYING KEY");
-  add(w,&n,XZ_UI_BROWSE_TRAFFIC,0,0,"KEY MATCH COLOURS");
-  add(w,&n,XZ_UI_BROWSE_KEY_PREFIX,0,0,"KEY BEFORE TITLE");
-  add(w,&n,XZ_UI_INFO,XZ_UI_INFO_COLUMNS,0,"TRACK LIST COLUMNS");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_METRICS_SETUP,0,"SYSTEM READOUT");
+  add(w,&n,XZ_UI_KEY_FORMAT,0,0,xz_l10n_authored("AS ON THE USB"));add(w,&n,XZ_UI_KEY_FORMAT,1,0,xz_l10n_authored("MUSICAL"));add(w,&n,XZ_UI_KEY_FORMAT,2,0,xz_l10n_authored("WHEEL"));
+  add(w,&n,XZ_UI_KEY_FEEDBACK,0,0,xz_l10n_authored("PLAYING KEY"));
+  add(w,&n,XZ_UI_BROWSE_TRAFFIC,0,0,xz_l10n_authored("KEY MATCH COLOURS"));
+  add(w,&n,XZ_UI_BROWSE_KEY_PREFIX,0,0,xz_l10n_authored("KEY BEFORE TITLE"));
+  add(w,&n,XZ_UI_INFO,XZ_UI_INFO_COLUMNS,0,xz_l10n_authored("TRACK LIST COLUMNS"));
+  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_METRICS_SETUP,0,xz_l10n_authored("SYSTEM READOUT"));
   break;
  case XZ_UI_SCREEN_LOOK:
   if(!xz_ui_modern_menu(m))break;   /* CLASSIC has none of these parts */
-  look_switch(w,&n,XZ_UI_LOOK_MODE_LAMPS,"MODE LAMPS");look_switch(w,&n,XZ_UI_LOOK_QUANTIZE_LAMP,"QUANTIZE LAMP");
-  look_switch(w,&n,XZ_UI_LOOK_WAVE_TITLES,"TITLES IN WAVEFORMS");
-  for(i=0;i<3;i++)add(w,&n,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_USB_COLORS*8+i,0,usb_names[i]);
+  look_switch(w,&n,XZ_UI_LOOK_MODE_LAMPS,xz_l10n_authored("MODE LAMPS"));look_switch(w,&n,XZ_UI_LOOK_QUANTIZE_LAMP,xz_l10n_authored("QUANTIZE LAMP"));
+  look_switch(w,&n,XZ_UI_LOOK_WAVE_TITLES,xz_l10n_authored("TITLES IN WAVEFORMS"));
+  for(i=0;i<3;i++)add(w,&n,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_USB_COLORS*8+i,0,xz_l10n_authored(usb_names[i]));
   break;
  case XZ_UI_FOUR_DECKS:
-  if(m->route.state==XZ_UI_ROUTE_NO_ENGINE)add(w,&n,XZ_UI_ROUTE_RESCAN,0,0,"CHECK INSTALLED ENGINE");
+  if(m->route.state==XZ_UI_ROUTE_NO_ENGINE)add(w,&n,XZ_UI_ROUTE_RESCAN,0,0,xz_l10n_authored("CHECK INSTALLED ENGINE"));
   if(m->route.state!=XZ_UI_ROUTE_NO_ENGINE){
-   if(m->route.state!=XZ_UI_ROUTE_READY)add(w,&n,XZ_UI_ROUTE_RESCAN,0,0,m->route.state==XZ_UI_ROUTE_FAILED?"TRY AGAIN":"RESCAN");
-   for(i=0;i<XZ_LAYOUT_COUNT;i++)add(w,&n,XZ_UI_DECK_VIEW,i,0,i?"4 DECKS":"2 DECKS");
+   if(m->route.state!=XZ_UI_ROUTE_READY)add(w,&n,XZ_UI_ROUTE_RESCAN,0,0,m->route.state==XZ_UI_ROUTE_FAILED?xz_l10n_authored("TRY AGAIN"):xz_l10n_authored("RESCAN"));
+   for(i=0;i<XZ_LAYOUT_COUNT;i++)add(w,&n,XZ_UI_DECK_VIEW,i,0,i?xz_l10n_authored("4 DECKS"):xz_l10n_authored("2 DECKS"));
   }
   for(i=0;i<XZ_UI_GRID_ROWS;i++)add(w,&n,XZ_UI_INFO,XZ_UI_INFO_GRID+i,0,xz_ui_grid_name(i));
   break;
  case XZ_UI_CONNECT:
-  add(w,&n,XZ_UI_PANEL,XZ_UI_PROFILE_SETUP,0,"DJ PROFILE");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_CONNECTION,0,"VJ.TOOLS");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_NETWORK,0,"NETWORK");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_UPDATES,0,"UPDATES");
+  add(w,&n,XZ_UI_PANEL,XZ_UI_PROFILE_SETUP,0,xz_l10n_authored("DJ PROFILE"));
+  add(w,&n,XZ_UI_PANEL,XZ_UI_CONNECTION,0,xz_l10n_authored("VJ.TOOLS"));
+  add(w,&n,XZ_UI_PANEL,XZ_UI_NETWORK,0,xz_l10n_authored("NETWORK"));
+  add(w,&n,XZ_UI_PANEL,XZ_UI_UPDATES,0,xz_l10n_authored("UPDATES"));
   break;
  case XZ_UI_EXTRAS:
-  add(w,&n,XZ_UI_PANEL,XZ_UI_GAMES,0,"GAMES");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_APPS,0,"USB APPS");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_SUPPORT,0,"REPORT AN ISSUE");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_ABOUT,0,"ABOUT XZ MODS");
+  add(w,&n,XZ_UI_PANEL,XZ_UI_LANGUAGE_PAGE,0,xz_l10n_authored("LANGUAGE"));
+  add(w,&n,XZ_UI_PANEL,XZ_UI_GAMES,0,xz_l10n_authored("GAMES"));
+  add(w,&n,XZ_UI_PANEL,XZ_UI_APPS,0,xz_l10n_authored("USB APPS"));
+  add(w,&n,XZ_UI_PANEL,XZ_UI_SUPPORT,0,xz_l10n_authored("REPORT AN ISSUE"));
+  add(w,&n,XZ_UI_PANEL,XZ_UI_ABOUT,0,xz_l10n_authored("ABOUT XZ MODS"));
   break;
  case XZ_UI_STEM_PADS:{
   static const char *const modes[4]={"HOT CUE","BEAT LOOP","SLIP LOOP","BEAT JUMP"};
   for(i=0;i<4;i++)add(w,&n,XZ_UI_STEM_PAGE,i,0,modes[i]);
-  add(w,&n,XZ_UI_STEM_BANK,0,0,"PADS A-D");add(w,&n,XZ_UI_STEM_BANK,1,0,"PADS E-H");
-  add(w,&n,XZ_UI_STEM_ORDER,0,0,"ORDER");
-  add(w,&n,XZ_UI_PAD_FEEDBACK,1,0,"STEM COLOURS");add(w,&n,XZ_UI_PAD_FEEDBACK,2,0,"OFF");
+  add(w,&n,XZ_UI_STEM_BANK,0,0,xz_l10n_authored("PADS A-D"));add(w,&n,XZ_UI_STEM_BANK,1,0,xz_l10n_authored("PADS E-H"));
+  add(w,&n,XZ_UI_STEM_ORDER,0,0,xz_l10n_authored("ORDER"));
+  add(w,&n,XZ_UI_PAD_FEEDBACK,1,0,xz_l10n_authored("STEM COLOURS"));add(w,&n,XZ_UI_PAD_FEEDBACK,2,0,xz_l10n_authored("OFF"));
   break;}
  case XZ_UI_BEAT_JUMP:
-  add(w,&n,XZ_UI_JUMP_EDIT_PAGE,0,0,"PAGE 1");add(w,&n,XZ_UI_JUMP_EDIT_PAGE,1,0,"PAGE 2");
-  add(w,&n,XZ_UI_JUMP_ENABLE,2,0,"PAGE 1: STOCK");add(w,&n,XZ_UI_JUMP_ENABLE,1,0,"PAGE 1: MY SIZES");
+  add(w,&n,XZ_UI_JUMP_EDIT_PAGE,0,0,xz_l10n_authored("PAGE 1"));add(w,&n,XZ_UI_JUMP_EDIT_PAGE,1,0,xz_l10n_authored("PAGE 2"));
+  add(w,&n,XZ_UI_JUMP_ENABLE,2,0,xz_l10n_authored("PAGE 1: STOCK"));add(w,&n,XZ_UI_JUMP_ENABLE,1,0,xz_l10n_authored("PAGE 1: MY SIZES"));
   for(i=0;i<4;i++)add(w,&n,XZ_UI_JUMP_PAIR,2*i,0,"");
   for(i=0;i<XZ_PIC_JUMP_CHIPS;i++)add(w,&n,XZ_UI_JUMP_SIZE,xz_pic_jump_ids[i],0,xz_jump_label(xz_pic_jump_ids[i]));
   break;
@@ -166,11 +169,11 @@ size_t xz_ui_section_controls(const struct xz_ui *u, const struct xz_ui_model *m
   }
   break;
  case XZ_UI_KEY_SETUP:
-  add(w,&n,XZ_UI_KEY_SHIFT,-1,XZ_UI_KEY,"KEY DOWN");add(w,&n,XZ_UI_KEY_SHIFT,0,XZ_UI_KEY,"RESET");add(w,&n,XZ_UI_KEY_SHIFT,1,XZ_UI_KEY,"KEY UP");
+  add(w,&n,XZ_UI_KEY_SHIFT,-1,XZ_UI_KEY,xz_l10n_authored("KEY DOWN"));add(w,&n,XZ_UI_KEY_SHIFT,0,XZ_UI_KEY,xz_l10n_authored("RESET"));add(w,&n,XZ_UI_KEY_SHIFT,1,XZ_UI_KEY,xz_l10n_authored("KEY UP"));
   {/* The master deck is what the others match: KEY SYNC has no target there and nothing needs setting up. */
    const struct xz_ui_deck *d=&m->deck[u->deck];uint32_t need=XZ_UI_KEY|(d->key_master?0u:XZ_UI_KEYSYNC);
-   if(!d->key_master)add(w,&n,XZ_UI_KEY_SYNC,0,XZ_UI_KEYSYNC,"KEY SYNC");
-   if((d->ready&need)!=need)add(w,&n,XZ_UI_KEY_CHECK,0,0,"SET UP KEYS");}
+   if(!d->key_master)add(w,&n,XZ_UI_KEY_SYNC,0,XZ_UI_KEYSYNC,xz_l10n_authored("KEY SYNC"));
+   if((d->ready&need)!=need)add(w,&n,XZ_UI_KEY_CHECK,0,0,xz_l10n_authored("SET UP KEYS"));}
   break;
  default:break;
  }
@@ -269,7 +272,8 @@ void xz_ui_section_place(const struct xz_ui *u, const struct xz_ui_model *m, str
    break;
   case XZ_UI_CONNECT:case XZ_UI_EXTRAS:{
    int slot=k==XZ_UI_PROFILE_SETUP||k==XZ_UI_GAMES?0:k==XZ_UI_CONNECTION||k==XZ_UI_APPS?1:k==XZ_UI_NETWORK||k==XZ_UI_SUPPORT?2:3;
-   if(a->kind==XZ_UI_PANEL)put(a,slot%2?468:X0,slot/2?226:48,324,170);
+   if(a->kind==XZ_UI_PANEL)put(a,slot%2?468:X0,slot/2?(u->page==XZ_UI_EXTRAS?208:226):48,324,u->page==XZ_UI_EXTRAS?148:170);
+   if(a->kind==XZ_UI_PANEL&&a->index==XZ_UI_LANGUAGE_PAGE)put(a,X0,364,CW,36);
    break;}
   case XZ_UI_STEM_PADS:
    if(a->kind==XZ_UI_STEM_PAGE&&k>=0&&k<4){struct xz_rect r=sg.modes[k];put(a,r.x,r.y,r.w,r.h);}
@@ -334,12 +338,12 @@ const char *xz_ui_section_value(const struct xz_ui_model *m, const struct xz_ui_
 }
 const char *xz_ui_section_purpose(int section){
  switch(section){
- case XZ_UI_PLAY:return "Beat jump pads, cue tricks, key sync and RAM tracks.";
- case XZ_UI_STEM_SECTION:return "Mute vocals, harmonics and drums from the pads or the screen.";
- case XZ_UI_SCREEN:return "Interface, deck view, waveform colours and how keys are written.";
- case XZ_UI_FOUR_DECKS:return "Play decks 3 and 4 over the loopback cable.";
- case XZ_UI_CONNECT:return "DJ profile, VJ.Tools, network and updates.";
- case XZ_UI_EXTRAS:return "Games, USB apps, report an issue and about.";
+ case XZ_UI_PLAY:return xz_l10n_authored("Beat jump pads, cue tricks, key sync and RAM tracks.");
+ case XZ_UI_STEM_SECTION:return xz_l10n_authored("Mute vocals, harmonics and drums from the pads or the screen.");
+ case XZ_UI_SCREEN:return xz_l10n_authored("Interface, deck view, waveform colours and how keys are written.");
+ case XZ_UI_FOUR_DECKS:return xz_l10n_authored("Play decks 3 and 4 over the loopback cable.");
+ case XZ_UI_CONNECT:return xz_l10n_authored("DJ profile, VJ.Tools, network and updates.");
+ case XZ_UI_EXTRAS:return xz_l10n_authored("Games, USB apps, report an issue and about.");
  default:return "";
  }
 }
@@ -441,6 +445,7 @@ const char *xz_ui_route_line(const struct xz_ui_model *m){
   state==XZ_UI_ROUTE_LOST?"The loopback cable was unplugged or lost power.":
   "Rear USB socket to " XZ_LOOPBACK_PORT " on top. CH3 and CH4 input switches to USB.";
 }
+#include "home_status.inc"
 static void home(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
  struct xz_canvas c=sc->c;const struct xz_ui_model *m=sc->m;char status[96];
  struct xz_pic_home pic;xz_ui_home_picture(m,&pic);
@@ -448,14 +453,17 @@ static void home(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
   int section=xz_ui_sections[i],tone;struct xz_rect r=home_tile(section);
   int setup=xz_ui_home_status(m,section,status,sizeof status,&tone);
   xz_round_rect(c,r.x,r.y,r.w,r.h,s->radius,15,s->row_edge);xz_round_rect(c,r.x+1,r.y+1,r.w-2,r.h-2,s->radius-1,15,s->row);
-  xz_pic_text(c,r.x+12,r.y+12,xz_ui_section_label(section),20,s->ink);
+  const char *title=xz_l10n_label(m->controller_locale,xz_ui_section_label(section));
+  int title_size=xz_pic_text_width(c,title,20)>r.w-110?12:20;
+  struct xz_canvas title_box=xz_sub(c,r.x+12,r.y+12,r.w-110,24);
+  xz_pic_text(title_box,0,0,title,title_size,s->ink);
   xz_pic_home_icon(c,s,section,r.x+r.w-86,r.y+12,&pic);
   xz_pic_wrap(c,r.x+12,r.y+64,r.w-24,15,3,xz_ui_section_purpose(section),s->dim);
   uint32_t dot=tone==1?s->good:tone==2?s->warn:s->faint;
   int sy=setup?r.y+r.h-69:r.y+r.h-27;
   xz_disc(c,r.x+16,sy+5,4,dot);
   struct xz_canvas box=xz_sub(c,r.x+26,sy,r.w-36,14);
-  xz_pic_text(box,0,0,status,12,tone==2?s->warn:tone==1?s->ink:s->dim);
+  xz_pic_text(box,0,0,xz_l10n_home_fixed(m,section,status),12,tone==2?s->warn:tone==1?s->ink:s->dim);
  }
  for(size_t i=0;i<sc->n;i++){
   const struct xz_ui_widget *a=&sc->w[i];if(a->kind!=XZ_UI_HOME_SETUP)continue;
@@ -495,21 +503,21 @@ static void route_card(const struct xz_ui_scene *sc, const struct xz_pic_style *
 static void four_decks(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
  struct xz_canvas c=sc->c;const struct xz_ui_model *m=sc->m;
  route_card(sc,s);
- if(m->route.state!=XZ_UI_ROUTE_NO_ENGINE)caption(c,s,X0,142,CW,"DECK VIEW");
+ if(m->route.state!=XZ_UI_ROUTE_NO_ENGINE)caption(c,s,X0,142,CW,xz_l10n_authored("DECK VIEW"));
  for(size_t i=0;i<sc->n;i++){
   const struct xz_ui_widget *a=&sc->w[i];
   if(a->kind==XZ_UI_ROUTE_RESCAN){
    int on=sc->look[i].available;
    xz_round_rect(c,a->x,a->y,a->w,a->h,s->radius,15,on?s->select:s->row_edge);
-   xz_pic_text_center(c,a->x+a->w/2,a->y+13,on?a->label:"SCANNING",20,on?s->on_select:s->dim);
+   xz_pic_text_center(c,a->x+a->w/2,a->y+13,on?a->label:xz_l10n_authored("SCANNING"),20,on?s->on_select:s->dim);
   }
   if(a->kind==XZ_UI_DECK_VIEW){
    int sel=a->index==m->deck_view;
    xz_pic_box(c,s,(struct xz_rect){a->x,a->y,a->w,a->h},sel,0);
-   xz_pic_text_center(c,a->x+a->w/2,a->y+13,a->index==0?"2 DECKS":a->index==1?"4  |  1 2 3 4":"4  |  3 1 2 4",20,sel?s->on_select:s->ink);
+   xz_pic_text_center(c,a->x+a->w/2,a->y+13,a->index==0?xz_l10n_authored("2 DECKS"):a->index==1?"4  |  1 2 3 4":"4  |  3 1 2 4",20,sel?s->on_select:s->ink);
   }
  }
- caption(c,s,X0,204,180,"WHAT WORKS ON EACH DECK");
+ caption(c,s,X0,204,180,xz_l10n_authored("WHAT WORKS ON EACH DECK"));
  struct xz_pic_grid_geo g;xz_pic_grid_geometry(X0+4,204,CW-8,36,&g);
  unsigned caps[4];for(int d=0;d<4;d++)caps[d]=xz_deck_caps(m,d);
  struct xz_ui_widget f;int focus=-1;
@@ -519,10 +527,10 @@ static void four_decks(const struct xz_ui_scene *sc, const struct xz_pic_style *
 static void screen(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
  struct xz_canvas c=sc->c;const struct xz_ui_model *m=sc->m;
  int y=screen_layout_y();
- caption(c,s,X0,y-16,2*(CW+8)/5-8,"INTERFACE");
- if(m->route.state!=XZ_UI_ROUTE_NO_ENGINE)caption(c,s,X0+2*(CW+8)/5,y-16,3*(CW+8)/5-8,"DECK VIEW");
- caption(c,s,X0,192,HALF,"WAVEFORM COLOURS");caption(c,s,X0+HALF+8,192,HALF,"KEY NOTATION");
- caption(c,s,X0,256,CW,"KEYS AND THE TRACK LIST");
+ caption(c,s,X0,y-16,2*(CW+8)/5-8,xz_l10n_authored("INTERFACE"));
+ if(m->route.state!=XZ_UI_ROUTE_NO_ENGINE)caption(c,s,X0+2*(CW+8)/5,y-16,3*(CW+8)/5-8,xz_l10n_authored("DECK VIEW"));
+ caption(c,s,X0,192,HALF,xz_l10n_authored("WAVEFORM COLOURS"));caption(c,s,X0+HALF+8,192,HALF,xz_l10n_authored("KEY NOTATION"));
+ caption(c,s,X0,256,CW,xz_l10n_authored("KEYS AND THE TRACK LIST"));
  uint32_t rgb[3],band[XZ_BANDS];for(int i=0;i<3;i++){rgb[i]=xz_ui_model_stem_color(m,i);band[i]=xz_ui_model_band_color(m,i);}
  for(size_t i=0;i<sc->n;i++){
   const struct xz_ui_widget *a=&sc->w[i];int sel=sc->look[i].selected;
@@ -581,10 +589,10 @@ void xz_ui_section_render(const struct xz_ui_scene *sc){
  switch(u->page){
  case XZ_UI_HOME:home(sc,&s);break;
  case XZ_UI_PLAY:
-  caption(c,&s,X0,48,CW,"PADS AND CUES");caption(c,&s,X0,160,CW,"KEYS AND MEMORY");caption(c,&s,X0,224,CW,"BUTTONS");
+  caption(c,&s,X0,48,CW,xz_l10n_authored("PADS AND CUES"));caption(c,&s,X0,160,CW,xz_l10n_authored("KEYS AND MEMORY"));caption(c,&s,X0,224,CW,xz_l10n_authored("BUTTONS"));
   list_values(sc,&s);break;
  case XZ_UI_STEM_SECTION:
-  caption(c,&s,X0,48,CW,"STEM AUDIO");caption(c,&s,X0,112,CW,"PADS");caption(c,&s,X0,176,CW,"STEM BUTTONS ON SCREEN");
+  caption(c,&s,X0,48,CW,xz_l10n_authored("STEM AUDIO"));caption(c,&s,X0,112,CW,xz_l10n_authored("PADS"));caption(c,&s,X0,176,CW,xz_l10n_authored("STEM BUTTONS ON SCREEN"));
   list_values(sc,&s);stem_layouts(sc,&s);break;
  case XZ_UI_SCREEN:screen(sc,&s);break;
  case XZ_UI_FOUR_DECKS:four_decks(sc,&s);break;
@@ -603,8 +611,8 @@ void xz_ui_section_render(const struct xz_ui_scene *sc){
  case XZ_UI_BUTTONS:{
   xz_rect(c,X0,XZ_UI_CY,CW,XZ_UI_DOCK_Y-8-XZ_UI_CY,s.bg);
   xz_pic_media_buttons(c,&s,X0,50,260,32);
-  xz_pic_wrap(c,X0+276,52,CW-276,15,2,"The button above LINK: what it does on a press, and while SHIFT is held on either deck.",s.dim);
-  caption(c,&s,X0,88,CW,"PRESS");caption(c,&s,X0,224,CW,"SHIFT + PRESS");
+  xz_pic_wrap(c,X0+276,52,CW-276,15,2,xz_l10n_authored("The button above LINK: what it does on a press, and while SHIFT is held on either deck."),s.dim);
+  caption(c,&s,X0,88,CW,xz_l10n_authored("PRESS"));caption(c,&s,X0,224,CW,xz_l10n_authored("SHIFT + PRESS"));
   for(size_t i=0;i<sc->n;i++){
    const struct xz_ui_widget *a=&sc->w[i];if(a->kind!=XZ_UI_REKORDBOX_ASSIGN)continue;
    int sel=sc->look[i].selected;xz_pic_box(c,&s,(struct xz_rect){a->x,a->y,a->w,a->h},sel,1);
@@ -616,15 +624,15 @@ void xz_ui_section_render(const struct xz_ui_scene *sc){
   }
   break;}
  case XZ_UI_KEY_SETUP:{
-  xz_pic_text(c,X0,58,"KEYS",20,s.ink);
-  xz_pic_wrap(c,X0,86,CW,15,3,"Shift the chosen deck's key a semitone at a time, put it back with RESET, or match it to the master deck with KEY SYNC. SHIFT + SYNC on a deck does the same match.",s.dim);
-  xz_pic_wrap(c,X0,140,CW,15,2,"With MASTER TEMPO on, the key holds while the tempo moves; without it, the tempo changes the key too.",s.dim);
+  xz_pic_text(c,X0,58,xz_l10n_authored("KEYS"),20,s.ink);
+  xz_pic_wrap(c,X0,86,CW,15,3,xz_l10n_authored("Shift the chosen deck's key a semitone at a time, put it back with RESET, or match it to the master deck with KEY SYNC. SHIFT + SYNC on a deck does the same match."),s.dim);
+  xz_pic_wrap(c,X0,140,CW,15,2,xz_l10n_authored("With MASTER TEMPO on, the key holds while the tempo moves; without it, the tempo changes the key too."),s.dim);
   if(m->deck[u->deck].key_master)
-   xz_pic_wrap(c,X0+412,204,CW-412,15,2,"This deck is the master. The other decks match their key to it.",s.ink);
+   xz_pic_wrap(c,X0+412,204,CW-412,15,2,xz_l10n_authored("This deck is the master. The other decks match their key to it."),s.ink);
   break;}
  case XZ_UI_SCREEN_LOOK:
-  caption(c,&s,X0,48,CW,"TOP BAR");caption(c,&s,X0,112,CW,"WAVEFORMS");caption(c,&s,X0,176,CW,"TRACK COLOURS");
-  xz_pic_wrap(c,X0,244,CW,15,2,"What the MODERN play screen shows. A hidden lamp also stops answering touch.",s.dim);
+  caption(c,&s,X0,48,CW,xz_l10n_authored("TOP BAR"));caption(c,&s,X0,112,CW,xz_l10n_authored("WAVEFORMS"));caption(c,&s,X0,176,CW,xz_l10n_authored("TRACK COLOURS"));
+  xz_pic_wrap(c,X0,244,CW,15,2,xz_l10n_authored("What the MODERN play screen shows. A hidden lamp also stops answering touch."),s.dim);
   break;
  case XZ_UI_CONNECT:case XZ_UI_EXTRAS:break;
  default:break;

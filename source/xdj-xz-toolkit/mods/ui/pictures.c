@@ -1,3 +1,4 @@
+#include "l10n.h"
 /* SPDX-License-Identifier: MIT */
 /* The MODS menu's pictures (pictures.h). Ported from the design mockups (design/_src, the Python scripts): the same
    geometry, drawn with the renderer's own primitives and fonts. */
@@ -61,6 +62,7 @@ void xz_pic_text_center(struct xz_canvas c, int cx, int y, const char *s, int si
  xz_pic_text(c,cx-xz_pic_text_width(c,s,size)/2,y,s,size,color);
 }
 int xz_pic_wrap(struct xz_canvas c, int x, int y, int width, int pitch, int lines, const char *text, uint32_t color) {
+ int localized=xz_l10n_wrap(c,x,y,width,pitch,lines,text,color);if(localized>=0)return localized;
  char row[200];int used=0;
  while(text&&*text&&used<lines){
   while(*text==' ')text++;
@@ -107,7 +109,7 @@ static void deck_box(struct xz_canvas c, const struct xz_pic_style *s, int x, in
 }
 int xz_pic_works_on(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int size, unsigned works_on, int label) {
  static const int order[4]={2,0,1,3};
- if(label)x+=xz_pic_text(c,x,y+(size-9)/2,"WORKS ON",12,s->dim)+8;
+ if(label)x+=xz_pic_text(c,x,y+(size-9)/2,xz_l10n_authored("WORKS ON"),12,s->dim)+8;
  for(int k=0;k<4;k++){
   int d=order[k];char n[2]={(char)('1'+d),0};
   /* Works there: the deck's badge, as on the four-deck screens. Not there: a plain grey outline. */
@@ -151,17 +153,17 @@ static void jump_pad(struct xz_canvas c, const struct xz_pic_style *s, struct xz
  char text[16]={pad_letters[pad],0};
  xz_pic_text(c,r.x+9,r.y+9,text,12,dim);
  xz_pic_triangle(c,r.x+24,r.y+13,4,pad&1?'r':'l',ink);
- xz_pic_text(c,r.x+32,r.y+9,pad&1?"FWD":"BACK",12,dim);
+ xz_pic_text(c,r.x+32,r.y+9,pad&1?xz_l10n_authored("FWD"):"BACK",12,dim);
  int well_y=r.y+r.h-32,num_y=r.y+18+(well_y-r.y-18-20)/2;
  snprintf(text,sizeof text,"%d",beats);
  int nx=r.x+9+xz_pic_text(c,r.x+9,num_y,text,28,ink)+6;
- xz_pic_text(c,nx,num_y+11,beats==1?"BEAT":"BEATS",12,ink);
+ xz_pic_text(c,nx,num_y+11,beats==1?xz_l10n_authored("BEAT"):xz_l10n_authored("BEATS"),12,ink);
  if(s->radius)xz_round_rect(c,r.x+4,well_y,r.w-8,28,6,15,well);else xz_rect(c,r.x+4,well_y,r.w-8,28,well);
  if(beats>=4){
   snprintf(text,sizeof text,"%d",beats/4);
   nx=r.x+9+xz_pic_text(c,r.x+9,well_y+7,text,20,ink)+6;
-  xz_pic_text(c,nx,well_y+12,beats==4?"BAR":"BARS",12,ink);
- }else xz_pic_text(c,r.x+9,well_y+10,beats==1?"1/4 BAR":"1/2 BAR",12,ink);
+  xz_pic_text(c,nx,well_y+12,beats==4?xz_l10n_authored("BAR"):xz_l10n_authored("BARS"),12,ink);
+ }else xz_pic_text(c,r.x+9,well_y+10,beats==1?xz_l10n_authored("1/4 BAR"):xz_l10n_authored("1/2 BAR"),12,ink);
 }
 void xz_pic_jump_draw(struct xz_canvas c, const struct xz_pic_style *s, const struct xz_pic_jump_geo *g, const struct xz_pic_jump *given) {
  static const char *const tab_a[2]={"PAGE 1","PAGE 2"},*const tab_b[2]={"BEAT JUMP","SHIFT + BEAT JUMP"};
@@ -175,9 +177,9 @@ void xz_pic_jump_draw(struct xz_canvas c, const struct xz_pic_style *s, const st
   xz_pic_text(c,r.x+10+w+7,r.y+17,tab_b[i],12,sel?s->on_select:s->dim);
  }
  xz_pic_box(c,s,g->stock,!j->enabled,0);
- xz_pic_text_center(c,g->stock.x+g->stock.w/2,g->stock.y+15,"PAGE 1: STOCK",12,!j->enabled?s->on_select:s->ink);
+ xz_pic_text_center(c,g->stock.x+g->stock.w/2,g->stock.y+15,xz_l10n_authored("PAGE 1: STOCK"),12,!j->enabled?s->on_select:s->ink);
  xz_pic_box(c,s,g->mine,j->enabled,0);
- xz_pic_text_center(c,g->mine.x+g->mine.w/2,g->mine.y+15,"PAGE 1: MY SIZES",12,j->enabled?s->on_select:s->ink);
+ xz_pic_text_center(c,g->mine.x+g->mine.w/2,g->mine.y+15,xz_l10n_authored("PAGE 1: MY SIZES"),12,j->enabled?s->on_select:s->ink);
  /* Page 1 on STOCK plays the player's own sizes: shown, greyed, nothing chosen. */
  int stock=j->edit_page==0&&!j->enabled;
  struct xz_jump_settings defaults=xz_jump_defaults();
@@ -200,15 +202,15 @@ void xz_pic_jump_draw(struct xz_canvas c, const struct xz_pic_style *s, const st
  char text[48];
  if(stock){
   int y=g->name_y+(g->name_h-90)/2;
-  xz_pic_text(c,g->name_x,y,"PAGE 1: STOCK",20,s->ink);
-  xz_pic_wrap(c,g->name_x,y+30,g->right-g->name_x,15,4,"Page 1 jumps 1, 2, 4 and 8 beats, as the player does. Choose MY SIZES to set your own.",s->dim);
+  xz_pic_text(c,g->name_x,y,xz_l10n_authored("PAGE 1: STOCK"),20,s->ink);
+  xz_pic_wrap(c,g->name_x,y+30,g->right-g->name_x,15,4,xz_l10n_authored("Page 1 jumps 1, 2, 4 and 8 beats, as the player does. Choose MY SIZES to set your own."),s->dim);
  }else{
   int y=g->name_y+(g->name_h-56)/2;
   snprintf(text,sizeof text,"PADS %c / %c",pad_letters[pair*2],pad_letters[pair*2+1]);
   xz_pic_text(c,g->name_x,y,text,20,s->ink);
   snprintf(text,sizeof text,"%d",beats);
   int vx=g->name_x+xz_pic_text(c,g->name_x,y+28,text,34,j->adjusting?s->select:s->ink)+8;
-  xz_pic_text(c,vx,y+38,beats==1?"BEAT":"BEATS",20,s->ink);
+  xz_pic_text(c,vx,y+38,beats==1?xz_l10n_authored("BEAT"):xz_l10n_authored("BEATS"),20,s->ink);
  }
  for(int i=0;i<XZ_PIC_JUMP_CHIPS;i++){
   int sel=!stock&&xz_jump_beats(xz_pic_jump_ids[i])==beats;struct xz_rect r=g->chips[i];
@@ -255,9 +257,9 @@ void xz_pic_colour_draw(struct xz_canvas c, const struct xz_pic_style *s, const 
   xz_rect(c,w.x+x,mid-h,1,h*2,now[0]);xz_rect(c,w.x+x,mid-h*2/3,1,h*4/3,now[1]);xz_rect(c,w.x+x,mid-h/3,1,h*2/3,now[2]);
  }
  xz_rect(c,g->reset.x,g->reset.y,g->reset.w,g->reset.h,s->modern?0x2a2a2a:s->row);
- xz_pic_text_center(c,g->reset.x+g->reset.w/2,g->reset.y+(g->reset.h-14)/2,"RESET",20,s->ink);
+ xz_pic_text_center(c,g->reset.x+g->reset.w/2,g->reset.y+(g->reset.h-14)/2,xz_l10n_authored("RESET"),20,s->ink);
  xz_rect(c,g->bass_x,g->bass_y,8,12,p->bass&0xffffff);
- xz_pic_text(c,g->bass_x+14,g->bass_y+1,"BASS ON 4-STEM TRACKS FOLLOWS THE THEME",12,s->dim);
+ xz_pic_text(c,g->bass_x+14,g->bass_y+1,xz_l10n_authored("BASS ON 4-STEM TRACKS FOLLOWS THE THEME"),12,s->dim);
 }
 
 /* ---- STEM PADS ---- */
@@ -295,7 +297,7 @@ void xz_pic_stem_draw(struct xz_canvas c, const struct xz_pic_style *s, const st
  static const char *const names[3]={"DRUMS","HARMONICS","VOCALS"};
  char text[80];
  int mode=p->mode>=0&&p->mode<4?p->mode:0;
- xz_pic_text(c,g->x,g->caption_y[0],"1   PICK THE PAD MODE BUTTON THAT GIVES STEM PADS",12,s->dim);
+ xz_pic_text(c,g->x,g->caption_y[0],xz_l10n_authored("1   PICK THE PAD MODE BUTTON THAT GIVES STEM PADS"),12,s->dim);
  for(int i=0;i<4;i++){
   struct xz_rect r=g->modes[i];int sel=i==mode;
   xz_pic_box(c,s,r,sel,0);
@@ -313,7 +315,7 @@ void xz_pic_stem_draw(struct xz_canvas c, const struct xz_pic_style *s, const st
   else if(stems)stem_pad(c,s,g->pads[k],letter,"BYPASS","ORIGINAL",s->modern?0xffffff:s->ink,1);
   else stem_pad(c,s,g->pads[k],letter,normal[mode],"AS NORMAL",0,0);
  }
- xz_pic_text(c,g->bank[0].x,g->caption_y[1],"STEMS ON",12,s->dim);
+ xz_pic_text(c,g->bank[0].x,g->caption_y[1],xz_l10n_authored("STEMS ON"),12,s->dim);
  static const char *const banks[2]={"PADS A-D","PADS E-H"},*const lights[2]={"STEM COLOURS","OFF"};
  for(int i=0;i<2;i++){
   xz_pic_box(c,s,g->bank[i],i==p->bank,0);
@@ -322,15 +324,15 @@ void xz_pic_stem_draw(struct xz_canvas c, const struct xz_pic_style *s, const st
   xz_pic_box(c,s,g->lights[i],on,0);
   xz_pic_text_center(c,g->lights[i].x+g->lights[i].w/2,g->lights[i].y+13,lights[i],20,on?s->on_select:s->ink);
  }
- xz_pic_text(c,g->bank[0].x,g->caption_y[2],"ORDER ON THE PADS AND THE SCREEN",12,s->dim);
+ xz_pic_text(c,g->bank[0].x,g->caption_y[2],xz_l10n_authored("ORDER ON THE PADS AND THE SCREEN"),12,s->dim);
  for(int i=0;i<3;i++){
   struct xz_rect r=g->order[i];int stem=xz_stem_at(p->order,i);uint32_t col=p->rgb[stem];
   xz_rect(c,r.x,r.y,r.w,r.h,xz_blend(s->bg,col,80));xz_border(c,r.x,r.y,r.w,r.h,col);xz_border(c,r.x+1,r.y+1,r.w-2,r.h-2,col);
   xz_pic_text_center(c,r.x+r.w/2,r.y+15,names[stem],12,s->modern?0xffffff:s->ink);
  }
- xz_pic_text(c,g->bank[0].x,g->caption_y[2]+62,p->focus==XZ_PIC_STEM_ORDER?"TURN TO CHANGE THE ORDER":"PUSH, THEN TURN TO CHANGE THE ORDER",12,s->modern?M_GREY:s->dim);
- xz_pic_text(c,g->bank[0].x,g->caption_y[3],"STEM PAD LIGHTS, DECKS 1 AND 2",12,s->dim);
- xz_pic_text(c,g->x,g->rule_y,"SHIFT + HOT CUE, BEAT LOOP OR SLIP LOOP ALWAYS GIVES STEM PADS.",12,s->modern?0xc8c8c8:s->ink);
+ xz_pic_text(c,g->bank[0].x,g->caption_y[2]+62,p->focus==XZ_PIC_STEM_ORDER?xz_l10n_authored("TURN TO CHANGE THE ORDER"):xz_l10n_authored("PUSH, THEN TURN TO CHANGE THE ORDER"),12,s->modern?M_GREY:s->dim);
+ xz_pic_text(c,g->bank[0].x,g->caption_y[3],xz_l10n_authored("STEM PAD LIGHTS, DECKS 1 AND 2"),12,s->dim);
+ xz_pic_text(c,g->x,g->rule_y,xz_l10n_authored("SHIFT + HOT CUE, BEAT LOOP OR SLIP LOOP ALWAYS GIVES STEM PADS."),12,s->modern?0xc8c8c8:s->ink);
 }
 
 /* ---- small pictures ---- */
@@ -486,7 +488,7 @@ void xz_pic_route(struct xz_canvas c, const struct xz_pic_style *s, int x, int y
  }
  if(labels){
   uint32_t lc=modern?0xb8b8b8:s->dim;
-  xz_pic_text_right(c,px-6,top+6,"USB 1",12,lc);xz_pic_text(c,sx+9,top+6,"REAR USB",12,lc);
+  xz_pic_text_right(c,px-6,top+6,xz_l10n_authored("USB 1"),12,lc);xz_pic_text(c,sx+9,top+6,xz_l10n_authored("REAR USB"),12,lc);
  }
  if(failed&&part!=XZ_UI_ROUTE_PART_NONE){
   int fx=part==XZ_UI_ROUTE_PART_PORT?px:part==XZ_UI_ROUTE_PART_SOCKET?sx:part==XZ_UI_ROUTE_PART_CABLE?(px+sx)/2:mx0+sw/2;

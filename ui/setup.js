@@ -7,11 +7,11 @@
 // Writes go through the same backend requests, in the same order, as before.
 (function(){
 const FLOWS={
-  install:{title:'Install XZ Mods',loader:'auto'},
-  update:{title:'Update USB',loader:'auto'},
-  profile:{title:'Save DJ profile',loader:'keep'},
-  games:{title:'Add games',loader:'keep'},
-  quad:{title:'Four decks',loader:'keep'}
+  install:{title:XZText('Install XZ Mods'),loader:'auto'},
+  update:{title:XZText('Update USB'),loader:'auto'},
+  profile:{title:XZText('Save DJ profile'),loader:'keep'},
+  games:{title:XZText('Add games'),loader:'keep'},
+  quad:{title:XZText('Four decks'),loader:'keep'}
 };
 // The top ports four decks use. The firmware names them in every cable instruction (source/xdj-xz-toolkit/mods/ui/
 // loopback_port.h, XZ_LOOPBACK_PORT); tools/verify_setup_wizard.mjs checks this matches it.
@@ -227,7 +227,7 @@ function usbCard(item){
       onclick:event=>chooseUsb(item.volume,host.contains(event.currentTarget)?jobSlot:event.currentTarget)},
     el('span',{class:'wz-usb-icon'},icon('usb')),
     el('span',{class:'wz-usb-text'},el('strong',{text:item.label}),el('small',{text:[item.volume,fsName(item.filesystem),item.removable?null:'not a removable drive'].filter(Boolean).join(' · ')})),
-    opening?el('span',{class:'wz-opening',role:'status',text:'Reading the USB…'}):
+    opening?el('span',{class:'wz-opening',role:'status',text:XZText('Reading the USB…')}):
       el('span',{class:'wz-chips'},...chips.map((text,index)=>el('span',{class:'wz-chip',dataset:{tone:index===0&&item.loader?'on':null},text}))),
     opening?el('span',{class:'wz-spinner wz-go','aria-hidden':'true'}):icon('chevron','wz-go'));
 }
@@ -236,7 +236,7 @@ const FOLDER_LABEL='Write to a folder instead…';
 function folderCard(){
   return el('button',{type:'button',class:'wz-usb wz-folder-card',id:'wz-folder',disabled:W.opening?true:null,onclick:pickFolder},
     el('span',{class:'wz-usb-icon'},icon('folder')),
-    el('span',{class:'wz-usb-text'},el('strong',{text:FOLDER_LABEL}),el('span',{class:'wz-folder-note',text:'Copy it to the top of a USB stick afterward.'})),
+    el('span',{class:'wz-usb-text'},el('strong',{text:FOLDER_LABEL}),el('span',{class:'wz-folder-note',text:XZText('Copy it to the top of a USB stick afterward.')})),
     icon('chevron','wz-go'));
 }
 // Drives a loader cannot go on are not offered; one line says which and why. Formatting is up to the DJ.
@@ -245,7 +245,7 @@ function skippedLine(){
   if(!skipped.length)return null;
   const named=skipped.map(item=>(item.label&&item.label!==item.volume?item.label+' ('+item.volume+')':item.volume)+' '+unusable(item));
   return el('p',{class:'wz-skipped',id:'wz-skipped'},icon('info'),
-    el('span',{text:plural(skipped.length,'drive')+' not shown: '+listText(named)+'. XZ Mods needs a USB drive it can write to.'}));
+    el('span',{text:plural(skipped.length,'drive')+XZText(' not shown: ')+listText(named)+XZText('. XZ Mods needs a USB drive it can write to.')}));
 }
 function quietActions(withFolder){
   // A folder, or a USB not in the list, being opened has no card to show it on.
@@ -253,19 +253,19 @@ function quietActions(withFolder){
     return el('div',{class:'wz-quiet'},el('span',{class:'wz-looking',role:'status'},el('span',{class:'wz-spinner','aria-hidden':'true'}),'Reading '+W.opening+'…'));
   return el('div',{class:'wz-quiet'},
     W.finding?el('span',{class:'wz-looking',role:'status'},el('span',{class:'wz-spinner','aria-hidden':'true'}),'Looking…'):
-      el('button',{type:'button',class:'text-button',id:'wz-look',text:'Look again',onclick:()=>lookForUsbs(true)}),
+      el('button',{type:'button',class:'text-button',id:'wz-look',text:XZText('Look again'),onclick:()=>lookForUsbs(true)}),
     withFolder?el('button',{type:'button',class:'text-button',id:'wz-folder',text:FOLDER_LABEL,onclick:pickFolder}):null);
 }
 function viewFind(){
   const list=usable(W.usbs);
   if(list.length)return el('section',{class:'wz-find wz-find-list'},
-    el('h2',{text:list.length>1?'Choose your XZ USB':'Your XZ USB'}),
+    el('h2',{text:list.length>1?XZText('Choose your XZ USB'):XZText('Your XZ USB')}),
     el('div',{class:'wz-usb-list',role:'list'},...list.map(usbCard),folderCard()),
     skippedLine(),quietActions(false),fourDeckEntry(),jobSlot);
   return el('section',{class:'wz-find wz-empty',dataset:{looking:W.finding?'1':null}},
     $('tpl-usb-art').content.firstElementChild.cloneNode(true),
-    el('h2',{text:'Plug in your XZ USB'}),
-    el('p',{class:'wz-lead',text:'Any USB stick works. XZ Mods finds it as soon as it is connected. It never formats a drive or touches your music.'}),
+    el('h2',{text:XZText('Plug in your XZ USB')}),
+    el('p',{class:'wz-lead',text:XZText('Any USB stick works. XZ Mods finds it as soon as it is connected. It never formats a drive or touches your music.')}),
     skippedLine(),quietActions(true),fourDeckEntry(),jobSlot);
 }
 
@@ -280,7 +280,7 @@ function driveHeader(){
       el('div',{class:'wz-drive-name'},el('h2',{text:driveLabel()}),el('span',{class:'wz-mono',text:W.usb})),
       meta?el('p',{class:'wz-drive-meta',text:meta}):null,
       known?el('div',{class:'wz-space','aria-hidden':'true'},el('span',{style:'--used:'+(100*(1-space.free_bytes/space.total_bytes)).toFixed(1)+'%'})):null),
-    el('button',{type:'button',class:'secondary wz-change',id:'wz-change',text:'Change USB',onclick:toList}));
+    el('button',{type:'button',class:'secondary wz-change',id:'wz-change',text:XZText('Change USB'),onclick:toList}));
 }
 function changesBox(){
   const update=modUpdate(W.inspection.recorded_mod_version?.id?W.inspection.recorded_mod_version:null,savedModVersion());
@@ -288,7 +288,7 @@ function changesBox(){
   if(!panel||update.kind==='unavailable')return panel;
   const count=update.added.length+update.removed.length;
   return el('details',{class:'wz-changes',open:W.changesOpen?true:null,ontoggle:event=>{W.changesOpen=event.target.open;}},
-    el('summary',{},el('span',{class:'wz-changes-count',text:plural(count,'change')}),' · ',el('span',{class:'wz-changes-see',text:'See what changes'}),el('span',{class:'wz-changes-hide',text:'Hide changes'})),panel);
+    el('summary',{},el('span',{class:'wz-changes-count',text:plural(count,'change')}),' · ',el('span',{class:'wz-changes-see',text:XZText('See what changes')}),el('span',{class:'wz-changes-hide',text:XZText('Hide changes')})),panel);
 }
 function installReady(){return loaderChoice()==='add'&&Boolean(savedModVersion());}
 // One status, one action. Without a saved build the action is the one-button build setup.
@@ -301,9 +301,9 @@ function status(){
     action:{label:'Use the newest build',run:()=>saveBuild(bundledVersion()?.id||modInventory.versions[0].id,true,jobSlot)}};
   switch(loaderChoice()){
     case 'add':return {tone:'add',title:missing,line:'Adds the loader, free games and your DJ profile. Music and playlists stay as they are.',action:{label:'Install XZ Mods',run:()=>startFlow('install')}};
-    case 'update':return {tone:'update',title:'Update available',line:(recorded?'This USB has '+buildName(recorded)+'. ':'The XZ Mods version on this USB is not known. ')+'Updating backs up its loader and adds '+buildName(saved)+'.',
+    case 'update':return {tone:'update',title:XZText('Update available'),line:(recorded?'This USB has '+buildName(recorded)+'. ':'The XZ Mods version on this USB is not known. ')+'Updating backs up its loader and adds '+buildName(saved)+'.',
       extra:changesBox(),action:{label:'Update USB',run:()=>startFlow('update')}};
-    default:return {tone:'keep',title:'Up to date',line:buildName(saved)+' is on this USB.'};
+    default:return {tone:'keep',title:XZText('Up to date'),line:buildName(saved)+' is on this USB.'};
   }
 }
 const STATUS_ICONS={setup:'gear',add:'download',update:'update',keep:'check'};
@@ -336,18 +336,18 @@ function buildLine(){
   const saved=savedModVersion();
   return el('p',{class:'wz-build-line'},
     saved?['Build: ',el('span',{class:'wz-build-name',text:buildName(saved)}),' · ']:null,
-    el('button',{type:'button',class:'text-button',text:saved?'Change':'Choose a build',onclick:()=>showPage('advanced')}),
+    el('button',{type:'button',class:'text-button',text:saved?XZText('Change'):XZText('Choose a build'),onclick:()=>showPage('advanced')}),
     buildNote?el('span',{class:'wz-build-note',role:'status',text:buildNote}):null);
 }
 function tree(){return createUsbTree({nodes:usbLoadout(W.inspection,{driveLabel:driveLabel()})});}
 function viewDevice(){
   return el('section',{class:'wz-device'},
     el('div',{class:'wz-card'},driveHeader(),statusBlock(),jobSlot),
-    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy everything in it to the top of a USB stick afterward. Games are added only when you write to the USB itself.'}):null,
+    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:XZText('This is a folder, not a USB. Copy everything in it to the top of a USB stick afterward. Games are added only when you write to the USB itself.')}):null,
     tiles(),
     buildLine(),fourDeckEntry(),
     el('details',{class:'wz-files',open:W.filesOpen?true:null,ontoggle:event=>{W.filesOpen=event.target.open;}},
-      el('summary',{text:'Show every file on this USB'}),tree()));
+      el('summary',{text:XZText('Show every file on this USB')}),tree()));
 }
 
 // --- eject ---
@@ -363,7 +363,7 @@ function ejectChoice(later=false){
   if(!canEject())return null;
   return el('label',{class:'check wz-eject-auto'},
     el('input',{type:'checkbox',id:'wz-eject-auto',checked:ejectAfterWrite()?true:null,onchange:event=>setEjectAfterWrite(event.target.checked)}),
-    el('span',{},el('span',{text:later?'Eject the USB by itself next time':'Eject the USB when writing finishes'}),el('small',{text:'Then you can unplug it and take it straight to the XZ.'})));
+    el('span',{},el('span',{text:later?XZText('Eject the USB by itself next time'):XZText('Eject the USB when writing finishes')}),el('small',{text:XZText('Then you can unplug it and take it straight to the XZ.')})));
 }
 async function ejectUsb(){
   if(!canEject()||W.eject?.state==='ejecting'||W.eject?.state==='done')return;
@@ -422,14 +422,14 @@ function flowHead(){
       el('span',{class:'wz-flow-count',text:'Step '+(index+1)+' of '+steps.length}),
       el('ol',{class:'wz-dots','aria-hidden':'true'},...steps.map((step,i)=>el('li',{dataset:{state:i<index?'done':i===index?'current':'todo'}})))):null,
     // Cancel leaves the guide for the USB list, so another USB or a folder is one click away.
-    cancellable?el('button',{type:'button',class:'text-button wz-cancel',text:'Cancel',onclick:W.flow.kind==='quad'?closeQuad:toList}):null);
+    cancellable?el('button',{type:'button',class:'text-button wz-cancel',text:XZText('Cancel'),onclick:W.flow.kind==='quad'?closeQuad:toList}):null);
 }
 // Every step ends in the same bar: Back on the left, the way forward on the right, the main action last. The bar
 // stays in view when a step is taller than the window. A running write has no bar: its own panel has Cancel.
 function action(label,onclick,kind='primary',extra={}){return el('button',{type:'button',class:kind,text:label,onclick,...extra});}
 function foot(back,...next){
   return el('div',{class:'wz-foot'},
-    back?el('button',{type:'button',class:'secondary wz-back',id:'wz-back',onclick:back},icon('back'),el('span',{text:'Back'})):null,
+    back?el('button',{type:'button',class:'secondary wz-back',id:'wz-back',onclick:back},icon('back'),el('span',{text:XZText('Back')})):null,
     el('div',{class:'wz-foot-next'},...next));
 }
 function stepFoot(){
@@ -450,8 +450,8 @@ function stepFoot(){
 function refreshNav(){const old=host.querySelector('.wz-foot');if(old&&W.view==='flow'&&W.step==='profile')old.replaceWith(stepFoot());}
 // dj-profile.js draws into the slot (and asks for refreshNav as the draft changes).
 function stepProfile(){
-  return [el('h3',{text:'Your DJ profile'}),
-    el('p',{class:'wz-lead',text:'Your name and logo on the XZ, and for VJ software on the same network. '+(W.inspection.dj_profiles?.count?'Edit it here, or go on.':'It takes a minute. Skip it if you like and add it later.')}),
+  return [el('h3',{text:XZText('Your DJ profile')}),
+    el('p',{class:'wz-lead',text:XZText('Your name and logo on the XZ, and for VJ software on the same network. ')+(W.inspection.dj_profiles?.count?XZText('Edit it here, or go on.'):XZText('It takes a minute. Skip it if you like and add it later.'))}),
     el('div',{id:'wz-djp-slot'})];
 }
 
@@ -470,15 +470,15 @@ function fourDeckEntry(){
   return el('button',{type:'button',class:'wz-fourdeck-entry',id:'wz-fourdeck-open',onclick:openFourDecks},
     el('span',{class:'wz-fourdeck-entry-icon'},icon('decks')),
     el('span',{class:'wz-fourdeck-entry-text'},
-      el('strong',{},'Four decks',el('span',{class:'wz-chip wz-fourdeck-tag',text:'Experimental'})),
-      el('small',{text:'Play decks 3 and 4 through one loopback cable. See how it works.'})),
+      el('strong',{},XZText('Four decks'),el('span',{class:'wz-chip wz-fourdeck-tag',text:XZText('Experimental')})),
+      el('small',{text:XZText('Play decks 3 and 4 through one loopback cable. See how it works.')})),
     icon('chevron','wz-go'));
 }
 // The three things to do at the player, the same as the manual's Four decks chapter and the cable card on the XZ.
 const FOUR_DECK_STEPS=[
-  {title:'Cable from the rear USB-B socket to top '+LOOPBACK_PORT,text:'A USB-B to USB-A cable, the kind a printer uses.'},
-  {title:'Music in '+MUSIC_PORT,text:'A stick, or one USB 2.0 hub with several. It can go in later.'},
-  {title:'[[CH 3 INPUT]] and [[CH 4 INPUT]] set to USB',text:'The mixer inputs, so you hear decks 3 and 4.'}
+  {title:XZText('Cable from the rear USB-B socket to top ')+LOOPBACK_PORT,text:XZText('A USB-B to USB-A cable, the kind a printer uses.')},
+  {title:XZText('Music in ')+MUSIC_PORT,text:XZText('A stick, or one USB 2.0 hub with several. It can go in later.')},
+  {title:XZText('[[CH 3 INPUT]] and [[CH 4 INPUT]] set to USB'),text:XZText('The mixer inputs, so you hear decks 3 and 4.')}
 ];
 // writing: while the USB is written, as something to read; done: on the done screen. During a write the button only
 // opens the manual: the cable guide would take the place of the running write.
@@ -488,20 +488,20 @@ function fourDeckSection(where){
   // app includes a four-deck build, or one sentence when it does not.
   const capability=window.quadSetupCapability?.(),noEngine=!writing&&capability?.supported===false;
   const includedQuad=modVersionById(modInventory?.bundled_id)?.quad_supported===true;
-  const how=writing&&!manual?null:el('button',{type:'button',class:noEngine&&includedQuad?'text-button':'primary',id:'wz-fourdeck-how',text:'How four decks work',onclick:openFourDecks});
+  const how=writing&&!manual?null:el('button',{type:'button',class:noEngine&&includedQuad?'text-button':'primary',id:'wz-fourdeck-how',text:XZText('How four decks work'),onclick:openFourDecks});
   return el('section',{class:'wz-fourdeck',dataset:{where},'aria-labelledby':'wz-fourdeck-title'},
     el('div',{class:'wz-fourdeck-head'},
-      el('span',{class:'wz-eyebrow',text:writing?'While you wait':'When you want it'}),
-      el('h4',{id:'wz-fourdeck-title'},'Four decks',el('span',{class:'wz-chip wz-fourdeck-tag',text:'Experimental'})),
-      el('p',{text:'Decks 3 and 4 play through mixer CH3 and CH4. One short cable from the back of the XZ to the top carries their sound. There is nothing to do now: set it up at the player when you want four decks.'})),
+      el('span',{class:'wz-eyebrow',text:writing?XZText('While you wait'):XZText('When you want it')}),
+      el('h4',{id:'wz-fourdeck-title'},XZText('Four decks'),el('span',{class:'wz-chip wz-fourdeck-tag',text:XZText('Experimental')})),
+      el('p',{text:XZText('Decks 3 and 4 play through mixer CH3 and CH4. One short cable from the back of the XZ to the top carries their sound. There is nothing to do now: set it up at the player when you want four decks.')})),
     cableFigure('wz-fourdeck',LOOPBACK_PORT_CAPTION),
     el('ol',{class:'wz-fourdeck-steps'},...FOUR_DECK_STEPS.map((step,index)=>el('li',{},
       el('span',{class:'wz-fourdeck-num','aria-hidden':'true',text:String(index+1)}),
       el('span',{},el('strong',{},...xzText(step.title)),el('small',{text:step.text}))))),
     noEngine&&includedQuad?el('div',{class:'wz-fourdeck-setup',role:'status'},
-      el('p',{text:'The build on this USB has no four-deck engine. Choose the four-deck build, then update this USB.'}),
-      el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'wz-fourdeck-build',text:'Choose the four-deck build',onclick:()=>document.getElementById('quad-open')?.click()}),how)):
-    noEngine?el('div',{class:'wz-fourdeck-setup',role:'status'},el('p',{text:'The build on this USB has no four-deck engine, and this app includes none.'}),how?el('div',{class:'actions'},how):null):
+      el('p',{text:XZText('The build on this USB has no four-deck engine. Choose the four-deck build, then update this USB.')}),
+      el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'wz-fourdeck-build',text:XZText('Choose the four-deck build'),onclick:()=>document.getElementById('quad-open')?.click()}),how)):
+    noEngine?el('div',{class:'wz-fourdeck-setup',role:'status'},el('p',{text:XZText('The build on this USB has no four-deck engine, and this app includes none.')}),how?el('div',{class:'actions'},how):null):
       how?el('div',{class:'actions'},how):null);
 }
 function openQuad(){
@@ -531,29 +531,29 @@ function cableFigure(prefix,caption){
   return el('figure',{class:'wz-quad-art '+prefix+'-art',dataset:{paused:W.quadPaused?'1':null}},media,
     still?null:el('p',{class:'visually-hidden',id:prefix+'-desc',text:QUAD_DESC}),
     el('figcaption',{},el('span',{text:caption}),
-      still?null:el('button',{type:'button',class:'text-button',id:prefix+'-motion','aria-pressed':String(W.quadPaused),text:W.quadPaused?'Play cable animation':'Pause cable animation',onclick:event=>{
+      still?null:el('button',{type:'button',class:'text-button',id:prefix+'-motion','aria-pressed':String(W.quadPaused),text:W.quadPaused?XZText('Play cable animation'):XZText('Pause cable animation'),onclick:event=>{
         W.quadPaused=!W.quadPaused;
         const figure=event.currentTarget.closest('figure'),video=figure.querySelector('video');
         if(W.quadPaused){figure.dataset.paused='1';video?.pause();}else{delete figure.dataset.paused;video?.play?.().catch(()=>{});}
-        event.currentTarget.textContent=W.quadPaused?'Play cable animation':'Pause cable animation';event.currentTarget.setAttribute('aria-pressed',String(W.quadPaused));
+        event.currentTarget.textContent=W.quadPaused?XZText('Play cable animation'):XZText('Pause cable animation');event.currentTarget.setAttribute('aria-pressed',String(W.quadPaused));
       }})));
 }
 function stepQuad(){
-  return [el('h3',{text:'Four decks, one standalone mixer'}),
-    el('p',{class:'wz-lead',text:'Decks 3 and 4 send audio back to mixer CH3 and CH4 through a USB-B to USB-A cable. Follow these steps at the player.'}),
-    el('p',{class:'notice wz-quad-prereq',text:'Requires the paired XDJ-XZ 1.26 quad beta resources. The matching loader starts the automatic bridge; this cable guide does not install it or verify the connection. Other saved versions may not include quad support.'}),
+  return [el('h3',{text:XZText('Four decks, one standalone mixer')}),
+    el('p',{class:'wz-lead',text:XZText('Decks 3 and 4 send audio back to mixer CH3 and CH4 through a USB-B to USB-A cable. Follow these steps at the player.')}),
+    el('p',{class:'notice wz-quad-prereq',text:XZText('Requires the paired XDJ-XZ 1.26 quad beta resources. The matching loader starts the automatic bridge; this cable guide does not install it or verify the connection. Other saved versions may not include quad support.')}),
     cableFigure('wz-quad',LOOPBACK_PORT_CAPTION),
     el('ol',{class:'wz-quad-steps'},
-      el('li',{},el('strong',{text:'Connect the cable. '}),'Square USB-B end into the rear USB-B socket, flat USB-A end into a free top port, '+LOOPBACK_PORT+'. It connects back to the XZ, not a computer. It can go in before or after XZ Mods starts.'),
-      el('li',{},el('strong',{text:'Music. '}),'Your music stick, or one USB 2.0 hub with several sticks, goes in '+MUSIC_PORT+'. It can go in later.'),
-      el('li',{},el('strong',{text:'Decks 1 and 2 stopped. '}),'Decks 3 and 4 start while decks 1 and 2 are stopped or paused. Empty decks are fine.'),
-      el('li',{},el('strong',{text:'Check on the XZ. '}),...xzText('Four decks should appear when the route is ready. Set [[CH 3 INPUT]] and [[CH 4 INPUT]] to USB if required. Press left [[SHIFT]] twice to switch 1/3; right [[SHIFT]] twice to switch 2/4.'))),
-    el('label',{class:'check wz-quad-confirm'},el('input',{type:'checkbox',id:'wz-quad-confirm',checked:W.quadConfirmed?true:null,onchange:event=>{W.quadConfirmed=event.currentTarget.checked;$('wz-quad-status').textContent=quadStatus();}}),'I can see four decks on the XZ'),
+      el('li',{},el('strong',{text:XZText('Connect the cable. ')}),XZText('Square USB-B end into the rear USB-B socket, flat USB-A end into a free top port, ')+LOOPBACK_PORT+XZText('. It connects back to the XZ, not a computer. It can go in before or after XZ Mods starts.')),
+      el('li',{},el('strong',{text:XZText('Music. ')}),XZText('Your music stick, or one USB 2.0 hub with several sticks, goes in ')+MUSIC_PORT+XZText('. It can go in later.')),
+      el('li',{},el('strong',{text:XZText('Decks 1 and 2 stopped. ')}),XZText('Decks 3 and 4 start while decks 1 and 2 are stopped or paused. Empty decks are fine.')),
+      el('li',{},el('strong',{text:XZText('Check on the XZ. ')}),...xzText('Four decks should appear when the route is ready. Set [[CH 3 INPUT]] and [[CH 4 INPUT]] to USB if required. Press left [[SHIFT]] twice to switch 1/3; right [[SHIFT]] twice to switch 2/4.'))),
+    el('label',{class:'check wz-quad-confirm'},el('input',{type:'checkbox',id:'wz-quad-confirm',checked:W.quadConfirmed?true:null,onchange:event=>{W.quadConfirmed=event.currentTarget.checked;$('wz-quad-status').textContent=quadStatus();}}),XZText('I can see four decks on the XZ')),
     el('p',{class:'wz-quad-status',id:'wz-quad-status',role:'status',text:quadStatus()}),
-    el('details',{class:'wz-quad-trouble'},el('summary',{text:'Still two decks, or no CH3/CH4 audio?'}),
+    el('details',{class:'wz-quad-trouble'},el('summary',{text:XZText('Still two decks, or no CH3/CH4 audio?')}),
       el('p',{},...xzText('Confirm the USB was written with a four-deck build. With decks 1 and 2 stopped, check the cable from the rear USB-B socket to a top port, and that [[CH 3 INPUT]] and [[CH 4 INPUT]] are on USB. RESCAN on the XZ checks again at once.')),
-      el('p',{text:'This guide does not detect your setup. Reopen it from USB → Four decks.'})),
-    el('p',{class:'wz-mono',text:'A track copied to RAM keeps playing if its stick comes out. Stems are not available on decks 3 and 4 yet.'})];
+      el('p',{text:XZText('This guide does not detect your setup. Reopen it from USB → Four decks.')})),
+    el('p',{class:'wz-mono',text:XZText('A track copied to RAM keeps playing if its stick comes out. Stems are not available on decks 3 and 4 yet.')})];
 }
 
 // --- the screen the XZ starts with ---
@@ -565,12 +565,12 @@ function lookAvailable(){
   return settingsEditable()&&Boolean(W.settings)&&'interface' in W.settings&&Boolean(W.inspection.settings.schema?.fields?.some(field=>field.key==='interface'));
 }
 const LOOKS=[
-  {value:LOOK_NEW,id:'new',title:'New interface',tag:'Beta',
-    text:'Replaces the whole screen: bigger waveforms, a browse sidebar and a stems row with mute buttons.',
+  {value:LOOK_NEW,id:'new',title:XZText('New interface'),tag:'Beta',
+    text:XZText('Replaces the whole screen: bigger waveforms, a browse sidebar and a stems row with mute buttons.'),
     deck:'MODERN',video:()=>WIZARD_MEDIA.newVideo,poster:()=>WIZARD_MEDIA.newPoster,
     alt:'The new interface running on the XZ: two scrolling stem waveforms, a DRUMS, VOCAL and INST mute row, then the browse screen with its sidebar and track list.'},
-  {value:LOOK_STANDARD,id:'standard',title:'Standard XDJ-XZ interface',
-    text:'Keeps the deck\'s own screen layout, as it is now. Classic themes can still restyle it.',
+  {value:LOOK_STANDARD,id:'standard',title:XZText('Standard XDJ-XZ interface'),
+    text:XZText('Keeps the deck\'s own screen layout, as it is now. Classic themes can still restyle it.'),
     deck:'CLASSIC',video:()=>WIZARD_MEDIA.standardVideo,poster:()=>WIZARD_MEDIA.standardPoster,
     alt:'The XDJ-XZ\'s own player screen with a track on each deck, captured from the deck.'}
 ];
@@ -599,9 +599,9 @@ function navClip(nav){
 function lookLater(choice){
   const fromNew=choice===LOOK_NEW,other=fromNew?'CLASSIC':'MODERN';
   return el('div',{class:'wz-later',dataset:{choice:fromNew?'new':'standard'}},
-    el('p',{class:'wz-later-line'},el('strong',{},...xzText('Press the button directly above [[LINK]]')),' to switch between MODERN and CLASSIC, any time.'),
+    el('p',{class:'wz-later-line'},el('strong',{},...xzText('Press the button directly above [[LINK]]')),XZText(' to switch between MODERN and CLASSIC, any time.')),
     el('figure',{class:'wz-later-nav'},navClip(NAV_ABOVE_LINK),
-      el('figcaption',{text:'Switching the interface is that button’s default job. MODS > PLAY can give it another.'})),
+      el('figcaption',{text:XZText('Switching the interface is that button’s default job. MODS > PLAY can give it another.')})),
     el('p',{class:'wz-later-line'},...xzText('Or use the menu: press [[MENU]], tap SCREEN, then tap '+other+' under INTERFACE.')),
     el('figure',{class:'wz-later-nav'},navClip(NAV_INTERFACE)));
 }
@@ -628,8 +628,8 @@ function chooseLook(value,root){
 }
 function stepLook(){
   const choice=W.settings.interface===LOOK_STANDARD?LOOK_STANDARD:LOOK_NEW;
-  return [el('h3',{text:'Choose the screen the XZ shows'}),
-    el('p',{class:'wz-lead',text:'XZ Mods can draw the whole player screen itself, or keep the deck\'s own screen.'}),
+  return [el('h3',{text:XZText('Choose the screen the XZ shows')}),
+    el('p',{class:'wz-lead',text:XZText('XZ Mods can draw the whole player screen itself, or keep the deck\'s own screen.')}),
     el('div',{class:'wz-look-step',dataset:{choice:choice===LOOK_NEW?'new':'standard'}},
       el('div',{class:'wz-look',role:'radiogroup','aria-label':'Screen the XZ shows'},...LOOKS.map(look=>lookCard(look,choice))),
       lookLater(choice))];
@@ -637,22 +637,22 @@ function stepLook(){
 // The review lists what the write will do, from the same plan data the write uses.
 function planLines(){
   const ins=W.inspection,choice=loaderChoice(),saved=savedModVersion(),lines=[];
-  if(choice==='add')lines.push({icon:'download',text:'Add the XZ Mods loader ('+buildName(saved)+')'});
+  if(choice==='add')lines.push({icon:'download',text:XZText('Add the XZ Mods loader (')+buildName(saved)+')'});
   if(choice==='update'){
     const recorded=ins.recorded_mod_version?.id?ins.recorded_mod_version:null;
-    lines.push({icon:'update',text:'Back up and update the loader',detail:(recorded?buildName(recorded):'Unknown version')+' → '+buildName(saved)});
+    lines.push({icon:'update',text:XZText('Back up and update the loader'),detail:(recorded?buildName(recorded):'Unknown version')+' → '+buildName(saved)});
   }
   const games=newGames().map(id=>GAMES.find(entry=>entry.id===id)?.name||id);
   if(games.length)lines.push({icon:'games',text:'Add '+plural(games.length,'free game')+': '+listText(games)});
   const profile=profilePlan();
-  if(profile?.plan)lines.push({icon:'profile',text:'Save DJ profile '+profile.name});
-  else if(profile?.problem)lines.push({icon:'alert',tone:'warn',text:'DJ profile '+profile.name+' will not be saved',detail:profile.problem});
+  if(profile?.plan)lines.push({icon:'profile',text:XZText('Save DJ profile ')+profile.name});
+  else if(profile?.problem)lines.push({icon:'alert',tone:'warn',text:XZText('DJ profile ')+profile.name+XZText(' will not be saved'),detail:profile.problem});
   const changes=settingsChanges(),creates=ins.settings?.revision?.exists===false&&(writesLoader()||settingsEditable());
   if(changes.includes('interface')||(creates&&W.flow?.steps.includes('look')))
-    lines.push({icon:'screen',text:W.settings.interface===LOOK_NEW?'Use the new interface on the XZ':'Use the standard XDJ-XZ interface on the XZ',
+    lines.push({icon:'screen',text:W.settings.interface===LOOK_NEW?XZText('Use the new interface on the XZ'):XZText('Use the standard XDJ-XZ interface on the XZ'),
       detail:'Switch any time with the button above LINK, or in MODS → SCREEN → INTERFACE'});
-  if(changes.includes('games_menu'))lines.push({icon:'gear',text:'Change which games show in the GAMES menu'});
-  if(creates&&!changes.length)lines.push({icon:'gear',text:'Create the settings file'});
+  if(changes.includes('games_menu'))lines.push({icon:'gear',text:XZText('Change which games show in the GAMES menu')});
+  if(creates&&!changes.length)lines.push({icon:'gear',text:XZText('Create the settings file')});
   return lines;
 }
 function planList(){
@@ -672,22 +672,22 @@ function gamesChooser(){
     allGames:()=>{for(const game of games)W.games.add(game.id);render();},
     noGames:()=>{W.games=installedGames(W.inspection);render();}});
 }
-function safeLine(){return el('p',{class:'wz-safe'},icon('check'),'Music, playlists and prepared stems are never touched.');}
+function safeLine(){return el('p',{class:'wz-safe'},icon('check'),XZText('Music, playlists and prepared stems are never touched.'));}
 function stepReview(){
   const nothing=nothingToWrite();
-  return [el('h3',{text:'Ready to write to '+driveLabel()}),
+  return [el('h3',{text:XZText('Ready to write to ')+driveLabel()}),
     planList(),
     W.inspection.requires_copy_to_usb_root?null:el('div',{class:'wz-games-change'},
-      el('button',{type:'button',class:'text-button',id:'wz-change-games','aria-expanded':String(W.gamesOpen),text:W.gamesOpen?'Hide games':'Change games',onclick:()=>{W.gamesOpen=!W.gamesOpen;render();}}),
+      el('button',{type:'button',class:'text-button',id:'wz-change-games','aria-expanded':String(W.gamesOpen),text:W.gamesOpen?XZText('Hide games'):XZText('Change games'),onclick:()=>{W.gamesOpen=!W.gamesOpen;render();}}),
       W.gamesOpen?gamesChooser():null),
-    nothing?el('p',{class:'notice',role:'status',text:'Nothing to write yet. Add a game or a DJ profile, or go back.'}):null,
-    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy everything in it to the top of a USB stick afterward. Games are added only when you write to the USB itself.'}):null,
+    nothing?el('p',{class:'notice',role:'status',text:XZText('Nothing to write yet. Add a game or a DJ profile, or go back.')}):null,
+    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:XZText('This is a folder, not a USB. Copy everything in it to the top of a USB stick afterward. Games are added only when you write to the USB itself.')}):null,
     safeLine(),
     ejectChoice(),
     jobSlot];
 }
 // A loader write takes a while: four decks is explained underneath, as something to read meanwhile.
-function stepWriting(){return [el('h3',{text:'Writing to '+driveLabel()}),planList(),safeLine(),ejectChoice(),jobSlot,W.flow.kind==='install'||W.flow.kind==='update'?fourDeckSection('writing'):null];}
+function stepWriting(){return [el('h3',{text:XZText('Writing to ')+driveLabel()}),planList(),safeLine(),ejectChoice(),jobSlot,W.flow.kind==='install'||W.flow.kind==='update'?fourDeckSection('writing'):null];}
 async function startWrite(){
   if(W.step!=='review'||nothingToWrite())return;
   if(appUpdating){showError('XZ Mods is updating itself. Write to the USB once the update has finished.',jobSlot);return;}
@@ -767,17 +767,17 @@ function stepDone(){
   const trouble=Boolean(failed.length||r.errors.length),ejected=W.eject?.state==='done';
   if(failed.length&&ejectAfterWrite()&&canEject()&&!W.eject)lines.push('The USB was not ejected, so you can retry the failed games first.');
   return [el('div',{class:'wz-done-hero',dataset:{tone:trouble?'warn':'ok'}},el('span',{class:'wz-done-mark'},icon(trouble?'alert':'check')),
-      el('h3',{text:trouble?'Finished, with something to check':'Your USB is ready'})),
+      el('h3',{text:trouble?XZText('Finished, with something to check'):XZText('Your USB is ready')})),
     el('ul',{class:'wz-done'},...lines.map(text=>el('li',{text}))),
     ejectStatus(),
-    r.loader?el('div',{class:'wz-next'},el('h4',{text:'On the XZ'}),el('ol',{},
-      el('li',{text:ejected?'Unplug the USB and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.':'Eject the USB here and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.'}),
+    r.loader?el('div',{class:'wz-next'},el('h4',{text:XZText('On the XZ')}),el('ol',{},
+      el('li',{text:ejected?XZText('Unplug the USB and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.'):XZText('Eject the USB here and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.')}),
       el('li',{},...xzText('On the play screen, press [[MENU]] or touch MODS at the top right to open the menu. Hold [[MENU]] for the player’s own settings. HOME is the first page.')),
       el('li',{},...xzText('Press the button above [[LINK]] to switch between the CLASSIC and MODERN screens. MODS > PLAY can give it another job.'),
         el('figure',{class:'wz-later-nav wz-done-nav'},navClip(NAV_ABOVE_LINK))),
-      el('li',{text:'Test the loader before you use it in a set.'}))):null,
+      el('li',{text:XZText('Test the loader before you use it in a set.')}))):null,
     r.loader?fourDeckSection('done'):null,
-    r.loader&&!trouble?el('button',{type:'button',class:'text-button',id:'wz-support-open',text:'Support XZ Mods (optional)',onclick:()=>goto('support')}):null,
+    r.loader&&!trouble?el('button',{type:'button',class:'text-button',id:'wz-support-open',text:XZText('Support XZ Mods (optional)'),onclick:()=>goto('support')}):null,
     failed.length||ejected?null:ejectChoice(true),
     jobSlot];
 }
@@ -790,11 +790,11 @@ function doneActions(){
     failed.length?action('Retry the failed games',()=>retryGames(failed)):null,
     offerEject?el('button',{type:'button',class:'primary wz-eject',id:'wz-eject',disabled:ejecting?true:null,'aria-busy':ejecting?'true':null,onclick:ejectUsb},
       ejecting?el('span',{class:'wz-spinner wz-spinner-dark','aria-hidden':'true'}):icon('eject'),
-      el('span',{text:ejecting?'Ejecting…':W.eject?.state==='error'?'Try ejecting again':'Eject USB'})):null];
+      el('span',{text:ejecting?'Ejecting…':W.eject?.state==='error'?XZText('Try ejecting again'):XZText('Eject USB')})):null];
 }
 function ejectStatus(){
-  if(W.eject?.state==='done')return el('p',{class:'wz-ejected',role:'status'},icon('check'),el('span',{text:'USB ejected. You can unplug it now.'}));
-  if(W.eject?.state==='error')return el('p',{class:'notice wz-eject-error',role:'alert',text:'The USB was not ejected. '+W.eject.message});
+  if(W.eject?.state==='done')return el('p',{class:'wz-ejected',role:'status'},icon('check'),el('span',{text:XZText('USB ejected. You can unplug it now.')}));
+  if(W.eject?.state==='error')return el('p',{class:'notice wz-eject-error',role:'alert',text:XZText('The USB was not ejected. ')+W.eject.message});
   return null;
 }
 function supportLink(label,url){
@@ -807,13 +807,13 @@ function supportLink(label,url){
 function stepSupport(){
   return [el('div',{class:'wz-support'},
     el('img',{class:'wz-support-logo',src:'assets/xz-mods.png',alt:'XZ Mods',width:112,height:112}),
-    el('span',{class:'wz-eyebrow',text:'Optional support'}),
-    el('h3',{text:'Help keep XZ Mods growing'}),
-    el('p',{class:'wz-lead',text:'If XZ Mods has been useful to you, voluntary support helps fund upkeep and future projects.'}),
-    el('p',{text:'Every feature stays available whether you contribute or not. Thanks for using it and sharing what works for you.'}),
+    el('span',{class:'wz-eyebrow',text:XZText('Optional support')}),
+    el('h3',{text:XZText('Help keep XZ Mods growing')}),
+    el('p',{class:'wz-lead',text:XZText('If XZ Mods has been useful to you, voluntary support helps fund upkeep and future projects.')}),
+    el('p',{text:XZText('Every feature stays available whether you contribute or not. Thanks for using it and sharing what works for you.')}),
     el('div',{class:'wz-support-link'},supportLink('Support on Cash App','https://cash.app/$FireAtWill42'),el('code',{text:'$FireAtWill42'})),
-    el('p',{class:'muted',text:'Opens Cash App in your browser. You choose whether to pay and how much.'}),
-    el('p',{class:'wz-support-credit',text:'Created by VJ OpticMystic. Updates and projects: @opticmysticvj. Available for live VJ performances and custom visuals.'}))];
+    el('p',{class:'muted',text:XZText('Opens Cash App in your browser. You choose whether to pay and how much.')}),
+    el('p',{class:'wz-support-credit',text:XZText('Created by VJ OpticMystic. Updates and projects: @opticmysticvj. Available for live VJ performances and custom visuals.')}))];
 }
 const STEPS={support:stepSupport,quad:stepQuad,profile:stepProfile,look:stepLook,review:stepReview,writing:stepWriting,done:stepDone};
 function viewFlow(){return el('section',{class:'wz-flow',dataset:{step:W.step}},flowHead(),el('div',{class:'wz-flow-body'},...STEPS[W.step]()),stepFoot());}

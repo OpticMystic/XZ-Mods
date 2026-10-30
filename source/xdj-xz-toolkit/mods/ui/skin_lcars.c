@@ -1,3 +1,4 @@
+#include "l10n.h"
 #include "ui_skin.h"
 #include <stdio.h>
 #ifndef XZ_LCARS_VIOLET
@@ -96,7 +97,7 @@ static void render(const struct xz_ui_scene *s){
  int alarm=u->notice[0]&&u->page!=XZ_UI_CONTROLS&&u->page!=XZ_UI_THEMES;
  xz_rect(c,0,0,800,480,0);
  elbow(c,1,ink);elbow(c,0,alarm?red:ink);
- xz_text(c,212,13,"XZ MODS",2,12,ink);
+ xz_text(c,212,13,xz_l10n_authored("XZ MODS"),2,12,ink);
  if(!decks){
   block(c,296,0,260,TOP,0,0,ink,0,"XDJ-XZ",1,ALIGN_R,10);
   /* The DJ Profile chip owns the corner when there is one. */
@@ -218,5 +219,5 @@ void xz_ui_render_lcars_play_header(uint16_t *pixels,size_t stride){
  struct xz_canvas c=xz_top_bar_canvas(pixels,stride,XZ_THEME_LCARS);uint32_t color=XZ_LCARS_NATIVE_AMBER;
  xz_rect(c,114,0,558,17,0);shape(c,118,3,16,11,5,ALL,color);
  shape(c,XZ_METRICS_READOUT_X,3,XZ_METRICS_READOUT_W,11,5,RIGHT,color);
- xz_text(c,XZ_METRICS_READOUT_X+10,XZ_TOP_BAR_LABEL_Y,"LCARS / PERFORMANCE",1,32,0);
+ xz_text(c,XZ_METRICS_READOUT_X+10,XZ_TOP_BAR_LABEL_Y,xz_l10n_authored("LCARS / PERFORMANCE"),1,32,0);
 }

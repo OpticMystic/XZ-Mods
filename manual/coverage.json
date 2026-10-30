@@ -1,388 +1,404 @@
 {
- "screens_not_documented": [
-  {
-   "glob": "classic:theme-[1-9]-*",
-   "why": "The same MODS pages in the other themes. Chapters show MODERN (theme 24) and CLASSIC (theme 0); every theme appears in the theme gallery."
-  },
-  {
-   "glob": "classic:theme-[12][0-9]-*",
-   "why": "The same MODS pages in the other themes. Chapters show MODERN (theme 24) and CLASSIC (theme 0); every theme appears in the theme gallery."
-  },
-  {
-   "glob": "classic:theme-0-active-*",
-   "why": "The same pages with every engine ready; the chapters show the plain state and describe the ready state."
-  },
-  {
-   "glob": "classic:theme-0-general-usb-*",
-   "why": "GENERAL is retired and opens HOME; these fixtures render an empty page."
-  },
-  {
-   "glob": "classic:theme-0-browse-setup",
-   "why": "Retired: no control opens this page since KEY NOTATION moved to SCREEN."
-  },
-  {
-   "glob": "classic:theme-0-profile-edit",
-   "why": "The preview fixture has no DJ profile, so the page renders blank. connect.md documents it with a table; add a figure when the fixture has a profile."
-  },
-  {
-   "glob": "classic:theme-0-profile-setup",
-   "why": "The preview fixture has no DJ profile, so the page renders blank. connect.md documents it with a table; add a figure when the fixture has a profile."
-  },
-  {
-   "glob": "classic:theme-0-screen-look",
-   "why": "The preview fixture never sets MODERN, so the MODERN-only page renders blank. screen-and-themes.md documents it with a table."
-  },
-  {
-   "glob": "classic:badge",
-   "why": "Renderer helper image, not a screen."
-  },
-  {
-   "glob": "modern:mods-*",
-   "why": "Fixtures of the retired MODERN MODS tabs; since 22.3 MODERN opens the shared MODS panel."
-  },
-  {
-   "glob": "modern:play-grid-mode",
-   "why": "GRID ADJUST is drawn but the runtime never enables it in this version."
-  },
-  {
-   "glob": "modern:parity-grid-mode",
-   "why": "GRID ADJUST is drawn but the runtime never enables it in this version."
-  },
-  {
-   "glob": "modern:parity-play-states",
-   "why": "ON AIR, loop-point and hot cue call outlines are drawn but never filled in by the runtime yet."
-  },
-  {
-   "glob": "modern:parity-cue-list",
-   "why": "The CUE/LOOP list is drawn but not enabled in this version."
-  },
-  {
-   "glob": "modern:info-rating-edit",
-   "why": "Rating edit is drawn but not enabled in this version."
-  },
-  {
-   "glob": "modern:parity-link-picker",
-   "why": "Browsing LINK players from MODERN is not available yet."
-  },
-  {
-   "glob": "modern:play-popup-slot",
-   "why": "Placeholder fixture."
-  },
-  {
-   "glob": "modern:browse-null-slot",
-   "why": "Placeholder fixture."
-  },
-  {
-   "glob": "modern:settings-utility-long",
-   "why": "Layout stress fixture with placeholder text."
-  },
-  {
-   "glob": "modern:settings-utility-unknown",
-   "why": "Looks the same as settings-utility-info."
-  },
-  {
-   "glob": "modern:settings-utility-mixer-unknown",
-   "why": "Looks the same as settings-utility-values."
-  },
-  {
-   "glob": "modern:settings-shortcut-*",
-   "why": "SHORTCUT states beyond the ones play-screen.md shows: empty, focus moves, long text and unknown values."
-  },
-  {
-   "glob": "modern:shortcut-runtime-focus-display",
-   "why": "SHORTCUT focus state; play-screen.md shows the screen and its rows."
-  },
-  {
-   "glob": "modern:shortcut-runtime-nothing-read",
-   "why": "SHORTCUT before the player reports; play-screen.md describes dashes."
-  },
-  {
-   "glob": "modern:shortcut-runtime-stems",
-   "why": "Same as r5-shortcut-graphic-stems."
-  },
-  {
-   "glob": "modern:r5-shortcut-graphic",
-   "why": "Same as screen-shortcut with HOT CUE AUTO LOAD shown."
-  },
-  {
-   "glob": "modern:*-long-strings",
-   "why": "Layout stress fixture: very long titles."
-  },
-  {
-   "glob": "modern:*-unknown",
-   "why": "Values the runtime has not read yet; chapters describe dashes once."
-  },
-  {
-   "glob": "modern:*-unknown-and-odd",
-   "why": "Values the runtime has not read yet."
-  }
- ],
- "settings_not_documented": [
-  {
-   "key": "spare_eq",
-   "why": "Read-only legacy flag; nothing to set."
-  }
- ],
- "watch": [
-  {
-   "path": "source/xdj-xz-toolkit/mods/extra_player.c",
-   "chapter": "four-decks",
-   "why": "software deck SYNC engage, tempo and beat alignment"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/menu_key.c",
-   "chapter": "mods-menu",
-   "why": "what MENU does on each screen"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/ui_sections.c",
-   "chapter": "mods-menu",
-   "why": "MODS page text, HOME status lines and the save state"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/ui_profile.c",
-   "chapter": "connect",
-   "why": "DJ profile editor steps and messages"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/ui_network.c",
-   "chapter": "connect",
-   "why": "network setup steps"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/sdk_ui.c",
-   "chapter": "extras",
-   "why": "USB app folders and states"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/ui_support.c",
-   "chapter": "extras",
-   "why": "the report-a-problem flow"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/themes.h",
-   "chapter": "screen-and-themes",
-   "why": "the theme list"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/deck_colour.h",
-   "chapter": "play-screen",
-   "why": "deck colours and badges"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/top_bar.h",
-   "chapter": "play-screen",
-   "why": "the CLASSIC top bar shown in captures"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/key_strip.c",
-   "chapter": "performance",
-   "why": "KEY SYNC and effective key messages"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/stem_rows.c",
-   "chapter": "stems",
-   "why": "CLASSIC stem rows shown in captures"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/wave_viewport.h",
-   "chapter": "stems",
-   "why": "what one STEMS press does in 2 DECKS and 4 DECKS, both interfaces (xz_stems_press)"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/stem_pads.c",
-   "chapter": "hardware",
-   "why": "stem pads and SHIFT + pad mode buttons"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/deck_select.c",
-   "chapter": "hardware",
-   "why": "deck select, SHIFT twice and tempo pickup"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/beat_jump.h",
-   "chapter": "performance",
-   "why": "beat jump pages, sizes and defaults"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/deck_caps.c",
-   "chapter": "four-decks",
-   "why": "what decks 3 and 4 can do"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/route_card.c",
-   "chapter": "four-decks",
-   "why": "route card states"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/loopback_port.h",
-   "chapter": "four-decks",
-   "why": "which USB port the loopback cable uses"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/extra_route_status.h",
-   "chapter": "four-decks",
-   "why": "four-deck failure sentences"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/extra_lane.h",
-   "chapter": "four-decks",
-   "why": "SYNC labels and detail lines on decks 3 and 4"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/key/control.c",
-   "chapter": "performance",
-   "why": "key shift and KEY SYNC refusal messages"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ram/extra.c",
-   "chapter": "performance",
-   "why": "RAM TRACKS limit messages"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/band_colors.h",
-   "chapter": "screen-and-themes",
-   "why": "the 3-BAND COLOURS choices"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/ui/deck_view.c",
-   "chapter": "four-decks",
-   "why": "DECK VIEW choices"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/stock_dialog.c",
-   "chapter": "troubleshooting",
-   "why": "which player warnings take the screen"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/shell_playlists.h",
-   "chapter": "browse",
-   "why": "playlists stored on the USB"
-  },
-  {
-   "path": "ui/index.html",
-   "chapter": "desktop-app",
-   "why": "desktop app views and labels"
-  },
-  {
-   "path": "ui/app.js",
-   "chapter": "desktop-app",
-   "why": "desktop app views and labels"
-  },
-  {
-   "path": "ui/manual.js",
-   "chapter": "desktop-app",
-   "why": "the Manual page: search, chapter list, numbered points and reading position"
-  },
-  {
-   "path": "ui/manual.css",
-   "chapter": "desktop-app",
-   "why": "the Manual page layout the app:manual shot shows"
-  },
-  {
-   "path": "ui/manual-map.js",
-   "chapter": "desktop-app",
-   "why": "the menu map: its layout, controls, keys and the screen panel the app:menu-map shot shows"
-  },
-  {
-   "path": "ui/manual-map.css",
-   "chapter": "desktop-app",
-   "why": "the menu map layout the app:menu-map shot shows"
-  },
-  {
-   "path": "ui/manual-art.js",
-   "chapter": "four-decks",
-   "why": "the explainer player: scene N shows clip N, the steps and captions follow the chapter"
-  },
-  {
-   "path": "ui/assets/manual/media.js",
-   "chapter": "four-decks",
-   "why": "the explainer clips rendered from the Blender model (four-decks, performance); watch each clip against its scene lines and steps, and capture app:manual again"
-  },
-  {
-   "path": "ui/style.css",
-   "chapter": "desktop-app",
-   "why": "the top bar, the side list, the page card and the Tools layout every app shot shows"
-  },
-  {
-   "path": "ui/support.css",
-   "chapter": "desktop-app",
-   "why": "the Feedback section, My reports and From your XZ"
-  },
-  {
-   "path": "ui/setup.js",
-   "chapter": "getting-started",
-   "why": "USB setup steps and the interface choice"
-  },
-  {
-   "path": "ui/dj-profile.js",
-   "chapter": "desktop-app",
-   "why": "the DJ profile editor"
-  },
-  {
-   "path": "ui/live-stream.js",
-   "chapter": "desktop-app",
-   "why": "XZ Screen"
-  },
-  {
-   "path": "ui/games.js",
-   "chapter": "desktop-app",
-   "why": "game data on the USB"
-  },
-  {
-   "path": "ui/mod-update.js",
-   "chapter": "desktop-app",
-   "why": "updating the USB loader"
-  },
-  {
-   "path": "ui/usb-tree.js",
-   "chapter": "desktop-app",
-   "why": "the USB contents view"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/diary/diary.h",
-   "chapter": "troubleshooting",
-   "why": "USB diary contents, retention and write safety"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/diary/runtime.c",
-   "chapter": "troubleshooting",
-   "why": "USB diary contents, retention and write safety"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/diary/store.c",
-   "chapter": "troubleshooting",
-   "why": "USB diary contents, retention and write safety"
-  },
-  {
-   "path": "source/xdj-xz-toolkit/mods/diary/format.c",
-   "chapter": "troubleshooting",
-   "why": "USB diary contents, retention and write safety"
-  },
-  {
-   "path": "ui/support.js",
-   "chapter": "desktop-app",
-   "why": "Report a problem or share an idea: questions, the box, included details and sending"
-  },
-  {
-   "path": "ui/my-reports.js",
-   "chapter": "desktop-app",
-   "why": "My reports, the status notice and the tracking view"
-  },
-  {
-   "path": "ui/support-kb.js",
-   "chapter": "desktop-app",
-   "why": "Is this it? answers quoted from the manual"
-  },
-  {
-   "path": "ui/xz-queue.js",
-   "chapter": "desktop-app",
-   "why": "From your XZ, its notification, badge and callout, and Your XZ sticks"
-  },
-  {
-   "path": "src-tauri/src/controller_notify.rs",
-   "chapter": "desktop-app",
-   "why": "the Windows notification for a report from the XZ"
-  }
- ]
+  "screens_not_documented": [
+    {
+      "glob": "classic:hub-card*",
+      "why": "Fallback only: the calm card shows if the caution draw hooks cannot arm. Normally the player's E-8307 hub window is removed as soon as it is drawn (four-decks, The E-8307 hub warning)."
+    },
+    {
+      "glob": "classic:theme-[1-9]-*",
+      "why": "The same MODS pages in the other themes. Chapters show MODERN (theme 24) and CLASSIC (theme 0); every theme appears in the theme gallery."
+    },
+    {
+      "glob": "classic:theme-[12][0-9]-*",
+      "why": "The same MODS pages in the other themes. Chapters show MODERN (theme 24) and CLASSIC (theme 0); every theme appears in the theme gallery."
+    },
+    {
+      "glob": "classic:theme-0-active-*",
+      "why": "The same pages with every engine ready; the chapters show the plain state and describe the ready state."
+    },
+    {
+      "glob": "classic:theme-0-general-usb-*",
+      "why": "GENERAL is retired and opens HOME; these fixtures render an empty page."
+    },
+    {
+      "glob": "classic:theme-0-browse-setup",
+      "why": "Retired: no control opens this page since KEY NOTATION moved to SCREEN."
+    },
+    {
+      "glob": "classic:theme-0-profile-edit",
+      "why": "The preview fixture has no DJ profile, so the page renders blank. connect.md documents it with a table; add a figure when the fixture has a profile."
+    },
+    {
+      "glob": "classic:theme-0-profile-setup",
+      "why": "The preview fixture has no DJ profile, so the page renders blank. connect.md documents it with a table; add a figure when the fixture has a profile."
+    },
+    {
+      "glob": "classic:theme-0-screen-look",
+      "why": "The preview fixture never sets MODERN, so the MODERN-only page renders blank. screen-and-themes.md documents it with a table."
+    },
+    {
+      "glob": "classic:badge",
+      "why": "Renderer helper image, not a screen."
+    },
+    {
+      "glob": "modern:mods-*",
+      "why": "Fixtures of the retired MODERN MODS tabs; since 22.3 MODERN opens the shared MODS panel."
+    },
+    {
+      "glob": "modern:play-grid-mode",
+      "why": "GRID ADJUST is drawn but the runtime never enables it in this version."
+    },
+    {
+      "glob": "modern:parity-grid-mode",
+      "why": "GRID ADJUST is drawn but the runtime never enables it in this version."
+    },
+    {
+      "glob": "modern:parity-play-states",
+      "why": "ON AIR, loop-point and hot cue call outlines are drawn but never filled in by the runtime yet."
+    },
+    {
+      "glob": "modern:parity-cue-list",
+      "why": "The CUE/LOOP list is drawn but not enabled in this version."
+    },
+    {
+      "glob": "modern:info-rating-edit",
+      "why": "Rating edit is drawn but not enabled in this version."
+    },
+    {
+      "glob": "modern:parity-link-picker",
+      "why": "Browsing LINK players from MODERN is not available yet."
+    },
+    {
+      "glob": "modern:play-popup-slot",
+      "why": "Placeholder fixture."
+    },
+    {
+      "glob": "modern:browse-null-slot",
+      "why": "Placeholder fixture."
+    },
+    {
+      "glob": "modern:settings-utility-long",
+      "why": "Layout stress fixture with placeholder text."
+    },
+    {
+      "glob": "modern:settings-utility-unknown",
+      "why": "Looks the same as settings-utility-info."
+    },
+    {
+      "glob": "modern:settings-utility-mixer-unknown",
+      "why": "Looks the same as settings-utility-values."
+    },
+    {
+      "glob": "modern:settings-shortcut-*",
+      "why": "SHORTCUT states beyond the ones play-screen.md shows: empty, focus moves, long text and unknown values."
+    },
+    {
+      "glob": "modern:shortcut-runtime-focus-display",
+      "why": "SHORTCUT focus state; play-screen.md shows the screen and its rows."
+    },
+    {
+      "glob": "modern:shortcut-runtime-nothing-read",
+      "why": "SHORTCUT before the player reports; play-screen.md describes dashes."
+    },
+    {
+      "glob": "modern:shortcut-runtime-stems",
+      "why": "Same as r5-shortcut-graphic-stems."
+    },
+    {
+      "glob": "modern:r5-shortcut-graphic",
+      "why": "Same as screen-shortcut with HOT CUE AUTO LOAD shown."
+    },
+    {
+      "glob": "modern:*-long-strings",
+      "why": "Layout stress fixture: very long titles."
+    },
+    {
+      "glob": "modern:*-unknown",
+      "why": "Values the runtime has not read yet; chapters describe dashes once."
+    },
+    {
+      "glob": "modern:*-unknown-and-odd",
+      "why": "Values the runtime has not read yet."
+    },
+    {
+      "glob": "classic:theme-*-language",
+      "why": "Controller language page; explained in desktop-app#desktop-language without a separate screenshot figure"
+    },
+    {
+      "glob": "classic:theme-*-active-language",
+      "why": "Active-state variant of the controller language page"
+    }
+  ],
+  "settings_not_documented": [
+    {
+      "key": "spare_eq",
+      "why": "Read-only legacy flag; nothing to set."
+    },
+    {
+      "key": "controller_locale",
+      "why": "Documented in desktop-app#desktop-language; controller language selection under MODS > EXTRAS > LANGUAGE."
+    }
+  ],
+  "watch": [
+    {
+      "path": "source/xdj-xz-toolkit/mods/extra_player.c",
+      "chapter": "four-decks",
+      "why": "software deck SYNC engage, tempo and beat alignment"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/menu_key.c",
+      "chapter": "mods-menu",
+      "why": "what MENU does on each screen"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/ui_sections.c",
+      "chapter": "mods-menu",
+      "why": "MODS page text, HOME status lines and the save state"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/ui_profile.c",
+      "chapter": "connect",
+      "why": "DJ profile editor steps and messages"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/ui_network.c",
+      "chapter": "connect",
+      "why": "network setup steps"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/sdk_ui.c",
+      "chapter": "extras",
+      "why": "USB app folders and states"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/ui_support.c",
+      "chapter": "extras",
+      "why": "the report-a-problem flow"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/themes.h",
+      "chapter": "screen-and-themes",
+      "why": "the theme list"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/deck_colour.h",
+      "chapter": "play-screen",
+      "why": "deck colours and badges"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/top_bar.h",
+      "chapter": "play-screen",
+      "why": "the CLASSIC top bar shown in captures"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/key_strip.c",
+      "chapter": "performance",
+      "why": "KEY SYNC and effective key messages"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/stem_rows.c",
+      "chapter": "stems",
+      "why": "CLASSIC stem rows shown in captures"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/wave_viewport.h",
+      "chapter": "stems",
+      "why": "what one STEMS press does in 2 DECKS and 4 DECKS, both interfaces (xz_stems_press)"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/stem_pads.c",
+      "chapter": "hardware",
+      "why": "stem pads and SHIFT + pad mode buttons"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/deck_select.c",
+      "chapter": "hardware",
+      "why": "deck select, SHIFT twice and tempo pickup"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/beat_jump.h",
+      "chapter": "performance",
+      "why": "beat jump pages, sizes and defaults"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/deck_caps.c",
+      "chapter": "four-decks",
+      "why": "what decks 3 and 4 can do"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/route_card.c",
+      "chapter": "four-decks",
+      "why": "route card states"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/loopback_port.h",
+      "chapter": "four-decks",
+      "why": "which USB port the loopback cable uses"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/extra_route_status.h",
+      "chapter": "four-decks",
+      "why": "four-deck failure sentences"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/extra_lane.h",
+      "chapter": "four-decks",
+      "why": "SYNC labels and detail lines on decks 3 and 4"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/key/control.c",
+      "chapter": "performance",
+      "why": "key shift and KEY SYNC refusal messages"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ram/extra.c",
+      "chapter": "performance",
+      "why": "RAM TRACKS limit messages"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/band_colors.h",
+      "chapter": "screen-and-themes",
+      "why": "the 3-BAND COLOURS choices"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/ui/deck_view.c",
+      "chapter": "four-decks",
+      "why": "DECK VIEW choices"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/stock_dialog.c",
+      "chapter": "troubleshooting",
+      "why": "which player warnings take the screen"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/shell_playlists.h",
+      "chapter": "browse",
+      "why": "playlists stored on the USB"
+    },
+    {
+      "path": "ui/index.html",
+      "chapter": "desktop-app",
+      "why": "desktop app views and labels"
+    },
+    {
+      "path": "ui/app.js",
+      "chapter": "desktop-app",
+      "why": "desktop app views and labels"
+    },
+    {
+      "path": "ui/manual.js",
+      "chapter": "desktop-app",
+      "why": "the Manual page: search, chapter list, numbered points and reading position"
+    },
+    {
+      "path": "ui/manual.css",
+      "chapter": "desktop-app",
+      "why": "the Manual page layout the app:manual shot shows"
+    },
+    {
+      "path": "ui/manual-map.js",
+      "chapter": "desktop-app",
+      "why": "the menu map: its layout, controls, keys and the screen panel the app:menu-map shot shows"
+    },
+    {
+      "path": "ui/manual-map.css",
+      "chapter": "desktop-app",
+      "why": "the menu map layout the app:menu-map shot shows"
+    },
+    {
+      "path": "ui/manual-art.js",
+      "chapter": "four-decks",
+      "why": "the explainer player: scene N shows clip N, the steps and captions follow the chapter"
+    },
+    {
+      "path": "ui/assets/manual/media.js",
+      "chapter": "four-decks",
+      "why": "the explainer clips rendered from the Blender model (four-decks, performance); watch each clip against its scene lines and steps, and capture app:manual again"
+    },
+    {
+      "path": "ui/style.css",
+      "chapter": "desktop-app",
+      "why": "the top bar, the side list, the page card and the Tools layout every app shot shows"
+    },
+    {
+      "path": "ui/support.css",
+      "chapter": "desktop-app",
+      "why": "the Feedback section, My reports and From your XZ"
+    },
+    {
+      "path": "ui/setup.js",
+      "chapter": "getting-started",
+      "why": "USB setup steps and the interface choice"
+    },
+    {
+      "path": "ui/dj-profile.js",
+      "chapter": "desktop-app",
+      "why": "the DJ profile editor"
+    },
+    {
+      "path": "ui/live-stream.js",
+      "chapter": "desktop-app",
+      "why": "XZ Screen"
+    },
+    {
+      "path": "ui/games.js",
+      "chapter": "desktop-app",
+      "why": "game data on the USB"
+    },
+    {
+      "path": "ui/mod-update.js",
+      "chapter": "desktop-app",
+      "why": "updating the USB loader"
+    },
+    {
+      "path": "ui/usb-tree.js",
+      "chapter": "desktop-app",
+      "why": "the USB contents view"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/diary/diary.h",
+      "chapter": "troubleshooting",
+      "why": "USB diary contents, retention and write safety"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/diary/runtime.c",
+      "chapter": "troubleshooting",
+      "why": "USB diary contents, retention and write safety"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/diary/store.c",
+      "chapter": "troubleshooting",
+      "why": "USB diary contents, retention and write safety"
+    },
+    {
+      "path": "source/xdj-xz-toolkit/mods/diary/format.c",
+      "chapter": "troubleshooting",
+      "why": "USB diary contents, retention and write safety"
+    },
+    {
+      "path": "ui/support.js",
+      "chapter": "desktop-app",
+      "why": "Report a problem or share an idea: questions, the box, included details and sending"
+    },
+    {
+      "path": "ui/my-reports.js",
+      "chapter": "desktop-app",
+      "why": "My reports, the status notice and the tracking view"
+    },
+    {
+      "path": "ui/support-kb.js",
+      "chapter": "desktop-app",
+      "why": "Is this it? answers quoted from the manual"
+    },
+    {
+      "path": "ui/xz-queue.js",
+      "chapter": "desktop-app",
+      "why": "From your XZ, its notification, badge and callout, and Your XZ sticks"
+    },
+    {
+      "path": "src-tauri/src/controller_notify.rs",
+      "chapter": "desktop-app",
+      "why": "the Windows notification for a report from the XZ"
+    }
+  ]
 }

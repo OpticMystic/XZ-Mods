@@ -1,3 +1,4 @@
+#include "l10n.h"
 #include "ui_skin.h"
 #include <stdio.h>
 
@@ -17,7 +18,7 @@ static void theme_card(struct xz_canvas c,const struct xz_ui_widget *a,int selec
  /* Swatches: the theme's three stem colours and its accent. */
  for(int k=0;k<4;k++)xz_round_rect(c,a->x+a->w-46+k*10,a->y+8,8,8,2,15,k<3?sample->stem[k]:sample->accent);
  xz_text(own,a->x+10,a->y+8,a->label,1,(a->w-62)/6,sample->ink);
- if(selected)xz_text(own,a->x+10,a->y+24,"SELECTED",1,12,sample->accent);
+ if(selected)xz_text(own,a->x+10,a->y+24,xz_l10n_authored("SELECTED"),1,12,sample->accent);
 }
 static int is_toggle(enum xz_ui_action_kind k){
  return k==XZ_UI_ENABLE||k==XZ_UI_PAD_FEEDBACK||k==XZ_UI_JUMP_ENABLE||k==XZ_UI_JUMP_SHIFT||k==XZ_UI_SHIFT_PAGES||
@@ -41,16 +42,16 @@ static int is_primary(enum xz_ui_action_kind k,int index){
 static const char *tagline(const struct xz_ui_widget *a){
  switch(a->kind){
  case XZ_UI_PANEL:switch(a->index){
-  case XZ_UI_CONNECTION:return "COMPUTER SCREEN AND FILMSTRIP LINK";
-  case XZ_UI_GAMES:return "CLASSIC GAMES AND BEAT ARCADE";
-  case XZ_UI_APPS:return "XZ SDK APPS FROM USB";
-  case XZ_UI_UPDATES:return "SIGNED UPDATES, ACTIVE NEXT BOOT";
+  case XZ_UI_CONNECTION:return xz_l10n_authored("COMPUTER SCREEN AND FILMSTRIP LINK");
+  case XZ_UI_GAMES:return xz_l10n_authored("CLASSIC GAMES AND BEAT ARCADE");
+  case XZ_UI_APPS:return xz_l10n_authored("XZ SDK APPS FROM USB");
+  case XZ_UI_UPDATES:return xz_l10n_authored("SIGNED UPDATES, ACTIVE NEXT BOOT");
   case XZ_UI_DOOM_FILES:return "BASE GAME + ADD-ON";
   case XZ_UI_MYHOUSE_SETUP:return "NEEDS THE NATIVE GZDOOM PORT";
-  case XZ_UI_PROFILE_SETUP:return "YOUR NAME AND LOGO FOR VJ SCREENS";
-  case XZ_UI_NETWORK:return "ADAPTER, ADDRESS, APPLY FOR THIS BOOT";
-  case XZ_UI_SUPPORT:return "SEND A PROBLEM OR AN IDEA";
-  case XZ_UI_ABOUT:return "CREDITS, LINKS AND SUPPORT";
+  case XZ_UI_PROFILE_SETUP:return xz_l10n_authored("YOUR NAME AND LOGO FOR VJ SCREENS");
+  case XZ_UI_NETWORK:return xz_l10n_authored("ADAPTER, ADDRESS, APPLY FOR THIS BOOT");
+  case XZ_UI_SUPPORT:return xz_l10n_authored("SEND A PROBLEM OR AN IDEA");
+  case XZ_UI_ABOUT:return xz_l10n_authored("CREDITS, LINKS AND SUPPORT");
   default:return NULL;}
  case XZ_UI_GAME_SELECT:return a->index?"ORIGINAL GAME + PATCH":"DOOM AND DOOM II DATA";
  case XZ_UI_ARCADE_OPEN:return "BEAT-SYNCED, JOG WHEEL";
@@ -87,10 +88,10 @@ static void render(const struct xz_ui_scene *s){
   xz_rect(c,XZ_UI_RAIL_W,XZ_UI_HEAD+1,1,XZ_UI_DOCK_Y-XZ_UI_HEAD-1,edge);
  }
  int decks=0;for(i=0;i<s->n;i++)decks|=s->w[i].kind==XZ_UI_DECK&&s->w[i].y<XZ_UI_HEAD;
- xz_text(c,XZ_UI_CX,6,"XZ MODS",1,10,win?0xffffff:dim);
+ xz_text(c,XZ_UI_CX,6,xz_l10n_authored("XZ MODS"),1,10,win?0xffffff:dim);
  xz_text(c,XZ_UI_CX,18,section_title(u->page),2,decks?13:30,head_ink);
  /* The DJ Profile chip owns the corner when there is one. */
- if(!decks&&!m->dj)xz_text(c,600,16,"xzmods.com",1,20,win?0xffffff:p->accent);
+ if(!decks&&!m->dj)xz_text(c,600,16,xz_l10n_authored("xzmods.com"),1,20,win?0xffffff:p->accent);
  for(i=0;i<s->n;i++){
   struct xz_ui_widget a=s->w[i];int available=s->look[i].available,selected=s->look[i].selected;uint32_t color=s->look[i].color;
   uint32_t text=available?ink:dim;
@@ -115,7 +116,7 @@ static void render(const struct xz_ui_scene *s){
     if(modern)xz_round_rect(c,a.x+6,a.y+7,a.w-12,a.h-14,(a.h-14)/2,15,xz_blend(p->bg,p->alarm,56));
     int x=a.x+18;
     xz_line16(c,x*16,(cy-4)*16,(x+8)*16,(cy+4)*16,26,head_ink);xz_line16(c,x*16,(cy+4)*16,(x+8)*16,(cy-4)*16,26,head_ink);
-    xz_text(c,a.x+33,cy-4,"CLOSE",1,8,head_ink);
+    xz_text(c,a.x+33,cy-4,xz_l10n_authored("CLOSE"),1,8,head_ink);
    }
    continue;
   }
@@ -167,7 +168,7 @@ static void render(const struct xz_ui_scene *s){
   }else if(a.kind==XZ_UI_KEY_SHIFT&&a.index==0){
    if(available)snprintf(buf,sizeof(buf),"%+d",d->key_semitones);else snprintf(buf,sizeof(buf),"--");
    xz_text(c,a.x+12,a.y+5,buf,2,5,text);
-   xz_text(c,a.x+12,a.y+25,"RESET",1,8,dim);
+   xz_text(c,a.x+12,a.y+25,xz_l10n_authored("RESET"),1,8,dim);
   }else if(!shared){
    int compact=a.w<200,right=is_toggle(a.kind)?(compact?40:54):a.kind==XZ_UI_PANEL||(is_choice(a.kind)&&selected)?28:12;
    int two=a.kind==XZ_UI_GROOVE_PAD||a.kind==XZ_UI_HOTCUE_PAD||a.kind==XZ_UI_CONNECTION_ENABLE||a.kind==XZ_UI_DISCOVERY||
@@ -184,14 +185,14 @@ static void render(const struct xz_ui_scene *s){
    }
    if(a.kind==XZ_UI_PANEL)chevron(c,a.x+a.w-18,a.y+a.h/2,1,dim);
    if(is_choice(a.kind)&&selected&&a.kind!=XZ_UI_WAD_SELECT)xz_disc(c,a.x+a.w-16,a.y+a.h/2,4,p->accent);
-   if(a.kind==XZ_UI_MUTE&&selected){xz_round_rect(c,a.x+a.w-63,a.y+10,55,17,8,15,p->alarm);xz_text(c,a.x+a.w-56,a.y+14,"MUTED",1,9,p->bg);}
+   if(a.kind==XZ_UI_MUTE&&selected){xz_round_rect(c,a.x+a.w-63,a.y+10,55,17,8,15,p->alarm);xz_text(c,a.x+a.w-56,a.y+14,xz_l10n_authored("MUTED"),1,9,p->bg);}
    if(a.kind==XZ_UI_CONNECTION_ENABLE||a.kind==XZ_UI_DISCOVERY)
-    xz_text(c,a.x+12,a.y+28,m->connection.ready?"":"UNAVAILABLE",1,20,dim);
-   if(a.kind==XZ_UI_GROOVE_PAD)xz_text(c,a.x+12,a.y+a.h-20,available?(d->groove_active==a.index?"PLAYING":"READY"):"NOT READY",1,12,available?color:dim);
+    xz_text(c,a.x+12,a.y+28,m->connection.ready?"":xz_l10n_authored("UNAVAILABLE"),1,20,dim);
+   if(a.kind==XZ_UI_GROOVE_PAD)xz_text(c,a.x+12,a.y+a.h-20,available?(d->groove_active==a.index?xz_l10n_authored("PLAYING"):xz_l10n_authored("READY")):xz_l10n_authored("NOT READY"),1,12,available?color:dim);
    if(a.kind==XZ_UI_HOTCUE_PAD)xz_text(c,a.x+12,a.y+a.h-20,"HOT CUE",1,12,dim);
    if(a.kind==XZ_UI_SAMPLE_PAD&&selected)xz_round_rect(c,a.x+8,a.y+a.h-10,a.w-16,4,2,15,p->accent);
-   if(a.kind==XZ_UI_SERVER_AUTO)xz_text(c,a.x+12,a.y+27,m->server_auto?"AUTO":"MANUAL",1,30,p->accent);
-   if(a.kind==XZ_UI_SERVER_ADDRESS)xz_text(c,a.x+12,a.y+27,m->server_address&&*m->server_address?m->server_address:"NOT SET",1,58,dim);
+   if(a.kind==XZ_UI_SERVER_AUTO)xz_text(c,a.x+12,a.y+27,m->server_auto?xz_l10n_authored("AUTO"):xz_l10n_authored("MANUAL"),1,30,p->accent);
+   if(a.kind==XZ_UI_SERVER_ADDRESS)xz_text(c,a.x+12,a.y+27,m->server_address&&*m->server_address?m->server_address:xz_l10n_authored("NOT SET"),1,58,dim);
   }
   if(!available&&!shared&&a.kind!=XZ_UI_GROOVE_PAD&&!is_toggle(a.kind)&&a.h<56){
    /* Short controls: a status dot; the info dock spells out why. */

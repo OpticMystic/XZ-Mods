@@ -2,12 +2,12 @@
 // createUsbTree() draws them. States are a table so a row never decides its own wording or colour.
 (function(){
 const STATES={
-  current:{badge:'Up to date',tone:'ok'},
-  present:{badge:'On USB',tone:'ok'},
-  outdated:{badge:'Update available',tone:'warn'},
-  unknown:{badge:'Unknown version',tone:'warn'},
-  missing:{badge:'Not on USB',tone:'off'},
-  untouched:{badge:'Never touched',tone:'quiet'}
+  current:{badge:XZText('Up to date'),tone:'ok'},
+  present:{badge:XZText('On USB'),tone:'ok'},
+  outdated:{badge:XZText('Update available'),tone:'warn'},
+  unknown:{badge:XZText('Unknown version'),tone:'warn'},
+  missing:{badge:XZText('Not on USB'),tone:'off'},
+  untouched:{badge:XZText('Never touched'),tone:'quiet'}
 };
 const LEGEND=[['ok','Up to date'],['warn','Update available'],['off','Not on USB']];
 const STEMS='CDJMODS\\stems',REKORDBOX='PIONEER\\rekordbox',BACKUPS='VJ.Tools\\XZ-Mods-updates',SETTINGS='VJ.Tools\\XZ-Mods.cfg',DJPROFILE='DJPROFILE';

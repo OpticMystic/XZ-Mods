@@ -1,3 +1,4 @@
+#include "l10n.h"
 /* SPDX-License-Identifier: MIT */
 #include "metrics.h"
 #include "ui_skin.h"
@@ -12,7 +13,7 @@ void xz_metrics_draw(uint16_t *pixels,size_t stride,int theme,int enabled,const 
  xz_rect(c,XZ_METRICS_READOUT_X,0,XZ_METRICS_READOUT_W,h,p->bg);
  xz_border(c,XZ_METRICS_READOUT_X,0,XZ_METRICS_READOUT_W,h,xz_blend(p->bg,p->accent,150));
  if(!xz_metrics_fresh(s,now)){
-  xz_text(c,292,ty,s&&s->valid?"METRICS STALE - TAP TO VERIFY":"METRICS STARTING - TAP TO SET UP",1,48,p->ink);return;
+  xz_text(c,292,ty,s&&s->valid?xz_l10n_authored("METRICS STALE - TAP TO VERIFY"):xz_l10n_authored("METRICS STARTING - TAP TO SET UP"),1,48,p->ink);return;
  }
  char text[40];
  if(s->valid&XZ_METRICS_CPU)snprintf(text,sizeof(text),"CPU %u%%",(s->cpu_permille+5)/10);else snprintf(text,sizeof(text),"CPU --");

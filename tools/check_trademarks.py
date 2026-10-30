@@ -49,6 +49,8 @@ ALLOW = [
 ALLOWED = re.compile('|'.join(f'(?:{a})' for a, _ in ALLOW), re.I | re.M)
 
 SKIP = {
+    'ui/xz-l10n.js': 'localization token-preservation table for shipped release history and hardware names',
+    'ui/xz-l10n-data.js': 'generated translation catalogs including translated release-note history from mod-changes.js',
     'ui/mod-changes.js': 'what changed in each build already shipped, generated from mod-changes.json history',
     'ui/support-contract.js': 'the report contract shared with the support service; its enum values are keys, the '
                               'wizard shows its own words (ui/support.js)',

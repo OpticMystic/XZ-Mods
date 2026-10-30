@@ -132,7 +132,7 @@ function positionFeedback(){
 }
 function revealFeedback(){if(!jobPanel.classList.contains('hidden')&&jobPanel.isConnected)jobPanel.scrollIntoView({block:'nearest'});}
 function showFeedback(origin){feedbackHome=origin||null;jobPanel.classList.remove('hidden');positionFeedback();}
-function showError(message,origin){jobPanel.classList.remove('is-cancelled');jobPanel.classList.add('is-error');$('job-title').textContent='Operation not completed';$('job-message').textContent=message;$('job-summary').textContent='';$('job-details').classList.add('hidden');$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');showFeedback(origin);revealFeedback();}
+function showError(message,origin){jobPanel.classList.remove('is-cancelled');jobPanel.classList.add('is-error');$('job-title').textContent=XZText('Operation not completed');$('job-message').textContent=message;$('job-summary').textContent='';$('job-details').classList.add('hidden');$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');showFeedback(origin);revealFeedback();}
 function busy(value){value=value||appUpdating;stemBusy=value;document.querySelectorAll('.pick,#build,#verify-inputs,#download-firmware,#inspect-usb,#update-usb,#refresh-usb,#edit-selected-usb,.restore-loader,#setup-games-usb,#ota-detect,#ota-start,[id^=download-],[id^=copy-]').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('.usb-setting,#experimental').forEach(input=>input.disabled=value);$('ota-start').disabled=value||!invoke||!otaReady;$('install-app-update').disabled=value||activeJob!==null;renderStems();updateRepairControls(value);updateModVersionControls(value);}
 function verifySummary(result){
   const check=stemsApi.verify(result);
@@ -156,30 +156,30 @@ async function run(request,title,origin,watch){
     while(true){
       const state=await invoke('job_status',{id:activeJob});
       if(quiet){watch?.(state);if(!state.running)return state;await new Promise(resolve=>setTimeout(resolve,350));continue;}
-      $('job-message').textContent=state.message||state.error||(state.ok?'Completed':'Working…');
+      $('job-message').textContent=state.message||state.error||(state.ok?XZText('Completed'):'Working…');
       if(!state.running){
         const cancelled=Boolean(state.cancelled||state.result?.cancelled===true);
-        $('job-title').textContent=state.ok?'Completed':cancelled?'Cancelled':'Operation not completed';
+        $('job-title').textContent=state.ok?XZText('Completed'):cancelled?XZText('Cancelled'):XZText('Operation not completed');
         settled=state.ok?null:cancelled?'is-cancelled':'is-error';
         if(state.result){
           $('job-result').textContent=JSON.stringify(state.result,null,2);$('job-details').classList.remove('hidden');
-          $('job-summary').textContent=state.result.format==='xz-mods-loader-updated/1'?'Loader updated. Previous loader: '+state.result.backup:state.result.format==='xz-mods-loader-restored/1'?'Previous loader restored.':state.result.format==='xz-mods-settings-saved/1'?'Settings saved to USB and checked.':state.result.image?'Verified image: '+state.result.image+(state.result.requires_copy_to_usb_root?' · Copy autoexec.bin to the root of a FAT/FAT32 USB.':''):
+          $('job-summary').textContent=state.result.format==='xz-mods-loader-updated/1'?XZText('Loader updated. Previous loader: ')+state.result.backup:state.result.format==='xz-mods-loader-restored/1'?XZText('Previous loader restored.'):state.result.format==='xz-mods-settings-saved/1'?XZText('Settings saved to USB and checked.'):state.result.image?XZText('Verified image: ')+state.result.image+(state.result.requires_copy_to_usb_root?XZText(' · Copy autoexec.bin to the root of a FAT/FAT32 USB.'):''):
             state.result.format==='overcue-stems/4'?verifySummary(state.result):
             state.result.format==='overcue-index/1'?ST['imp.done.title']+'.':
-            state.result.report_path?'Report saved: '+state.result.report_path:'';
+            state.result.report_path?XZText('Report saved: ')+state.result.report_path:'';
           if(state.result.game_setup || state.result.format==='xz-games-usb/1'){
             const setup=state.result.game_setup||state.result;
             const names=setup.games.filter(game=>game.ok).map(game=>game.name).join(', ');
-            $('job-summary').textContent=(state.result.image?'Loader ready. ':'')+(names?'Game files on USB: '+names+'. ':'')+(setup.failed_count?setup.failed_count+' download(s) failed. Retry the failed games on the USB page. ':'')+'My House still needs the native GZDoom port.';
-          }else if(state.result.format==='xz-game-installed/1')$('job-summary').textContent=state.result.name+' copied to USB and verified.';
-          else if(state.result.format==='xz-game-downloaded/1')$('job-summary').textContent=state.result.name+' downloaded and verified.';
-          else if(state.result.format==='xz-library-inspected/1')$('job-summary').textContent='Check finished. The results are below.';
-          else if(state.result.format==='xz-library-repaired/1'){$('job-title').textContent='Repair written · not yet tested in your DJ software';$('job-summary').textContent=state.result.summary||'';}
-          else if(state.result.format==='xz-library-restored/1'){$('job-title').textContent='Repair undone';$('job-summary').textContent=state.result.summary||'';}
-          else if(state.result.format==='xz-library-report/1')$('job-summary').textContent='Report saved: '+state.result.report_path;
-          if(state.result.mod_version?.id){const summary=$('job-summary').textContent.trim();$('job-summary').textContent=(summary&&!/[.!?]$/.test(summary)?summary+'.':summary)+(summary?' ':'')+'Mod version: '+modVersionText(state.result.mod_version)+'.';}
+            $('job-summary').textContent=(state.result.image?XZText('Loader ready. '):'')+(names?XZText('Game files on USB: ')+names+'. ':'')+(setup.failed_count?setup.failed_count+XZText(' download(s) failed. Retry the failed games on the USB page. '):'')+XZText('My House still needs the native GZDoom port.');
+          }else if(state.result.format==='xz-game-installed/1')$('job-summary').textContent=state.result.name+XZText(' copied to USB and verified.');
+          else if(state.result.format==='xz-game-downloaded/1')$('job-summary').textContent=state.result.name+XZText(' downloaded and verified.');
+          else if(state.result.format==='xz-library-inspected/1')$('job-summary').textContent=XZText('Check finished. The results are below.');
+          else if(state.result.format==='xz-library-repaired/1'){$('job-title').textContent=XZText('Repair written · not yet tested in your DJ software');$('job-summary').textContent=state.result.summary||'';}
+          else if(state.result.format==='xz-library-restored/1'){$('job-title').textContent=XZText('Repair undone');$('job-summary').textContent=state.result.summary||'';}
+          else if(state.result.format==='xz-library-report/1')$('job-summary').textContent=XZText('Report saved: ')+state.result.report_path;
+          if(state.result.mod_version?.id){const summary=$('job-summary').textContent.trim();$('job-summary').textContent=(summary&&!/[.!?]$/.test(summary)?summary+'.':summary)+(summary?' ':'')+XZText('Mod version: ')+modVersionText(state.result.mod_version)+'.';}
           const adjusted=state.result.settings_adjustment;
-          if(adjusted?.backup){const summary=$('job-summary').textContent.trim();$('job-summary').textContent=(summary&&!/[.!?]$/.test(summary)?summary+'.':summary)+(summary?' ':'')+'USB settings adjusted for this version. Original settings backed up: '+adjusted.backup+'.';}
+          if(adjusted?.backup){const summary=$('job-summary').textContent.trim();$('job-summary').textContent=(summary&&!/[.!?]$/.test(summary)?summary+'.':summary)+(summary?' ':'')+XZText('USB settings adjusted for this version. Original settings backed up: ')+adjusted.backup+'.';}
         }
         return state;
       }
@@ -201,9 +201,9 @@ async function cancelActiveJob(){
   if(stemBatch?.running){stemBatch.cancelRequested=true;renderStems();}
   $('cancel').disabled=true;
   // The job has no id until start_job answers; run() sends the cancel as soon as it does.
-  if(activeJob==='starting'){cancelPending=true;$('job-message').textContent='Cancelling safely…';return;}
-  try{await invoke('cancel_job',{id:activeJob});$('job-message').textContent='Cancelling safely…';}
-  catch(error){$('cancel').disabled=false;if(stemBatch?.running){stemBatch.cancelRequested=false;renderStems();}$('job-message').textContent='Could not cancel: '+String(error);}
+  if(activeJob==='starting'){cancelPending=true;$('job-message').textContent=XZText('Cancelling safely…');return;}
+  try{await invoke('cancel_job',{id:activeJob});$('job-message').textContent=XZText('Cancelling safely…');}
+  catch(error){$('cancel').disabled=false;if(stemBatch?.running){stemBatch.cancelRequested=false;renderStems();}$('job-message').textContent=XZText('Could not cancel: ')+String(error);}
 }
 $('cancel').onclick=cancelActiveJob;
 const gameLabels={doom:'Doom shareware',chex:'Chex Quest',freedoom:'Freedoom Phase 2'};
@@ -225,7 +225,7 @@ $('setup-games-usb').onclick=async()=>{
 $('ota-detect').onclick=async()=>{
   const response=await run({method:'ota_networks'},'Detecting XZ network adapters',$('ota-detect'));
   if(response?.ok){const select=$('ota-network');select.replaceChildren();for(const address of response.result.addresses){const option=document.createElement('option');option.value=address;option.textContent=address;select.append(option);}
-    $('ota-status').textContent=response.result.ready?'Choose the XZ network adapter, then start the update server.':response.result.reason||'Update the loader on this USB from the USB page.';
+    $('ota-status').textContent=response.result.ready?XZText('Choose the XZ network adapter, then start the update server.'):response.result.reason||XZText('Update the loader on this USB from the USB page.');
     otaReady=!!response.result.ready;$('ota-start').disabled=!otaReady;$('ota-start').classList.toggle('primary',response.result.ready);$('ota-start').classList.toggle('secondary',!response.result.ready);
     $('ota-usb-setup').classList.toggle('hidden',response.result.ready);
   }
@@ -233,10 +233,10 @@ $('ota-detect').onclick=async()=>{
 $('ota-usb-setup').onclick=()=>showPage('setup');
 $('ota-start').onclick=async()=>{
   const origin=$('ota-start'),address=$('ota-network').value;if(!address){showError('Detect adapters and choose the XZ network adapter first.',origin);return;}
-  $('ota-status').textContent='Starting on '+address+'. On the XZ, open Extras → Network updates.';
+  $('ota-status').textContent=XZText('Starting on ')+address+XZText('. On the XZ, open Extras → Network updates.');
   await run({method:'serve_runtime_updates',address},'Serving signed XZ updates',origin);
 };
-$('verify-inputs').onclick=async()=>{const origin=$('verify-inputs');if(!required(['firmware'],origin))return;const result=await run({method:'inspect_firmware',firmware:$('firmware').value},'Checking firmware',origin);if(result?.ok)$('input-result').textContent=result.result.key_verified_against_input?'XZ 1.26 firmware and boot support verified.':'XZ 1.26 application verified. Choose the official firmware ZIP to verify complete boot support.';};
+$('verify-inputs').onclick=async()=>{const origin=$('verify-inputs');if(!required(['firmware'],origin))return;const result=await run({method:'inspect_firmware',firmware:$('firmware').value},'Checking firmware',origin);if(result?.ok)$('input-result').textContent=result.result.key_verified_against_input?XZText('XZ 1.26 firmware and boot support verified.'):XZText('XZ 1.26 application verified. Choose the official firmware ZIP to verify complete boot support.');};
 $('build').onclick=async()=>{
   const origin=$('build');
   if(!required(['volume','firmware'],origin))return;
@@ -253,18 +253,18 @@ function node(tag,text,className){const item=document.createElement(tag);if(text
 function renderUsb(inspection){
   usbInspection=inspection;$('usb-update-details').classList.remove('hidden');
   $('usb-selected-path').textContent=inspection.volume;
-  $('usb-loader-status').textContent=inspection.loader.exists?'Existing loader: '+(inspection.loader.bytes/1048576).toFixed(1)+' MB.':'No loader found. Install XZ Mods from the USB page.';
+  $('usb-loader-status').textContent=inspection.loader.exists?XZText('Existing loader: ')+(inspection.loader.bytes/1048576).toFixed(1)+' MB.':XZText('No loader found. Install XZ Mods from the USB page.');
   // Only a version recorded after a write is shown. Older loaders stay unknown; never assume the saved choice.
   const recorded=inspection.recorded_mod_version?.id?inspection.recorded_mod_version:null;
-  $('usb-recorded-version').textContent=!inspection.loader.exists?'':recorded?'Mod version on this USB: '+modVersionText(recorded)+'.':'Mod version on this USB: unknown. Loaders written before XZ Mods recorded versions do not say which build they hold.';
-  $('usb-loader-note').textContent=inspection.requires_copy_to_usb_root?'This is a prepared folder. Copy the updated autoexec.bin to the USB root afterward.':recorded?'The old loader is backed up before replacement.':'The old loader is backed up before replacement. Its installed version cannot be identified from this file.';
+  $('usb-recorded-version').textContent=!inspection.loader.exists?'':recorded?XZText('Mod version on this USB: ')+modVersionText(recorded)+'.':XZText('Mod version on this USB: unknown. Loaders written before XZ Mods recorded versions do not say which build they hold.');
+  $('usb-loader-note').textContent=inspection.requires_copy_to_usb_root?XZText('This is a prepared folder. Copy the updated autoexec.bin to the USB root afterward.'):recorded?XZText('The old loader is backed up before replacement.'):XZText('The old loader is backed up before replacement. Its installed version cannot be identified from this file.');
   updateModVersionControls();
   const backups=$('loader-backups');backups.replaceChildren();
   if(inspection.backups.length){
-    backups.append(node('h3','Restore a previous loader'));
+    backups.append(node('h3',XZText('Restore a previous loader')));
     const select=node('select');select.className='usb-setting';
     for(const backup of inspection.backups){const option=node('option',new Date(backup.created).toLocaleString()+' - '+(backup.previous.bytes/1048576).toFixed(1)+' MB');option.value=backup.id;select.append(option);}
-    const button=node('button','Restore selected backup','secondary restore-loader');
+    const button=node('button',XZText('Restore selected backup'),'secondary restore-loader');
     // Feedback goes after the backups list: renderUsb replaces its contents on success.
     button.onclick=async()=>{const result=await run({method:'restore_usb_loader',volume:inspection.volume,expected_identity:usbInspection.identity,expected_loader:usbInspection.loader,transaction_id:select.value},'Restoring the previous loader',backups);if(result?.ok)renderUsb(result.result.inspection);};
     backups.append(select,button);
@@ -297,20 +297,20 @@ function paintUpdateDot(on){
     const dot=host.querySelector('.nav-dot');
     if(!on){dot?.remove();continue;}
     if(dot)continue;
-    const mark=node('span',undefined,'nav-dot'),spoken=node('span',', update available','visually-hidden');mark.append(spoken);host.append(mark);
+    const mark=node('span',undefined,'nav-dot'),spoken=node('span',XZText(', update available'),'visually-hidden');mark.append(spoken);host.append(mark);
   }
 }
 function renderAppUpdate(status){
   $('update-status').textContent=status.message;
   $('app-update-banner').classList.toggle('hidden',status.phase!=='available');
   paintUpdateDot(status.phase==='available');
-  if(status.phase==='available')$('app-update-banner-text').textContent='XZ Mods '+status.latest_version+' is available.';
+  if(status.phase==='available')$('app-update-banner-text').textContent=XZText('XZ Mods ')+status.latest_version+XZText(' is available.');
   $('install-app-update').classList.toggle('hidden',status.phase!=='available');
   $('install-app-update').disabled=activeJob!==null||appUpdating;
   $('check-app-update').disabled=!invoke||appUpdating||updateChecking;
   const downloading=status.phase==='downloading';$('update-progress').classList.toggle('hidden',!downloading);
   if(status.total){$('update-progress').max=status.total;$('update-progress').value=status.downloaded||0;}else $('update-progress').removeAttribute('value');
-  $('update-size').textContent=downloading&&status.downloaded?((status.downloaded/1048576).toFixed(1)+' MB downloaded'):'';
+  $('update-size').textContent=downloading&&status.downloaded?((status.downloaded/1048576).toFixed(1)+XZText(' MB downloaded')):'';
   if(status.notes){$('available-notes').replaceChildren();renderReleaseNotes($('available-notes'),status.notes,status.latest_version);$('available-notes').classList.remove('hidden');}
 }
 $('about-updates').onclick=()=>showPage('updates');
@@ -339,10 +339,10 @@ async function loadAppInformation(){
     // The Mac build ships no signed updater files, so in-app update cannot work there; .win-only/.mac-only follow this.
     document.documentElement.dataset.platform=info.platform;
     document.documentElement.dataset.updateChannel=info.update_channel||'stable';
-    $('update-channel-note').textContent=(info.update_channel==='beta'?'Beta channel. Checks for beta updates automatically at launch.':'Stable channel. Checks for updates automatically at launch.');
+    $('update-channel-note').textContent=(info.update_channel==='beta'?XZText('Beta channel. Checks for beta updates automatically at launch.'):XZText('Stable channel. Checks for updates automatically at launch.'));
     if(info.release_page)$('app-downloads').href=info.release_page;
     if(info.portable_url)$('portable-downloads').href=info.portable_url;
-    $('update-install-note').textContent=info.installed?'The Windows installer updates the app and reopens it when finished.':'You are using the portable app. Updating here installs the Windows version; it does not replace this portable folder. After installing, open XZ Mods from the desktop shortcut. To stay portable, download the current ZIP below and replace the old folder.';
+    $('update-install-note').textContent=info.installed?XZText('The Windows installer updates the app and reopens it when finished.'):XZText('You are using the portable app. Updating here installs the Windows version; it does not replace this portable folder. After installing, open XZ Mods from the desktop shortcut. To stay portable, download the current ZIP below and replace the old folder.');
     $('release-notes').replaceChildren();for(const release of info.release_notes.releases)renderReleaseNotes($('release-notes'),release,release.version);
     if(info.show_release_notes){showPage('updates');$('updated-message').classList.remove('hidden');await invoke('acknowledge_release_notes');}
     if(info.platform!=='macos')void checkForAppUpdates();
@@ -623,7 +623,7 @@ function engineLine(){
   if(!engineReady())return el('span',{class:'st-engine',dataset:{state:'missing'},text:ST['engine.missing']});
   const cpu=stemEngine.device==='cpu',device=stemEngine.deviceName.replace(/^NVIDIA (GeForce )?/,'');
   return el('span',{class:'st-engine'},...emphasis(t(cpu?'engine.readyCpu':'engine.ready',{preset:'\u0000',device}),presetName(stemEngine.installed)),' · ',
-    plainButton(ST['engine.change'],()=>openEngineWizard('choose'),{text:true,key:'engine-change',title:'Opens setup at Choose quality',disabled:stemWorkLocked()}));
+    plainButton(ST['engine.change'],()=>openEngineWizard('choose'),{text:true,key:'engine-change',title:XZText('Opens setup at Choose quality'),disabled:stemWorkLocked()}));
 }
 function selectPrimary(sel){
   if(stemEngine&&!engineReady())return {label:ST['action.setupEngine'],action:()=>openEngineWizard('check',sel.n?prepareSelection:null,{label:sel.n?preparePrimary(sel).label:null})};
@@ -739,7 +739,7 @@ function stemRow(track){
   const pill=el('span',{class:'st-pill',dataset:{s:spec.pill}},state==='running'?t('pill.running',{pct:trackPct(track.id)}):ST[spec.word],spec.tag?el('span',{class:'st-tag',text:ST[spec.tag]}):null);
   if(state==='running')pill.style.setProperty('--p',trackPct(track.id)+'%');
   const row=el('tr',{class:'st-row'+(picked?' picked':'')+(open?' is-open':''),dataset:{id:track.id}},
-    el('td',{},box),el('td',{},el('span',{class:'st-title',text:track.title}),el('span',{class:'st-artist',text:track.artist||'Unknown artist'})),
+    el('td',{},box),el('td',{},el('span',{class:'st-title',text:track.title}),el('span',{class:'st-artist',text:track.artist||XZText('Unknown artist')})),
     el('td',{},el('span',{class:'st-fmt','data-dim':state==='unsupported'?'':null,text:track.format})),el('td',{class:'st-len',text:clock(track.duration)}),
     el('td',{},pill,rowSub(track,state)),sizeCell(track,state),
     el('td',{class:'st-open'},el('button',{type:'button',class:'st-open-button','aria-expanded':String(open),'aria-label':'Details for '+track.title,dataset:{key:'open:'+track.id,open:track.id}},el('span',{'aria-hidden':'true',text:'›'}))));
@@ -748,7 +748,7 @@ function stemRow(track){
 function renderStemTable(){
   const tracks=visibleStemTracks(),lib=stemLibrary,body=$('stem-tracks'),locked=stemWorkLocked();
   stemRowsById=new Map(tracks.map(track=>[track.id,track]));
-  body.replaceChildren(...(tracks.length?tracks.flatMap(stemRow):[el('tr',{},el('td',{colspan:'7',class:'st-none',text:'No tracks match your search.'}))]));
+  body.replaceChildren(...(tracks.length?tracks.flatMap(stemRow):[el('tr',{},el('td',{colspan:'7',class:'st-none',text:XZText('No tracks match your search.')}))]));
   const missing=tracks.filter(track=>rowState(track)==='missing'&&canSelect(track,'missing')),picked=missing.filter(track=>stemSelection.has(track.id)).length;
   const all=$('st-select-all');all.checked=Boolean(missing.length)&&picked===missing.length;all.indeterminate=picked>0&&picked<missing.length;
   all.disabled=locked||!missing.length;$('st-select-all-label').classList.toggle('hidden',!stemsSupported());
@@ -773,7 +773,7 @@ function renderStems(){
   const blocked=['nousb','nolib','badlib','empty'].includes(stemPhase),page=$('st-page');
   $('st-empty').classList.toggle('hidden',!blocked);page.classList.toggle('hidden',blocked);page.dataset.phase=stemPhase;
   if(blocked)renderStemEmpty();
-  else if(stemPhase==='looking')$('st-bar').replaceChildren(el('p',{class:'st-estimate',text:'Looking for music USBs...'}));
+  else if(stemPhase==='looking')$('st-bar').replaceChildren(el('p',{class:'st-estimate',text:XZText('Looking for music USBs...')}));
   else{renderStemBar();renderStemTabs();renderStemTable();page.style.setProperty('--st-bar-h',$('st-bar').offsetHeight+'px');}
   const find=key=>key&&$('stems').querySelector('[data-key="'+CSS.escape(key)+'"]');
   if(home&&!feedbackHome.isConnected){feedbackHome=find(home)||$('st-bar');positionFeedback();}
@@ -958,7 +958,7 @@ $('st-import').onclick=()=>openImportWizard(null);
 
 // Connect a USB: find, choose, check. Same shape as the repair page's connect wizard.
 function openStemConnect(){
-  $('stem-connect-found').textContent=stemVolume?'Selected: '+driveName(stemVolume):'Nothing selected yet.';
+  $('stem-connect-found').textContent=stemVolume?'Selected: '+driveName(stemVolume):XZText('Nothing selected yet.');
   $('stem-connect-result').textContent='';$('stem-connect').showModal();renderStems();
 }
 function stemConnectResult(){
@@ -967,7 +967,7 @@ function stemConnectResult(){
 }
 $('stem-connect-find').onclick=async()=>{
   const count=await discoverStemDrives();if(count===undefined)return;
-  $('stem-connect-found').textContent=count?plural(count,'music USB')+' found. Selected: '+driveName(stemVolume):'No music USB found yet. Check that it is plugged in and shows on this computer, then find it again, or choose a folder.';
+  $('stem-connect-found').textContent=count?plural(count,'music USB')+XZText(' found. Selected: ')+driveName(stemVolume):XZText('No music USB found yet. Check that it is plugged in and shows on this computer, then find it again, or choose a folder.');
   stemConnectResult();
 };
 $('stem-connect-choose').onclick=async()=>{const volume=await chooseStemFolder($('stem-connect-choose'));if(!volume)return;$('stem-connect-found').textContent='Selected: '+driveName(volume);stemConnectResult();};
@@ -1042,7 +1042,7 @@ function engineCard(){
   return [ST['eng.cpu.title'],card('⚙',cpu,cpuDetail,true),ST['eng.cpu.body']];
 }
 function engineFailureView(){
-  const failure=eng.failure,detail=failure.detail,close=plainButton('Close',closeEngineWizard,{key:'eng-close'}),primary=(label,action)=>plainButton(label,action,{primary:true,id:'st-eng-primary',key:'eng-primary'});
+  const failure=eng.failure,detail=failure.detail,close=plainButton(XZText('Close'),closeEngineWizard,{key:'eng-close'}),primary=(label,action)=>plainButton(label,action,{primary:true,id:'st-eng-primary',key:'eng-primary'});
   const view=(title,bold,line,actions)=>({index:eng.failStep,state:'bad',title,body:[el('div',{class:'st-fail'},el('strong',{text:bold}),line?el('p',{text:line}):null)],foot:actions});
   const retry=()=>runEngineSetup();
   switch(failure.code){
@@ -1068,9 +1068,9 @@ function engineView(){
   const progress=eng.progress||{};
   switch(eng.step){
     case 'check':{
-      if(eng.checking||!plan)return {index:0,title:'Check this computer',body:[],foot:[cancel,next('Next',null,true)]};
+      if(eng.checking||!plan)return {index:0,title:XZText('Check this computer'),body:[],foot:[cancel,next(XZText('Next'),null,true)]};
       const [title,card,body]=engineCard();
-      return {index:0,title,body:[card,el('p',{text:body})],foot:[cancel,next('Next',()=>{eng.step='choose';renderEngineWizard();})]};
+      return {index:0,title,body:[card,el('p',{text:body})],foot:[cancel,next(XZText('Next'),()=>{eng.step='choose';renderEngineWizard();})]};
     }
     case 'choose':{
       const presets=el('div',{class:'st-presets',role:'radiogroup','aria-label':'Quality'},...plan.presets.filter(preset=>PRESETS[preset.id]).map(preset=>{
@@ -1080,25 +1080,25 @@ function engineView(){
           el('strong',{text:ST['eng.preset.'+preset.id]}),preset.id===plan.recommended?el('span',{class:'st-rec',text:ST['eng.recommended']}):null,el('span',{text:line}),el('small',{text:PRESETS[preset.id].models}));
       }));
       return {index:1,title:ST['eng.choose.title'],body:[presets,el('p',{class:'fine',text:ST['eng.choose.note']})],
-        foot:[plainButton('Back',()=>{eng.step='check';renderEngineWizard();},{key:'eng-back'}),next('Next',()=>{if(engineNeedsDownload()){eng.step='install';renderEngineWizard();}else runEngineSetup();})]};
+        foot:[plainButton(XZText('Back'),()=>{eng.step='check';renderEngineWizard();},{key:'eng-back'}),next(XZText('Next'),()=>{if(engineNeedsDownload()){eng.step='install';renderEngineWizard();}else runEngineSetup();})]};
     }
     case 'install':{
       const preset=enginePreset(eng.preset),bytes=preset.downloadBytes??plan.download,parts=el('dl',{class:'st-kv'});
       for(const part of plan.parts)parts.append(el('dt',{text:part.id==='runtime'?ST['eng.install.runtime']:t('eng.install.models',{preset:presetName(eng.preset)})}),el('dd',{text:part.bytes>=GiB?gb(part.bytes):mb(part.bytes)}));
-      if(plan.drive&&plan.driveFree!==null)parts.append(el('dt',{text:t('eng.install.space',{drive:plan.drive})}),el('dd',{text:Math.round(plan.driveFree/GiB)+' GB free'}));
+      if(plan.drive&&plan.driveFree!==null)parts.append(el('dt',{text:t('eng.install.space',{drive:plan.drive})}),el('dd',{text:Math.round(plan.driveFree/GiB)+XZText(' GB free')}));
       return {index:2,title:ST['eng.install.title'],body:[bytes?el('p',{},...emphasis(t('eng.install.body',{bytes:'\u0000'}),gb(bytes))):null,parts.children.length?parts:null,el('p',{class:'fine',text:ST['eng.install.verify']})],
-        foot:[plainButton('Back',()=>{eng.step='choose';renderEngineWizard();},{key:'eng-back'}),next(ST['eng.install.action'],runEngineSetup)]};
+        foot:[plainButton(XZText('Back'),()=>{eng.step='choose';renderEngineWizard();},{key:'eng-back'}),next(ST['eng.install.action'],runEngineSetup)]};
     }
     case 'installing':{
       const active=['runtime','models','check'].indexOf({download:'models',verify:'check'}[progress.stage]||progress.stage),size=part=>plan.parts.find(item=>item.id===part)?.bytes;
       const detail=index=>index===active&&progress.total?ofText(progress.done||0,progress.total)+(progress.eta!==null?' · '+etaText(progress.eta):''):index<active&&size(['runtime','models'][index])?gb(size(['runtime','models'][index])):'';
       return {index:2,title:ST['eng.installing.title'],body:[stageList([[ST['eng.install.runtime'],detail(0)],[t('eng.install.models',{preset:presetName(eng.preset)}),detail(1)],[ST['eng.installing.check'],detail(2)]],Math.max(0,active),progress.pct===null||progress.pct===undefined?null:progress.pct/100),
-        el('p',{class:'fine',text:ST['eng.installing.note']})],foot:[cancel,next('Next',null,true)]};
+        el('p',{class:'fine',text:ST['eng.installing.note']})],foot:[cancel,next(XZText('Next'),null,true)]};
     }
     case 'test':{
       const window=eng.track&&testWindow(eng.track),active=Math.max(0,['load-model','separate-vocals','separate-drums'].indexOf(progress.stage));
       return {index:3,title:ST['eng.test.title'],body:[el('p',{},...(eng.track?emphasis(t('eng.test.body',{from:clock(window.from),to:clock(window.to),title:'\u0000'}),eng.track.title):[ST['eng.test.sample']])),
-        stageList([[ST['stage.load-model']],[ST['stage.separate-vocals']],[ST['stage.separate-drums']]],active,progress.pct===null||progress.pct===undefined?null:progress.pct/100)],foot:[cancel,next('Next',null,true)]};
+        stageList([[ST['stage.load-model']],[ST['stage.separate-vocals']],[ST['stage.separate-drums']]],active,progress.pct===null||progress.pct===undefined?null:progress.pct/100)],foot:[cancel,next(XZText('Next'),null,true)]};
     }
     case 'ready':{
       const seconds=eng.result?.testSeconds,estimate=seconds?(seconds*10<90?'a minute':Math.round(seconds*10/60)+' minutes'):'';
@@ -1106,7 +1106,7 @@ function engineView(){
       const device=stemEngine.device==='cpu'?'this processor':stemEngine.deviceName||'this computer';
       const finish=()=>{const then=eng.then;closeEngineWizard();then?.();};
       return {index:4,title:ST['eng.ready.title'],body:[seconds?el('p',{},...emphasis(text,seconds.toFixed(1))):null,el('p',{class:'fine',text:presetName(stemEngine.installed)+' on '+device})],
-        foot:[eng.label?plainButton('Close',closeEngineWizard,{key:'eng-close'}):null,next(eng.label||ST['eng.done'],finish)]};
+        foot:[eng.label?plainButton(XZText('Close'),closeEngineWizard,{key:'eng-close'}):null,next(eng.label||ST['eng.done'],finish)]};
     }
     default:return engineFailureView();
   }
@@ -1172,7 +1172,7 @@ function importFilesTable(){
   const rows=imp.plan.files.map((file,index)=>{
     const group=imp.groups[index],select=el('select',{'aria-label':ST['imp.col.to']+': '+file.name,dataset:{key:'imp-group:'+index}},
       group===null?el('option',{value:'',text:ST['imp.to.choose']}):null,...['vocals','drums','harmonics'].map(id=>el('option',{value:id,text:ST['imp.slot.'+id]})),
-      file.group==='instrumental'?el('option',{value:'instrumental',text:file.label||'Instrumental'}):null,el('option',{value:'mix',text:ST['imp.to.leaveOut']}));
+      file.group==='instrumental'?el('option',{value:'instrumental',text:file.label||XZText('Instrumental')}):null,el('option',{value:'mix',text:ST['imp.to.leaveOut']}));
     select.value=group??'';select.onchange=()=>{imp.groups[index]=select.value||null;renderImportWizard();};
     const [word,tone]=confidenceWord(file,group);
     return el('tr',{'data-need':group===null?'':null},el('td',{text:file.name,title:file.name}),el('td',{},select),el('td',{},word?el('span',{class:'st-conf',dataset:{c:tone},text:word}):null));
@@ -1190,7 +1190,7 @@ function alignmentNote(){
   return note;
 }
 function importCheckView(){
-  const plan=imp.plan,outcome=importOutcome(),back=plainButton('Back',()=>{imp.step='add';renderImportWizard();},{key:'imp-back'}),next=(label,action,disabled)=>plainButton(label,action,{primary:true,id:'st-imp-primary',key:'imp-primary',disabled});
+  const plan=imp.plan,outcome=importOutcome(),back=plainButton(XZText('Back'),()=>{imp.step='add';renderImportWizard();},{key:'imp-back'}),next=(label,action,disabled)=>plainButton(label,action,{primary:true,id:'st-imp-primary',key:'imp-primary',disabled});
   const otherFiles=()=>{imp.files=[];imp.plan=null;imp.weak=false;imp.step='add';renderImportWizard();};
   const residual=plan.alignment?.residualDb!==null&&plan.alignment?.residualDb!==undefined?el('span',{class:'st-foot-left',text:t('imp.residual',{db:minus(plan.alignment.residualDb)})}):null;
   const toWrite=()=>{imp.step='write';renderImportWizard();};
@@ -1206,7 +1206,7 @@ function importCheckView(){
     default:{
       const seconds=plan.drumSplitSeconds??(stemEngine?.testSeconds&&plan.trackSeconds?Math.round(stemEngine.testSeconds*plan.trackSeconds/30):null);
       const split=outcome==='twoReady'?leadNote(seconds?t('imp.two.ready',{s:seconds}):t('imp.two.ready',{s:''}).replace(', about  seconds',''),undefined):null;
-      return {index:1,title:ST['imp.auto.title'],body:[importSlots(),plan.needsDrumSplit?null:importFilesTable(),split,alignmentNote()],foot:[residual,back,next('Next',toWrite)]};
+      return {index:1,title:ST['imp.auto.title'],body:[importSlots(),plan.needsDrumSplit?null:importFilesTable(),split,alignmentNote()],foot:[residual,back,next(XZText('Next'),toWrite)]};
     }
   }
 }
@@ -1246,16 +1246,16 @@ function importView(){
       const drop=el('div',{class:'st-drop',tabindex:'0',role:'button','aria-label':'Add stem files or a ZIP',dataset:{key:'imp-drop'},onclick:pickImportFiles,onkeydown:event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();pickImportFiles();}}},
         el('strong',{text:ST['imp.drop']}),el('span',{text:ST['imp.dropHint']}),plainButton(ST['imp.choose'],event=>{event.stopPropagation();pickImportFiles();},{key:'imp-choose'}));
       return {index:0,title:ST['imp.title'],body:[imp.files.length?el('div',{class:'st-note',dataset:{tone:'ok'}},el('strong',{text:importDropLabel()})):null,...(track?[importTrackLine()]:imp.files.length?importPicker():[]),
-        imp.files.length?null:drop,imp.planError?el('div',{class:'st-fail'},el('strong',{text:imp.planError})):null],foot:[close,next('Next',planImport,!imp.files.length||!track||stemWorkLocked())]};
+        imp.files.length?null:drop,imp.planError?el('div',{class:'st-fail'},el('strong',{text:imp.planError})):null],foot:[close,next(XZText('Next'),planImport,!imp.files.length||!track||stemWorkLocked())]};
     }
-    case 'planning':return {index:1,title:ST['imp.title'],body:[importTrackLine(),stageList([[ST['imp.writing.align'],imp.progress?.message||'']],0,null)],foot:[plainButton(ST['action.cancel'],cancelActiveJob,{key:'imp-cancel'}),next('Next',null,true)]};
+    case 'planning':return {index:1,title:ST['imp.title'],body:[importTrackLine(),stageList([[ST['imp.writing.align'],imp.progress?.message||'']],0,null)],foot:[plainButton(ST['action.cancel'],cancelActiveJob,{key:'imp-cancel'}),next(XZText('Next'),null,true)]};
     case 'check':return importCheckView();
     case 'write':{
       const bytes=track.estimate.bytes,replacing=track.status==='present';
-      return {index:2,title:ST['imp.write.title'],body:[el('dl',{class:'st-kv'},el('dt',{text:'Track'}),el('dd',{text:[track.title,track.artist].filter(Boolean).join(' · ')}),el('dt',{text:'USB'}),el('dd',{text:usb}),
-        el('dt',{text:'Size'}),el('dd',{text:replacing&&track.storedBytes!==null?t('imp.write.sizeReplace',{bytes:mb(bytes),old:mb(track.storedBytes)}):t('imp.write.size',{bytes:mb(bytes),remaining:gb(stemLibrary.free-bytes)})})),
+      return {index:2,title:ST['imp.write.title'],body:[el('dl',{class:'st-kv'},el('dt',{text:XZText('Track')}),el('dd',{text:[track.title,track.artist].filter(Boolean).join(' · ')}),el('dt',{text:'USB'}),el('dd',{text:usb}),
+        el('dt',{text:XZText('Size')}),el('dd',{text:replacing&&track.storedBytes!==null?t('imp.write.sizeReplace',{bytes:mb(bytes),old:mb(track.storedBytes)}):t('imp.write.size',{bytes:mb(bytes),remaining:gb(stemLibrary.free-bytes)})})),
         el('p',{text:ST[replacing?'imp.write.replaceBody':'imp.write.body']})],
-        foot:[plainButton('Back',()=>{imp.step='check';imp.weak=false;renderImportWizard();},{key:'imp-back'}),next(ST[replacing?'imp.write.replace':'imp.write.action'],writeImport,stemWorkLocked())]};
+        foot:[plainButton(XZText('Back'),()=>{imp.step='check';imp.weak=false;renderImportWizard();},{key:'imp-back'}),next(ST[replacing?'imp.write.replace':'imp.write.action'],writeImport,stemWorkLocked())]};
     }
     case 'writing':{
       const pct=imp.progress?.pct;
@@ -1268,7 +1268,7 @@ function importView(){
         foot:[plainButton(ST['imp.done.another'],()=>openImportWizard(null),{key:'imp-another'}),next(ST['eng.done'],()=>$('st-import-wiz').close())]};
     }
     default:{
-      const failure=imp.failure,again=next(ST['imp.fail.usb.action'],writeImport,stemWorkLocked()),closeButton=plainButton('Close',()=>$('st-import-wiz').close(),{key:'imp-close'});
+      const failure=imp.failure,again=next(ST['imp.fail.usb.action'],writeImport,stemWorkLocked()),closeButton=plainButton(XZText('Close'),()=>$('st-import-wiz').close(),{key:'imp-close'});
       const fail=(title,bold,line,primary)=>({index:2,state:'bad',title,body:[el('div',{class:'st-fail'},el('strong',{text:bold}),line?el('p',{text:line}):null)],foot:[closeButton,primary]});
       if(failure.code==='usb_full')return fail(t('imp.fail.space.title',{usb}),t('imp.fail.space.body',{need:mb(track.estimate.bytes),free:mb(stemLibrary.free)}),'',
         next(ST['eng.checkAgain'],async()=>{await browseStemLibrary(stemLibrary.volume,stemLibrary.offset);if(imp){imp.step='write';renderImportWizard();}}));
@@ -1290,10 +1290,10 @@ if(invoke)window.__TAURI__.webviewWindow?.getCurrentWebviewWindow().onDragDropEv
 // Library repair. Checking only reads. Repair and undo send back the identity and file hashes from the check
 // they were planned on, so the backend refuses if the library changed in between.
 const repairVerdicts={
-  healthy:{badge:'No damage found',text:'No structural damage found in the checked tables. Opening it in your DJ software and on the player still needs testing.'},
-  repairable:{badge:'Repair available',text:'Some playback history pages are cut off by blank pages. XZ Mods can reconnect the intact pages. History entries that are already missing cannot be recovered.'},
-  not_repairable:{badge:'Cannot repair here',text:'This library has damage outside the supported unused-page and playback-history repairs. Save a report to keep the details.'},
-  no_library:{badge:'No library',text:'No exported music library was found here. Choose the USB root, or a folder holding a copy of the whole USB.'}
+  healthy:{badge:XZText('No damage found'),text:XZText('No structural damage found in the checked tables. Opening it in your DJ software and on the player still needs testing.')},
+  repairable:{badge:XZText('Repair available'),text:XZText('Some playback history pages are cut off by blank pages. XZ Mods can reconnect the intact pages. History entries that are already missing cannot be recovered.')},
+  not_repairable:{badge:XZText('Cannot repair here'),text:XZText('This library has damage outside the supported unused-page and playback-history repairs. Save a report to keep the details.')},
+  no_library:{badge:XZText('No library'),text:XZText('No exported music library was found here. Choose the USB root, or a folder holding a copy of the whole USB.')}
 };
 const repairCountLabels=[['tracks','Tracks'],['playlists','Playlists'],['stem_sets','Stem sets']];
 function repairVerdictText(data){return (data?.verdict==='repairable'&&data.repair?.description)||repairVerdicts[data?.verdict]?.text||'XZ Mods could not classify this library. Save a report to keep the details.';}
@@ -1325,7 +1325,7 @@ function renderRepairInspection(data){
   repairInspection=data;$('repair-inspection').classList.remove('hidden');
   $('repair-volume').textContent=data.volume;
   const verdict=repairVerdicts[data.verdict],badge=$('repair-verdict-badge');
-  badge.textContent=verdict?.badge||'Unknown';badge.dataset.verdict=verdict?data.verdict:'unknown';
+  badge.textContent=verdict?.badge||XZText('Unknown');badge.dataset.verdict=verdict?data.verdict:'unknown';
   $('repair-verdict').textContent=repairVerdictText(data);
   const counts=$('repair-counts');counts.replaceChildren();
   if(data.counts&&data.verdict!=='no_library')for(const [key,label] of repairCountLabels)if(Number.isFinite(data.counts[key])){const chip=node('li');chip.append(node('strong',String(data.counts[key])),document.createTextNode(label));counts.append(chip);}
@@ -1335,7 +1335,7 @@ function renderRepairInspection(data){
   findings.classList.toggle('hidden',!findings.children.length);
   const files=$('repair-files');files.replaceChildren();
   for(const [path,info] of Object.entries(data.expected_files||{})){
-    const item=node('li');item.append(node('strong',path),node('span',info?.exists?formatBytes(info.bytes):'Not found'));
+    const item=node('li');item.append(node('strong',path),node('span',info?.exists?formatBytes(info.bytes):XZText('Not found')));
     if(info?.sha256)item.append(node('small','SHA-256 '+info.sha256));files.append(item);
   }
   const plan=data.verdict==='repairable'&&data.repair,restorable=restorableBackups(data);
@@ -1343,25 +1343,25 @@ function renderRepairInspection(data){
   $('repair-no-library').classList.toggle('hidden',data.verdict!=='no_library');
   $('repair-plan').classList.toggle('hidden',!plan);
   if(plan){
-    $('repair-plan-title').textContent=data.repair.title||'Reconnect playback history pages';
+    $('repair-plan-title').textContent=data.repair.title||XZText('Reconnect playback history pages');
     for(const [id,list] of [['repair-changes',data.repair.changes],['repair-keeps',data.repair.keeps]]){const holder=$(id);holder.replaceChildren();for(const text of list||[])holder.append(node('li',text));}
-    $('repair-history-warning').textContent=data.repair.history_warning||'History entries that are already missing cannot be recovered.';
-    $('repair-backup-root').textContent=data.backup_root?'The current library files are backed up to '+data.backup_root+' before anything is written.':'';
+    $('repair-history-warning').textContent=data.repair.history_warning||XZText('History entries that are already missing cannot be recovered.');
+    $('repair-backup-root').textContent=data.backup_root?XZText('The current library files are backed up to ')+data.backup_root+XZText(' before anything is written.'):'';
   }
   const select=$('repair-backups'),previous=select.value;select.replaceChildren();
-  for(const backup of restorable){const option=node('option','Repair on '+formatCreated(backup.created));option.value=backup.id;select.append(option);}
+  for(const backup of restorable){const option=node('option',XZText('Repair on ')+formatCreated(backup.created));option.value=backup.id;select.append(option);}
   if(restorable.some(backup=>backup.id===previous))select.value=previous;
   $('repair-undo').classList.toggle('hidden',!restorable.length);
   const others=(data.backups||[]).length-restorable.length;
-  $('repair-backup-other').textContent=others?plural(others,'other backup')+' cannot be undone from here. '+(others===1?'It is':'They are')+' kept'+(data.backup_root?' in '+data.backup_root:'')+'.':'';
+  $('repair-backup-other').textContent=others?plural(others,'other backup')+XZText(' cannot be undone from here. ')+(others===1?XZText('It is'):XZText('They are'))+' kept'+(data.backup_root?' in '+data.backup_root:'')+'.':'';
   $('repair-backup-folder').textContent=selectedRepairBackup()?.folder||'';
   updateRepairControls();return true;
 }
 function renderRepairOutcome(kind,result){
   const panel=$('repair-outcome');panel.classList.remove('hidden');
-  $('repair-outcome-title').textContent=kind==='repair'?'Repair written':'Repair undone';
+  $('repair-outcome-title').textContent=kind==='repair'?XZText('Repair written'):XZText('Repair undone');
   $('repair-outcome-summary').textContent=result.summary||'';
-  $('repair-outcome-backup').textContent=result.backup?.folder?(kind==='repair'?'Backup of the library before this repair: ':'Backup of the library replaced during undo: ')+result.backup.folder:'';
+  $('repair-outcome-backup').textContent=result.backup?.folder?(kind==='repair'?XZText('Backup of the library before this repair: '):XZText('Backup of the library replaced during undo: '))+result.backup.folder:'';
   const rows=$('repair-compare');rows.replaceChildren();const changed=[],warnings=[];
   if(kind==='repair'&&result.before&&result.after)for(const [key,label] of repairCountLabels){
     const before=result.before[key],after=result.after[key];if(before===undefined&&after===undefined)continue;
@@ -1375,7 +1375,7 @@ function renderRepairOutcome(kind,result){
     if(result.inspection?.verdict!=='healthy')warnings.push('The check after the repair reports: '+repairVerdictText(result.inspection));
   }
   $('repair-outcome-warning').textContent=warnings.join(' ');$('repair-outcome-warning').classList.toggle('hidden',!warnings.length);
-  $('repair-outcome-note').textContent=kind==='restore'?'The library is back to how it was before that repair, including the history damage.':result.rekordbox_verified===true?'':'Your DJ software has not checked this repair. Open the USB in your DJ software and load tracks on the XZ before you use it in a set.';
+  $('repair-outcome-note').textContent=kind==='restore'?XZText('The library is back to how it was before that repair, including the history damage.'):result.rekordbox_verified===true?'':XZText('Your DJ software has not checked this repair. Open the USB in your DJ software and load tracks on the XZ before you use it in a set.');
   // The control that started the work may now be hidden, so the feedback joins the outcome.
   feedbackHome=$('repair-outcome-summary');positionFeedback();panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -1384,13 +1384,13 @@ function selectRepairVolume(volume){
   const select=$('repair-drive');
   if(![...select.options].some(option=>option.value===volume))addRepairFolderOption(volume);
   select.value=volume;if(repairInspection?.volume!==volume)clearRepair();
-  $('repair-drive-status').textContent='Ready to check '+volume+'.';updateRepairControls();
+  $('repair-drive-status').textContent=XZText('Ready to check ')+volume+'.';updateRepairControls();
 }
 async function discoverRepairDrives(){
   if(!invoke){updateRepairControls();return;}
   const result=await run({method:'discover_stem_usbs'},'Finding music USBs');
   if(!result){repairDiscovery=null;return;}
-  if(!result.ok){$('repair-drive-status').textContent=result.error||'Music USBs could not be listed. Reconnect the USB, then choose Find USBs.';updateRepairControls();return;}
+  if(!result.ok){$('repair-drive-status').textContent=result.error||XZText('Music USBs could not be listed. Reconnect the USB, then choose Find USBs.');updateRepairControls();return;}
   const select=$('repair-drive'),previous=select.value,chosen=[...select.options].filter(option=>option.dataset.chosen).map(option=>option.value);
   select.replaceChildren();
   for(const drive of result.result.drives){const option=node('option',drive.label+' · '+drive.volume);option.value=drive.volume;select.append(option);}
@@ -1398,7 +1398,7 @@ async function discoverRepairDrives(){
   if([...select.options].some(option=>option.value===previous))select.value=previous;
   if(select.value!==repairInspection?.volume)clearRepair();
   const count=result.result.drives.length;
-  $('repair-drive-status').textContent=count?plural(count,'music USB')+' found. Choose one, then check its library.':select.options.length?'No music USB found. You can check the chosen folder.':'No music USB found. Connect the USB, then find it again.';
+  $('repair-drive-status').textContent=count?plural(count,'music USB')+XZText(' found. Choose one, then check its library.'):select.options.length?XZText('No music USB found. You can check the chosen folder.'):XZText('No music USB found. Connect the USB, then find it again.');
   updateRepairControls();return count;
 }
 async function pickRepairFolder(origin){
@@ -1422,7 +1422,7 @@ $('repair-backups').onchange=()=>{$('repair-backup-folder').textContent=selected
 $('save-library-report').onclick=async()=>{
   const data=repairInspection;if(!data)return;
   const result=await run({method:'save_device_library_report',volume:data.volume},'Saving a library report',$('save-library-report'));
-  if(result?.ok&&result.result?.report_path&&repairInspection===data)$('repair-report-path').textContent='Report saved to '+result.result.report_path;
+  if(result?.ok&&result.result?.report_path&&repairInspection===data)$('repair-report-path').textContent=XZText('Report saved to ')+result.result.report_path;
 };
 $('repair-library').onclick=async()=>{
   const data=repairInspection;if(!data||data.verdict!=='repairable'||!data.repair||data.rekordbox_running)return;
@@ -1434,7 +1434,7 @@ $('repair-library').onclick=async()=>{
 };
 $('restore-library-backup').onclick=()=>{
   const backup=selectedRepairBackup();if(!backup||!repairWritable())return;
-  $('repair-undo-text').textContent='This puts back the library files saved before the repair on '+formatCreated(backup.created)+'.';
+  $('repair-undo-text').textContent=XZText('This puts back the library files saved before the repair on ')+formatCreated(backup.created)+'.';
   $('repair-undo-confirm').showModal();updateRepairControls();
 };
 $('repair-undo-cancel').onclick=()=>$('repair-undo-confirm').close();
@@ -1450,7 +1450,7 @@ $('repair-undo-go').onclick=async()=>{
 // Setup wizard for the no-USB and no-library states: connect, choose, check.
 function openRepairConnect(){
   const volume=$('repair-drive').value;
-  $('repair-connect-found').textContent=volume?'Selected: '+volume:'Nothing selected yet.';
+  $('repair-connect-found').textContent=volume?'Selected: '+volume:XZText('Nothing selected yet.');
   $('repair-connect-result').textContent='';$('repair-connect').showModal();updateRepairControls();
 }
 $('repair-connect-open').onclick=openRepairConnect;
@@ -1458,7 +1458,7 @@ $('repair-choose-other').onclick=openRepairConnect;
 $('repair-connect-find').onclick=async()=>{
   repairDiscovery=discoverRepairDrives();const count=await repairDiscovery;if(count===undefined)return;
   const volume=$('repair-drive').value;
-  $('repair-connect-found').textContent=count?plural(count,'music USB')+' found. Selected: '+volume:'No music USB found yet. Check that it is plugged in and shows on this computer, then find it again, or choose a folder.'+(volume?' Selected: '+volume:'');
+  $('repair-connect-found').textContent=count?plural(count,'music USB')+XZText(' found. Selected: ')+volume:XZText('No music USB found yet. Check that it is plugged in and shows on this computer, then find it again, or choose a folder.')+(volume?' Selected: '+volume:'');
 };
 $('repair-connect-choose').onclick=async()=>{const volume=await pickRepairFolder($('repair-connect-choose'));if(volume)$('repair-connect-found').textContent='Selected: '+volume;};
 $('repair-connect-check').onclick=async()=>{
@@ -1471,7 +1471,7 @@ $('repair-connect-close').onclick=()=>$('repair-connect').close();
 $('repair-prepare-open').onclick=()=>{$('repair-prepare-result').textContent='';$('repair-prepare').showModal();updateRepairControls();};
 $('repair-prepare-recheck').onclick=async()=>{
   const data=await inspectLibrary($('repair-prepare-recheck'));if(!data)return;
-  if(data.rekordbox_running){$('repair-prepare-result').textContent='Your DJ software is still open. Quit it, wait a few seconds, then check again.';return;}
+  if(data.rekordbox_running){$('repair-prepare-result').textContent=XZText('Your DJ software is still open. Quit it, wait a few seconds, then check again.');return;}
   $('repair-prepare').close();
   const next=data.verdict==='repairable'&&data.repair?$('repair-library'):!$('repair-undo').classList.contains('hidden')?$('restore-library-backup'):null;
   if(next){next.scrollIntoView({behavior:'smooth',block:'nearest'});next.focus({preventScroll:true});}
@@ -1530,14 +1530,14 @@ async function confirmModSettings(volume,version,origin){
   if(change===null)return {};
   if(change?.required!==true){showError('XZ Mods returned a settings check this app cannot read. Nothing was written. Check again, or reinstall the app.',origin);return null;}
   const saved=savedModVersion(),dialog=$('mod-settings-confirm'),fields=$('mod-settings-fields');
-  $('mod-settings-summary').textContent=change.summary||'The settings on this USB were saved by a newer mod version. '+(saved.label||saved.id)+' cannot read them as they are.';
+  $('mod-settings-summary').textContent=change.summary||XZText('The settings on this USB were saved by a newer mod version. ')+(saved.label||saved.id)+XZText(' cannot read them as they are.');
   fields.replaceChildren();
   for(const [heading,keys] of [['Removed, this version does not have them',change.removed_fields],['Reset to this version\'s default',change.reset_fields]]){
     if(!Array.isArray(keys)||!keys.length)continue;
     const list=node('ul');for(const key of keys){const item=node('li');item.append(node('code',String(key)));list.append(item);}
     fields.append(node('h3',heading),list);
   }
-  $('mod-settings-target').textContent='USB: '+volume+' · mod version '+(saved.label||saved.id);
+  $('mod-settings-target').textContent='USB: '+volume+XZText(' · mod version ')+(saved.label||saved.id);
   return new Promise(resolve=>{
     modSettingsPrompt={version,origin,settle(accepted){
       if(modSettingsPrompt!==this)return;
@@ -1583,7 +1583,7 @@ function renderModVersions(){
   $('mod-version-setup').classList.toggle('hidden',ready);$('mod-version-editor').classList.toggle('hidden',!ready);$('mod-version-saved').classList.toggle('hidden',!ready);
   $('mod-version-badge').classList.toggle('hidden',!saved);
   if(!ready){
-    $('mod-version-setup-reason').textContent=!invoke?'Mod versions load in the desktop app.':modLoadError||(modInventory?'No mod versions are on this computer. Import a build to continue. USB writes stay off until a version is saved.':'Reading mod versions…');
+    $('mod-version-setup-reason').textContent=!invoke?XZText('Mod versions load in the desktop app.'):modLoadError||(modInventory?XZText('No mod versions are on this computer. Import a build to continue. USB writes stay off until a version is saved.'):XZText('Reading mod versions…'));
   }else{
     const meta=$('mod-version-meta');meta.replaceChildren();
     if(saved){
@@ -1591,30 +1591,30 @@ function renderModVersions(){
       for(const text of [channelText(saved.channel),savedPinned()?'Kept on the USB':'Network updates allowed',saved.id===modInventory.bundled_id?'Included with this app':'',saved.firmware?'Firmware '+saved.firmware:''])if(text)meta.append(node('li',text));
       $('mod-version-description').textContent=saved.description||'';
       const hash=$('mod-version-hash');hash.textContent='Runtime '+shortHash(saved.runtime_sha256)+(saved.source_commit?' · source '+String(saved.source_commit).slice(0,10):'');hash.title=saved.runtime_sha256||'';
-      $('mod-version-badge').textContent=saved.hardware_qualified===true?'Hardware-tested':'Not hardware-verified';
+      $('mod-version-badge').textContent=saved.hardware_qualified===true?'Hardware-tested':XZText('Not hardware-verified');
     }else{
-      $('mod-version-label').textContent=modInventory.selected.id?'Saved version is missing':'No saved choice';
-      $('mod-version-description').textContent=(modInventory.selected.id?'The saved build '+modInventory.selected.id+' is not on this computer. Import it, or choose another version and save. ':'Choose a version below and save it. ')+'USB writes stay off until then.';
+      $('mod-version-label').textContent=modInventory.selected.id?XZText('Saved version is missing'):XZText('No saved choice');
+      $('mod-version-description').textContent=(modInventory.selected.id?XZText('The saved build ')+modInventory.selected.id+XZText(' is not on this computer. Import it, or choose another version and save. '):XZText('Choose a version below and save it. '))+XZText('USB writes stay off until then.');
       $('mod-version-hash').textContent='';$('mod-version-hash').title='';
     }
     const select=$('mod-version-select');let draft=modDraftState();
     if(modVersionById(draft.id)?.network_updates_supported===false&&!draft.pinned){modDraft={...draft,pinned:true};draft=modDraft;}
     select.replaceChildren();
-    for(const version of modInventory.versions){const option=node('option',(version.label||version.id)+(version.id===modInventory.bundled_id?' · included with this app':''));option.value=version.id;select.append(option);}
+    for(const version of modInventory.versions){const option=node('option',(version.label||version.id)+(version.id===modInventory.bundled_id?XZText(' · included with this app'):''));option.value=version.id;select.append(option);}
     select.value=draft.id;$('mod-version-pin').checked=draft.pinned;
     const choice=modVersionById(draft.id);
     const usbOnly=choice?.network_updates_supported===false;
-    $('mod-version-pin-note').textContent=usbOnly?(choice.network_update_reason||'This build updates through USB setup.'):'A loader built with this on skips automatic network updates. Turn it off to allow signed network updates.';
+    $('mod-version-pin-note').textContent=usbOnly?(choice.network_update_reason||XZText('This build updates through USB setup.')):XZText('A loader built with this on skips automatic network updates. Turn it off to allow signed network updates.');
     $('mod-version-usb-setup').classList.toggle('hidden',!usbOnly);
     $('mod-version-draft').textContent=choice&&choice.id!==saved?.id?[channelText(choice.channel),choice.hardware_qualified===true?'':'Not hardware-verified',choice.description,'Runtime '+shortHash(choice.runtime_sha256)].filter(Boolean).join(' · '):'';
     const dirty=modDirty();$('mod-version-dirty').classList.toggle('hidden',!dirty);
-    $('mod-version-dirty').textContent=dirty?'Not saved. USB writes still use '+(saved?(saved.label||saved.id)+', '+pinText(savedPinned()):'no version')+'. Save choice to use '+(choice?.label||draft.id)+', '+pinText(draft.pinned)+'.':'';
+    $('mod-version-dirty').textContent=dirty?XZText('Not saved. USB writes still use ')+(saved?(saved.label||saved.id)+', '+pinText(savedPinned()):XZText('no version'))+XZText('. Save choice to use ')+(choice?.label||draft.id)+', '+pinText(draft.pinned)+'.':'';
   }
   for(const line of document.querySelectorAll('.mod-version-uses')){
-    line.textContent=saved?'Writes mod version '+(saved.label||saved.id)+', '+pinText(savedPinned())+'.'+(modDirty()?' Your unsaved change is not used.':''):'Mod version not set. Choose it above before writing a loader.';
+    line.textContent=saved?XZText('Writes mod version ')+(saved.label||saved.id)+', '+pinText(savedPinned())+'.'+(modDirty()?XZText(' Your unsaved change is not used.'):''):XZText('Mod version not set. Choose it above before writing a loader.');
     line.classList.toggle('is-blocked',!saved||modDirty());
   }
-  $('mod-wizard-list').textContent=!invoke?'Open the desktop app to read mod versions.':ready?plural(modInventory.versions.length,'mod version')+' found on this computer. '+(saved?'Saved choice: '+(saved.label||saved.id)+'.':'No usable saved choice yet.'):modLoadError||(modInventory?'No mod versions found on this computer. Import a build below.':'Reading mod versions…');
+  $('mod-wizard-list').textContent=!invoke?XZText('Open the desktop app to read mod versions.'):ready?plural(modInventory.versions.length,'mod version')+XZText(' found on this computer. ')+(saved?XZText('Saved choice: ')+(saved.label||saved.id)+'.':XZText('No usable saved choice yet.')):modLoadError||(modInventory?XZText('No mod versions found on this computer. Import a build below.'):XZText('Reading mod versions…'));
   updateModVersionControls();
 }
 async function loadModVersions(){
@@ -1626,8 +1626,8 @@ async function loadModVersions(){
 }
 function showModVersionEditor(focus){showPage('advanced');$('mod-version').scrollIntoView({behavior:'smooth',block:'start'});$(focus).focus({preventScroll:true});}
 function openModWizard(importing){
-  modImportedId=null;$('mod-wizard-title').textContent=importing?'Import a mod build':'Set up mod versions';
-  $('mod-wizard-done').textContent='Choose version';$('mod-wizard-import-result').textContent='';$('mod-wizard-folder').textContent=modImportFolder;
+  modImportedId=null;$('mod-wizard-title').textContent=importing?XZText('Import a mod build'):XZText('Set up mod versions');
+  $('mod-wizard-done').textContent=XZText('Choose version');$('mod-wizard-import-result').textContent='';$('mod-wizard-folder').textContent=modImportFolder;
   renderModVersions();$('mod-version-wizard').showModal();if(importing)$('mod-wizard-choose').focus();
 }
 $('mod-version-select').onchange=()=>{modDraft={id:$('mod-version-select').value,pinned:$('mod-version-pin').checked};renderModVersions();};
@@ -1643,14 +1643,14 @@ $('save-mod-version').onclick=async()=>{
   modDraft=null;
   if(!applyModInventory(result.result)){showError('The save returned a result this app cannot read. Check the mod version before you write a USB.',origin);return;}
   const saved=savedModVersion();
-  $('job-summary').textContent=saved?'Saved on this computer: '+(saved.label||saved.id)+', '+pinText(savedPinned())+'. The next loader you build or update uses it. No USB was changed.':'';
+  $('job-summary').textContent=saved?XZText('Saved on this computer: ')+(saved.label||saved.id)+', '+pinText(savedPinned())+XZText('. The next loader you build or update uses it. No USB was changed.'):'';
 };
 $('import-mod-version').onclick=()=>openModWizard(true);
 $('open-mod-version-setup').onclick=()=>openModWizard(false);
 $('ota-mod-version').onclick=()=>{if(modVersionsReady())showModVersionEditor('mod-version-pin');else openModWizard(false);};
-$('mod-wizard-retry').onclick=()=>{modLoadError='';if(!modInventory)$('mod-wizard-list').textContent='Reading mod versions…';loadModVersions();};
+$('mod-wizard-retry').onclick=()=>{modLoadError='';if(!modInventory)$('mod-wizard-list').textContent=XZText('Reading mod versions…');loadModVersions();};
 $('mod-wizard-choose').onclick=async()=>{
-  try{const folder=await invoke('pick_path',{kind:'folder'});if(!folder)return;modImportFolder=folder;modImportedId=null;$('mod-wizard-folder').textContent=folder;$('mod-wizard-import-result').textContent='';$('mod-wizard-done').textContent='Choose version';updateModVersionControls();}
+  try{const folder=await invoke('pick_path',{kind:'folder'});if(!folder)return;modImportFolder=folder;modImportedId=null;$('mod-wizard-folder').textContent=folder;$('mod-wizard-import-result').textContent='';$('mod-wizard-done').textContent=XZText('Choose version');updateModVersionControls();}
   catch(error){showError(String(error),$('mod-wizard-choose'));}
 };
 $('mod-wizard-import').onclick=async()=>{
@@ -1659,9 +1659,9 @@ $('mod-wizard-import').onclick=async()=>{
   if(!result?.ok)return;
   if(!applyModInventory(result.result)){showError('The import returned a result this app cannot read. Check again before you choose a version.',origin);return;}
   const imported=modVersionById(result.result.imported_id);modImportedId=imported?.id||null;
-  $('mod-wizard-import-result').textContent=imported?'Added to the list: '+(imported.label||imported.id)+'. Its files passed the hash check. Runtime '+shortHash(imported.runtime_sha256)+'. Not hardware-verified.':'Import finished. The version list was refreshed.';
+  $('mod-wizard-import-result').textContent=imported?XZText('Added to the list: ')+(imported.label||imported.id)+XZText('. Its files passed the hash check. Runtime ')+shortHash(imported.runtime_sha256)+XZText('. Not hardware-verified.'):XZText('Import finished. The version list was refreshed.');
   $('job-summary').textContent='';
-  if(imported)$('mod-wizard-done').textContent='Choose this version';
+  if(imported)$('mod-wizard-done').textContent=XZText('Choose this version');
 };
 // Choosing an imported build only fills the dropdown. It is used after Save choice.
 $('mod-wizard-done').onclick=()=>{
@@ -1679,10 +1679,10 @@ loadModVersions();
 window.quadSetupCapability=()=>({saved_id:savedModVersion()?.id||null,supported:savedModVersion()?.quad_supported===true,dirty:modDirty()});
 function renderQuadSetup(){
  const capability=window.quadSetupCapability(),included=modVersionById(modInventory?.bundled_id);
- $('quad-state').textContent=capability.supported?'The exact saved build has a verified quad profile. Controller acceptance is separate.':'The saved build does not have a verified quad profile. Choose and save the included quad build to prepare four decks.';
+ $('quad-state').textContent=capability.supported?XZText('The exact saved build has a verified quad profile. Controller acceptance is separate.'):XZText('The saved build does not have a verified quad profile. Choose and save the included quad build to prepare four decks.');
  $('quad-use').disabled=included?.quad_supported!==true||activeJob!==null;$('quad-save').disabled=!modDirty()||activeJob!==null;
 }
-const quadButton=node('button','Set up four decks','primary');quadButton.id='quad-open';quadButton.type='button';$('mod-version').append(quadButton);
+const quadButton=node('button',XZText('Set up four decks'),'primary');quadButton.id='quad-open';quadButton.type='button';$('mod-version').append(quadButton);
 // The dialog's cable picture plays while it is open (a still with reduced motion) and stops when it closes.
 const quadVideo=$('quad-video');
 quadButton.onclick=()=>{renderQuadSetup();$('quad-setup').showModal();if(!matchMedia('(prefers-reduced-motion: reduce)').matches){quadVideo.muted=true;quadVideo.play?.().catch(()=>{});}};

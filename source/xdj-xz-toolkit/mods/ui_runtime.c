@@ -529,7 +529,7 @@ static struct xz_settings settings_snapshot(void) {
         .band_colors={model.band_colors[0],model.band_colors[1],model.band_colors[2]},
         .modern_wave_color=modern_display.modern_wave_color,.wave_position=modern_display.wave_position,
         .key_display=modern_display.key_display,.wave_zoom=modern_display.wave_zoom,
-        .usb_colors=modern_display.usb_colors,.hidden_parts=modern_display.hidden_parts,.modern_browse_columns=modern_browse_columns};
+        .usb_colors=modern_display.usb_colors,.hidden_parts=modern_display.hidden_parts,.modern_browse_columns=modern_browse_columns,.controller_locale=(int)model.controller_locale};
 }
 /* Profile values that only the UI owns. The backend already rejects invalid profiles. */
 static void browse_settings(const struct xz_settings *saved) {
@@ -1715,6 +1715,9 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
                 snprintf(ui.notice,sizeof(ui.notice),"DECK VIEW: %s",xz_deck_layout_name(model.deck_view));
             }
             break;
+        case XZ_UI_LANGUAGE:
+            if(a->value>=0&&a->value<15&&(float)(int)a->value==a->value){model.controller_locale=(unsigned)a->value;settings_queue();}
+            break;
         case XZ_UI_DECK_VIEW:
             if(a->value>=0&&a->value<XZ_DECK_VIEW_COUNT&&(float)(int)a->value==a->value){
                 deck_view_apply((int)a->value);
@@ -1908,6 +1911,7 @@ static int shell_eligible_locked(void){
 static int shell_owns_locked(void){return xz_shell_runtime_owns&&shell_eligible_locked()&&xz_shell_runtime_owns();}
 static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
     memset(in,0,sizeof(*in));in->eligible=shell_eligible_locked();in->theme=model.theme;in->key_controls_open=play_key.open;
+    in->controller_locale=model.controller_locale;
     in->browse_preview=model.browse_preview;
     in->stems_known=1;in->stems_on=model.modern_stems!=XZ_STEM_LAYOUT_HIDDEN;
     for(int d=0;d<2;d++){
@@ -3523,6 +3527,7 @@ static void profile_apply_locked(const struct xz_settings *saved,const char *ori
     memcpy(model.stem_colors,saved->stem_colors,sizeof(model.stem_colors));
     memcpy(model.band_colors,saved->band_colors,sizeof model.band_colors);
     modern_browse_columns=saved->modern_browse_columns;
+    model.controller_locale=(unsigned)saved->controller_locale;
     modern_display.modern_wave_color=saved->modern_wave_color;modern_display.wave_position=saved->wave_position;
     modern_display.key_display=saved->key_display;modern_display.wave_zoom=saved->wave_zoom;
     modern_display.usb_colors=saved->usb_colors;modern_display.hidden_parts=saved->hidden_parts;

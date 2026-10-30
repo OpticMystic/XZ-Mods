@@ -1,8 +1,10 @@
+#include "l10n.h"
 /* SPDX-License-Identifier: MIT */
 /* Hardware navigation and the info box. Nothing here draws or touches the
    runtime: focus is UI state, and every activation goes through the same
    touch path a finger would take, so encoder and screen can never disagree. */
 #include "ui_skin.h"
+#include "l10n.h"
 #include "ui_network.h"
 #include "ui_support.h"
 #include "stem_pads.h"
@@ -110,7 +112,8 @@ size_t xz_ui_encoder_push(struct xz_ui *u,const struct xz_ui_model *m,struct xz_
 }
 
 /* Info box text. Titles name the control; bodies say what it changes (DESIGN 1.2). */
-const char *xz_ui_page_title(int page){
+static const char *l10n_page_title(int page){
+ if(page==XZ_UI_LANGUAGE_PAGE)return "LANGUAGE";
  if(xz_ui_network_page(page))return xz_ui_network_title(page);
  if(xz_ui_support_page(page))return xz_ui_support_title(page);
  const char *section=xz_ui_section_label(page);
@@ -129,35 +132,36 @@ const char *xz_ui_page_title(int page){
  case XZ_UI_STEM_PADS:return "STEM PADS";case XZ_UI_SCREEN_LOOK:return "LAMPS AND TITLES";case XZ_UI_BAND_COLORS:return "3-BAND COLOURS";
  default:return "MODS";}
 }
+const char *xz_ui_page_title(int page){return xz_l10n_authored(l10n_page_title(page));}
 const char *xz_ui_page_body(int page){
  switch(page){
- case XZ_UI_HOME:return "What MODS can do, and anything that needs you.";
- case XZ_UI_PLAY:return "Changes what the pads and buttons do while you perform: custom beat jump distances, gate cue, smart cue, key sync, RAM tracks and the button above LINK.";
- case XZ_UI_STEM_SECTION:return "Mute vocals, harmonics and drums from the pads or the screen: USB stems, stems in DJ software, the stem pads, the stem buttons on screen and their colours.";
- case XZ_UI_SCREEN:return "How the play screen looks: interface, deck view, theme, waveform colours, titles, keys and the top bar.";
- case XZ_UI_FOUR_DECKS:return "Play decks 3 and 4 over the loopback cable: the cable's state, the deck view and what works on each deck.";
- case XZ_UI_CONNECT:return "Link to people and computers: your DJ profile, VJ.Tools, the network and updates.";
- case XZ_UI_EXTRAS:return "Games, USB apps, report an issue and about.";
- case XZ_UI_FEATURE_SETUP:return "Detect the feature, choose a deck, enable it and test it on that deck.";
- case XZ_UI_THEME_PICK:return "Restyles the classic player screen and this menu.";
+ case XZ_UI_HOME:return xz_l10n_authored("What MODS can do, and anything that needs you.");
+ case XZ_UI_PLAY:return xz_l10n_authored("Changes what the pads and buttons do while you perform: custom beat jump distances, gate cue, smart cue, key sync, RAM tracks and the button above LINK.");
+ case XZ_UI_STEM_SECTION:return xz_l10n_authored("Mute vocals, harmonics and drums from the pads or the screen: USB stems, stems in DJ software, the stem pads, the stem buttons on screen and their colours.");
+ case XZ_UI_SCREEN:return xz_l10n_authored("How the play screen looks: interface, deck view, theme, waveform colours, titles, keys and the top bar.");
+ case XZ_UI_FOUR_DECKS:return xz_l10n_authored("Play decks 3 and 4 over the loopback cable: the cable's state, the deck view and what works on each deck.");
+ case XZ_UI_CONNECT:return xz_l10n_authored("Link to people and computers: your DJ profile, VJ.Tools, the network and updates.");
+ case XZ_UI_EXTRAS:return xz_l10n_authored("Games, USB apps, report an issue and about.");
+ case XZ_UI_FEATURE_SETUP:return xz_l10n_authored("Detect the feature, choose a deck, enable it and test it on that deck.");
+ case XZ_UI_THEME_PICK:return xz_l10n_authored("Restyles the classic player screen and this menu.");
  case XZ_UI_STEMS:return "Plays a groove in place of a stem. A pad with a groove swaps it in; pads without one keep their hot cues.";
  case XZ_UI_XPAD:return "A sampler on the pads: hold the loop strip to loop a slice (left to right sets length, up and down sets pitch), play the eight sample pads, HOLD keeps the loop, OVERDUB layers hits.";
  case XZ_UI_CONNECTION:return "Lets VJ.Tools on a computer connect, announces this player on the network, and shows the computer's picture instead of the play screen.";
  case XZ_UI_GAMES:return "Doom and Chex Quest, Beat Arcade, Wave Rider, Rhythm Lab and Static Surfer. Audio keeps playing.";
- case XZ_UI_APPS:return "Runs apps found on a USB; AUTOLOAD starts them when their USB goes in.";
+ case XZ_UI_APPS:return xz_l10n_authored("Runs apps found on a USB; AUTOLOAD starts them when their USB goes in.");
  case XZ_UI_UPDATES:return "Check for, download and go back from signed XZ Mods updates. An update starts at the next power cycle.";
- case XZ_UI_UPDATE_SETUP:return "Connect to the update server started in the XZ Mods desktop app.";
- case XZ_UI_NETWORK:return "Adapter, DHCP or static IP and priority. Apply for this boot, or revert.";
+ case XZ_UI_UPDATE_SETUP:return xz_l10n_authored("Connect to the update server started in the XZ Mods desktop app.");
+ case XZ_UI_NETWORK:return xz_l10n_authored("Adapter, DHCP or static IP and priority. Apply for this boot, or revert.");
  case XZ_UI_KEY_SETUP:return "Shift a deck's key a semitone at a time, reset it, or match it to the master deck. SHIFT + SYNC on the deck does the match too.";
- case XZ_UI_BROWSE_SETUP:return "How keys are written: as on the USB, musical (Am) or wheel (8A).";
+ case XZ_UI_BROWSE_SETUP:return xz_l10n_authored("How keys are written: as on the USB, musical (Am) or wheel (8A).");
  case XZ_UI_RAM_SETUP:return "Retains original audio, up to 64 MiB per file and 128 MiB shared. New deck 3/4 copies need loopback. Loaded waves and cues stay with the track.";
  case XZ_UI_STEM_COLORS:return "The colour of each stem on pads, stem buttons and the STEMS waveform. Bass on 4-stem tracks follows the theme.";
  case XZ_UI_BAND_COLORS:return "The colours of the 3-BAND waveform's lows, mids and highs, in both interfaces and on decks 3 and 4. Saved to the USB.";
  case XZ_UI_DOOM:return "Start the selected game. It runs entirely on the XZ.";
- case XZ_UI_DOOM_FILES:return "Choose a base game and optional add-on from USB.";
- case XZ_UI_DOOM_SETUP:return "Check the engine and USB game files step by step.";
- case XZ_UI_MYHOUSE_SETUP:return "Check the native GZDoom engine and My House files.";
- case XZ_UI_APPS_SETUP:return "Walk through detecting, installing and testing an XZ SDK app.";
+ case XZ_UI_DOOM_FILES:return xz_l10n_authored("Choose a base game and optional add-on from USB.");
+ case XZ_UI_DOOM_SETUP:return xz_l10n_authored("Check the engine and USB game files step by step.");
+ case XZ_UI_MYHOUSE_SETUP:return xz_l10n_authored("Check the native GZDoom engine and My House files.");
+ case XZ_UI_APPS_SETUP:return xz_l10n_authored("Walk through detecting, installing and testing an XZ SDK app.");
  case XZ_UI_BEAT_JUMP:return "How far each pad pair jumps in BEAT JUMP mode, on all four decks. The first pad jumps back, the second forward. SHIFT + BEAT JUMP gives page 2: let go of SHIFT, then press a pad. SHIFT + pad is stock on decks 1 and 2. UTILITY's BEAT JUMP BEAT VALUE is separate.";
  case XZ_UI_STEM_PADS:return "Which pad mode button gives stem pads, which four pads carry them, their order, and the pad lights.";
  case XZ_UI_PC_STEMS:return "When a deck plays from a computer over USB, the stem pads switch the DJ software's stems instead. Setup checks the link and tests one switch.";
@@ -168,7 +172,7 @@ const char *xz_ui_page_body(int page){
  case XZ_UI_SUPPORT:return "Tell the maintainer about a problem or an idea. The player adds its own details; you can add words on your computer.";
  case XZ_UI_BUTTONS:return "What the button above LINK does, alone and while SHIFT is held on either deck.";
  case XZ_UI_SCREEN_LOOK:return "The MODERN play screen's top bar lamps, waveform titles and track colours: show or hide each one.";
- default:return "Opens this page.";}
+ default:return xz_l10n_authored("Opens this page.");}
 }
 /* The deck feature a control belongs to (enum xz_deck_feature), 0 for the whole player. */
 static unsigned feature_of(const struct xz_ui_widget *a){
@@ -251,38 +255,38 @@ static const char *section_body(const struct xz_ui *u,const struct xz_ui_model *
  switch(a->kind){
  case XZ_UI_INFO:
   if(k>=XZ_UI_INFO_GRID)return grid_body(m,xz_ui_grid_features[(k-XZ_UI_INFO_GRID)%XZ_UI_GRID_ROWS]);
-  return k==XZ_UI_INFO_COLUMNS?"Tap a column title in the track list, or press MENU there, to choose its columns and sort.":
-   "Press SHIFT twice on a side to switch it between decks 1 and 3 (left) or 2 and 4 (right). LOAD loads into the deck that side controls.";
- case XZ_UI_HOME_SETUP:return k==XZ_UI_STEM_SECTION?"Opens USB STEMS setup: it checks the stem engine, turns stems on and checks a loaded track.":
-  "Opens 4 DECKS: the cable's state and RESCAN, which checks the loopback cable and audio route now.";
- case XZ_UI_ROUTE_RESCAN:return "Checks the loopback cable and audio route again now. The XZ also keeps checking on its own.";
- case XZ_UI_DECK_VIEW:return "How many decks the play screen shows and in what order. Mixer order puts them top to bottom as the mixer channels run left to right: 3 1 2 4. Sound and controls do not change.";
+  return k==XZ_UI_INFO_COLUMNS?xz_l10n_authored("Tap a column title in the track list, or press MENU there, to choose its columns and sort."):
+   xz_l10n_authored("Press SHIFT twice on a side to switch it between decks 1 and 3 (left) or 2 and 4 (right). LOAD loads into the deck that side controls.");
+ case XZ_UI_HOME_SETUP:return k==XZ_UI_STEM_SECTION?xz_l10n_authored("Opens USB STEMS setup: it checks the stem engine, turns stems on and checks a loaded track."):
+  xz_l10n_authored("Opens 4 DECKS: the cable's state and RESCAN, which checks the loopback cable and audio route now.");
+ case XZ_UI_ROUTE_RESCAN:return xz_l10n_authored("Checks the loopback cable and audio route again now. The XZ also keeps checking on its own.");
+ case XZ_UI_DECK_VIEW:return xz_l10n_authored("How many decks the play screen shows and in what order. Mixer order puts them top to bottom as the mixer channels run left to right: 3 1 2 4. Sound and controls do not change.");
  case XZ_UI_JUMP_PAIR:if(u->page==XZ_UI_BEAT_JUMP)return jump_pair_body(u,m,(k/2)&3);break;
  case XZ_UI_JUMP_SIZE:{static char text[96];snprintf(text,sizeof text,"Makes pads %c and %c jump %d beat%s.",'A'+2*u->jump_edit_pair,'B'+2*u->jump_edit_pair,xz_jump_beats(k),xz_jump_beats(k)==1?"":"s");return text;}
- case XZ_UI_JUMP_EDIT_PAGE:return k?"Edit page 2: the sizes SHIFT + BEAT JUMP gives. Page 2 always uses your sizes.":"Edit page 1: the sizes BEAT JUMP gives.";
- case XZ_UI_STEM_ORDER:if(u->page==XZ_UI_STEM_PADS)return "Pads A, B and C mute stems in this order, and the stem buttons on the screen follow it. D (or H) is BYPASS: the original track. A 4-stem track puts bass on D or H.";break;
- case XZ_UI_STEM_BANK:return "Which four pads carry the stems in that mode. The other four keep their normal job.";
+ case XZ_UI_JUMP_EDIT_PAGE:return k?xz_l10n_authored("Edit page 2: the sizes SHIFT + BEAT JUMP gives. Page 2 always uses your sizes."):xz_l10n_authored("Edit page 1: the sizes BEAT JUMP gives.");
+ case XZ_UI_STEM_ORDER:if(u->page==XZ_UI_STEM_PADS)return xz_l10n_authored("Pads A, B and C mute stems in this order, and the stem buttons on the screen follow it. D (or H) is BYPASS: the original track. A 4-stem track puts bass on D or H.");break;
+ case XZ_UI_STEM_BANK:return xz_l10n_authored("Which four pads carry the stems in that mode. The other four keep their normal job.");
  case XZ_UI_STEM_PAGE:
   if(u->page!=XZ_UI_STEM_PADS)break;
-  if(k==3)return "BEAT JUMP gives stem pads, but page 2 jumps always win its pads and page 1 jumps win while page 1 is MY SIZES. With page 1 on STOCK, its pads use this mode's stem bank.";
-  return "The pad mode button that gives stem pads. SHIFT + HOT CUE, BEAT LOOP or SLIP LOOP always gives stem pads too.";
- case XZ_UI_PAD_FEEDBACK:if(k)return "On decks 1 and 2, STEM COLOURS lights stem pads in their stem colours and dims muted stems. OFF leaves the pad lights to the player.";break;
- case XZ_UI_STEMS_OVERLAY:if(k)return "Where the stem buttons sit on the 2 DECKS play screen. Tap a button to mute that stem; drag along it to set its level. The STEMS button steps through these; in 4 DECKS it shows or hides them.";break;
- case XZ_UI_BROWSE_TRAFFIC:return "Colours keys in the track list green or amber by how well they mix with the master deck.";
- case XZ_UI_OPEN_UTILITY:return "The player's own settings: quantize, auto cue, play mode, the display and more. MODS closes and they open.";
+  if(k==3)return xz_l10n_authored("BEAT JUMP gives stem pads, but page 2 jumps always win its pads and page 1 jumps win while page 1 is MY SIZES. With page 1 on STOCK, its pads use this mode's stem bank.");
+  return xz_l10n_authored("The pad mode button that gives stem pads. SHIFT + HOT CUE, BEAT LOOP or SLIP LOOP always gives stem pads too.");
+ case XZ_UI_PAD_FEEDBACK:if(k)return xz_l10n_authored("On decks 1 and 2, STEM COLOURS lights stem pads in their stem colours and dims muted stems. OFF leaves the pad lights to the player.");break;
+ case XZ_UI_STEMS_OVERLAY:if(k)return xz_l10n_authored("Where the stem buttons sit on the 2 DECKS play screen. Tap a button to mute that stem; drag along it to set its level. The STEMS button steps through these; in 4 DECKS it shows or hides them.");break;
+ case XZ_UI_BROWSE_TRAFFIC:return xz_l10n_authored("Colours keys in the track list green or amber by how well they mix with the master deck.");
+ case XZ_UI_OPEN_UTILITY:return xz_l10n_authored("The player's own settings: quantize, auto cue, play mode, the display and more. MODS closes and they open.");
  case XZ_UI_SHELL_LOOK:
   switch(k/8){
-  case XZ_UI_LOOK_WAVE_COLOR:return "How the scrolling waveforms are coloured: STOCK blue, RGB, 3-BAND lows, mids and highs, or STEMS in the stem colours. UTILITY's WAVEFORM COLOR is the same setting.";
-  case XZ_UI_LOOK_USB_COLORS:return k%8==0?"Each track's colour from your library shows on its deck tag and its waveform.":
-   k%8==1?"Each track's colour from your library shows on its deck tag only.":"Track colours from your library are not shown.";
-  case XZ_UI_LOOK_MODE_LAMPS:return "The top bar's SINGLE / CONTINUE, A. HOT CUE and A. CUE lamps.";
-  case XZ_UI_LOOK_QUANTIZE_LAMP:return "Each deck's QUANTIZE lamp and beat value above its time.";
-  case XZ_UI_LOOK_BYPASS:return "The BYPASS button after each deck's stem buttons: lit, the original track plays instead of the stems.";
-  case XZ_UI_LOOK_WAVE_TITLES:return "Track titles inside the waveform lanes.";
+  case XZ_UI_LOOK_WAVE_COLOR:return xz_l10n_authored("How the scrolling waveforms are coloured: STOCK blue, RGB, 3-BAND lows, mids and highs, or STEMS in the stem colours. UTILITY's WAVEFORM COLOR is the same setting.");
+  case XZ_UI_LOOK_USB_COLORS:return k%8==0?xz_l10n_authored("Each track's colour from your library shows on its deck tag and its waveform."):
+   k%8==1?xz_l10n_authored("Each track's colour from your library shows on its deck tag only."):xz_l10n_authored("Track colours from your library are not shown.");
+  case XZ_UI_LOOK_MODE_LAMPS:return xz_l10n_authored("The top bar's SINGLE / CONTINUE, A. HOT CUE and A. CUE lamps.");
+  case XZ_UI_LOOK_QUANTIZE_LAMP:return xz_l10n_authored("Each deck's QUANTIZE lamp and beat value above its time.");
+  case XZ_UI_LOOK_BYPASS:return xz_l10n_authored("The BYPASS button after each deck's stem buttons: lit, the original track plays instead of the stems.");
+  case XZ_UI_LOOK_WAVE_TITLES:return xz_l10n_authored("Track titles inside the waveform lanes.");
   default:break;
   }
   break;
- case XZ_UI_BROWSE_KEY_PREFIX:return "Shows the key in front of each title in the track list.";
+ case XZ_UI_BROWSE_KEY_PREFIX:return xz_l10n_authored("Shows the key in front of each title in the track list.");
  default:break;
  }
  return NULL;
@@ -326,7 +330,7 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_WAVE_MODE:return "How the scrolling waveform is coloured: STOCK blue, 3-BAND low, mid and high, STEMS drums, harmonics and vocals (3-band on tracks without stems).";
  case XZ_UI_OPEN_UTILITY:return "The player's own settings.";
  case XZ_UI_MUTE:return k==XZ_STEM_BASS?"Mutes the bass stem of this 4-stem track. Pad D (or H) does the same.":"Push to mute this stem. Drag sideways to set its level.";
- case XZ_UI_SET_THEME:return "Restyles the classic player screen and this menu.";
+ case XZ_UI_SET_THEME:return xz_l10n_authored("Restyles the classic player screen and this menu.");
  case XZ_UI_SET_INTERFACE:return "CLASSIC keeps the player's own play screen with MODS added. MODERN is a full-screen layout with bigger waveforms and a browse sidebar.";
  case XZ_UI_SET_MODERN_THEME:return "The modern interface's look. More modern themes are coming.";
  case XZ_UI_STEM_COLOR:return "The colour of this stem on the pads, the stem buttons and the STEMS waveform.";
@@ -388,7 +392,7 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
   "The active profile on its USB.":"Makes this the active profile on its USB. Only the USB is written.";
  case XZ_UI_PROFILE_PAGE:return k<0?"Previous profiles.":"More profiles.";
  case XZ_UI_PROFILE_CHECK:return k?"Opens the profile list.":"Reads both USB ports again for DJ profiles.";
- default:return "Push to use this control.";}
+ default:return xz_l10n_authored("Push to use this control.");}
 }
 int xz_ui_describe(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_info *out){
  struct xz_ui_widget a;
@@ -424,7 +428,7 @@ int xz_ui_describe_widget(const struct xz_ui *u,const struct xz_ui_model *m,cons
  out->body=body(u,m,&a);
  coverage(m,&a,out);
  if(a.kind==XZ_UI_SHELL_LOOK&&a.index/8==XZ_UI_LOOK_WAVE_COLOR&&((out->works_on>>2)&3u))out->excluded="Decks 3 and 4: 3-band for STOCK and STEMS.";
- if(a.kind==XZ_UI_ABOUT_LINK)out->body="Push or tap to show this link as a QR. Scan with your phone.";
+ if(a.kind==XZ_UI_ABOUT_LINK)out->body=xz_l10n_authored("Push or tap to show this link as a QR. Scan with your phone.");
  if(xz_ui_network_kind(a.kind))out->body=xz_ui_network_help(a.kind);
  if(xz_ui_support_kind(a.kind)){const char *title=NULL;out->body=xz_ui_support_describe(u,m,&a,&title);if(title)out->title=title;}
  if(xz_ui_profile_owns(a.kind)){const char *title=NULL,*text=xz_ui_profile_describe(u,m,&a,&title);if(text)out->body=text;if(title)out->title=title;}

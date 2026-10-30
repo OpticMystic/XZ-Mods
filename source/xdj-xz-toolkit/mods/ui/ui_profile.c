@@ -1,3 +1,4 @@
+#include "l10n.h"
 /* SPDX-License-Identifier: MIT */
 /* The DJ PROFILE page and the on-device editor: the shown profile,
    an on-screen keyboard for the name and tagline, and a logo picker over the
@@ -94,25 +95,25 @@ size_t xz_ui_profile_controls(const struct xz_ui *u,const struct xz_ui_model *m,
  if(u->page==XZ_UI_PROFILE_SETUP){
   int shown=xz_ui_profile_shown(u,m),usb=usb_ready(m,0)||usb_ready(m,1);
   if(shown<0){
-   add(w,&n,XZ_UI_PROFILE_EDIT_OPEN,-1,"CREATE ON THIS XZ");
-   add(w,&n,XZ_UI_PROFILE_CHECK,0,"CHECK USB FOR PROFILES");
+   add(w,&n,XZ_UI_PROFILE_EDIT_OPEN,-1,xz_l10n_authored("CREATE ON THIS XZ"));
+   add(w,&n,XZ_UI_PROFILE_CHECK,0,xz_l10n_authored("CHECK USB FOR PROFILES"));
    (void)usb;return n;
   }
-  if(count(m)>1){add(w,&n,XZ_UI_PROFILE_VIEW,-1,"< PREV");add(w,&n,XZ_UI_PROFILE_VIEW,1,"NEXT >");}
-  add(w,&n,XZ_UI_PROFILE_EDIT_OPEN,shown,"EDIT");
-  if(!entry(m,shown)->stick_active)add(w,&n,XZ_UI_PROFILE_PICK,shown,"MAKE ACTIVE");
-  add(w,&n,XZ_UI_PROFILE_EDIT_OPEN,-1,"NEW PROFILE");
-  add(w,&n,XZ_UI_PROFILE_CHECK,0,"CHECK USB");
+  if(count(m)>1){add(w,&n,XZ_UI_PROFILE_VIEW,-1,xz_l10n_authored("< PREV"));add(w,&n,XZ_UI_PROFILE_VIEW,1,xz_l10n_authored("NEXT >"));}
+  add(w,&n,XZ_UI_PROFILE_EDIT_OPEN,shown,xz_l10n_authored("EDIT"));
+  if(!entry(m,shown)->stick_active)add(w,&n,XZ_UI_PROFILE_PICK,shown,xz_l10n_authored("MAKE ACTIVE"));
+  add(w,&n,XZ_UI_PROFILE_EDIT_OPEN,-1,xz_l10n_authored("NEW PROFILE"));
+  add(w,&n,XZ_UI_PROFILE_CHECK,0,xz_l10n_authored("CHECK USB"));
   return n;
  }
  if(u->page!=XZ_UI_PROFILE_EDIT)return n;
  switch(u->edit_step){
  case XZ_UI_EDIT_NAME:case XZ_UI_EDIT_TAGLINE:
   for(int r=0;r<4;r++)for(int k=0;k<10;k++)add(w,&n,XZ_UI_KEYBOARD,key_byte(u,layout(u)[r][k]),"");
-  add(w,&n,XZ_UI_KEYBOARD,XZ_UI_KB_SHIFT,u->kb_shift?"SHIFT ON":"SHIFT");
-  add(w,&n,XZ_UI_KEYBOARD,XZ_UI_KB_SYMBOLS,u->kb_symbols?"ABC":"#+=");
-  add(w,&n,XZ_UI_KEYBOARD,' ',"SPACE");
-  add(w,&n,XZ_UI_KEYBOARD,XZ_UI_KB_DELETE,"DELETE");
+  add(w,&n,XZ_UI_KEYBOARD,XZ_UI_KB_SHIFT,u->kb_shift?xz_l10n_authored("SHIFT ON"):"SHIFT");
+  add(w,&n,XZ_UI_KEYBOARD,XZ_UI_KB_SYMBOLS,u->kb_symbols?xz_l10n_authored("ABC"):"#+=");
+  add(w,&n,XZ_UI_KEYBOARD,' ',xz_l10n_authored("SPACE"));
+  add(w,&n,XZ_UI_KEYBOARD,XZ_UI_KB_DELETE,xz_l10n_authored("DELETE"));
   if(previous_step(u)>=0&&previous_step(u)!=next_step(u))add(w,&n,XZ_UI_EDIT_STEP,previous_step(u),"BACK");
   add(w,&n,XZ_UI_EDIT_STEP,next_step(u),next_label(u));
   break;
@@ -120,20 +121,20 @@ size_t xz_ui_profile_controls(const struct xz_ui *u,const struct xz_ui_model *m,
   const struct xz_ui_dj *dj=m->dj;int images=dj->images_usb==u->edit_usb&&!dj->images_reading?dj->image_count:0;
   int rows=image_rows(u,m);
   for(int i=0;i<rows&&u->image_offset+i<images;i++)add(w,&n,XZ_UI_LOGO_PICK,u->image_offset+i,dj->images[u->image_offset+i]);
-  if(images>rows){add(w,&n,XZ_UI_LOGO_PAGE,-1,"PREV");add(w,&n,XZ_UI_LOGO_PAGE,1,"NEXT");}
-  add(w,&n,XZ_UI_LOGO_RESCAN,0,images?"RESCAN":"CHECK USB AGAIN");
-  add(w,&n,XZ_UI_LOGO_PICK,XZ_UI_LOGO_NONE,"NO LOGO");
-  if(u->edit_entry>=0)add(w,&n,XZ_UI_LOGO_PICK,XZ_UI_LOGO_KEEP,"KEEP CURRENT");
+  if(images>rows){add(w,&n,XZ_UI_LOGO_PAGE,-1,xz_l10n_authored("PREV"));add(w,&n,XZ_UI_LOGO_PAGE,1,xz_l10n_authored("NEXT"));}
+  add(w,&n,XZ_UI_LOGO_RESCAN,0,images?xz_l10n_authored("RESCAN"):xz_l10n_authored("CHECK USB AGAIN"));
+  add(w,&n,XZ_UI_LOGO_PICK,XZ_UI_LOGO_NONE,xz_l10n_authored("NO LOGO"));
+  if(u->edit_entry>=0)add(w,&n,XZ_UI_LOGO_PICK,XZ_UI_LOGO_KEEP,xz_l10n_authored("KEEP CURRENT"));
   if(previous_step(u)>=0&&previous_step(u)!=next_step(u))add(w,&n,XZ_UI_EDIT_STEP,previous_step(u),"BACK");
   add(w,&n,XZ_UI_EDIT_STEP,next_step(u),next_label(u));
   break;}
  default:
-  add(w,&n,XZ_UI_EDIT_STEP,XZ_UI_EDIT_NAME,"CHANGE NAME");
-  add(w,&n,XZ_UI_EDIT_STEP,XZ_UI_EDIT_LOGO,"CHANGE LOGO");
-  add(w,&n,XZ_UI_EDIT_STEP,XZ_UI_EDIT_TAGLINE,"CHANGE TAGLINE");
+  add(w,&n,XZ_UI_EDIT_STEP,XZ_UI_EDIT_NAME,xz_l10n_authored("CHANGE NAME"));
+  add(w,&n,XZ_UI_EDIT_STEP,XZ_UI_EDIT_LOGO,xz_l10n_authored("CHANGE LOGO"));
+  add(w,&n,XZ_UI_EDIT_STEP,XZ_UI_EDIT_TAGLINE,xz_l10n_authored("CHANGE TAGLINE"));
   /* A new profile may go to either USB; an edit stays on its own. */
-  if(u->edit_entry<0&&usb_ready(m,0)&&usb_ready(m,1)){add(w,&n,XZ_UI_PROFILE_SAVE,0,"SAVE TO USB 1");add(w,&n,XZ_UI_PROFILE_SAVE,1,"SAVE TO USB 2");}
-  else add(w,&n,XZ_UI_PROFILE_SAVE,u->edit_usb,u->edit_usb?"SAVE TO USB 2":"SAVE TO USB 1");
+  if(u->edit_entry<0&&usb_ready(m,0)&&usb_ready(m,1)){add(w,&n,XZ_UI_PROFILE_SAVE,0,xz_l10n_authored("SAVE TO USB 1"));add(w,&n,XZ_UI_PROFILE_SAVE,1,xz_l10n_authored("SAVE TO USB 2"));}
+  else add(w,&n,XZ_UI_PROFILE_SAVE,u->edit_usb,u->edit_usb?xz_l10n_authored("SAVE TO USB 2"):xz_l10n_authored("SAVE TO USB 1"));
   break;}
  return n;
 }

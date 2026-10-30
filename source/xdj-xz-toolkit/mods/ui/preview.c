@@ -70,7 +70,7 @@ int main(int argc,char **argv){
  model.route.state=XZ_UI_ROUTE_NOT_DETECTED;model.deck_view=0;
  for(int deck=0;deck<4;deck++)model.jump_page[deck]=deck<2?0:-1;
  static const char *names[]={"stems","xpad","settings","themes","connection","controls","beat-jump","extras","doom","doom-setup","wad-loader","network-updates","update-setup","games","myhouse-setup","key-setup","browse-setup","pc-stems","stem-colors","applications","applications-setup","ram-setup","stem-setup","metrics-setup","profile-setup","profile-edit","general","feature-setup","theme-pick","buttons","network","network-setup","network-edit","about","support",
-  "home","play","stems-section","screen","four-decks","connect","stem-pads","screen-look","band-colors"};
+  "home","play","stems-section","screen","four-decks","connect","stem-pads","screen-look","band-colors","language"};
  _Static_assert(sizeof(names)/sizeof(*names)==XZ_UI_PAGE_COUNT,"preview names every page");
  char name[80];
  for(int theme=0;theme<XZ_THEME_COUNT;theme++){

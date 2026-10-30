@@ -1,3 +1,4 @@
+#include "l10n.h"
 #include "../key/view.h"
 /* SPDX-License-Identifier: MIT */
 #include "extra_detail.h"
@@ -92,7 +93,7 @@ static void header(struct xz_canvas c,unsigned number,const struct xz_extra_deck
  xz_deck_box(c,6,ROW_HEAD,HEAD_BOX,22,(int)number-1,1,0,2,0);
  if(lit)xz_rect(c,x,ROW_HEAD,w,22,LIT);
  else{xz_rect(c,x,ROW_HEAD,w,22,KEY_FILL);xz_border(c,x,ROW_HEAD,w,22,0x55606c);}
- xz_text(c,x+7,ROW_HEAD+4,"DECK",2,8,lit?LIT_INK:LABEL);
+ xz_text(c,x+7,ROW_HEAD+4,xz_l10n_authored("DECK"),2,8,lit?LIT_INK:LABEL);
  int playing=(d->known&K(PLAYING))&&d->playing;
  const char *state=!d->loaded?"NO TRACK":playing?"PLAYING":d->held_playing?(d->platter_contact?"HELD":"COAST"):(d->known&K(PLAYING))?"PAUSED":"";
  xz_text(c,x+w+8,ROW_HEAD+7,state,1,10,playing?INK:d->held_playing?LIMIT_AMBER:LABEL);
@@ -100,8 +101,8 @@ static void header(struct xz_canvas c,unsigned number,const struct xz_extra_deck
 }
 /* Which deck this side's controls drive: the DECK SELECT of SHIFT pressed twice, by touch. */
 static void controls(struct xz_canvas c,int deck,int extra_on,int route_up){
- xz_text(c,6,ROW_SIDE+4,deck?"RIGHT SIDE":"LEFT SIDE",1,14,LABEL);
- xz_text(c,6,ROW_SIDE+16,"CONTROLS",1,14,LABEL);
+ xz_text(c,6,ROW_SIDE+4,deck?xz_l10n_authored("RIGHT SIDE"):xz_l10n_authored("LEFT SIDE"),1,14,LABEL);
+ xz_text(c,6,ROW_SIDE+16,xz_l10n_authored("CONTROLS"),1,14,LABEL);
  char text[8];
  snprintf(text,sizeof text,"DECK %d",deck?2:1);key(c,xz_extra_detail_box(XZ_EXTRA_DETAIL_NATIVE_SIDE),text,route_up&&!extra_on);
  snprintf(text,sizeof text,"DECK %d",3+deck);key(c,xz_extra_detail_box(XZ_EXTRA_DETAIL_EXTRA_SIDE),text,route_up&&extra_on);
@@ -115,7 +116,7 @@ static void track(struct xz_canvas c,const struct xz_extra_deck *d){
  char k[24];
  if((d->known&K(KEY))&&d->key[0]){xz_extra_key_label(d,k,sizeof k);}else snprintf(k,sizeof k,"--");
  int w=xz_text_width(c,k,1,20);xz_text(c,right-w,ROW_ARTIST,k,1,20,k[0]=='-'?BLANK:xz_extra_key_ink(d,INK));right-=w+4;
- w=xz_text_width(c,"KEY",1,4);xz_text(c,right-w,ROW_ARTIST,"KEY",1,4,LABEL);right-=w+10;
+ w=xz_text_width(c,"KEY",1,4);xz_text(c,right-w,ROW_ARTIST,xz_l10n_authored("KEY"),1,4,LABEL);right-=w+10;
  if((d->known&K(SOURCE))&&(d->source==1||d->source==2)){
   const char *usb=d->source==1?"USB1":"USB2";w=xz_text_width(c,usb,1,4);
   xz_text(c,right-w,ROW_ARTIST,usb,1,4,LABEL);right-=w+10;
@@ -131,13 +132,13 @@ static void clock(struct xz_canvas c,const struct xz_extra_deck *d,uint32_t now_
  clock_text(text,sizeof text,timed,remain?d->total_ms-pos:pos,remain);
  xz_text(c,6,ROW_CLOCK,text,2,10,timed?INK:BLANK);
  int x=6+xz_text_width(c,text,2,10)+6;
- if(mode)xz_text(c,x,ROW_CLOCK+5,d->remain?"REMAIN":"TIME",1,8,LABEL);
+ if(mode)xz_text(c,x,ROW_CLOCK+5,d->remain?xz_l10n_authored("REMAIN"):xz_l10n_authored("TIME"),1,8,LABEL);
  int bpm=(d->known&K(BPM))&&d->bpm_x100>0;
  if(bpm)snprintf(text,sizeof text,"%d.%d",(int)(d->bpm_x100/100),(int)(d->bpm_x100%100/10));
  else snprintf(text,sizeof text,"---.-");
  int w=xz_text_width(c,text,2,6);
  xz_text(c,RIGHT-w,ROW_CLOCK,text,2,6,bpm?INK:BLANK);
- xz_text(c,RIGHT-w-6-xz_text_width(c,"BPM",1,4),ROW_CLOCK+5,"BPM",1,4,LABEL);
+ xz_text(c,RIGHT-w-6-xz_text_width(c,xz_l10n_authored("BPM"),1,4),ROW_CLOCK+5,xz_l10n_authored("BPM"),1,4,LABEL);
  x=6;
  x+=fit(c,x,ROW_TEMPO+2,RIGHT,"TEMPO",1,LABEL)+5;
  if(d->known&K(TEMPO)){
@@ -285,7 +286,7 @@ static void overview(struct xz_canvas c,const struct xz_extra_deck *d,uint32_t n
 /* No track: the two ways the classic screen loads a software deck. */
 static void empty(struct xz_canvas c,unsigned number,int deck){
  char text[64];
- xz_text(c,6,ROW_TITLE,"NO TRACK",2,10,BLANK);
+ xz_text(c,6,ROW_TITLE,xz_l10n_authored("NO TRACK"),2,10,BLANK);
  snprintf(text,sizeof text,"LOAD DECK %u FROM BROWSE:",number);fit(c,6,ROW_CLOCK,RIGHT,text,1,LABEL);
  snprintf(text,sizeof text,"SET %s CONTROLS TO DECK %u ABOVE,",deck?"RIGHT":"LEFT",number);fit(c,6,ROW_CLOCK+14,RIGHT,text,1,INK);
  fit(c,6,ROW_CLOCK+26,RIGHT,"THEN PRESS LOAD ON A TRACK",1,INK);

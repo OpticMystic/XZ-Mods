@@ -1,3 +1,4 @@
+#include "../ui/l10n.h"
 /* BROWSE, PLAYLIST, TAG LIST and SEARCH at 800x480, after the flagship
    player's browse screen (the 2026-10-18 flagship UI study, sections 3.2,
    3.3 and 6.2): category rail, one-level breadcrumb header, sortable column
@@ -916,7 +917,7 @@ static int cue_items(const struct xz_shell *u, const struct xz_shell_model *m, s
  const struct xz_shell_browse_model *b=m->browse;
  const struct xz_shell_browse_row *r=highlight_row(u,m);
  int n=0,deck=sh_max(0,sh_min(sh_deck_count(m)-1,u->panel.page-PAGE_CUES));
- if(!r||!bknown(b,XZ_SHELL_BF_CUES)||!b->cues||b->cue_track!=r->id)return add(out,n,PK_NOTE,0,"THE TRACK'S POINTS ARE NOT READ YET");
+ if(!r||!bknown(b,XZ_SHELL_BF_CUES)||!b->cues||b->cue_track!=r->id)return add(out,n,PK_NOTE,0,xz_l10n_authored("THE TRACK'S POINTS ARE NOT READ YET"));
  snprintf(cue_deck,sizeof cue_deck,"LOAD TO DECK %d",deck+1);
  n=add(out,n,PK_CUE_DECK,deck,cue_deck);
  snprintf(out[n-1].text,sizeof out[n-1].text,"CHANGE");
@@ -924,7 +925,7 @@ static int cue_items(const struct xz_shell *u, const struct xz_shell_model *m, s
  n=add(out,n,PK_HEAD,0,cue_head);
  for(int i=0;i<sh_min(b->cue_count,64);i++){
   const struct xz_shell_cue_entry *q=&b->cues[i];
-  n=add(out,n,PK_CUE,i,q->comment&&*q->comment?q->comment:q->loop?"LOOP":"MEMORY CUE");
+  n=add(out,n,PK_CUE,i,q->comment&&*q->comment?q->comment:q->loop?xz_l10n_authored("LOOP"):xz_l10n_authored("MEMORY CUE"));
   fmt_cue_time(out[n-1].text,sizeof out[n-1].text,q->ms);
   out[n-1].swatch=q->color?q->color&0xffffff:q->loop?SH_LOOP:SH_MEMORY;
  }
@@ -937,59 +938,59 @@ static int menu_items(const struct xz_shell *u, const struct xz_shell_model *m, 
  if(!matches(b,s))return 0;
  const struct xz_shell_browse_row *r=highlight_row(u,m);
  if(u->panel.page==PAGE_ADD){
-  n=add(out,n,PK_HEAD,0,"ADD TO PLAYLIST");
+  n=add(out,n,PK_HEAD,0,xz_l10n_authored("ADD TO PLAYLIST"));
   if(bknown(b,XZ_SHELL_BF_PLAYLISTS)&&b->playlists)for(int i=0;i<b->playlist_count&&n<MAX_PITEMS;i++){
    n=add(out,n,PK_ADD_TO,i,b->playlists[i].name?b->playlists[i].name:"---");
    if(b->playlists[i].tracks>=0)snprintf(out[n-1].text,sizeof out[n-1].text,"%d",(int)sh_min(b->playlists[i].tracks,99999));
   }
   return n;
  }
- if(u->panel.page==PAGE_NEW||u->panel.page==PAGE_RENAME||u->panel.page==PAGE_TAG_PLAYLIST)return add(out,n,PK_SAVE,0,"SAVE");
+ if(u->panel.page==PAGE_NEW||u->panel.page==PAGE_RENAME||u->panel.page==PAGE_TAG_PLAYLIST)return add(out,n,PK_SAVE,0,xz_l10n_authored("SAVE"));
  if(u->panel.page>=PAGE_CUES)return cue_items(u,m,out);
  const int armed_at=u->panel.armed?u->panel.cursor:-1;
  /* The highlighted track (newer players' track menu, XZ manual pp.81-84, 86) */
  if(r&&r->kind==XZ_SHELL_ROW_TRACK){
   int head=n;
-  n=add(out,n,PK_HEAD,0,"TRACK");
+  n=add(out,n,PK_HEAD,0,xz_l10n_authored("TRACK"));
   if((m->capabilities&XZ_SHELL_CAP_TAG_EDIT)&&rknown(r,XZ_SHELL_RF_TAGGED))
-   n=add(out,n,PK_TAG_TOGGLE,0,r->tagged||s==XZ_SHELL_TAG_LIST?"REMOVE FROM TAG LIST":"ADD TO TAG LIST");
+   n=add(out,n,PK_TAG_TOGGLE,0,r->tagged||s==XZ_SHELL_TAG_LIST?xz_l10n_authored("REMOVE FROM TAG LIST"):xz_l10n_authored("ADD TO TAG LIST"));
   if((m->capabilities&XZ_SHELL_CAP_CUE_LIST)&&bknown(b,XZ_SHELL_BF_CUES)&&b->cues&&b->cue_count>0&&b->cue_track==r->id){
-   n=add(out,n,PK_CUES_OPEN,0,"CUE/LOOP LIST");
+   n=add(out,n,PK_CUES_OPEN,0,xz_l10n_authored("CUE/LOOP LIST"));
    snprintf(out[n-1].text,sizeof out[n-1].text,"%d",sh_min(b->cue_count,99));
   }
   if((m->capabilities&XZ_SHELL_CAP_HISTORY_EDIT)&&rknown(r,XZ_SHELL_RF_PLAYED))
-   n=add(out,n,PK_PLAYED,0,r->played?"MARK UNPLAYED":"MARK PLAYED");
+   n=add(out,n,PK_PLAYED,0,r->played?xz_l10n_authored("MARK UNPLAYED"):xz_l10n_authored("MARK PLAYED"));
   if(n==head+1)n=head;
  }
  if(r&&r->kind==XZ_SHELL_ROW_FOLDER&&s!=XZ_SHELL_TAG_LIST&&(m->capabilities&XZ_SHELL_CAP_TAG_EDIT)){
-  n=add(out,n,PK_HEAD,0,"FOLDER");
-  n=add(out,n,PK_TAG_ALL,0,"ADD ALL TO TAG LIST");
+  n=add(out,n,PK_HEAD,0,xz_l10n_authored("FOLDER"));
+  n=add(out,n,PK_TAG_ALL,0,xz_l10n_authored("ADD ALL TO TAG LIST"));
  }
  if(s==XZ_SHELL_TAG_LIST&&(m->capabilities&XZ_SHELL_CAP_TAG_EDIT)&&bknown(b,XZ_SHELL_BF_TOTAL)&&b->total>0){
   n=add(out,n,PK_HEAD,0,"TAG LIST");
-  n=add(out,n,PK_TAG_PLAYLIST,0,"CREATE PLAYLIST");
-  n=add(out,n,PK_TAG_CLEAR,0,armed_at==n?"PUSH AGAIN TO CLEAR IT":"REMOVE ALL TRACKS");
+  n=add(out,n,PK_TAG_PLAYLIST,0,xz_l10n_authored("CREATE PLAYLIST"));
+  n=add(out,n,PK_TAG_CLEAR,0,armed_at==n?xz_l10n_authored("PUSH AGAIN TO CLEAR IT"):xz_l10n_authored("REMOVE ALL TRACKS"));
   out[n-1].on=armed_at==n-1;
  }
  if(s==XZ_SHELL_BROWSE&&bknown(b,XZ_SHELL_BF_CATEGORY)&&b->category==XZ_SHELL_CAT_HISTORY&&depth_of(b)==0
     &&(m->capabilities&XZ_SHELL_CAP_HISTORY_EDIT)&&bknown(b,XZ_SHELL_BF_TOTAL)&&b->total>0){
-  n=add(out,n,PK_HEAD,0,"HISTORY");
+  n=add(out,n,PK_HEAD,0,xz_l10n_authored("HISTORY"));
   if(r&&r->kind==XZ_SHELL_ROW_FOLDER){
-   n=add(out,n,PK_HISTORY_DELETE,0,armed_at==n?"PUSH AGAIN TO DELETE":"DELETE HISTORY");
+   n=add(out,n,PK_HISTORY_DELETE,0,armed_at==n?xz_l10n_authored("PUSH AGAIN TO DELETE"):xz_l10n_authored("DELETE HISTORY"));
    out[n-1].on=armed_at==n-1;
   }
-  n=add(out,n,PK_HISTORY_ALL,0,armed_at==n?"PUSH AGAIN: DELETE ALL":"DELETE ALL HISTORIES");
+  n=add(out,n,PK_HISTORY_ALL,0,armed_at==n?xz_l10n_authored("PUSH AGAIN: DELETE ALL"):xz_l10n_authored("DELETE ALL HISTORIES"));
   out[n-1].on=armed_at==n-1;
  }
  if(bknown(b,XZ_SHELL_BF_SORT_KEYS)&&b->sort_keys){
-  n=add(out,n,PK_HEAD,0,"SORT BY");
+  n=add(out,n,PK_HEAD,0,xz_l10n_authored("SORT BY"));
   for(int k=0;k<XZ_SHELL_COL_COUNT;k++)if((b->sort_keys>>k)&1){
    n=add(out,n,PK_SORT,k,sort_label[k]);
    out[n-1].on=bknown(b,XZ_SHELL_BF_SORT)&&(int)b->sort_column==k;
   }
  }
  if(bknown(b,XZ_SHELL_BF_COLUMN_CHOICES)&&b->column_choices){
-  n=add(out,n,PK_HEAD,0,"COLUMNS");
+  n=add(out,n,PK_HEAD,0,xz_l10n_authored("COLUMNS"));
   for(int k=0;k<XZ_SHELL_COL_COUNT;k++)if(k!=XZ_SHELL_COL_TITLE&&((b->column_choices>>k)&1)){
    n=add(out,n,PK_COLUMN,k,sort_label[k]);
    out[n-1].on=column_shown(b,k);
@@ -997,26 +998,26 @@ static int menu_items(const struct xz_shell *u, const struct xz_shell_model *m, 
  }
  if(m->capabilities&XZ_SHELL_CAP_PLAYLIST_EDIT){
   int edit=bknown(b,XZ_SHELL_BF_EDIT)?(int)b->edit:0,head=n;
-  n=add(out,n,PK_HEAD,0,"PLAYLIST");
+  n=add(out,n,PK_HEAD,0,xz_l10n_authored("PLAYLIST"));
   if(edit&XZ_SHELL_EDIT_PLAYLISTS){
-   n=add(out,n,PK_NEW,0,"NEW PLAYLIST");
+   n=add(out,n,PK_NEW,0,xz_l10n_authored("NEW PLAYLIST"));
    if(r&&r->kind==XZ_SHELL_ROW_FOLDER){
-    n=add(out,n,PK_RENAME,0,"RENAME");
-    n=add(out,n,PK_DELETE,0,u->panel.armed?"PUSH AGAIN TO DELETE":"DELETE");
+    n=add(out,n,PK_RENAME,0,xz_l10n_authored("RENAME"));
+    n=add(out,n,PK_DELETE,0,u->panel.armed?xz_l10n_authored("PUSH AGAIN TO DELETE"):xz_l10n_authored("DELETE"));
     out[n-1].on=u->panel.armed;
    }
   }
   if((edit&XZ_SHELL_EDIT_TRACKS)&&r&&r->kind==XZ_SHELL_ROW_TRACK){
-   n=add(out,n,PK_MOVE,0,"MOVE TRACK");
-   n=add(out,n,PK_REMOVE,0,"REMOVE FROM PLAYLIST");
+   n=add(out,n,PK_MOVE,0,xz_l10n_authored("MOVE TRACK"));
+   n=add(out,n,PK_REMOVE,0,xz_l10n_authored("REMOVE FROM PLAYLIST"));
   }
-  if(r&&r->kind==XZ_SHELL_ROW_TRACK&&bknown(b,XZ_SHELL_BF_PLAYLISTS)&&b->playlist_count>0)n=add(out,n,PK_ADD_OPEN,0,"ADD TO PLAYLIST");
+  if(r&&r->kind==XZ_SHELL_ROW_TRACK&&bknown(b,XZ_SHELL_BF_PLAYLISTS)&&b->playlist_count>0)n=add(out,n,PK_ADD_OPEN,0,xz_l10n_authored("ADD TO PLAYLIST"));
   if(n==head+1)n=head;
  }
  if((m->capabilities&XZ_SHELL_CAP_FILTER)||(s!=XZ_SHELL_SEARCH&&search_reachable(m))){
-  n=add(out,n,PK_HEAD,0,"FIND");
-  if(m->capabilities&XZ_SHELL_CAP_FILTER){n=add(out,n,PK_FILTER_OPEN,0,"TRACK FILTER");out[n-1].on=filter_active(&u->filter);}
-  if(s!=XZ_SHELL_SEARCH&&search_reachable(m))n=add(out,n,PK_SEARCH,0,"SEARCH");
+  n=add(out,n,PK_HEAD,0,xz_l10n_authored("FIND"));
+  if(m->capabilities&XZ_SHELL_CAP_FILTER){n=add(out,n,PK_FILTER_OPEN,0,xz_l10n_authored("TRACK FILTER"));out[n-1].on=filter_active(&u->filter);}
+  if(s!=XZ_SHELL_SEARCH&&search_reachable(m))n=add(out,n,PK_SEARCH,0,xz_l10n_authored("SEARCH"));
  }
  return n;
 }
@@ -1028,40 +1029,40 @@ static int filter_items(const struct xz_shell *u, const struct xz_shell_model *m
  const struct xz_shell_filter *f=&u->filter;
  const struct xz_shell_browse_model *b=m->browse;
  int n=0;
- n=add(out,n,PK_HEAD,0,"BPM");
- n=add(out,n,PK_F_BPM,0,"BPM");
+ n=add(out,n,PK_HEAD,0,xz_l10n_authored("BPM"));
+ n=add(out,n,PK_F_BPM,0,xz_l10n_authored("BPM"));
  if(f->bpm==XZ_SHELL_FILTER_BPM_OFF)snprintf(out[n-1].text,sizeof out[n-1].text,"OFF");
  else if(f->bpm==XZ_SHELL_FILTER_BPM_MASTER)snprintf(out[n-1].text,sizeof out[n-1].text,"MASTER \xb1%d",f->bpm_spread);
  else snprintf(out[n-1].text,sizeof out[n-1].text,"RANGE");
  out[n-1].on=f->bpm!=XZ_SHELL_FILTER_BPM_OFF;
  if(f->bpm==XZ_SHELL_FILTER_BPM_RANGE){
-  n=add(out,n,PK_F_FROM,0,"FROM");
+  n=add(out,n,PK_F_FROM,0,xz_l10n_authored("FROM"));
   snprintf(out[n-1].text,sizeof out[n-1].text,"%d.%d",(int)(f->bpm_min_x100/100),(int)(f->bpm_min_x100/10%10));
-  n=add(out,n,PK_F_TO,0,"TO");
+  n=add(out,n,PK_F_TO,0,xz_l10n_authored("TO"));
   snprintf(out[n-1].text,sizeof out[n-1].text,"%d.%d",(int)(f->bpm_max_x100/100),(int)(f->bpm_max_x100/10%10));
  }
- n=add(out,n,PK_HEAD,0,"KEY");
- n=add(out,n,PK_F_KEY,0,"MATCH MASTER KEY");
+ n=add(out,n,PK_HEAD,0,xz_l10n_authored("KEY"));
+ n=add(out,n,PK_F_KEY,0,xz_l10n_authored("MATCH MASTER KEY"));
  out[n-1].on=f->key_compatible;
  const char *master=xz_shell_master_key(m);
  if(master){char key[8];snprintf(out[n-1].text,sizeof out[n-1].text,"%s",sh_key_text(master,sh_key_display(u,m),key,sizeof key));}
- n=add(out,n,PK_HEAD,0,"RATING");
- n=add(out,n,PK_F_RATING,0,"AT LEAST");
+ n=add(out,n,PK_HEAD,0,xz_l10n_authored("RATING"));
+ n=add(out,n,PK_F_RATING,0,xz_l10n_authored("AT LEAST"));
  stars_text(out[n-1].text,sizeof out[n-1].text,f->rating_min);
  out[n-1].on=f->rating_min>0;
- n=add(out,n,PK_HEAD,0,"COLOR");
+ n=add(out,n,PK_HEAD,0,xz_l10n_authored("COLOR"));
  for(int i=0;i<XZ_SHELL_TAG_COLOR_COUNT;i++){
   n=add(out,n,PK_F_COLOR,i,tag_colors[i].name);
   out[n-1].on=(f->colors>>i)&1;out[n-1].swatch=tag_colors[i].rgb;
  }
  if(bknown(b,XZ_SHELL_BF_MY_TAGS)&&b&&b->my_tags&&b->my_tag_count>0){
-  n=add(out,n,PK_HEAD,0,"MY TAG");
+  n=add(out,n,PK_HEAD,0,xz_l10n_authored("MY TAG"));
   for(int i=0;i<b->my_tag_count&&i<32;i++){
    n=add(out,n,PK_F_TAG,i,b->my_tags[i].name?b->my_tags[i].name:"---");
    out[n-1].on=(f->my_tags>>i)&1;
   }
  }
- if(filter_active(f))n=add(out,n,PK_F_CLEAR,0,"CLEAR ALL FILTERS");
+ if(filter_active(f))n=add(out,n,PK_F_CLEAR,0,xz_l10n_authored("CLEAR ALL FILTERS"));
  return n;
 }
 /* ---- MY SETTINGS (shell_settings.h): the stick's settings, its DJ profiles, and the waveform look ---- */
@@ -1120,13 +1121,13 @@ static int my_items(const struct xz_shell *u, const struct xz_shell_model *m, st
  }
  if(s->writable){
   snprintf(my_save,sizeof my_save,"SAVE TO %s",stick_name(s));
-  n=add(out,n,PK_MY_SAVE,0,armed_at==n?"PUSH AGAIN TO SAVE":my_save);
+  n=add(out,n,PK_MY_SAVE,0,armed_at==n?xz_l10n_authored("PUSH AGAIN TO SAVE"):my_save);
   out[n-1].help="Saves this unit's current settings here, replacing the ones saved before.";
   out[n-1].on=armed_at==n-1;
  }
- if(!s->on_stick&&!s->writable)n=add(out,n,PK_NOTE,0,"NOTHING SAVED ON IT, AND IT IS LOCKED");
+ if(!s->on_stick&&!s->writable)n=add(out,n,PK_NOTE,0,xz_l10n_authored("NOTHING SAVED ON IT, AND IT IS LOCKED"));
  if(s->profile_count>0&&s->profiles){
-  n=add(out,n,PK_HEAD,0,"DJ PROFILE");
+  n=add(out,n,PK_HEAD,0,xz_l10n_authored("DJ PROFILE"));
   for(int i=0;i<sh_min(s->profile_count,16);i++){
    const struct xz_shell_dj_profile *p=&s->profiles[i];
    n=add(out,n,PK_PROFILE,i,p->name?p->name:"---");
@@ -1139,12 +1140,12 @@ static int my_items(const struct xz_shell *u, const struct xz_shell_model *m, st
   if(s->writable&&profile_valid(s,s->profile_active)&&!s->profiles[s->profile_active].damaged){
    const char *name=s->profiles[s->profile_active].name;
    snprintf(my_profile_save,sizeof my_profile_save,"SAVE SETTINGS TO %s",name?name:"PROFILE");
-   n=add(out,n,PK_PROFILE_SAVE,s->profile_active,armed_at==n?"PUSH AGAIN TO SAVE":my_profile_save);
+   n=add(out,n,PK_PROFILE_SAVE,s->profile_active,armed_at==n?xz_l10n_authored("PUSH AGAIN TO SAVE"):my_profile_save);
    out[n-1].help="Saves the current settings into the active DJ's profile.";
    out[n-1].on=armed_at==n-1;
   }
  }
- n=add(out,n,PK_HEAD,0,"WAVEFORM");
+ n=add(out,n,PK_HEAD,0,xz_l10n_authored("WAVEFORM"));
  /* Short names: the group head already says WAVEFORM, and the panel is narrow. */
  static const int own[]={XZ_SHELL_ITEM_WAVE_COLOR,XZ_SHELL_ITEM_WAVE_POSITION,XZ_SHELL_ITEM_WAVE_ZOOM,XZ_SHELL_ITEM_USB_COLORS};
  static const char *const own_label[]={"COLOR","POSITION","ZOOM","USB COLORS"};

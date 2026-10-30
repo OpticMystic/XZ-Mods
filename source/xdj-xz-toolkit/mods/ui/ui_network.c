@@ -1,3 +1,4 @@
+#include "l10n.h"
 /* SPDX-License-Identifier: MIT. One draft/control path for classic touch, encoder and MODERN menu. */
 #include "ui_network.h"
 #include <stdio.h>
@@ -14,38 +15,38 @@ static const struct xz_net_adapter *actual(const struct xz_ui *u,const struct xz
 }
 static void add(struct xz_ui_widget *w,size_t *n,int kind,int index,const char *label){if(*n<XZ_UI_WIDGETS)w[(*n)++]=(struct xz_ui_widget){.kind=(enum xz_ui_action_kind)kind,.index=index,.deck=-1,.label=label};}
 size_t xz_ui_network_controls(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget *w,size_t n){
-    if(busy(m)){add(w,&n,XZ_UI_NETWORK_CANCEL,0,"CANCEL / RESTORE");return n;}
+    if(busy(m)){add(w,&n,XZ_UI_NETWORK_CANCEL,0,xz_l10n_authored("CANCEL / RESTORE"));return n;}
     if(u->page!=XZ_UI_NETWORK_EDIT&&(m->network.phase==XZ_NET_FAILED||m->network.phase==XZ_NET_NEEDS_SETUP)){
-        add(w,&n,XZ_UI_NETWORK_SETUP_OPEN,0,"SET UP NETWORK / INSPECT ACTUAL");
-        if(m->network.rollback_available)add(w,&n,XZ_UI_NETWORK_REVERT,0,"RETRY CONDITIONAL REVERT");
-        add(w,&n,XZ_UI_NETWORK_DETECT,0,"DETECT ACTUAL STATE");return n;
+        add(w,&n,XZ_UI_NETWORK_SETUP_OPEN,0,xz_l10n_authored("SET UP NETWORK / INSPECT ACTUAL"));
+        if(m->network.rollback_available)add(w,&n,XZ_UI_NETWORK_REVERT,0,xz_l10n_authored("RETRY CONDITIONAL REVERT"));
+        add(w,&n,XZ_UI_NETWORK_DETECT,0,xz_l10n_authored("DETECT ACTUAL STATE"));return n;
     }
     if(u->page==XZ_UI_NETWORK_EDIT){
         static const char *keys[]={"0","1","2","3","4","5","6","7","8","9",".","BACKSPACE","CLEAR","DONE","CANCEL"};
         for(int i=0;i<15;i++)add(w,&n,XZ_UI_NETWORK_KEY,i,keys[i]);return n;
     }
-    if(u->network.setup_reason){add(w,&n,XZ_UI_NETWORK_SETUP_OPEN,0,"SET UP LOADER NETWORK SUPPORT");add(w,&n,XZ_UI_NETWORK_STEP,XZ_NETWORK_CHOOSE,"CHOOSE STATIC / KEEP CURRENT");add(w,&n,XZ_UI_NETWORK_DETECT,0,"VERIFY RELOADED LOADER");return n;}
+    if(u->network.setup_reason){add(w,&n,XZ_UI_NETWORK_SETUP_OPEN,0,xz_l10n_authored("SET UP LOADER NETWORK SUPPORT"));add(w,&n,XZ_UI_NETWORK_STEP,XZ_NETWORK_CHOOSE,xz_l10n_authored("CHOOSE STATIC / KEEP CURRENT"));add(w,&n,XZ_UI_NETWORK_DETECT,0,xz_l10n_authored("VERIFY RELOADED LOADER"));return n;}
     if(u->page==XZ_UI_NETWORK||!u->network.initialized||u->network.step==XZ_NETWORK_DETECT){
-        if(m->network.rollback_available){add(w,&n,XZ_UI_NETWORK_REVERT,0,"REVERT TRIAL / MODS DHCP OFF");add(w,&n,XZ_UI_NETWORK_STEP,XZ_NETWORK_VERIFY,"VERIFY LOCAL STATE");}
-        else if(m->network.actual.count&&m->network.result==XZ_NET_OK)add(w,&n,XZ_UI_NETWORK_STEP,XZ_NETWORK_CHOOSE,"CHOOSE ADAPTER / SETTINGS");
-        else add(w,&n,XZ_UI_NETWORK_SETUP_OPEN,0,"SET UP NETWORK");
-        add(w,&n,XZ_UI_NETWORK_DETECT,0,"DETECT ADAPTERS AGAIN");return n;
+        if(m->network.rollback_available){add(w,&n,XZ_UI_NETWORK_REVERT,0,xz_l10n_authored("REVERT TRIAL / MODS DHCP OFF"));add(w,&n,XZ_UI_NETWORK_STEP,XZ_NETWORK_VERIFY,xz_l10n_authored("VERIFY LOCAL STATE"));}
+        else if(m->network.actual.count&&m->network.result==XZ_NET_OK)add(w,&n,XZ_UI_NETWORK_STEP,XZ_NETWORK_CHOOSE,xz_l10n_authored("CHOOSE ADAPTER / SETTINGS"));
+        else add(w,&n,XZ_UI_NETWORK_SETUP_OPEN,0,xz_l10n_authored("SET UP NETWORK"));
+        add(w,&n,XZ_UI_NETWORK_DETECT,0,xz_l10n_authored("DETECT ADAPTERS AGAIN"));return n;
     }
     if(u->network.step==XZ_NETWORK_CHOOSE){
         int count=u->network.trial.policy.count,offset=u->network.adapter_offset;
         for(int i=offset;i<count&&i<offset+3;i++)add(w,&n,XZ_UI_NETWORK_ADAPTER,i,u->network.trial.policy.order[i].adapter.name);
         if(count>3){add(w,&n,XZ_UI_NETWORK_ADAPTER,-1,"<");add(w,&n,XZ_UI_NETWORK_ADAPTER,-2,">");}
-        add(w,&n,XZ_UI_NETWORK_MODE,XZ_NET_KEEP,"KEEP CURRENT");add(w,&n,XZ_UI_NETWORK_MODE,XZ_NET_DHCP,"DHCP ON");add(w,&n,XZ_UI_NETWORK_MODE,XZ_NET_STATIC,"STATIC IP");
+        add(w,&n,XZ_UI_NETWORK_MODE,XZ_NET_KEEP,xz_l10n_authored("KEEP CURRENT"));add(w,&n,XZ_UI_NETWORK_MODE,XZ_NET_DHCP,xz_l10n_authored("DHCP ON"));add(w,&n,XZ_UI_NETWORK_MODE,XZ_NET_STATIC,xz_l10n_authored("STATIC IP"));
         const struct xz_net_preference *p=&u->network.trial.policy.order[u->network.selected];
-        if(p->mode==XZ_NET_STATIC){add(w,&n,XZ_UI_NETWORK_FIELD,XZ_NETWORK_IP,"EDIT IP");add(w,&n,XZ_UI_NETWORK_FIELD,XZ_NETWORK_MASK,"EDIT MASK / PREFIX");add(w,&n,XZ_UI_NETWORK_FIELD,XZ_NETWORK_GATEWAY,"EDIT GATEWAY");}
-        add(w,&n,XZ_UI_NETWORK_PRIORITY,-1,"PRIORITY UP");add(w,&n,XZ_UI_NETWORK_PRIORITY,1,"PRIORITY DOWN");
-        add(w,&n,XZ_UI_NETWORK_MODE,3,u->network.trial.policy.request_route?"MODS ROUTE: ON":"MODS ROUTE: OFF");
-        if(p->mode==XZ_NET_STATIC)add(w,&n,XZ_UI_NETWORK_MODE,4,p->static_ip.dhcp==XZ_NET_STATIC_DISABLE_DHCP?"MODS DHCP: OFF":"KEEP DHCP OWNER");
-        add(w,&n,XZ_UI_NETWORK_STEP,XZ_NETWORK_REVIEW,"REVIEW CHANGES");
+        if(p->mode==XZ_NET_STATIC){add(w,&n,XZ_UI_NETWORK_FIELD,XZ_NETWORK_IP,xz_l10n_authored("EDIT IP"));add(w,&n,XZ_UI_NETWORK_FIELD,XZ_NETWORK_MASK,xz_l10n_authored("EDIT MASK / PREFIX"));add(w,&n,XZ_UI_NETWORK_FIELD,XZ_NETWORK_GATEWAY,xz_l10n_authored("EDIT GATEWAY"));}
+        add(w,&n,XZ_UI_NETWORK_PRIORITY,-1,xz_l10n_authored("PRIORITY UP"));add(w,&n,XZ_UI_NETWORK_PRIORITY,1,xz_l10n_authored("PRIORITY DOWN"));
+        add(w,&n,XZ_UI_NETWORK_MODE,3,u->network.trial.policy.request_route?xz_l10n_authored("MODS ROUTE: ON"):xz_l10n_authored("MODS ROUTE: OFF"));
+        if(p->mode==XZ_NET_STATIC)add(w,&n,XZ_UI_NETWORK_MODE,4,p->static_ip.dhcp==XZ_NET_STATIC_DISABLE_DHCP?xz_l10n_authored("MODS DHCP: OFF"):xz_l10n_authored("KEEP DHCP OWNER"));
+        add(w,&n,XZ_UI_NETWORK_STEP,XZ_NETWORK_REVIEW,xz_l10n_authored("REVIEW CHANGES"));
     }else{
-        if(m->network.rollback_available){add(w,&n,XZ_UI_NETWORK_REVERT,0,"REVERT TRIAL / MODS DHCP OFF");add(w,&n,XZ_UI_NETWORK_STEP,XZ_NETWORK_VERIFY,"VERIFY LOCAL STATE");}
-        else{add(w,&n,XZ_UI_NETWORK_APPLY,0,"APPLY FOR THIS BOOT");add(w,&n,XZ_UI_NETWORK_STEP,XZ_NETWORK_CHOOSE,"EDIT CHOICES");}
-        add(w,&n,XZ_UI_NETWORK_SETUP_OPEN,0,"SET UP NETWORK AGAIN");
+        if(m->network.rollback_available){add(w,&n,XZ_UI_NETWORK_REVERT,0,xz_l10n_authored("REVERT TRIAL / MODS DHCP OFF"));add(w,&n,XZ_UI_NETWORK_STEP,XZ_NETWORK_VERIFY,xz_l10n_authored("VERIFY LOCAL STATE"));}
+        else{add(w,&n,XZ_UI_NETWORK_APPLY,0,xz_l10n_authored("APPLY FOR THIS BOOT"));add(w,&n,XZ_UI_NETWORK_STEP,XZ_NETWORK_CHOOSE,xz_l10n_authored("EDIT CHOICES"));}
+        add(w,&n,XZ_UI_NETWORK_SETUP_OPEN,0,xz_l10n_authored("SET UP NETWORK AGAIN"));
     }return n;
 }
 static void put(struct xz_ui_widget *w,int x,int y,int width,int height){w->x=x;w->y=y;w->w=width;w->h=height;}

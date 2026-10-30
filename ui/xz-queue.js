@@ -94,7 +94,7 @@ window.xzQueue = (() => {
       let badge = host.querySelector('.sr-xz-badge');
       if (!count) { badge?.remove(); continue; }
       if (!badge) { badge = el('span', { class: 'sr-xz-badge' }); host.append(badge); }
-      badge.replaceChildren(el('span', { 'aria-hidden': 'true', text: String(count) }), el('span', { class: 'visually-hidden', text: ', ' + count + (count === 1 ? ' report from your XZ needs' : ' reports from your XZ need') + ' your words' }));
+      badge.replaceChildren(el('span', { 'aria-hidden': 'true', text: String(count) }), el('span', { class: 'visually-hidden', text: ', ' + count + (count === 1 ? XZText(' report from your XZ needs') : XZText(' reports from your XZ need')) + XZText(' your words') }));
     }
     const callout = $('xz-callout'), items = reminding(), show = calloutOn && items.length > 0 && !onPage();
     callout.classList.toggle('hidden', !show);
@@ -102,9 +102,9 @@ window.xzQueue = (() => {
     if (show && text !== calloutText) {
       calloutText = text;
       callout.replaceChildren(icon('i-report'), el('span', { class: 'sr-xz-callout-text', text }),
-        el('span', { class: 'actions' }, plainButton('Add what happened', () => open(reminding()[0]?.report_id), { key: 'xz-callout-open' }),
-          plainButton('Remind me later', () => { calloutOn = false; paint(); }, { text: true, key: 'xz-callout-later' }),
-          plainButton('Stop reminding', () => stop(reminding()), { text: true, key: 'xz-callout-stop' })));
+        el('span', { class: 'actions' }, plainButton(XZText('Add what happened'), () => open(reminding()[0]?.report_id), { key: 'xz-callout-open' }),
+          plainButton(XZText('Remind me later'), () => { calloutOn = false; paint(); }, { text: true, key: 'xz-callout-later' }),
+          plainButton(XZText('Stop reminding'), () => stop(reminding()), { text: true, key: 'xz-callout-stop' })));
     }
     if (!show) calloutText = '';
     redraw();
@@ -136,41 +136,41 @@ window.xzQueue = (() => {
     if (!pending.length && !lastSent) return null;
     const offline = link && !link.connected && pending.length;
     return el('section', { class: 'sr-xz', 'aria-labelledby': 'sr-xz-title' },
-      el('div', { class: 'sr-xz-title-row' }, el('h2', { id: 'sr-xz-title', tabindex: '-1', text: 'From your XZ' }),
-        pending.length ? el('span', { class: 'sr-xz-count', text: pending.length + (pending.length === 1 ? ' report waits' : ' reports wait') + ' for your words' }) : null),
-      pending.length ? el('p', { class: 'sr-xz-lede', text: 'You sent these from the XZ. Add what happened in your own words, then send. The reference stays the same.' }) : null,
-      lastSent ? el('div', { class: 'st-note', dataset: { tone: 'ok' }, role: 'status' }, el('strong', { text: 'Sent. ' }),
-        lastSent.reference + (lastSent.words ? ' now has your words' : ' is complete') + ' and is listed with your reports below.') : null,
-      offline ? el('p', { class: 'sr-xz-offline', text: "This computer can't reach the report service right now. Words you send are kept and go by themselves when it can." }) : null,
-      failure && !pending.length ? el('p', { class: 'sr-xz-offline', text: 'Reports from your XZ could not be read. ' + failure }) : null,
+      el('div', { class: 'sr-xz-title-row' }, el('h2', { id: 'sr-xz-title', tabindex: '-1', text: XZText('From your XZ') }),
+        pending.length ? el('span', { class: 'sr-xz-count', text: pending.length + (pending.length === 1 ? XZText(' report waits') : XZText(' reports wait')) + XZText(' for your words') }) : null),
+      pending.length ? el('p', { class: 'sr-xz-lede', text: XZText('You sent these from the XZ. Add what happened in your own words, then send. The reference stays the same.') }) : null,
+      lastSent ? el('div', { class: 'st-note', dataset: { tone: 'ok' }, role: 'status' }, el('strong', { text: XZText('Sent. ') }),
+        lastSent.reference + (lastSent.words ? XZText(' now has your words') : XZText(' is complete')) + XZText(' and is listed with your reports below.')) : null,
+      offline ? el('p', { class: 'sr-xz-offline', text: XZText("This computer can't reach the report service right now. Words you send are kept and go by themselves when it can.") }) : null,
+      failure && !pending.length ? el('p', { class: 'sr-xz-offline', text: XZText('Reports from your XZ could not be read. ') + failure }) : null,
       pending.length ? el('ol', { class: 'sr-xz-list', 'aria-label': 'Reports from your XZ' }, ...pending.map(p => el('li', {}, item(p)))) : null);
   }
   function item(p) {
     const id = p.report_id, v = view(id), sending = v.state === 'sending', [label, tone] = TOPIC[p.topic] || ['Report', ''];
     const facts = el('dl', { class: 'sr-xz-facts' },
-      el('dt', { text: 'Topic' }), el('dd', { text: p.topic ? W.topic[p.topic]?.[0] || label : 'Not chosen on the XZ' }),
-      el('dt', { text: 'Screen' }), el('dd', { text: screen(p.screen_state) }),
-      el('dt', { text: 'Stick' }), el('dd', { text: stick(p.loader_id) }),
-      ...(p.description ? [el('dt', { text: 'Typed on the XZ' }), el('dd', { class: 'sr-xz-typed', text: p.description })] : []));
+      el('dt', { text: XZText('Topic') }), el('dd', { text: p.topic ? W.topic[p.topic]?.[0] || label : XZText('Not chosen on the XZ') }),
+      el('dt', { text: XZText('Screen') }), el('dd', { text: screen(p.screen_state) }),
+      el('dt', { text: XZText('Stick') }), el('dd', { text: stick(p.loader_id) }),
+      ...(p.description ? [el('dt', { text: XZText('Typed on the XZ') }), el('dd', { class: 'sr-xz-typed', text: p.description })] : []));
     const head = el('div', { class: 'sr-xz-head' }, el('span', { class: 'sr-badge', dataset: { tone: tone || undefined }, text: label }),
       el('strong', { class: 'sr-reference', id: 'xz-ref-' + id, text: p.report_reference }),
-      el('span', { class: 'sr-xz-when', text: 'Sent from your XZ ' + when(p.created_at) }),
-      p.remind ? null : el('span', { class: 'sr-xz-quiet', text: 'No reminders' }));
+      el('span', { class: 'sr-xz-when', text: XZText('Sent from your XZ ') + when(p.created_at) }),
+      p.remind ? null : el('span', { class: 'sr-xz-quiet', text: XZText('No reminders') }));
     const body = [head, facts];
     if (p.completion_pending) {
-      body.push(el('div', { class: 'st-note', dataset: { tone: 'ok' } }, el('strong', { text: 'Saved on this computer. ' }),
-        'It goes to the maintainer by itself when XZ Mods can reach the report service. You can close the app.'));
+      body.push(el('div', { class: 'st-note', dataset: { tone: 'ok' } }, el('strong', { text: XZText('Saved on this computer. ') }),
+        XZText('It goes to the maintainer by itself when XZ Mods can reach the report service. You can close the app.')));
     } else {
       const box = el('textarea', { class: 'sr-box', id: 'xz-text-' + id, rows: '4', spellcheck: 'true', disabled: sending, 'aria-invalid': String(Boolean(v.error)),
         'aria-describedby': 'xz-note-' + id, placeholder: 'Say what you did and what you saw. One sentence is enough.', dataset: { key: 'xz-text-' + id } });
       box.value = v.text;
       const note = el('div', { class: 'sr-box-foot', id: 'xz-note-' + id }, ...countParts(v));
       box.oninput = () => { v.text = box.value; v.error = ''; box.setAttribute('aria-invalid', 'false'); note.replaceChildren(...countParts(v)); };
-      body.push(el('label', { class: 'sr-xz-label', for: 'xz-text-' + id, text: 'What happened?' }), box, note, details(p, v),
+      body.push(el('label', { class: 'sr-xz-label', for: 'xz-text-' + id, text: XZText('What happened?') }), box, note, details(p, v),
         el('div', { class: 'sr-xz-foot' },
-          el('span', { class: 'st-foot-left' }, p.remind ? plainButton('Stop reminding', () => stop([p]), { text: true, key: 'xz-stop-' + id }) : null),
-          plainButton('Send without comments', () => complete(p, null), { key: 'xz-bare-' + id, disabled: sending }),
-          plainButton(sending ? 'Sending...' : 'Send', () => complete(p, v.text), { primary: true, key: 'xz-send-' + id, disabled: sending })));
+          el('span', { class: 'st-foot-left' }, p.remind ? plainButton(XZText('Stop reminding'), () => stop([p]), { text: true, key: 'xz-stop-' + id }) : null),
+          plainButton(XZText('Send without comments'), () => complete(p, null), { key: 'xz-bare-' + id, disabled: sending }),
+          plainButton(sending ? 'Sending...' : XZText('Send'), () => complete(p, v.text), { primary: true, key: 'xz-send-' + id, disabled: sending })));
     }
     body.push(el('p', { class: 'visually-hidden', role: 'status', text: v.message }));
     return el('article', { class: 'sr-xz-item', id: 'xz-item-' + id, 'aria-labelledby': 'xz-ref-' + id, dataset: { remind: p.remind ? '' : undefined, target: id === target ? '' : undefined } }, ...body);
@@ -183,23 +183,23 @@ window.xzQueue = (() => {
   // What the XZ collected, read from the report service only when opened. It went with the report from the XZ,
   // so it is shown as sent; nothing here can add to it or take it back.
   function details(p, v) {
-    if (p.details_expired) return el('p', { class: 'sr-xz-expired', text: 'The collected details were deleted after 14 days. Your words still reach the maintainer.' });
+    if (p.details_expired) return el('p', { class: 'sr-xz-expired', text: XZText('The collected details were deleted after 14 days. Your words still reach the maintainer.') });
     const d = v.details, items = d?.private?.items || [], incident = d?.incident;
     const meta = d ? items.length + (items.length === 1 ? ' source' : ' sources') + (incident ? ' · last ' + Math.max(1, Math.round((incident.before_seconds + incident.after_seconds) / 60)) + ' min' : '') : 'Sent with the report';
-    const panel = el('details', { class: 'sr-details', dataset: { key: 'xz-details-' + p.report_id } }, el('summary', { dataset: { key: 'xz-summary-' + p.report_id } }, el('b', { text: 'Collected details' }), el('span', { class: 'sr-meta', text: meta })));
+    const panel = el('details', { class: 'sr-details', dataset: { key: 'xz-details-' + p.report_id } }, el('summary', { dataset: { key: 'xz-summary-' + p.report_id } }, el('b', { text: XZText('Collected details') }), el('span', { class: 'sr-meta', text: meta })));
     panel.open = v.open;
     panel.ontoggle = () => { v.open = panel.open; if (panel.open && !v.details) readDetails(p); };
     const body = el('div', { class: 'sr-detail-body' });
-    if (v.detailsError) body.append(el('p', { class: 'fine', text: v.detailsError }), el('div', { class: 'actions' }, plainButton('Try again', () => readDetails(p), { key: 'xz-details-again-' + p.report_id })));
-    else if (!d) body.append(el('p', { class: 'fine', text: 'Reading the details...' }));
+    if (v.detailsError) body.append(el('p', { class: 'fine', text: v.detailsError }), el('div', { class: 'actions' }, plainButton(XZText('Try again'), () => readDetails(p), { key: 'xz-details-again-' + p.report_id })));
+    else if (!d) body.append(el('p', { class: 'fine', text: XZText('Reading the details...') }));
     else {
-      body.append(el('p', { class: 'fine', text: 'The XZ collected these when you pressed Send, already cleaned: no track names, file paths or serial numbers. They went with the report and are deleted 14 days after it was sent.' }));
-      if (!items.length) body.append(el('p', { class: 'fine', text: 'The XZ sent no logs with this report, only the screen it was on.' }));
+      body.append(el('p', { class: 'fine', text: XZText('The XZ collected these when you pressed Send, already cleaned: no track names, file paths or serial numbers. They went with the report and are deleted 14 days after it was sent.') }));
+      if (!items.length) body.append(el('p', { class: 'fine', text: XZText('The XZ sent no logs with this report, only the screen it was on.') }));
       else body.append(el('ul', { class: 'sr-items sr-xz-items' }, ...items.map(entry => {
         const open = v.preview === entry.item_id, lines = (entry.facts || []).length;
         return el('li', { class: 'sr-item' }, el('span', { class: 'sr-xz-source', text: (W.sources[entry.source_id] || entry.source_id.replace(/_/g, ' ')) + ' · ' + (SLOTS[entry.source_slot] || 'USB ' + entry.source_slot.slice(-1).toUpperCase()) }),
           el('small', { text: lines + (lines === 1 ? ' line' : ' lines') }),
-          plainButton(open ? 'Hide' : 'Show', () => { v.preview = open ? null : entry.item_id; redraw(); }, { text: true, key: 'xz-show-' + entry.item_id }),
+          plainButton(open ? XZText('Hide') : XZText('Show'), () => { v.preview = open ? null : entry.item_id; redraw(); }, { text: true, key: 'xz-show-' + entry.item_id }),
           open ? el('pre', { class: 'sr-preview', tabindex: '0', 'aria-label': 'Exact content sent', text: JSON.stringify(entry, null, 1) }) : null);
       })));
     }
@@ -237,15 +237,15 @@ window.xzQueue = (() => {
   // Your XZ sticks: which loaders may send reports to this computer, and Revoke.
   function sticks() {
     const loaders = [...(identity?.loaders || [])].sort((a, b) => Number(a.revoked) - Number(b.revoked) || String(b.created_at).localeCompare(String(a.created_at)));
-    const parts = [el('h3', { class: 'sr-section-title', id: 'xz-sticks-title', tabindex: '-1', text: 'Your XZ sticks' })];
-    if (!identity) parts.push(el('p', { class: 'fine', text: failure ? 'Your XZ sticks could not be read. ' + failure : 'Reading your XZ sticks...' }));
-    else if (!loaders.length) parts.push(el('div', { class: 'st-note sr-xz-sticks-setup', dataset: { tone: 'setup' } }, el('strong', { text: 'No XZ sticks yet. ' }),
-      'Write XZ Mods to a USB stick and the XZ can send reports from it straight to this app.',
-      el('div', { class: 'actions' }, plainButton('Set up a USB', () => showPage('setup'), { primary: true, key: 'xz-setup-usb' }))));
+    const parts = [el('h3', { class: 'sr-section-title', id: 'xz-sticks-title', tabindex: '-1', text: XZText('Your XZ sticks') })];
+    if (!identity) parts.push(el('p', { class: 'fine', text: failure ? XZText('Your XZ sticks could not be read. ') + failure : XZText('Reading your XZ sticks...') }));
+    else if (!loaders.length) parts.push(el('div', { class: 'st-note sr-xz-sticks-setup', dataset: { tone: 'setup' } }, el('strong', { text: XZText('No XZ sticks yet. ') }),
+      XZText('Write XZ Mods to a USB stick and the XZ can send reports from it straight to this app.'),
+      el('div', { class: 'actions' }, plainButton(XZText('Set up a USB'), () => showPage('setup'), { primary: true, key: 'xz-setup-usb' }))));
     else {
-      parts.push(el('p', { class: 'sr-xz-sticks-lede', text: 'These sticks can send reports from the XZ to this computer. Revoke one you lost or gave away. Writing XZ Mods to it again gives it a new key.' }),
+      parts.push(el('p', { class: 'sr-xz-sticks-lede', text: XZText('These sticks can send reports from the XZ to this computer. Revoke one you lost or gave away. Writing XZ Mods to it again gives it a new key.') }),
         el('ul', { class: 'sr-loaders', 'aria-labelledby': 'xz-sticks-title' }, ...loaders.map(loaderRow)));
-      if (!identity.registered) parts.push(el('p', { class: 'fine', text: 'This computer registers with the report service the next time it is online.' }));
+      if (!identity.registered) parts.push(el('p', { class: 'fine', text: XZText('This computer registers with the report service the next time it is online.') }));
     }
     parts.push(el('p', { class: 'fine sr-xz-sticks-status', role: 'status', text: sticksView.message }));
     return el('section', { class: 'sr-xz-sticks', 'aria-labelledby': 'xz-sticks-title' }, ...parts);
@@ -257,10 +257,10 @@ window.xzQueue = (() => {
     return el('li', { class: 'sr-loader', dataset: { state: tone } }, icon('i-usb'),
       el('span', { class: 'sr-loader-name' }, el('strong', { class: 'sr-reference', text: l.loader_id }), el('small', { text: 'Written ' + day(l.created_at) })),
       el('span', { class: 'sr-tag', dataset: { tone }, text: state }),
-      done ? el('span') : plainButton('Revoke', () => { sticksView.confirm = l.loader_id; sticksView.message = ''; redraw(); document.querySelector('[data-key="xz-revoke-no"]')?.focus(); }, { key: 'xz-revoke-' + l.loader_id }),
-      confirming ? el('div', { class: 'sr-confirm' }, 'Revoke ' + l.loader_id + '? The XZ can no longer send reports from this stick. Writing XZ Mods to it again gives it a new key.',
-        el('div', { class: 'actions' }, plainButton('Revoke this stick', () => revoke(l), { primary: true, key: 'xz-revoke-yes' }),
-          plainButton('Keep it', () => { sticksView.confirm = null; redraw(); document.querySelector('[data-key="xz-revoke-' + CSS.escape(l.loader_id) + '"]')?.focus(); }, { key: 'xz-revoke-no' }))) : null);
+      done ? el('span') : plainButton(XZText('Revoke'), () => { sticksView.confirm = l.loader_id; sticksView.message = ''; redraw(); document.querySelector('[data-key="xz-revoke-no"]')?.focus(); }, { key: 'xz-revoke-' + l.loader_id }),
+      confirming ? el('div', { class: 'sr-confirm' }, 'Revoke ' + l.loader_id + XZText('? The XZ can no longer send reports from this stick. Writing XZ Mods to it again gives it a new key.'),
+        el('div', { class: 'actions' }, plainButton(XZText('Revoke this stick'), () => revoke(l), { primary: true, key: 'xz-revoke-yes' }),
+          plainButton(XZText('Keep it'), () => { sticksView.confirm = null; redraw(); document.querySelector('[data-key="xz-revoke-' + CSS.escape(l.loader_id) + '"]')?.focus(); }, { key: 'xz-revoke-no' }))) : null);
   }
   async function revoke(l) {
     sticksView.confirm = null; l.revocation_pending = true; redraw();

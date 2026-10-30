@@ -25,6 +25,7 @@
 struct xz_shell_runtime_key { int valid; char text[8]; char original[8]; int cents, synced; int matches_master, shift; };
 #define XZ_SHELL_RUNTIME_DJ 32
 struct xz_shell_runtime_frame_input {
+ unsigned controller_locale;
  int eligible, theme;
  int key_controls_open; /* transient PLAY overlay, forces a clean frame beneath it */
  struct xz_shell_runtime_key key[XZ_SHELL_NATIVE_DECKS];
