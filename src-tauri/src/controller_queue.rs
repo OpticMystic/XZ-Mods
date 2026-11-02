@@ -1,7 +1,7 @@
 use crate::{controller_identity as identity, support, support_store as store};
 use reqwest::Method;
 use serde_json::{json, Value};
-use std::{io::{Read, Write}, path::{Path,PathBuf}, process::{Command,Stdio}, sync::{Arc,Mutex,atomic::{AtomicBool,Ordering}}, time::Duration};
+use std::{io::{Read, Write}, path::{Path,PathBuf}, process::Stdio, sync::{Arc,Mutex,atomic::{AtomicBool,Ordering}}, time::Duration};
 use tauri::{Emitter,Manager};
 
 #[derive(Default)]
@@ -11,7 +11,7 @@ impl Drop for Running<'_> {fn drop(&mut self){self.0.store(false,Ordering::Relea
 
 // Internal operations bypass renderer job state: loader keys never enter JS or logs.
 fn backend_at(resources:&Path,data:&Path,request:&Value)->Result<Value,String> {
-    let mut command=Command::new(resources.join("backend").join(crate::host::executable("xz-mods-service")));
+    let mut command=crate::host::backend_command(resources);
     command.env("XZ_BUILDER_RESOURCES",resources).env("XZ_BUILDER_DATA",data).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
     #[cfg(windows)] {use std::os::windows::process::CommandExt;command.creation_flags(0x08000000);}
     let mut child=command.spawn().map_err(|_|"Controller file reader unavailable")?;
@@ -331,7 +331,7 @@ fn enqueue_completion(root:&Path,id:&str,comments:Option<&str>)->Result<(),Strin
         prepare_loader_at(&resources,&data,&root,&mut request).unwrap();
         // start_job's backend launch, without a window.
         let cancel=base.join("job.cancel");
-        let mut child=Command::new(resources.join("backend").join(crate::host::executable("xz-mods-service")))
+        let mut child=crate::host::backend_command(&resources)
             .env("XZ_BUILDER_RESOURCES",&resources).env("XZ_BUILDER_CANCEL_FILE",&cancel).env("XZ_BUILDER_DATA",&data)
             .env("XZ_AUDIO_HELPER",resources.join(crate::host::executable("xz-audio-helper")))
             .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::inherit()).spawn().unwrap();

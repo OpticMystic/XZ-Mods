@@ -11,7 +11,8 @@ const NONCE:usize=12;
 const KEY:usize=32;
 
 fn key_dir()->Result<PathBuf,String>{
-    #[cfg(test)] { return Ok(std::env::temp_dir().join(format!("xz-private-storage-test-{}",std::process::id()))); }
+    // Tests resolve the temp folder: on macOS it sits under /var, a symlink that unlinked() refuses.
+    #[cfg(test)] { return Ok(std::env::temp_dir().canonicalize().map_err(|_|"Temp folder unavailable")?.join(format!("xz-private-storage-test-{}",std::process::id()))); }
     #[allow(unreachable_code)]
     {
         let home=std::env::var_os("HOME").filter(|h|!h.is_empty()).ok_or("Private storage folder unavailable")?;

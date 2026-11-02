@@ -141,7 +141,10 @@ pub fn support_forget(app:tauri::AppHandle,id:String)->Result<Value,String>{let 
  use super::*;
  pub(crate) fn temp(name:&str)->PathBuf{
   let base=std::env::var_os("XZ_SUPPORT_TEST_OUTPUT").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-  let p=base.join(format!("{name}-{}-{}",std::process::id(),hash(format!("{:?}",std::time::Instant::now()).as_bytes())[..8].to_string()));std::fs::create_dir_all(&p).unwrap();p
+  let p=base.join(format!("{name}-{}-{}",std::process::id(),hash(format!("{:?}",std::time::Instant::now()).as_bytes())[..8].to_string()));std::fs::create_dir_all(&p).unwrap();
+  // macOS temp lives under /var, a symlink to /private/var; report paths refuse linked ancestors.
+  #[cfg(unix)] let p=p.canonicalize().unwrap();
+  p
  }
  fn receipt(id:&str)->Receipt{Receipt::from_report(id,&"b".repeat(64),&"c".repeat(64),100,&json!({"schema":"xz-support-report/2","kind_hint":"BUG","reporter_hints":{"topic":"NOT_WORKING"},"description":"Decks 3 and 4   went\nsilent after the cable was moved during a long set at the club tonight, twice."}))}
  #[test]fn sealed_record_holds_the_key_and_the_view_never_does(){

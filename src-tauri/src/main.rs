@@ -98,8 +98,7 @@ fn start_job(app: tauri::AppHandle, mut request: Value) -> Result<u64,String> {
     std::thread::spawn(move || {
         let result=(|| -> Result<(),String> {
             if matches!(request["method"].as_str(),Some("prepare_usb"|"build_usb"|"update_usb")) {controller_queue::prepare_loader(&app,&mut request)?;}
-            let backend=root.join("backend").join(host::executable("xz-mods-service"));
-            let mut command=Command::new(backend);
+            let mut command=host::backend_command(&root);
             command.env("XZ_BUILDER_RESOURCES",&root).env("XZ_BUILDER_CANCEL_FILE",&cancel)
                 .env("XZ_BUILDER_DATA",app.path().app_local_data_dir().map_err(|e|e.to_string())?)
                 .env("XZ_AUDIO_HELPER",root.join(host::executable("xz-audio-helper")))
