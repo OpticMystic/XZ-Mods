@@ -53,7 +53,19 @@ fn created_at() -> Result<String,String> {
         let mut t=SystemTime::default();unsafe { GetSystemTime(&mut t); }
         Ok(format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",t.year,t.month,t.day,t.hour,t.minute,t.second,t.millis))
     }
-    #[cfg(not(windows))] { Err("Loader identities need Windows private storage".into()) }
+    #[cfg(not(windows))] {
+        let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|_|"System clock is before 1970")?;
+        Ok(utc_iso(now.as_secs(),now.subsec_millis()))
+    }
+}
+// Civil UTC date from seconds since 1970-01-01 (Howard Hinnant's civil_from_days).
+#[cfg(any(not(windows),test))]
+fn utc_iso(secs:u64,millis:u32)->String {
+    let (days,seconds)=((secs/86400) as i64,secs%86400);
+    let z=days+719468;let era=z.div_euclid(146097);let doe=z-era*146097;
+    let yoe=(doe-doe/1460+doe/36524-doe/146096)/365;let doy=doe-(365*yoe+yoe/4-yoe/100);
+    let mp=(5*doy+2)/153;let day=doy-(153*mp+2)/5+1;let month=if mp<10{mp+3}else{mp-9};let year=yoe+era*400+i64::from(month<=2);
+    format!("{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}.{millis:03}Z",seconds/3600,seconds/60%60,seconds%60)
 }
 pub(crate) fn canonical_installation(id:&str)->bool { contract::parse_installation_id(id).and_then(contract::format_installation_id).as_deref()==Some(id) }
 pub(crate) fn canonical_loader(id:&str)->bool { contract::parse_loader_id(id).and_then(contract::format_loader_id).as_deref()==Some(id) }
@@ -74,7 +86,15 @@ pub(crate) fn lock(root:&Path)->Result<File,String> {
     let path=root.join("controller-identity.lock");support::unlinked(&path)?;
     let mut options=OpenOptions::new();options.read(true).write(true).create(true).truncate(false);
     #[cfg(windows)] { use std::os::windows::fs::OpenOptionsExt;options.share_mode(0); }
-    options.open(path).map_err(|_|"Another window is checking controller reports".into())
+    let file=options.open(path).map_err(|_|"Another window is checking controller reports")?;
+    // Outside Windows an open file is not exclusive; an advisory flock is the same guard.
+    #[cfg(not(windows))] {
+        use std::os::unix::io::AsRawFd;
+        extern "C" { fn flock(fd:i32,operation:i32)->i32; }
+        const LOCK_EX:i32=2;const LOCK_NB:i32=4;
+        if unsafe { flock(file.as_raw_fd(),LOCK_EX|LOCK_NB) }!=0 { return Err("Another window is checking controller reports".into()); }
+    }
+    Ok(file)
 }
 pub(crate) fn seal(path:&Path,value:&impl Serialize)->Result<(),String> {
     support::unlinked(path)?;
@@ -138,7 +158,14 @@ impl Installation {
         assert!(v.chars().all(|c|c.is_ascii_digit()||c.is_ascii_lowercase()||c=='.'||c=='-'||c=='+'),"{v}");
         assert!(v.eq_ignore_ascii_case(env!("CARGO_PKG_VERSION")));
     }
-    #[cfg(windows)] #[test] fn identity_is_private_stable_and_rotation_waits_for_verified_write() {
+    #[test] fn utc_timestamps_match_known_dates() {
+        assert_eq!(utc_iso(0,0),"1970-01-01T00:00:00.000Z");
+        assert_eq!(utc_iso(951_782_400,5),"2000-02-29T00:00:00.005Z");
+        assert_eq!(utc_iso(1_793_577_599,999),"2026-11-01T23:59:59.999Z");
+        assert_eq!(utc_iso(4_107_542_400,0),"2100-03-01T00:00:00.000Z");
+        let now=created_at().unwrap();assert_eq!(now.len(),24);assert!(now.ends_with('Z'));
+    }
+    #[test] fn identity_is_private_stable_and_rotation_waits_for_verified_write() {
         let root=crate::support_store::tests::temp("controller-identity");let guard=lock(&root).unwrap();let mut install=load(&root).unwrap();
         assert_eq!(load(&root).unwrap().installation_key,install.installation_key);
         let first=install.stage(None).unwrap();save(&root,&install).unwrap();
@@ -152,7 +179,7 @@ impl Installation {
         let view=restarted.view().to_string();assert!(!view.contains(&second.loader_key)&&!view.contains(&install.installation_key));
         assert!(lock(&root).is_err());drop(guard);assert!(lock(&root).is_ok());
     }
-    #[cfg(windows)] #[test] fn a_foreign_stick_gets_a_new_identity_and_corrupt_state_is_never_reset() {
+    #[test] fn a_foreign_stick_gets_a_new_identity_and_corrupt_state_is_never_reset() {
         let root=crate::support_store::tests::temp("controller-foreign");let _guard=lock(&root).unwrap();let mut install=load(&root).unwrap();
         let mut foreign:LoaderIdentity=serde_json::from_str(include_str!("../../spec/fixtures/loader-identity.json")).unwrap();foreign.installation_id="I-0000-0000".into();
         let new=install.stage(Some(&foreign)).unwrap();assert_ne!(new.loader_id,foreign.loader_id);

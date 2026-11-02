@@ -6,6 +6,7 @@ mod support;
 mod support_store;
 mod support_tracking;
 mod controller_identity;
+#[cfg(not(windows))] mod private_storage;
 mod controller_queue;
 mod controller_notify;
 mod app_updates;

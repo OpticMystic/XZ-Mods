@@ -312,7 +312,7 @@ fn enqueue_completion(root:&Path,id:&str,comments:Option<&str>)->Result<(),Strin
         let id="a".repeat(32);let mut p=pending(&id,"I-4F7K-2M9Q");assert!(pending_projection(&p,"I-4F7K-2M9Q").is_ok());assert!(pending_projection(&p,"I-0000-0000").is_err());
         p["screen_state"]=json!({"title":"track"});assert!(pending_projection(&p,"I-4F7K-2M9Q").is_err());
     }
-    #[cfg(windows)] #[tokio::test] async fn offline_registration_is_persisted_and_retry_transmits_hashes_only() {
+    #[tokio::test] async fn offline_registration_is_persisted_and_retry_transmits_hashes_only() {
         let root=store::tests::temp("controller-register");let _lock=identity::lock(&root).unwrap();let mut install=identity::load(&root).unwrap();let candidate=install.stage(None).unwrap();assert!(install.reconcile(&candidate));identity::save(&root,&install).unwrap();
         assert!(register(&root,"http://127.0.0.1:1",&mut install,&AtomicBool::new(false)).await.is_err());assert!(!identity::load(&root).unwrap().registered);
         let (origin,server)=support::focused_tests::server(vec![support::focused_tests::ok(&json!({"installation_id":install.installation_id,"registered":true})),support::focused_tests::ok(&json!({"loader_id":candidate.loader_id,"registered":true}))]);
@@ -320,7 +320,7 @@ fn enqueue_completion(root:&Path,id:&str,comments:Option<&str>)->Result<(),Strin
         assert!(!requests.join("").contains(&candidate.loader_key));assert!(requests[1].contains(&support::hash(candidate.loader_key.as_bytes())));
         assert!(identity::load(&root).unwrap().registered);assert!(install.loaders[0].registered_hash.is_some());
     }
-    #[cfg(windows)] #[tokio::test] async fn claim_stores_receipt_in_dpapi_and_completion_retry_keeps_exact_comments() {
+    #[tokio::test] async fn claim_stores_receipt_in_dpapi_and_completion_retry_keeps_exact_comments() {
         let root=store::tests::temp("controller-claim");let install=identity::load(&root).unwrap();let id="a".repeat(32);let p=pending(&id,&install.installation_id);
         let receipt=support::focused_tests::receipt(&id,&"e".repeat(64),1,"received","received");
         let (origin,server)=support::focused_tests::server(vec![support::focused_tests::ok(&json!({"receipt_key":"f".repeat(64),"receipt":receipt,"bytes":100,"pending":p}))]);
@@ -331,7 +331,7 @@ fn enqueue_completion(root:&Path,id:&str,comments:Option<&str>)->Result<(),Strin
         let (origin,server)=support::focused_tests::server(vec![support::focused_tests::ok(&json!({"report_reference":"R-4F7K-2M9Q","comments_pending":false,"comments_state":"completed","receipt":receipt}))]);
         flush(&root,&origin,&AtomicBool::new(false)).await.unwrap();let sent=server.join().unwrap();assert!(sent[0].contains("My comments"));assert!(list(&root)["pending"].as_array().unwrap().is_empty());
     }
-    #[cfg(windows)] #[tokio::test] async fn revocation_recovers_a_lost_rotation_response() {
+    #[tokio::test] async fn revocation_recovers_a_lost_rotation_response() {
         let root=store::tests::temp("controller-revoke");let mut install=identity::load(&root).unwrap();install.registered=true;
         let first=install.stage(None).unwrap();install.reconcile(&first);let previous=support::hash(first.loader_key.as_bytes());install.loaders[0].registered_hash=Some(previous.clone());
         let next=install.stage(Some(&first)).unwrap();install.reconcile(&next);install.loaders[0].revoke=true;
@@ -341,7 +341,7 @@ fn enqueue_completion(root:&Path,id:&str,comments:Option<&str>)->Result<(),Strin
         register(&root,&origin,&mut install,&AtomicBool::new(false)).await.unwrap();let requests=server.join().unwrap();
         assert!(requests[0].contains(&support::hash(next.loader_key.as_bytes())));assert!(requests[1].contains(&previous));assert!(install.loaders[0].revoked);
     }
-    #[cfg(windows)] #[test] fn dismissal_expiry_and_without_comments_have_separate_local_state() {
+    #[test] fn dismissal_expiry_and_without_comments_have_separate_local_state() {
         let root=store::tests::temp("controller-dismiss");let id="a".repeat(32);let mut p=pending(&id,"I-4F7K-2M9Q");
         save_pending(&root,&id,&json!({"pending":p,"dismissed":true})).unwrap();assert_eq!(list(&root)["pending"][0]["remind"],false);
         p["reminders_until"]=json!(0);save_pending(&root,&id,&json!({"pending":p})).unwrap();assert_eq!(list(&root)["pending"][0]["remind"],false);

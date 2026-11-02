@@ -98,7 +98,11 @@ pub(crate) async fn exchange(origin:&str,method:reqwest::Method,path:&str,key:&s
 pub fn support_cancel(state:tauri::State<Support>){state.cancel.store(true,Ordering::Release);}
 pub(crate) fn open(url:&str)->Result<(),String>{
  #[cfg(windows)] {use std::os::windows::process::CommandExt;std::process::Command::new("rundll32.exe").args(["url.dll,FileProtocolHandler",url]).creation_flags(0x08000000).spawn().map_err(|_|"Browser unavailable")?;Ok(())}
- #[cfg(not(windows))] {let _=url;Err("Open the status page on Windows".into())}
+ #[cfg(not(windows))] {
+  if !url.starts_with("https://"){return Err("Browser unavailable".into())}
+  let opener=if cfg!(target_os="macos"){"/usr/bin/open"}else{"xdg-open"};
+  std::process::Command::new(opener).arg(url).spawn().map_err(|_|"Browser unavailable")?;Ok(())
+ }
 }
 fn iso(v:&Value)->Option<String>{
  v.as_str().filter(|s|(20..=32).contains(&s.len())&&s.as_bytes()[4]==b'-'&&s.ends_with('Z')&&s.bytes().all(|b|b.is_ascii_digit()||b"-:.TZ".contains(&b))).map(str::to_string)
@@ -145,7 +149,8 @@ pub async fn support_export(app:tauri::AppHandle,state:tauri::State<'_,Support>,
  let selected=app.dialog().file().set_file_name("Private XZ Mods report.json").add_filter("Private report",&["json"]).blocking_save_file();
  if let Some(path)=selected{let path=path.into_path().map_err(|_|"Invalid export path")?;std::fs::write(path,&d.body).map_err(|_|"Export failed")?;Ok(json!({"exported":true}))}else{Ok(json!({"exported":false}))}
 }
-// Owner credentials are protected by Windows DPAPI for the current OS user. Receipt records use the same.
+// Owner credentials are protected by Windows DPAPI for the current OS user (private_storage.rs elsewhere).
+// Receipt records and controller identities use the same.
 #[cfg(windows)]
 pub(crate) fn protect(input:&[u8],decrypt:bool)->Result<Vec<u8>,String>{
  #[repr(C)]struct Blob{len:u32,data:*mut u8}
@@ -155,7 +160,7 @@ pub(crate) fn protect(input:&[u8],decrypt:bool)->Result<Vec<u8>,String>{
  let ok=unsafe{if decrypt{CryptUnprotectData(&i,std::ptr::null_mut(),std::ptr::null(),std::ptr::null_mut(),std::ptr::null_mut(),1,&mut o)}else{CryptProtectData(&i,std::ptr::null(),std::ptr::null(),std::ptr::null_mut(),std::ptr::null_mut(),1,&mut o)}};
  if ok==0{return Err("Windows private key storage unavailable".into())}let result=unsafe{std::slice::from_raw_parts(o.data,o.len as usize).to_vec()};unsafe{LocalFree(o.data);}Ok(result)
 }
-#[cfg(not(windows))]pub(crate) fn protect(_: &[u8],_:bool)->Result<Vec<u8>,String>{Err("Reports and the owner connection need Windows private storage".into())}
+#[cfg(not(windows))]pub(crate) use crate::private_storage::protect;
 #[tauri::command]
 pub fn support_connect(app:tauri::AppHandle,key:String)->Result<Value,String>{
  if key.len()<32||key.len()>256||!key.bytes().all(|c|c.is_ascii_graphic()){return Err("Invalid report-only owner key".into())}

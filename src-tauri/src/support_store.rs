@@ -144,7 +144,7 @@ pub fn support_forget(app:tauri::AppHandle,id:String)->Result<Value,String>{let 
   let p=base.join(format!("{name}-{}-{}",std::process::id(),hash(format!("{:?}",std::time::Instant::now()).as_bytes())[..8].to_string()));std::fs::create_dir_all(&p).unwrap();p
  }
  fn receipt(id:&str)->Receipt{Receipt::from_report(id,&"b".repeat(64),&"c".repeat(64),100,&json!({"schema":"xz-support-report/2","kind_hint":"BUG","reporter_hints":{"topic":"NOT_WORKING"},"description":"Decks 3 and 4   went\nsilent after the cable was moved during a long set at the club tonight, twice."}))}
- #[cfg(windows)]#[test]fn sealed_record_holds_the_key_and_the_view_never_does(){
+ #[test]fn sealed_record_holds_the_key_and_the_view_never_does(){
   let dir=temp("receipts");let r=receipt(&"a".repeat(32));begin_send(&dir,&r).unwrap();
   let sealed=std::fs::read(dir.join(format!("{}.dpapi","a".repeat(32)))).unwrap();
   assert!(!String::from_utf8_lossy(&sealed).contains(&"b".repeat(64)),"key is not stored in plaintext");
@@ -166,11 +166,11 @@ pub fn support_forget(app:tauri::AppHandle,id:String)->Result<Value,String>{let 
   let root=temp("forget-root");forget(&dir,&root,&"a".repeat(32)).unwrap();assert!(list(&dir).is_empty());assert!(forget(&dir,&root,&"a".repeat(32)).is_err());
   assert!(load(&dir,"../owner-key").is_err());
  }
- #[cfg(windows)]#[test]fn receipt_list_is_bounded(){
+ #[test]fn receipt_list_is_bounded(){
   let dir=temp("receipt-limit");for i in 0..RECEIPT_LIMIT{begin_send(&dir,&receipt(&format!("{i:032x}"))).unwrap();}
   assert!(begin_send(&dir,&receipt(&"f".repeat(32))).unwrap_err().contains("full"));assert_eq!(list(&dir).len(),RECEIPT_LIMIT);
  }
- #[cfg(windows)]#[test]fn legacy_sent_drafts_move_into_protected_storage_once(){
+ #[test]fn legacy_sent_drafts_move_into_protected_storage_once(){
   let root=temp("legacy");let dir=dir_for(&root).unwrap();
   let write=|id:&str,schema:&str,marker:Option<&str>|{
    let body=serde_json::to_string(&json!({"schema":schema,"report_id":id,"public_issue":{"title":"Four decks unavailable","description":"Steps"},"description":"Silent decks","private":{"items":[]}})).unwrap();

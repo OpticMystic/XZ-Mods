@@ -23,6 +23,10 @@ tokio = { version = "1", features = ["time", "macros"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 
+[target.'cfg(not(windows))'.dependencies]
+# Already locked through rustls; seals private records outside Windows (src/private_storage.rs).
+ring = "0.17"
+
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = ["Foundation", "Data_Xml_Dom", "UI_Notifications"] }
 

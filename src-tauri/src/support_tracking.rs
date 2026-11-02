@@ -138,7 +138,7 @@ pub async fn support_revoke_links(app:tauri::AppHandle,id:String)->Result<Value,
    let mut bad=status(&id,2,"received","received");bad[field]=value;assert!(projection(&bad,&id).is_err(),"{field}");
   }
  }
- #[cfg(windows)]#[tokio::test]async fn old_cached_status_gets_identifiers_without_an_etag_and_reference_cannot_change(){
+ #[tokio::test]async fn old_cached_status_gets_identifiers_without_an_etag_and_reference_cannot_change(){
   let dir=crate::support_store::tests::temp("identifier-upgrade");let id="a".repeat(32);let sha="c".repeat(64);
   let r=Receipt::from_report(&id,&"b".repeat(64),&sha,10,&json!({"schema":"xz-support-report/2","description":"x"}));store::begin_send(&dir,&r).unwrap();
   let first=support::validate_receipt(&receipt(&id,&sha,1,"received","received"),&id,&sha,true).unwrap();store::accept(&dir,&id,&first,store::now()).unwrap();
@@ -156,7 +156,7 @@ pub async fn support_revoke_links(app:tauri::AppHandle,id:String)->Result<Value,
   assert_eq!(read_capability(&key),hash(format!("xz-support/read/v2\n{key}").as_bytes()));
   assert!(url.starts_with(&format!("https://support.example/track#id={}&read=","a".repeat(32))));assert!(!url.contains('?'));assert!(!url.contains(&key));
  }
- #[cfg(windows)]#[tokio::test]async fn actual_status_checks_store_changes_honour_304_and_back_off(){
+ #[tokio::test]async fn actual_status_checks_store_changes_honour_304_and_back_off(){
   let dir=crate::support_store::tests::temp("tracking");let id="a".repeat(32);let sha="c".repeat(64);
   let r=Receipt::from_report(&id,&"b".repeat(64),&sha,10,&json!({"schema":"xz-support-report/2","description":"x"}));store::begin_send(&dir,&r).unwrap();
   let first=support::validate_receipt(&receipt(&id,&sha,1,"received","received"),&id,&sha,true).unwrap();store::accept(&dir,&id,&first,store::now()).unwrap();
@@ -171,7 +171,7 @@ pub async fn support_revoke_links(app:tauri::AppHandle,id:String)->Result<Value,
   let failed=check_all("http://127.0.0.1:1",&dir,true,None,&AtomicBool::new(false)).await;assert_eq!(failed["failed"],1);
   let (_,state)=store::load(&dir,&id).unwrap();assert_eq!(state["tracking"]["lifecycle"],"needs_info");assert!(state["next_check_at"].as_u64().unwrap()>store::now()+ACTIVE_INTERVAL);
  }
- #[cfg(windows)]#[tokio::test]async fn actual_unconfirmed_send_is_recovered_by_receipt_not_reupload(){
+ #[tokio::test]async fn actual_unconfirmed_send_is_recovered_by_receipt_not_reupload(){
   let dir=crate::support_store::tests::temp("recover");let id="a".repeat(32);let sha="c".repeat(64);
   let r=Receipt::from_report(&id,&"b".repeat(64),&sha,10,&json!({"schema":"xz-support-report/2","description":"x"}));store::begin_send(&dir,&r).unwrap();
   store::mark_unconfirmed(&dir,&id,"OutcomeUnknown: cancelled").unwrap();

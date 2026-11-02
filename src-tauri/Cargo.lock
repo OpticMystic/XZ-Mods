@@ -5141,6 +5141,7 @@ name = "xz-mods-builder"
 version = "0.5.1-Beta"
 dependencies = [
  "reqwest",
+ "ring",
  "rustls",
  "semver",
  "serde",
