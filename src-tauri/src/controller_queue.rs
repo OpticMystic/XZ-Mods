@@ -39,12 +39,16 @@ pub(crate) fn backend(app:&tauri::AppHandle,request:&Value)->Result<Value,String
     backend_at(&crate::resource_root(app)?,&app.path().app_local_data_dir().map_err(|_|"App data unavailable")?,request)
 }
 pub(crate) fn prepare_loader(app:&tauri::AppHandle,request:&mut Value)->Result<(),String> {
+    prepare_loader_at(&crate::resource_root(app)?,&app.path().app_local_data_dir().map_err(|_|"App data unavailable")?,&support::root(app)?,request)
+}
+// Path-based so the Mac end-to-end test below runs the same steps without a window.
+fn prepare_loader_at(resources:&Path,data:&Path,root:&Path,request:&mut Value)->Result<(),String> {
     let volume=request["volume"].as_str().ok_or("Choose a loader destination")?;
-    let observed=backend(app,&json!({"method":"controller_identity","volume":volume}))?;
+    let observed=backend_at(resources,data,&json!({"method":"controller_identity","volume":volume}))?;
     let previous=if observed["loader_identity"].is_null(){None}else{Some(serde_json::from_value::<identity::LoaderIdentity>(observed["loader_identity"].clone()).map_err(|_|"Invalid loader identity")?)};
-    let root=support::root(app)?;let _lock=identity::lock(&root)?;let mut install=identity::load(&root)?;
+    let _lock=identity::lock(root)?;let mut install=identity::load(root)?;
     let candidate=install.stage(previous.as_ref())?;
-    identity::save(&root,&install)?;
+    identity::save(root,&install)?;
     request["_loader_identity"]=serde_json::to_value(candidate).map_err(|_|"Invalid loader identity")?;
     request["_previous_loader_identity"]=observed["loader_identity"].clone();
     request["_loader_volume_identity"]=observed["identity"].clone();
@@ -52,11 +56,14 @@ pub(crate) fn prepare_loader(app:&tauri::AppHandle,request:&mut Value)->Result<(
 }
 pub(crate) fn finish_loader(app:&tauri::AppHandle,request:&Value,event:&Value)->Result<(),String> {
     if event["ok"]!=true || request["_loader_identity"].is_null(){return Ok(());}
+    finish_loader_at(&support::root(app)?,request,event)?;wake(app.clone());Ok(())
+}
+fn finish_loader_at(root:&Path,request:&Value,event:&Value)->Result<(),String> {
     let candidate:identity::LoaderIdentity=serde_json::from_value(request["_loader_identity"].clone()).map_err(|_|"Invalid loader identity")?;
     if event["result"]["loader_identity"]["loader_id"]!=candidate.loader_id{return Err("Loader identity write was not confirmed".into());}
-    let root=support::root(app)?;let _lock=identity::lock(&root)?;let mut install=identity::load(&root)?;
+    let _lock=identity::lock(root)?;let mut install=identity::load(root)?;
     if !install.reconcile(&candidate){return Err("Loader identity write could not be recorded".into());}
-    identity::save(&root,&install)?;drop(_lock);wake(app.clone());Ok(())
+    identity::save(root,&install)
 }
 
 async fn post(origin:&str,path:&str,key:&str,body:&Value,cancel:&AtomicBool)->Result<Value,String> {
@@ -307,6 +314,42 @@ fn enqueue_completion(root:&Path,id:&str,comments:Option<&str>)->Result<(),Strin
 
 #[cfg(test)] mod tests {
     use super::*;
+    // End to end with a packaged backend: the steps Write to USB takes, into a folder.
+    // XZ_E2E_RESOURCES=<XZ Mods.app>/Contents/Resources/resources cargo test loader_written -- --ignored
+    #[test] #[ignore="needs a packaged backend in XZ_E2E_RESOURCES"]
+    fn loader_written_to_a_folder_is_recorded_in_private_storage() {
+        let resources=PathBuf::from(std::env::var_os("XZ_E2E_RESOURCES").expect("XZ_E2E_RESOURCES"));
+        let base=store::tests::temp("loader-e2e");let data=base.join("data");let root=data.join("support-reports");
+        let folder=std::env::var_os("XZ_E2E_FOLDER").map(PathBuf::from).unwrap_or_else(||base.join("usb"));
+        std::fs::create_dir_all(&root).unwrap();std::fs::create_dir_all(&folder).unwrap();
+        let volume=folder.to_string_lossy().into_owned();
+        let versions=backend_at(&resources,&data,&json!({"method":"list_mod_versions"})).unwrap();
+        let version=versions["selected"]["id"].as_str().expect("selected mod version").to_string();
+        let checked=backend_at(&resources,&data,&json!({"method":"inspect_mod_settings","volume":volume})).unwrap();
+        assert!(checked["settings_change"].is_null(),"a fresh folder needs no settings conversion: {checked}");
+        let mut request=json!({"method":"prepare_usb","volume":volume,"experimental":true,"games":[],"mod_version_id":version,"pin_mod_version":versions["selected"]["pinned"]!=false});
+        prepare_loader_at(&resources,&data,&root,&mut request).unwrap();
+        // start_job's backend launch, without a window.
+        let cancel=base.join("job.cancel");
+        let mut child=Command::new(resources.join("backend").join(crate::host::executable("xz-mods-service")))
+            .env("XZ_BUILDER_RESOURCES",&resources).env("XZ_BUILDER_CANCEL_FILE",&cancel).env("XZ_BUILDER_DATA",&data)
+            .env("XZ_AUDIO_HELPER",resources.join(crate::host::executable("xz-audio-helper")))
+            .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::inherit()).spawn().unwrap();
+        child.stdin.take().unwrap().write_all(&serde_json::to_vec(&request).unwrap()).unwrap();
+        let mut out=String::new();child.stdout.take().unwrap().read_to_string(&mut out).unwrap();assert!(child.wait().unwrap().success());
+        let event=out.lines().filter_map(|l|serde_json::from_str::<Value>(l).ok()).find(|v|v["event"]=="result").expect("backend result");
+        assert_eq!(event["ok"],true,"{event}");
+        finish_loader_at(&root,&request,&event).unwrap();
+        let candidate=request["_loader_identity"]["loader_id"].as_str().unwrap();
+        let observed=backend_at(&resources,&data,&json!({"method":"controller_identity","volume":volume})).unwrap();
+        assert_eq!(observed["loader_identity"]["loader_id"],candidate,"the folder carries the staged loader");
+        let install=identity::load(&root).unwrap();
+        assert!(install.loaders.iter().any(|l|l.identity.loader_id==candidate&&l.staged.is_none()),"the write is recorded, nothing left staged");
+        let sealed=std::fs::read(root.join("installation.dpapi")).unwrap();
+        assert!(!String::from_utf8_lossy(&sealed).contains(request["_loader_identity"]["loader_key"].as_str().unwrap()),"loader key is sealed");
+        let mut files:Vec<_>=std::fs::read_dir(&folder).unwrap().flatten().map(|e|e.file_name().to_string_lossy().into_owned()).collect();files.sort();
+        println!("loader {candidate} written to {} : {files:?}",folder.display());
+    }
     fn pending(id:&str,install:&str)->Value {json!({"report_id":id,"report_reference":"R-4F7K-2M9Q","installation_id":install,"loader_id":"L-4F7K-2M9Q","origin":"controller","comments_state":"pending_comments","comments_pending":true,"remind":true,"created_at":1793059200000u64,"reminders_until":9999999999999u64,"description":"typed on XZ","topic":"NOT_WORKING","screen_state":null,"details_expired":false})}
     #[test] fn queue_projection_rejects_foreign_identity_and_screen_text() {
         let id="a".repeat(32);let mut p=pending(&id,"I-4F7K-2M9Q");assert!(pending_projection(&p,"I-4F7K-2M9Q").is_ok());assert!(pending_projection(&p,"I-0000-0000").is_err());
