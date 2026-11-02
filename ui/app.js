@@ -336,16 +336,16 @@ async function loadAppInformation(){
   if(!invoke){$('check-app-update').disabled=true;$('open-licenses').disabled=true;return;}
   try{
     const info=await invoke('app_information');document.querySelectorAll('[data-app-version]').forEach(item=>item.textContent=info.version);document.querySelector('.top-version').title='Version '+info.version;
-    // The Mac build ships no signed updater files, so in-app update cannot work there; .win-only/.mac-only follow this.
+    // Windows and Mac both update in the app; .win-only marks the Windows-only installer and portable ZIP downloads.
     document.documentElement.dataset.platform=info.platform;
     document.documentElement.dataset.updateChannel=info.update_channel||'stable';
     $('update-channel-note').textContent=(info.update_channel==='beta'?XZText('Beta channel. Checks for beta updates automatically at launch.'):XZText('Stable channel. Checks for updates automatically at launch.'));
     if(info.release_page)$('app-downloads').href=info.release_page;
     if(info.portable_url)$('portable-downloads').href=info.portable_url;
-    $('update-install-note').textContent=info.installed?XZText('The Windows installer updates the app and reopens it when finished.'):XZText('You are using the portable app. Updating here installs the Windows version; it does not replace this portable folder. After installing, open XZ Mods from the desktop shortcut. To stay portable, download the current ZIP below and replace the old folder.');
+    $('update-install-note').textContent=info.platform==='macos'?XZText('The update replaces the app and reopens it when finished.'):info.installed?XZText('The Windows installer updates the app and reopens it when finished.'):XZText('You are using the portable app. Updating here installs the Windows version; it does not replace this portable folder. After installing, open XZ Mods from the desktop shortcut. To stay portable, download the current ZIP below and replace the old folder.');
     $('release-notes').replaceChildren();for(const release of info.release_notes.releases)renderReleaseNotes($('release-notes'),release,release.version);
     if(info.show_release_notes){showPage('updates');$('updated-message').classList.remove('hidden');await invoke('acknowledge_release_notes');}
-    if(info.platform!=='macos')void checkForAppUpdates();
+    if(info.automatic_update_checks)void checkForAppUpdates();
   }catch(error){$('update-status').textContent=String(error);}
 }
 loadAppInformation();

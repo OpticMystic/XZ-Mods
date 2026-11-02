@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "version": "0.5.1-Beta",
+  "version": "0.5.1-Beta.1",
   "source_directory": "source/xdj-xz-toolkit",
   "source_repository": "https://github.com/OpticMystic/XZ-Mods",
   "native_source_archive_sha256": "b285e7a156c0109bf243d4cbe546414b7624475d91dbcd06a1a4a2ecd4eb7098",
   "runtime_sha256": "baba82b889cfd604074f8d5bf794687d447d7fde877bcfb51cba13e46ee43bd9",
-  "matching_archive": "XZ-Mods-0.5.1-Beta-source.zip",
+  "matching_archive": "XZ-Mods-0.5.1-Beta.1-source.zip",
   "local_build": true,
   "receiver_sha256": "102cd2978111c21c3957b5197e6ef9ce160f8532ba6e37fb344f9da1e993b772",
   "native_source": {
@@ -61,7 +61,7 @@
     "builder/resample_source.py": "ec032939e959583665056c5b546842eb5d35d12e01c3329ed76aae339dcc71a6",
     "builder/runtime_ota.py": "85d3eb3b9b5ea0e2eb30378a513a8dd12510fbfa1e47466cae6d6a899b4c0c76",
     "builder/SEPARATION.md": "3dccadd914c3727abd1eb9516ca72c4c73bee50bdd39d630cc73e1611bd553ef",
-    "builder/service.py": "78b0a61ff7d97a10dd01c29bc8ac8765455fc2263615b0bb211339a34422c890",
+    "builder/service.py": "70e59bced65bad88cc724a3fc1be50678893d828ea497fd7b3096e1822bf73ae",
     "builder/stem_align.py": "2d8bcb339a18baca73f5758ab7cba64f8683ee9a6d122d5d557bc8e4e12e26c2",
     "builder/stem_batch.py": "1c6e88ecf9aaeb77440a456824af0ef661b2937782f2c4c1cb97c5b8d84613fa",
     "builder/stem_estimate.py": "4f413c7635684814e8e7bdc9e045903b52a6d74e67ad58ff9e331a7b8295a9ea",

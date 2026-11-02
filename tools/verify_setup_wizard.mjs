@@ -113,7 +113,7 @@ function installMock() {
   };
   window.__TAURI__ = { core: { invoke: async (command, args) => {
     fx.calls.push(command);
-    if (command === 'app_information') return { version: mode.startsWith('beta') ? '0.3.0-preview.12' : '0.3.0', platform: mode === 'mac' ? 'macos' : 'windows', installed: true, update_channel: mode.startsWith('beta') ? 'beta' : 'stable', release_page: mode.startsWith('beta') ? 'https://beta.xzmods.com/' : 'https://github.com/OpticMystic/XZ-Mods/releases/latest', portable_url: mode.startsWith('beta') ? 'https://github.com/OpticMystic/XZ-Mods/releases/download/v0.3.0-preview.12/XZ-Mods-Builder-preview-win64.zip' : 'https://github.com/OpticMystic/XZ-Mods/releases/latest', release_notes: { releases: [] } };
+    if (command === 'app_information') return { version: mode.startsWith('beta') ? '0.3.0-preview.12' : '0.3.0', platform: mode === 'mac' ? 'macos' : 'windows', automatic_update_checks: true, installed: true, update_channel: mode.startsWith('beta') ? 'beta' : 'stable', release_page: mode.startsWith('beta') ? 'https://beta.xzmods.com/' : 'https://github.com/OpticMystic/XZ-Mods/releases/latest', portable_url: mode.startsWith('beta') ? 'https://github.com/OpticMystic/XZ-Mods/releases/download/v0.3.0-preview.12/XZ-Mods-Builder-preview-win64.zip' : 'https://github.com/OpticMystic/XZ-Mods/releases/latest', release_notes: { releases: [] } };
     if (command === 'check_app_update') { if (mode === 'betaoffline' && !fx.online) throw Error('Beta update service is offline'); return mode.startsWith('beta') ? { phase: 'available', channel: 'beta', latest_version: '0.3.0-preview.13', message: 'A newer XZ Mods beta is ready to install.', notes: { features: ['Beta updates'], fixes: [], changes: [] } } : { phase: 'current', message: 'Up to date' }; }
     if (command === 'support_reports') return { reports: [], limit: 200, migrated: 0 };
     if (command === 'support_check_statuses') return { checked: 0, failed: 0, updated: [], unseen: [] };
@@ -856,7 +856,7 @@ try {
   await open('mac');
   await idle();
   await evaluate(`showPage('updates')`);
-  await check(`!document.getElementById('check-app-update').checkVisibility()&&!document.getElementById('install-app-update').checkVisibility()&&Boolean(button('Open downloads page'))&&button('Open downloads page').classList.contains('primary')&&txt('#updates .mac-only p')==='Mac versions are downloaded from the release page.'&&!fx.calls.includes('check_app_update')`, 'Mac: App updates says where Mac versions come from, with one Open downloads page button and no update controls');
+  await check(`document.getElementById('check-app-update').checkVisibility()&&!document.getElementById('install-app-update').checkVisibility()&&!button('Open downloads page')&&txt('#update-install-note')==='The update replaces the app and reopens it when finished.'&&fx.calls.filter(c=>c==='check_app_update').length===1&&!document.getElementById('portable-downloads').checkVisibility()`, 'Mac: App updates checks at launch, shows Check for updates and the Mac install note, and hides the Windows downloads');
   await shot('12-mac-updates');
   await check(`document.querySelector('nav button.selected').dataset.page==='updates'&&document.getElementById('tab-updates').getAttribute('aria-selected')==='true'&&!document.querySelector('nav .nav-dot')`, 'Mac: Updates in the rail opens App updates, with no update dot');
 

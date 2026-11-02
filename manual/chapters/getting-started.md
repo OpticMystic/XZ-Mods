@@ -141,7 +141,7 @@ There are two things to update, and they update separately.
 
 | What | How |
 |---|---|
-| The app on your computer | On Windows the app checks at launch and offers the update. On a Mac, download the new version from the release page. See [App updates](desktop-app#app-updates) |
+| The app on your computer | The app checks at launch and offers the update, on Windows and on a Mac. See [App updates](desktop-app#app-updates) |
 | XZ Mods on your USB | Open the USB in the app. When it says **Update available**, choose **Update USB**. The app backs up the old loader first |
 | XZ Mods over the network | Send the update from the app and download it on the player. See [Updates over the network](connect#updates-over-the-network) {experimental} |
 

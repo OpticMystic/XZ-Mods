@@ -3,6 +3,16 @@
 What changed in each version of XZ Mods for the XDJ-XZ, newest first. XZ Mods is independent and experimental:
 test each build with your own tracks before a set, and keep a known working USB.
 
+## 0.5.1-Beta.1 - 2026-11-01
+
+Write to USB works on a Mac, and the Mac app updates itself.
+
+- The Mac app checks for updates at launch and installs them, like the Windows app.
+- On a Mac, Write to USB works again. It stopped with "Reports and the owner connection need Windows private storage".
+- Experimental. For the XDJ-XZ on version 1.26 only.
+- On a Mac with 0.5.1-Beta, download this version once from the beta page. Later versions install from the app.
+- Hardware testing of this build is still in progress.
+
 ## 0.5.1-Beta - 2026-10-30
 
 MODERN and CLASSIC switch reliably, a steadier VJ.Tools screen, and XZ Mods in 15 languages.

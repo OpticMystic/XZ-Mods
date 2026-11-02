@@ -312,10 +312,10 @@ The app is up to date.
 3 @ 454,211 Status | Up to date, or the newer version on offer.
 4 @ 467,326 Check for updates | Checks now. Download and install update appears when there is one.
 5 @ 412,466 What's new | The release notes.
-6 @ 459,558 Other downloads | The installer and the portable ZIP.
+6 @ 459,558 Other downloads | The Windows installer and the portable ZIP.
 ```
 
-On Windows the app checks for updates by itself at launch and shows **Review update** at the top of the page when one is ready. The installer updates the app and opens it again. Mac versions download from the release page.
+The app checks for updates by itself at launch, on Windows and on a Mac, and shows **Review update** at the top of the page when one is ready. **Download and install update** updates the app and opens it again. On a Mac, keep XZ Mods in the Applications folder so the update can replace it.
 
 > **Caution.** Updating the app does not change the loader on your USB. Open the USB page afterward and choose **Update USB**.
 

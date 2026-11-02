@@ -74,7 +74,7 @@ pub fn app_information(app:tauri::AppHandle)->Result<Value,String>{
     let installed=std::env::current_exe().ok().and_then(|p|p.parent().map(|d|d.join("uninstall.exe").is_file())).unwrap_or(false);
     #[cfg(target_os="macos")]
     let installed=std::env::current_exe().ok().is_some_and(|p|p.components().any(|c|c.as_os_str().to_string_lossy().ends_with(".app")));
-    Ok(json!({"version":version,"installed":installed,"platform":std::env::consts::OS,"portable_url":if beta_build(&version){BETA_PORTABLE_URL}else{PORTABLE_URL},"release_page":if beta_build(&version){BETA_PAGE}else{RELEASE_PAGE},"update_channel":if beta_build(&version){"beta"}else{"stable"},"automatic_update_checks":cfg!(windows),"show_release_notes":show_notes,"release_notes":bundled_notes(),"test_build":cfg!(feature="updater-test")}))
+    Ok(json!({"version":version,"installed":installed,"platform":std::env::consts::OS,"portable_url":if beta_build(&version){BETA_PORTABLE_URL}else{PORTABLE_URL},"release_page":if beta_build(&version){BETA_PAGE}else{RELEASE_PAGE},"update_channel":if beta_build(&version){"beta"}else{"stable"},"automatic_update_checks":cfg!(any(windows,target_os="macos")),"show_release_notes":show_notes,"release_notes":bundled_notes(),"test_build":cfg!(feature="updater-test")}))
 }
 #[tauri::command]
 pub fn acknowledge_release_notes(app:tauri::AppHandle)->Result<(),String>{
@@ -180,7 +180,11 @@ pub async fn install_app_update(app:tauri::AppHandle)->Result<(),String>{
             #[cfg(target_os="macos")] {app.restart();}
             #[cfg(not(target_os="macos"))] {Ok(())}
         },
-        Err(_)=>{app.state::<crate::Jobs>().updating.store(false,Ordering::Release);state(&app,json!({"phase":"error","message":"The app update could not be installed. Your current app is unchanged."}));Err("Could not install the app update".into())}
+        Err(_)=>{
+            // A Mac app opened straight from the disk image or Downloads runs from a read-only copy that cannot be replaced.
+            let message=if cfg!(target_os="macos"){"The app update could not be installed. Your current app is unchanged. Move XZ Mods to the Applications folder, open it from there and try again."}else{"The app update could not be installed. Your current app is unchanged."};
+            app.state::<crate::Jobs>().updating.store(false,Ordering::Release);state(&app,json!({"phase":"error","message":message}));Err("Could not install the app update".into())
+        }
     }
 }
 
@@ -197,6 +201,8 @@ mod tests{
         /* 0.5.1-Beta follows every 0.5.0 preview on the beta channel. */
         assert!(beta_build("0.5.1-Beta"));assert_eq!(beta_comparison("0.5.0-preview.22.13.4","0.5.1-Beta").unwrap(),std::cmp::Ordering::Greater);
         assert_eq!(beta_comparison("0.5.1-Beta","0.5.0-preview.22.13.4").unwrap(),std::cmp::Ordering::Less);
+        /* The 0.5.1-Beta.1 hotfix is offered to 0.5.1-Beta. */
+        assert!(beta_build("0.5.1-Beta.1"));assert_eq!(beta_comparison("0.5.1-Beta","0.5.1-Beta.1").unwrap(),std::cmp::Ordering::Greater);
         assert!(BETA_FEED.starts_with(BETA_PAGE));assert!(!BETA_FEED.contains("releases/latest"));
     }
     #[test]fn versions_do_not_downgrade(){assert_eq!(newer("0.1.7","v0.1.5").unwrap(),std::cmp::Ordering::Less);assert_eq!(newer("0.1.7","0.1.8").unwrap(),std::cmp::Ordering::Greater);assert!(newer("0.1.7","garbage").is_err());}
