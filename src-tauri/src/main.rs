@@ -208,6 +208,7 @@ fn main(){
         })
         .setup(|app|{
             controller_queue::start(app.handle().clone());
+            #[cfg(feature="updater-test")] app_updates::autoinstall_for_test(app.handle());
             let config=app.config().app.windows[0].clone();
             // Built hidden, then sized to fit the screen it opens on and shown, so it never opens past the screen edge.
             let window=tauri::WebviewWindowBuilder::from_config(app,&config)?.visible(false).build()?;

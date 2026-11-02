@@ -188,6 +188,24 @@ pub async fn install_app_update(app:tauri::AppHandle)->Result<(),String>{
     }
 }
 
+/// Updater test builds only: with XZ_UPDATER_TEST_AUTOINSTALL=<log file>, check the test feed at launch and install
+/// what it offers, logging each step, so a real update can be proven end to end without clicking.
+#[cfg(feature="updater-test")]
+pub fn autoinstall_for_test(app:&tauri::AppHandle){
+    let Some(log)=std::env::var_os("XZ_UPDATER_TEST_AUTOINSTALL").map(std::path::PathBuf::from) else{return};
+    let app=app.clone();
+    tauri::async_runtime::spawn(async move{
+        let note=|line:String|{use std::io::Write;if let Ok(mut f)=std::fs::OpenOptions::new().create(true).append(true).open(&log){let _=writeln!(f,"{line}");}};
+        note(format!("launched {}",app.package_info().version));
+        let checked=check_app_update(app.clone()).await;
+        note(format!("check {}",match &checked{Ok(v)=>v.to_string(),Err(e)=>e.clone()}));
+        if checked.is_ok_and(|v|v["phase"]=="available"){
+            let installed=install_app_update(app.clone()).await;
+            note(format!("install {installed:?}"));
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests{
     use super::*;
