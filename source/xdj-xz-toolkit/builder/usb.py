@@ -14,10 +14,48 @@ from . import firmware
 def sha(path):
     with Path(path).open('rb') as file:return hashlib.file_digest(file,'sha256').hexdigest()
 
-# A drive root takes the loader when it is a USB drive: removable, or formatted FAT, FAT32 or exFAT (the disks this
-# computer runs from never are), and writable. The file system is not a condition: the XZ boots a loader from an exFAT
-# stick as well as a FAT32 one. Anything else is a folder whose contents the DJ copies to a USB afterward.
+# A drive root takes the loader when it is a USB drive (see on_usb) and writable. The file system is not a condition:
+# the XZ boots a loader from an exFAT stick as well as a FAT32 one. Anything else is a folder whose contents the DJ
+# copies to a USB afterward.
 USB_FILESYSTEMS=('FAT','FAT32','EXFAT')
+DRIVE_REMOVABLE=2
+# STORAGE_BUS_TYPE values for USB, SD and MMC: the buses the desktop host also ejects (src-tauri/src/eject.rs).
+USB_BUSES=(7,0x0C,0x0D)
+
+def on_usb(drive_type,bus,filesystem):
+    """Whether a Windows drive is a USB stick or card. The bus decides: Windows calls many fast USB 3 sticks and USB SSDs
+    fixed disks, the same as an internal disk. When Windows does not name the bus, a removable drive or a FAT, FAT32 or
+    exFAT one counts (the disks this computer runs from never are)."""
+    if drive_type==DRIVE_REMOVABLE or bus in USB_BUSES:return True
+    return bus is None and filesystem in USB_FILESYSTEMS
+
+def windows_bus(root):
+    """STORAGE_DEVICE_DESCRIPTOR.BusType of the disk under a volume root (a drive root like E:/ or a mount folder), or None
+    when Windows does not say. Opens the volume with no access rights, so it needs no administrator and never reads the media."""
+    from ctypes import wintypes
+    # A private WinDLL, so these prototypes never change the shared ctypes.windll.kernel32 others call.
+    kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+    kernel.GetVolumeNameForVolumeMountPointW.argtypes=[wintypes.LPCWSTR,wintypes.LPWSTR,wintypes.DWORD]
+    kernel.GetVolumeNameForVolumeMountPointW.restype=wintypes.BOOL
+    kernel.CreateFileW.argtypes=[wintypes.LPCWSTR,wintypes.DWORD,wintypes.DWORD,ctypes.c_void_p,wintypes.DWORD,wintypes.DWORD,wintypes.HANDLE]
+    kernel.CreateFileW.restype=wintypes.HANDLE
+    kernel.DeviceIoControl.argtypes=[wintypes.HANDLE,wintypes.DWORD,ctypes.c_void_p,wintypes.DWORD,ctypes.c_void_p,wintypes.DWORD,ctypes.POINTER(wintypes.DWORD),ctypes.c_void_p]
+    kernel.DeviceIoControl.restype=wintypes.BOOL
+    kernel.CloseHandle.argtypes=[wintypes.HANDLE]
+    mount=str(root).replace('/','\\')
+    if not mount.endswith('\\'):mount+='\\'
+    volume=ctypes.create_unicode_buffer(64)
+    if not kernel.GetVolumeNameForVolumeMountPointW(mount,volume,len(volume)):return None
+    # \\?\Volume{GUID}\ without its trailing backslash names the volume device. FILE_SHARE_READ|FILE_SHARE_WRITE, OPEN_EXISTING.
+    handle=kernel.CreateFileW(volume.value.rstrip('\\'),0,3,None,3,0,None)
+    if handle in (None,ctypes.c_void_p(-1).value):return None
+    try:
+        # STORAGE_PROPERTY_QUERY: StorageDeviceProperty, PropertyStandardQuery. BusType is at offset 28 of the reply.
+        query=(ctypes.c_uint32*3)();reply=ctypes.create_string_buffer(1024);returned=wintypes.DWORD()
+        if not kernel.DeviceIoControl(handle,0x002D1400,query,12,reply,len(reply),ctypes.byref(returned),None) or returned.value<32:return None
+        return int.from_bytes(reply.raw[28:32],'little')
+    finally:kernel.CloseHandle(handle)
+
 READ_ONLY='The selected USB is read-only. Reconnect it so it can be written, or unlock it, and try again.'
 NOT_USB='This drive is part of this computer, not a USB. Choose a USB drive, or a folder. XZ Mods does not format drives.'
 
@@ -41,7 +79,7 @@ def target_info(path, *, boot_loader=True):
             raise OSError('Could not read the target filesystem')
         filesystem=name.value.upper();serial=volume_serial.value
         writable=not flags.value&0x80000  # FILE_READ_ONLY_VOLUME: a locked card or a write-protected stick
-        removable=ctypes.windll.kernel32.GetDriveTypeW(root)==2  # DRIVE_REMOVABLE
+        removable=on_usb(ctypes.windll.kernel32.GetDriveTypeW(root),windows_bus(root),filesystem)
     elif sys.platform=='darwin':
         from .host import mac_volume
         info=mac_volume(path);root=info['volume_root'];filesystem=info['filesystem'];serial=info['volume_serial']
