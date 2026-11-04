@@ -50,12 +50,15 @@ int main(int argc,char **argv){
   double moved=((double)debug(side).position-start)*1000./rate;
   printf("MODEL counts=6600 side=%d source_rate=%d playing=%d direction=%d travel_ms=%.6f\n",side,rate,playing,sign,moved);
   check("configured full turn retains signed 1800ms source travel",fabs(moved-sign*1800.)<=1000./rate+1e-6);
+  /* The hand lifts while the platter still turns: its counts keep arriving. */
+  struct xz_extra_deck_event turning=event(side,XZ_EXTRA_IN_JOG_TURN,1);
+  turning.jog.delta=sign*66;turning.jog.speed_known=1;assert(input(turning));step();
   hold(side,XZ_EXTRA_IN_JOG_TOUCH,0);
   int coasting=debug(side).state==XZ_XP_SCRATCHING;
   struct xz_extra_deck_event stopped=event(side,XZ_EXTRA_IN_JOG_TURN,1);
   stopped.jog.delta=0;stopped.jog.speed=0;stopped.jog.speed_known=1;
-  assert(input(stopped));step();tick(70);
-  check("released moving platter coasts until known stop then restores prior play state",
+  assert(input(stopped));step();tick(XZ_XP_COAST_QUIET_MS+70);
+  check("released moving platter coasts until it rests then restores prior play state",
         coasting&&debug(side).state==(playing?XZ_XP_PLAYING:XZ_XP_CUED));
   xz_xp_destroy(p);p=NULL;
  }
