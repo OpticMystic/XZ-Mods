@@ -26,7 +26,7 @@ function installMock() {
     if (id <= 3) { status = 'present'; extra = { stored_bytes: (420 + id) * MiB, producer: id === 2 ? 'OverCue' : 'xz-mods', prepared_at: 1791590400, preset: 'balanced', can_verify: true }; }
     if (id === 3) { ext = 'mp3'; Object.assign(extra, { timeline: 'gapless', needs_regeneration: true }); }
     if (id === 4) ext = 'mp3';
-    if (id === 5) { ext = 'aiff'; status = 'unsupported'; }
+    if (id === 5) { ext = 'm4a'; status = 'unsupported'; }
     if (id === 6) status = 'unavailable';
     const title = id === 4 ? names[0] : id === 5 ? 'Paper Lanterns' : id === 6 ? 'Fever Dream (VIP)' : id <= 3 ? ['Neon Tide', 'Halcyon Drive', 'Atlas'][id - 1] : (names[id % names.length] + ' ' + id);
     return { id, title, artist: 'Artist ' + (id % 12), duration, file_path: '/Contents/Artist ' + (id % 12) + '/' + title + '.' + ext, source: 'E:\\Contents\\' + title + '.' + ext,
@@ -171,9 +171,9 @@ try {
   await check(`txt('#st-bar .st-engine')==='Engine: Balanced on RTX 4070 Ti SUPER · Change'`, 'engine line names the preset and the graphics card');
   await check(`txt('#st-tabs')==="All212Missing207Ready3Can't prepare2"&&document.querySelector('#st-tabs [aria-pressed=true]').textContent==='All212'`, 'filter tabs carry library-wide counts');
   await check(`(()=>{const row=id=>document.querySelector('#stem-tracks tr[data-id="'+id+'"]');return row(4).querySelector('.st-fmt').textContent==='MP3'&&row(4).querySelector('.st-pill').textContent==='Missing'&&row(4).querySelector('input[data-pick]')
-    &&row(5).querySelector('.st-pill').textContent==='Not yet'&&row(5).querySelector('.st-sub').textContent==='AIFF support is coming'&&!row(5).querySelector('input')
+    &&row(5).querySelector('.st-pill').textContent==='Not yet'&&row(5).querySelector('.st-sub').textContent==='AAC support is coming'&&!row(5).querySelector('input')
     &&row(6).querySelector('.st-pill').textContent==='No audio file'&&row(1).querySelector('.st-pill').textContent==='Ready'&&row(1).querySelector('.st-nocheck')
-    &&row(7).querySelector('.st-size').textContent.startsWith('\\u2248 ')&&row(1).querySelector('.st-size').textContent==='421 MB';})()`, 'rows: MP3 behaves like any Missing track, AIFF Not yet, missing audio, Ready with size');
+    &&row(7).querySelector('.st-size').textContent.startsWith('\\u2248 ')&&row(1).querySelector('.st-size').textContent==='421 MB';})()`, 'rows: MP3 behaves like any Missing track, AAC Not yet, missing audio, Ready with size');
   await check(`(()=>{const row=id=>document.querySelector('#stem-tracks tr[data-id="'+id+'"]');return row(3).querySelector('.st-pill').textContent==='Ready'&&row(3).querySelector('.st-sub').textContent==='Prepare again · MP3 timing'&&row(3).querySelector('.st-sub').dataset.tone==='warn'&&!row(1).querySelector('.st-sub');})()`, 'an MP3 bundle from before the timing fix says Prepare again; other Ready rows stay quiet');
   await evaluate(`document.querySelector('#stem-tracks tr[data-id="3"] .st-open-button').click()`);
   await check(`txt('#stem-tracks tr.st-drawer[data-for="3"] .st-regen').startsWith('Made from an MP3 before XZ Mods 0.3.0-preview.2, so these stems start 25 ms early')&&Boolean(button('Prepare again',document.querySelector('#stem-tracks tr.st-drawer[data-for="3"]')))`, 'its details say why and offer Prepare again');

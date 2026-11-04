@@ -378,7 +378,7 @@ const ST={
   'sub.regenerate':'Prepare again · MP3 timing',
   'drawer.regenerate':'Made from an MP3 before XZ Mods 0.3.0-preview.2, so these stems start 25 ms early against the player. The XDJ-XZ lines them up live; the stem waveforms and other players do not. Prepare again fixes it.',
   'drawer.compat':'Also works with stems prepared by OverCue Desktop.','drawer.unavailable':'The audio file for this track is not on the USB. Export it to this USB again from your DJ software, then check again.',
-  'drawer.unsupported':'{format} tracks cannot be prepared yet. Support is planned. This track would need about {bytes}.','drawer.running':'{stage}. Step {k} of 8, started {elapsed} ago.',
+  'drawer.unsupported':'{format} tracks cannot be prepared or imported yet. To use stems with this track, export it as WAV, AIFF, FLAC or MP3. It would need about {bytes}.','drawer.running':'{stage}. Step {k} of 8, started {elapsed} ago.',
   'drawer.replaceAsk':'Replace the stems for {title}? The current stems stay until the new ones pass their check.','drawer.replace':'Replace','drawer.keep':'Keep',
   'drawer.verify':'Verify','drawer.verifyAgain':'Verify again','drawer.importReplace':'Import stems to replace','drawer.prepareAgain':'Prepare again','drawer.importElsewhere':'Import stems made elsewhere',
   'drawer.checkAgain':'Check again','drawer.retryTrack':'Retry this track',

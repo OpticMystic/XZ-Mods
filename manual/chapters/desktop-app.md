@@ -197,7 +197,7 @@ Twelve tracks selected and the stem engine set up.
 |---|---|---|
 | Ready | Stems are on the USB | Nothing. Open the details to Verify them |
 | Missing | No stems yet | Select it and prepare |
-| Not yet | XZ Mods cannot prepare this format yet, such as AIFF | Export the track as WAV, FLAC or MP3 |
+| Not yet | XZ Mods cannot prepare or import stems for this format yet, such as AAC (M4A) | Export the track as WAV, AIFF, FLAC or MP3 |
 | No audio file | The track's file is not on the USB | Export the track to the USB again from your DJ software |
 | Failed | Preparing stopped, with the reason under it | Fix the reason, then **Retry** |
 | Damaged | Verify found a broken stem page | Select it and prepare it again |
@@ -251,7 +251,7 @@ app:stems-engine-driver The driver is too old. Use the processor, or update the 
 
 ### Import stems you already have
 
-Choose **Import stems** in the toolbar, or **Import stems made elsewhere** in a track's details. Drop stem files or a ZIP into the window, or choose files. WAV, FLAC, MP3 and AIFF sets work.
+Choose **Import stems** in the toolbar, or **Import stems made elsewhere** in a track's details. Drop stem files or a ZIP into the window, or choose files. WAV, FLAC, MP3 and AIFF sets work, at 16 or 24 bits or in floating point, and at 44.1 kHz, 48 kHz or higher. The track on your USB must be WAV, AIFF, FLAC or MP3.
 
 1. **Add files.** From the toolbar, also pick which track the stems are for.
 2. **Check.** The app places each file on VOCALS, DRUMS or HARMONICS by its name and lines the stems up with the track on your USB. Change any **Goes to** choice you disagree with. **Leave out** skips a file.
