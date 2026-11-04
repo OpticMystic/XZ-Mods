@@ -1085,6 +1085,52 @@ static void test_native_sync_cache(void){
  xz_xp_destroy(p);p=NULL;
  puts("PASS demand-only cached native BPM following, identity/load revision, pending/stale/future rejection and truthful phase-unavailable");
 }
+/* Issue #5: SYNC to a stock deck plays the stock deck's exact effective tempo. A stock deck showing
+   "128.0" can really play 127.97 BPM; matching a value rounded to 0.1 BPM (234 ppm off) or to 0.01 BPM
+   (up to 39 ppm) would drift by 14 or 2.3 ms a minute. Measured on the audio the transport took
+   (source frames per output frame over 30 s of a 40 s track, no grid: the track's 128.00 BPM), with
+   tempo-only follow so no phase trim can hide an error. */
+static char long_wav[440];
+static int long_resolve(int source,uint32_t id,struct xz_extra_track *out){
+ memset(out,0,sizeof *out);out->source=source;out->track_id=id;
+ snprintf(out->path,sizeof out->path,"%s",long_wav);snprintf(out->title,sizeof out->title,"Long");
+ out->track_bpm_x100=12800;return 0;
+}
+static void test_native_sync_rate_exact(void){
+ snprintf(long_wav,sizeof long_wav,"%s/long-44100.wav",fixtures);
+ FILE *w=fopen(long_wav,"wb");assert(w);
+ const uint32_t rate=44100,frames=rate*40,bytes=frames*4;
+ unsigned char h[44]={'R','I','F','F'};uint32_t v=36+bytes;uint16_t s;
+ memcpy(h+4,&v,4);memcpy(h+8,"WAVEfmt ",8);v=16;memcpy(h+16,&v,4);s=1;memcpy(h+20,&s,2);s=2;memcpy(h+22,&s,2);
+ memcpy(h+24,&rate,4);v=rate*4;memcpy(h+28,&v,4);s=4;memcpy(h+32,&s,2);s=16;memcpy(h+34,&s,2);
+ memcpy(h+36,"data",4);memcpy(h+40,&bytes,4);assert(fwrite(h,1,44,w)==44);
+ static int16_t silence[2*4410];
+ for(uint32_t at=0;at<frames;at+=4410)assert(fwrite(silence,4,4410,w)==4410);
+ fclose(w);
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,long_resolve,master_bpm,NULL,NULL,0,1};
+ static const float effective[]={127.97f,128.04f,132.4836f};
+ for(unsigned k=0;k<sizeof effective/sizeof effective[0];k++){
+  p=xz_xp_create(&env);assert(p);xz_xp_set_native_sync_clock(p,copy_native);fake_route(980+k);step();load(0,1);press(0,XZ_EXTRA_IN_PLAY);
+  advance(20);press(0,XZ_EXTRA_IN_SYNC);clock_ms++;
+  cached_native=(struct xz_sync_native_snapshot){.available=1,.native_deck=0,.source_revision=20+k,.track_identity=0x4321,
+   .bpm=effective[k],.nominal_bpm=128,.speed=effective[k]/128.f,.playing=1,.captured_ms=clock_ms};
+  for(unsigned i=0;i<20;i++){advance(10);cached_native.captured_ms=clock_ms;}
+  assert(view.deck[0].sync.tempo_matched&&view.deck[0].sync.reason==XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE);
+  double want=(double)effective[k]/128.;
+  const xz_usb_deck_position *q=&f.position.deck[0];
+  uint64_t source0=q->source_after_completed,out0=q->source_completed_output_frames;
+  for(unsigned i=0;i<3000;i++){advance(10);cached_native.captured_ms=clock_ms;}
+  assert(debug(0).state==XZ_XP_PLAYING);
+  double got=(double)(q->source_after_completed-source0)/(double)(q->source_completed_output_frames-out0);
+  double ppm=(got/want-1.)*1e6;
+  printf("  native %.4f BPM over a 128.00 BPM track: rendered rate %.7f, wanted %.7f (%+.2f ppm)\n",effective[k],got,want,ppm);
+  assert(fabs(ppm)<2.);
+  /* What the deck shows: the stock deck's tempo to 0.01 BPM. */
+  assert(abs(view.deck[0].bpm_x100-(int32_t)lround(effective[k]*100.))<=1);
+  xz_xp_destroy(p);p=NULL;
+ }
+ puts("PASS SYNC to a native master renders its exact effective tempo (within 2 ppm), not a rounded BPM");
+}
 static struct {
  int active,native_deck,playing,manual;
  uint32_t source_revision,track_identity,uncertainty_us,obs_age_us;
@@ -1877,6 +1923,7 @@ int main(int argc, char **argv) {
  test_completed_timeline();
  test_sync_coordinator();
  test_native_sync_cache();
+ test_native_sync_rate_exact();
  test_native_phase_sync();
  test_sync_missing_sources();
  test_sync_nonzero_loop();
