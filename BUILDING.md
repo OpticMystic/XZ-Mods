@@ -141,6 +141,13 @@ Keep the updater private key outside the repository and release packages. Set TA
 
 The updater reads the GitHub latest release and accepts only a newer signed installer from this repository. Publish the installer and signature first, then latest.json. Release notes come from release-notes.json, with new features before bug fixes; keep the matching CHANGELOG.md entry consistent. A local build is not proof that the public updater feed is published.
 
+The release build ends by writing `dist/<version>-av-submission/` with `tools/prepare_av_submission.py`: SHA-256s of
+the installer and every Windows executable and DLL inside it, an audit of their PE metadata, and ready-to-paste
+false-positive text for Microsoft and the other antivirus vendors. It uploads nothing. Before publishing, fix the
+findings in its `CHECKLIST.md`; after publishing, submit the first-party files to Microsoft as that checklist
+describes. Vendor channels, opt-in VirusTotal and Defender checks, and code-signing options are in
+`docs/antivirus-false-positives.md`.
+
 The updater-test Cargo feature allows loopback test endpoints through XZ_UPDATER_TEST_API and XZ_UPDATER_TEST_ENDPOINT. Never use this feature in published builds.
 
 ## Build a private Mac preview
@@ -172,7 +179,8 @@ also runs both approved models through FLAC output and complete audio verificati
 Checksums and check records ship beside the private packages.
 
 The public Mac preview uses an ad-hoc signature and is not notarized.
-A Developer ID signature and notarization remain a separate distribution task.
+A Developer ID signature and notarization remain a separate distribution task; the changes it needs are listed in
+`docs/antivirus-false-positives.md`.
 The private build does not publish a GitHub release or update feed. Mac update
 downloads must be signed `.app.tar.gz` bundles from this repository; a Windows
 installer is rejected by the Mac updater.
