@@ -7,7 +7,8 @@ import sys
 from . import cache,rekordbox_pdb,overcue_writer as writer,managed_usb,stem_estimate
 
 PAGE_SIZE=40
-UNSUPPORTED_DETAIL='XZ Mods prepares stems from WAV, FLAC and MP3 exports. AIFF and AAC are not supported yet.'
+UNSUPPORTED_DETAIL=('XZ Mods prepares and imports stems for WAV, AIFF, FLAC and MP3 tracks. AAC (M4A) and other formats are not supported yet. '
+                   'Export the track as WAV, AIFF, FLAC or MP3 to use stems with it.')
 REGENERATE_DETAIL=('These stems were made from an MP3 before XZ Mods 0.3.0-preview.2 and start 25 ms early against the player. '
                    'Prepare again to line them up; the XDJ-XZ corrects this live, the stem waveforms and other players do not.')
 
