@@ -1,3 +1,7 @@
+; Tauri includes this file before its own version keys and writes no CompanyName for the installer.
+; Keep it equal to bundle.publisher in tauri.conf.json.
+VIAddVersionKey "CompanyName" "OpticMystic"
+
 !macro NSIS_HOOK_PREINSTALL
   Push $R0
   Push $R1

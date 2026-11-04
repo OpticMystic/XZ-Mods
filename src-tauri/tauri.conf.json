@@ -43,6 +43,8 @@
       "../tools/xz_translation_quality.py": "resources/translation/tools/xz_translation_quality.py",
       "../localization/authored-overrides.json": "resources/translation/localization/authored-overrides.json"
     },
+    "publisher": "OpticMystic",
+    "copyright": "Copyright (c) 2026 VJ.Tools. MIT License.",
     "shortDescription": "Standalone XDJ-XZ USB mod and stem preparation",
     "category": "Music",
     "createUpdaterArtifacts": true,
@@ -54,7 +56,7 @@
         "installerHooks": "windows/installer-hooks.nsh"
       },
       "webviewInstallMode": {
-        "type": "downloadBootstrapper",
+        "type": "embedBootstrapper",
         "silent": true
       }
     }

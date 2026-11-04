@@ -189,6 +189,8 @@ uv_record['executable_sha256']=digest(resources/'uv.exe')
 (resources/'uv-source.json').write_text(json.dumps(uv_record,indent=2)+'\n')
 subprocess.run([sys.executable,str(TOOLKIT/'builder/build_audio_helper.py'),'--zig',str(a.zig.resolve()),'--output',str(resources/'xz-audio-helper.exe')],check=True)
 subprocess.run([sys.executable,str(TOOLKIT/'builder/build_overcue_check.py'),'--zig',str(a.zig.resolve()),'--output',str(resources/'xz-overcue-check.exe')],check=True)
+# zig cc writes a debug database beside each Windows helper; it is not part of the shipped app.
+for name in ('xz-audio-helper.pdb','xz-overcue-check.pdb'):(resources/name).unlink(missing_ok=True)
 if a.skip_backend:
     if not (resources/'backend/xz-mods-service.exe').is_file():raise ValueError('Build the standalone backend before skipping its rebuild')
 else:
