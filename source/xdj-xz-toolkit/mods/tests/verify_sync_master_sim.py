@@ -103,6 +103,11 @@ for arch, cc in [('host', 'gcc'), ('arm', 'arm-linux-gnueabi-gcc')]:
     jobs.append(('seeds', run + [str(a.first_seed), str(a.seeds), str(a.run_ms), '--minimize'], {**env, **GATED}))
     if a.lock_seeds:
         jobs.append(('lock', run + ['lock', str(a.first_seed), str(a.lock_seeds), '30000'], {**env, **GATED}))
+        # The USB audio clock is not the CPU clock: the lock must hold with it 0.2 % slow or fast.
+        if not a.usb_ppm:
+            for ppm in ('-2000', '+2000'):
+                jobs.append(('lock' + ppm + 'ppm', run + ['lock', str(a.first_seed), str(a.lock_seeds), '30000'],
+                             {**env, **GATED, 'SIM_USB_PPM': ppm}))
     if a.explore:
         jobs.append(('explore', run + [str(a.first_seed), str(a.seeds), str(a.run_ms), '--minimize'], env))
     for name, cmd, job_env in jobs:
