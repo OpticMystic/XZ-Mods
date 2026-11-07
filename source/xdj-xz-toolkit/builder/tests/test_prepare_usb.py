@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import ctypes
 import tempfile
 from pathlib import Path
@@ -5,8 +6,20 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from builder import service, usb
+from builder import mod_versions, service, usb
 from builder.jobs import Job
+
+
+def without_mod_version_choice(test):
+    """Prepare, build and update first verify the saved mod version (test_mod_versions covers that).
+    These tests point resources at an empty folder, so stand that step aside."""
+    @contextmanager
+    def selected(resources,request,job):yield resources,{'label':'test'}
+    def wrapped(self):
+        with patch.object(mod_versions,'selected_resources',selected),              patch.object(mod_versions,'settings_change',return_value=None),              patch.object(mod_versions,'record_loader'):
+            test(self)
+    wrapped.__name__=test.__name__
+    return wrapped
 
 
 class PrepareUsbTests(unittest.TestCase):
@@ -47,6 +60,7 @@ class PrepareUsbTests(unittest.TestCase):
                     service.dispatch({'method':'prepare_usb','volume':str(folder),'experimental':True},Job())
                 download.assert_not_called()
 
+    @without_mod_version_choice
     def test_one_job_downloads_then_builds(self):
         with tempfile.TemporaryDirectory() as temporary:
             volume=Path(temporary)
@@ -66,6 +80,7 @@ class PrepareUsbTests(unittest.TestCase):
             self.assertEqual(result['game_setup']['failed_count'],0)
             self.assertEqual(result['firmware_source'],'AlphaTheta')
 
+    @without_mod_version_choice
     def test_update_keeps_loader_result_and_reports_game_failure(self):
         from builder import managed_usb
         with tempfile.TemporaryDirectory() as temporary:
@@ -80,6 +95,7 @@ class PrepareUsbTests(unittest.TestCase):
             self.assertEqual(result['game_setup']['failed_count'],1)
             games.assert_called_once()
 
+    @without_mod_version_choice
     def test_staging_folder_build_does_not_try_to_install_games(self):
         with patch('builder.boot_support.ensure_boot_key',return_value='boot.key'), \
              patch.object(service,'resources',return_value='resources'), \
