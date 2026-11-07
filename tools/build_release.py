@@ -65,5 +65,8 @@ for path in sorted(a.output.iterdir()):
         with path.open('rb') as f:digest=hashlib.file_digest(f,'sha256').hexdigest()
         checks.append(digest+'  '+path.name)
 (a.output/'SHA256SUMS.txt').write_text('\n'.join(checks)+'\n')
+# Antivirus false-positive package: hashes, PE audit, per-vendor submission text. Local only; uploads nothing.
+subprocess.run(['python',str(APP/'tools/prepare_av_submission.py'),'--release-dir',str(a.output),
+    '--app-exe',str(target_root/'x86_64-pc-windows-msvc/release/xz-mods-builder.exe'),'--resources',str(APP/'resources')],check=True)
 print('Local release files: '+str(a.output.resolve()))
 print('Not published. Upload the installer and signature before publishing latest.json.')
