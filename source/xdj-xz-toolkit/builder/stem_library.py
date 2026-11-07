@@ -67,6 +67,7 @@ def stem_status(root,track,index,index_error):
             entry=roles.get(role,{})
             name=entry.get('file',writer.role_file(role))
             if not isinstance(name,str) or PurePosixPath(name).name!=name or '\\' in name:raise ValueError('Invalid stem file path')
+            if role not in writer.REQUIRED_ROLES and not (folder/name).exists():continue
             file=cache._regular(folder/name);stored+=file.stat().st_size
             if not file.stat().st_size:raise ValueError('Empty stem file')
             with file.open('rb') as audio:magic=audio.read(8)
@@ -86,7 +87,7 @@ def stem_status(root,track,index,index_error):
                       preset=separation.get('preset') or separation.get('method') or manifest.get('writer',{}).get('version'),
                       stem_waveforms=waveforms,can_add_waveforms=not waveforms and owner==writer.WRITER,
                       timeline=timeline,needs_regeneration=regenerate,
-                      detail=REGENERATE_DETAIL if regenerate else 'All seven stem files are present. Verify to check the decoded audio and source identity.')
+                      detail=REGENERATE_DETAIL if regenerate else 'All required stem files are present. Verify to check the decoded audio and source identity.')
     except (ValueError,OSError,TypeError,KeyError) as exc:
         result.update(stem_status='error',stem_label='Stems need attention',can_generate=False,detail=str(exc))
     return result
@@ -125,7 +126,7 @@ def browse(request,job):
         rows.append({**track,**state,'estimated_bytes':estimate['bytes'],'estimate':estimate})
     return {'volume':str(root),'identity':managed_usb.identity(root,media=True),'database':str(pdb),'total':len(tracks),'matched':len(filtered),'offset':offset,'page_size':PAGE_SIZE,
             'free_bytes':disk.free,'total_bytes':disk.total,'index_bytes':index_bytes,'summary':summary,
-            'index_room_tracks':max(0,(stem_estimate.INDEX_LIMIT-index_bytes)//stem_estimate.INDEX_ENTRY_BYTES),
+            'index_room_tracks':max(0,((writer.MAX_INDEX_JSON if index_bytes>writer.MAX_JSON else writer.MAX_JSON)-index_bytes)//stem_estimate.INDEX_ENTRY_BYTES),
             'size_model':{'learned':model.observations()>0,'observations':model.observations()},
             'tracks':rows,'index_error':error}
 

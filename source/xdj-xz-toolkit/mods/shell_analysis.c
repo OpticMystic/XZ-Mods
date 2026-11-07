@@ -123,7 +123,8 @@ uint64_t xz_shana_signature(const char *root) {
 }
 
 /* ---- stems ---- */
-#define INDEX_CAP (4u*1024u*1024u)
+/* OverCue Desktop 2.2.40+ grows index.json past the 4 MiB older firmware read; match overcue_file.c. */
+#define INDEX_CAP (16u*1024u*1024u)
 struct stem_entry { uint64_t hash; char bundle[17]; };
 struct xz_shana_stems { char root[PATH_CAP]; struct stem_entry *e; uint32_t n, cap; };
 static uint8_t *read_all(const char *path, size_t cap, size_t *size) {

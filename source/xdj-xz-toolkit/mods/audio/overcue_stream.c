@@ -20,6 +20,10 @@
 /* At 44.1 kHz: <=2.90 ms fades; allow ordinary seek refill 1.5 s before fail-open. */
 #define STARVE_RAMP_FRAMES 128u
 #define STARVE_UNITY_AFTER_MS 1500u
+/* Prepared frames a window keeps ahead of playback, in the playing direction. */
+#define HEADROOM 72000
+/* Consecutive same-direction blocks before reverse playback moves the windows. */
+#define DIRECTION_BLOCKS 4
 int xz_oc_worker_schedule(void){
 #if defined(__linux__) && defined(__arm__)
     if(sysconf(_SC_NPROCESSORS_ONLN)<4)return -1;
@@ -61,6 +65,8 @@ struct xz_oc_stream {
     int last_output_valid;
     double offset, scale;
     int confirmations, attempts;
+    int reverse, direction_run; /* audio-thread writer */
+    int64_t last_position;
     float score;
     uint32_t blocks, misses;
     uint32_t previous_levels[4], request_masks;
@@ -95,6 +101,23 @@ static int plan_levels(const float *levels,unsigned count,struct xz_oc_plan *out
 int xz_oc_plan_levels(const float levels[3],struct xz_oc_plan *out){return plan_levels(levels,3,out);}
 int xz_oc_plan_levels4(const float levels[4],struct xz_oc_plan *out){return plan_levels(levels,4,out);}
 static unsigned plan_masks(const struct xz_oc_plan *p){return p->mask[0]|p->mask[1]<<4|p->mask[2]<<8;}
+/* OverCue pairs are always mixed from the singles, as OverCue firmware 0.13.1+
+ * does, so four-file and seven-file bundles share one path. The lowest stem is
+ * never selected, so at most two singles are needed. */
+static int stream_plan(const struct xz_oc_stream *s,const float *levels,struct xz_oc_plan *out){
+    if(plan_levels(levels,stem_count(s),out))return -1;
+    if(s->foreign)return 0;
+    struct xz_oc_plan singles={.source=out->source};unsigned k=0;
+    for(unsigned r=0;r<3;r++){
+        float coefficient=0;
+        for(unsigned i=0;i<3;i++)if(out->mask[i]&(1u<<r))coefficient+=out->gain[i];
+        if(coefficient){singles.mask[k]=1u<<r;singles.gain[k++]=coefficient;}
+    }
+    *out=singles;return 0;
+}
+static int ahead(const struct window *w,int64_t at,int reverse){
+    return reverse?at-HEADROOM>=w->first&&at<w->first+WINDOW:at>=w->first&&at+HEADROOM<w->first+WINDOW;
+}
 static int prepared_read(struct xz_oc_stream *s,unsigned mask,int64_t first,size_t frames,float *output){
     if(s->foreign)return mask?xz_foreign_read(s->foreign,mask,first,frames,output):xz_foreign_reference(s->foreign,first,frames,output);
     struct xz_oc_file *file=mask?xz_oc_mix_file(&s->assets,mask):&s->assets.reference;
@@ -227,6 +250,7 @@ static void *stream_worker(void *context){
             unsigned masks=__atomic_load_n(&s->request_masks,__ATOMIC_ACQUIRE);
             if(!masks){__atomic_store_n(&s->state,XZ_OC_READY,__ATOMIC_RELEASE);struct timespec idle={0,5000000};nanosleep(&idle,NULL);continue;}
             int64_t desired=__atomic_load_n(&s->desired,__ATOMIC_ACQUIRE);
+            int reverse=__atomic_load_n(&s->reverse,__ATOMIC_RELAXED);
             int64_t at=(int64_t)floor(((double)desired+s->offset)*stem_rate(s)/s->rate);
             int current=__atomic_load_n(&s->published,__ATOMIC_SEQ_CST);
             int32_t loop=__atomic_load_n(&s->loop_start,__ATOMIC_ACQUIRE);
@@ -239,12 +263,14 @@ static void *stream_worker(void *context){
                 if(ok>0){__atomic_store_n(&s->loop_published,candidate,__ATOMIC_SEQ_CST);pinned=&s->window[candidate];}
                 if(ok<0){__atomic_store_n(&s->state,XZ_OC_ERROR,__ATOMIC_RELEASE);break;}
             }
-            int loop_covered=pinned->valid&&pinned->masks==masks&&at>=pinned->first&&at+72000<pinned->first+WINDOW;
-            int refill=!loop_covered&&(current<0||s->window[current].masks!=masks||
-                (s->window[current].first>0&&at<s->window[current].first+4800)||at>s->window[current].first+WINDOW/3);
+            int loop_covered=pinned->valid&&pinned->masks==masks&&ahead(pinned,at,0);
+            const struct window *now=current<0?NULL:&s->window[current];
+            int refill=!loop_covered&&(!now||now->masks!=masks||(reverse?
+                at>now->first+WINDOW-4800||at<now->first+WINDOW*2/3:
+                (now->first>0&&at<now->first+4800)||at>now->first+WINDOW/3));
             if(refill){
                 int candidate=current==0?1:0;
-                int ok=fill_slot(s,candidate,at-9600,masks);
+                int ok=fill_slot(s,candidate,reverse?at+9600-WINDOW:at-9600,masks);
                 if(ok<0){__atomic_store_n(&s->state,XZ_OC_ERROR,__ATOMIC_RELEASE);break;}
                 if(ok)__atomic_store_n(&s->published,candidate,__ATOMIC_SEQ_CST);
             }
@@ -252,7 +278,7 @@ static void *stream_worker(void *context){
             int ready=0;
             for(unsigned i=0;i<4;i++){
                 struct window *w=&s->window[i];
-                ready|=w->valid&&w->masks==masks&&latest>=w->first&&latest+72000<w->first+WINDOW;
+                ready|=w->valid&&w->masks==masks&&ahead(w,latest,reverse);
             }
             __atomic_store_n(&s->state,ready?XZ_OC_READY:XZ_OC_BUFFERING,__ATOMIC_RELEASE);
         }
@@ -261,7 +287,7 @@ static void *stream_worker(void *context){
 }
 struct xz_oc_stream *xz_oc_stream_open(const char *path,uint32_t rate,char *error,size_t capacity){
     if(rate<32000||rate>96000){snprintf(error,capacity,"Unsupported XZ reader rate");return NULL;}
-    struct xz_oc_stream *s=calloc(1,sizeof(*s));if(!s)return NULL;s->rate=rate;s->published=-1;s->loop_published=-1;s->loop_start=-1;s->state=XZ_OC_ALIGNING;
+    struct xz_oc_stream *s=calloc(1,sizeof(*s));if(!s)return NULL;s->rate=rate;s->published=-1;s->loop_published=-1;s->loop_start=-1;s->last_position=-1;s->state=XZ_OC_ALIGNING;
     if(xz_oc_open(path,&s->assets,error,capacity)){
         char declared[4096];
         if(!xz_oc_bundle(path,declared,sizeof(declared))){free(s);return NULL;}
@@ -289,6 +315,7 @@ void xz_oc_stream_loop_start(struct xz_oc_stream *s,int32_t position){
     if(s)__atomic_store_n(&s->loop_start,position,__ATOMIC_RELEASE);
 }
 static struct window *find_window(struct xz_oc_stream *s,const struct xz_oc_plan *plan,double at,double span,int headroom){
+    int reverse=__atomic_load_n(&s->reverse,__ATOMIC_RELAXED);
     int current=__atomic_load_n(&s->published,__ATOMIC_SEQ_CST);
     int loop=__atomic_load_n(&s->loop_published,__ATOMIC_SEQ_CST);
     int order[4]={current<0?0:current,loop<0?2:loop,loop==2?3:2,current==0?1:0};
@@ -296,7 +323,7 @@ static struct window *find_window(struct xz_oc_stream *s,const struct xz_oc_plan
         struct window *w=&s->window[order[i]];
         if(!window_acquire(w))continue;
         double first=at-w->first,last=first+span;
-        if(w->valid&&window_has(w,plan)&&first>=0&&last<WINDOW-1&&(!headroom||WINDOW-last>=72000))return w;
+        if(w->valid&&window_has(w,plan)&&first>=0&&last<WINDOW-1&&(!headroom||(reverse?first>=HEADROOM:WINDOW-last>=HEADROOM)))return w;
         window_release(w);
     }
     return NULL;
@@ -305,7 +332,16 @@ size_t xz_oc_stream_mix4_trace(struct xz_oc_stream *s,float *pcm,size_t frames,i
     if(out){memset(out,0,64);out[4]=UINT32_MAX;}
     if(!s||!pcm||!frames||frames>65536||position<0)return 0;
     struct xz_oc_plan requested;
-    if(plan_levels(levels,stem_count(s),&requested))return 0;
+    if(stream_plan(s,levels,&requested))return 0;
+    if(s->last_position>=0){
+        int64_t step=position-s->last_position;int backward=step<0&&step>-16384,forward=step>0&&step<16384;
+        int run=s->direction_run;
+        run=backward?(run<0?run-1:-1):forward?(run>0?run+1:1):0;
+        s->direction_run=run;
+        if(run<=-DIRECTION_BLOCKS)__atomic_store_n(&s->reverse,1,__ATOMIC_RELAXED);
+        if(run>=DIRECTION_BLOCKS)__atomic_store_n(&s->reverse,0,__ATOMIC_RELAXED);
+    }
+    s->last_position=position;
     if(out)out[0]=plan_masks(&requested);
     __atomic_store_n(&s->request_masks,plan_masks(&requested),__ATOMIC_RELEASE);
     __atomic_store_n(&s->desired,position,__ATOMIC_RELEASE);
@@ -323,7 +359,7 @@ size_t xz_oc_stream_mix4_trace(struct xz_oc_stream *s,float *pcm,size_t frames,i
     if(!aligned&&plan_masks(&requested)){if(out)out[3]=1;return 0;}
     float previous[4]={1,1,1,1},applied[4]={1,1,1,1};
     for(unsigned r=0;r<stem_count(s);r++){uint32_t bits=__atomic_load_n(&s->previous_levels[r],__ATOMIC_RELAXED);memcpy(previous+r,&bits,4);applied[r]=levels[r];}
-    struct xz_oc_plan old; plan_levels(previous,stem_count(s),&old);
+    struct xz_oc_plan old; stream_plan(s,previous,&old);
     double at=aligned?((double)position+s->offset)*stem_rate(s)/s->rate:0;
     double span=(double)(frames-1)*stem_rate(s)/s->rate;
     int switching=plan_masks(&requested)!=plan_masks(&old);

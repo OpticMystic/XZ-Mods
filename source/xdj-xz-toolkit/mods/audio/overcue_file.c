@@ -37,15 +37,21 @@ static int file_hash_matches(const char *path,const char *expected) {
     while((n=fread(data,1,sizeof(data),f))){sha256_update(&c,data,n);total+=n;if(total>UINT64_C(2147483648)){fclose(f);return 0;}}
     int ok=!ferror(f);fclose(f);sha256_final(&c,sum);return ok&&digest_matches(sum,expected);
 }
+/* OverCue Desktop 2.2.40+ can grow index.json past the 4 MiB older OverCue firmware reads. */
+#define XZ_OC_DOCUMENT_MAX (16*1024*1024)
 static int document_open(const char *path,struct document *d) {
     memset(d,0,sizeof(*d));FILE *f=fopen(path,"rb");if(!f)return -1;
     if(fseek(f,0,SEEK_END)){fclose(f);return -1;}long size=ftell(f);rewind(f);
-    if(size<2||size>4*1024*1024){fclose(f);return -1;}
-    d->text=calloc((size_t)size+1,1);d->token=calloc((size_t)size/2+1,sizeof(*d->token));
-    if(!d->text||!d->token){fclose(f);return -1;}
+    if(size<2||size>XZ_OC_DOCUMENT_MAX){fclose(f);return -1;}
+    d->text=calloc((size_t)size+1,1);
+    if(!d->text){fclose(f);return -1;}
     int ok=fread(d->text,1,(size_t)size,f)==(size_t)size;fclose(f);if(!ok)return -1;
     jsmn_parser parser;jsmn_init(&parser);
-    d->count=jsmn_parse(&parser,d->text,(size_t)size,d->token,(unsigned)size/2+1);
+    int count=jsmn_parse(&parser,d->text,(size_t)size,NULL,0);
+    if(count<1)return -1;
+    d->token=calloc((size_t)count,sizeof(*d->token));if(!d->token)return -1;
+    jsmn_init(&parser);
+    d->count=jsmn_parse(&parser,d->text,(size_t)size,d->token,(unsigned)count);
     return d->count>0&&d->token[0].type==JSMN_OBJECT?0:-1;
 }
 static void document_close(struct document *d){free(d->text);free(d->token);memset(d,0,sizeof(*d));}
@@ -173,11 +179,11 @@ static void close_file(struct xz_oc_file *f){if(f->file)fclose(f->file);if(f->ra
 int xz_oc_assets_pin(struct xz_oc_assets *a){
 #if defined(__linux__)
     if(!a||!xz_ram_files_pin)return 0;
-    struct xz_oc_file *members[7]={&a->role[0],&a->role[1],&a->role[2],&a->reference,&a->combination[0],&a->combination[1],&a->combination[2]};
-    FILE *files[7];struct xz_ram_file_pin pins[7]={{0}};
-    for(unsigned i=0;i<7;i++){if(members[i]->ram.mapping)return 1;files[i]=members[i]->file;}
-    int result=xz_ram_files_pin(files,pins,7);
-    if(result==1)for(unsigned i=0;i<7;i++)members[i]->ram=pins[i];
+    struct xz_oc_file *members[4]={&a->role[0],&a->role[1],&a->role[2],&a->reference};
+    FILE *files[4];struct xz_ram_file_pin pins[4]={{0}};
+    for(unsigned i=0;i<4;i++){if(members[i]->ram.mapping)return 1;files[i]=members[i]->file;}
+    int result=xz_ram_files_pin(files,pins,4);
+    if(result==1)for(unsigned i=0;i<4;i++)members[i]->ram=pins[i];
     return result;
 #else
     (void)a;return 0;
@@ -185,7 +191,7 @@ int xz_oc_assets_pin(struct xz_oc_assets *a){
 }
 size_t xz_oc_assets_ram_bytes(const struct xz_oc_assets *a){
     if(!a)return 0;size_t total=a->reference.ram.bytes;
-    for(unsigned i=0;i<3;i++)total+=a->role[i].ram.bytes+a->combination[i].ram.bytes;
+    for(unsigned i=0;i<3;i++)total+=a->role[i].ram.bytes;
     return total;
 }
 int xz_oc_verify_role(const char *path,uint64_t frames,const char *table_sha,const char *pcm_sha){
@@ -198,14 +204,12 @@ int xz_oc_verify_role(const char *path,uint64_t frames,const char *table_sha,con
     if(!open_pgz(path,table_sha,frames,&file))rc=xz_oc_verify(&file);
     close_file(&file);return rc;
 }
-void xz_oc_close(struct xz_oc_assets *a){if(!a)return;for(unsigned i=0;i<3;i++){close_file(a->role+i);close_file(a->combination+i);free(a->wave[i]);}close_file(&a->reference);memset(a,0,sizeof(*a));}
+void xz_oc_close(struct xz_oc_assets *a){if(!a)return;for(unsigned i=0;i<3;i++){close_file(a->role+i);free(a->wave[i]);}close_file(&a->reference);memset(a,0,sizeof(*a));}
 struct xz_oc_file *xz_oc_mix_file(struct xz_oc_assets *a,unsigned mask){
-    switch(mask){case 1:return a->role;case 2:return a->role+1;case 4:return a->role+2;
-    case 3:return a->combination;case 5:return a->combination+1;case 6:return a->combination+2;case 7:return &a->reference;default:return NULL;}
+    switch(mask){case 1:return a->role;case 2:return a->role+1;case 4:return a->role+2;case 7:return &a->reference;default:return NULL;}
 }
 float xz_oc_mix_gain(const struct xz_oc_assets *a,unsigned mask){
-    switch(mask){case 1:return a->gain[0];case 2:return a->gain[1];case 4:return a->gain[2];
-    case 3:return a->combination_gain[0];case 5:return a->combination_gain[1];case 6:return a->combination_gain[2];default:return 1;}
+    switch(mask){case 1:return a->gain[0];case 2:return a->gain[1];case 4:return a->gain[2];default:return 1;}
 }
 static void load_wave(const char *path,unsigned char **wave,uint32_t *count){
     FILE *f=fopen(path,"rb");if(!f)return;unsigned char h[24];
@@ -265,7 +269,7 @@ int xz_oc_open(const char *source,struct xz_oc_assets *a,char *error,size_t capa
     double frames=indexed?number(&index,field(&index,entry,"frames")):number(&manifest,field(&manifest,runtime,"frames"));
     if(frames<1||frames>XZ_OC_MAX_PAGES*(XZ_OC_PAGE/4u)||frames!=floor(frames))goto done;
     if(indexed){
-        if(number(&index,field(&index,entry,"three_part"))!=1||number(&index,field(&index,entry,"page_bytes"))!=XZ_OC_PAGE)goto done;
+        if(number(&index,field(&index,entry,"page_bytes"))!=XZ_OC_PAGE)goto done;
     }else if((number(&manifest,field(&manifest,runtime,"sample_rate"))!=XZ_OC_RATE&&number(&manifest,field(&manifest,runtime,"sample_rate"))!=44100)||number(&manifest,field(&manifest,runtime,"channels"))!=2||
              !equal(&manifest,field(&manifest,runtime,"format"),"s16le"))goto done;
     a->frames=(uint64_t)frames;
@@ -279,9 +283,12 @@ int xz_oc_open(const char *source,struct xz_oc_assets *a,char *error,size_t capa
             if(string(&manifest,manifest_digest,value,sizeof(value))||strcmp(value,expected))goto done;
         }
     }
-    const char *names[]={"drums","harmonics","vocal","full-mix","instrumental","vocals-drums","vocals-harmonics"};
-    const unsigned masks[]={1,2,4,7,3,5,6};
-    for(unsigned i=0;i<7;i++){
+    const char *names[]={"drums","harmonics","vocal","full-mix"};
+    const unsigned masks[]={1,2,4,7};
+    const char *pair_keys[]={"instrumental_sha256","vocals_drums_sha256","vocals_harmonics_sha256"};
+    const char *pair_roles[]={"instrumental","vocals-drums","vocals-harmonics"};
+    for(unsigned i=0;i<3;i++)a->pair_files+=indexed?field(&index,entry,pair_keys[i])>=0:field(&manifest,roles,pair_roles[i])>=0;
+    for(unsigned i=0;i<4;i++){
         int role=field(&manifest,roles,names[i]);double gain=1;
         struct xz_oc_file *file=xz_oc_mix_file(a,masks[i]);
         if(indexed){
@@ -308,12 +315,12 @@ int xz_oc_open(const char *source,struct xz_oc_assets *a,char *error,size_t capa
            open_pgz(path,expected,a->frames,file))goto done;
         if(!a->sample_rate)a->sample_rate=file->sample_rate;
         if(file->sample_rate!=a->sample_rate){snprintf(error,capacity,"Stem mixes use different sample rates");goto done;}
-        if(i>=4)a->combination_gain[i-4]=(float)gain;
         if(i<3){a->gain[i]=(float)gain;
             if(snprintf(path,sizeof(path),"%s/stems-%s-waveform.EXT",folder,names[i])<(int)sizeof(path))load_wave(path,&a->wave[i],&a->wave_count[i]);}
     }
     int declared_rate=field(&index,entry,"sample_rate");
-    if((declared_rate>=0&&number(&index,declared_rate)!=a->sample_rate)||
+    /* An indexed entry without sample_rate is the 96 kHz profile: OVPGZ004 never stands in for it. */
+    if((declared_rate>=0&&number(&index,declared_rate)!=a->sample_rate)||(indexed&&declared_rate<0&&a->sample_rate!=XZ_OC_RATE)||
        (runtime>=0&&field(&manifest,runtime,"sample_rate")>=0&&number(&manifest,field(&manifest,runtime,"sample_rate"))!=a->sample_rate)){
         snprintf(error,capacity,"Stem sample rate does not match its index");goto done;
     }

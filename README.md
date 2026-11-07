@@ -78,7 +78,9 @@ track inside `Contents`. The builder checks source identity and every compressed
 audio page using the same decoder as the player. It does not change the USB.
 
 Supported prepared format: the open OverCue format (`overcue-index/1` and
-`overcue-stems/4`), including all seven prepared mixes. The source track must match
+`overcue-stems/4`). Both the four-file stems from OverCue Desktop 2.2.26 and later
+and older seven-file stems play: the player mixes every pair from the vocal, drums
+and harmonics files, as OverCue firmware 0.13.1 does. The source track must match
 the one the stems were made from. Other formats are refused.
 
 [OverCue](https://overcue.gg/) is the recommended way to prepare stems.

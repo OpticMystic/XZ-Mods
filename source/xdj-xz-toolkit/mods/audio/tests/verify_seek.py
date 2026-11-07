@@ -20,7 +20,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='xz-seek-') as folder:
         binary = Path(folder) / 'seek.exe'
         subprocess.run(compiler + flags + [str(HERE/'test_overcue_seek.c'), '-pthread', '-lm', '-o', str(binary)], check=True)
-        for case in ('A', 'B', 'overlap-B', 'worker-B', 'policy'):
+        for case in ('A', 'B', 'overlap-B', 'worker-B', 'reverse', 'policy'):
             subprocess.run([str(binary), case], check=True, timeout=30)
 
 if __name__ == '__main__':

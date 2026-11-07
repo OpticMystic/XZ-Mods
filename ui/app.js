@@ -365,7 +365,7 @@ const ST={
   'search.placeholder':'Search title or artist','filter.all':'All','filter.missing':'Missing','filter.ready':'Ready','filter.cant':'Can\'t prepare','filter.selected':'Selected','pager':'Showing {from} to {to} of {total}',
   'pill.missing':'Missing','pill.ready':'Ready','pill.verified':'Verified','pill.new':'New','pill.damaged':'Damaged','pill.unavailable':'No audio file','pill.unsupported':'Not yet','pill.error':'Can\'t read',
   'pill.queued':'Queued','pill.running':'Preparing {pct}%','pill.failed':'Failed','pill.cancelled':'Cancelled','pill.notStarted':'Not started',
-  'sub.unavailable':'Export it to the USB again','sub.unsupported':'{format} support is coming','sub.reused':'Reused existing stems','sub.damaged':'{bad} of 7 mixes failed the check',
+  'sub.unavailable':'Export it to the USB again','sub.unsupported':'{format} support is coming','sub.reused':'Reused existing stems','sub.damaged':'The check failed',
   'size.estimateTitle':'Estimated, between {low} and {high}','size.unsupportedTitle':'What it would need once {format} is supported',
   'stage.decode':'Reading the track','stage.load-model':'Loading the stem engine','stage.separate-vocals':'Separating vocals','stage.separate-drums':'Separating drums','stage.postprocess':'Balancing the parts',
   'stage.render':'Mixing the 7 stem mixes','stage.pack':'Writing to the USB','stage.verify':'Checking the result',
@@ -382,7 +382,7 @@ const ST={
   'drawer.replaceAsk':'Replace the stems for {title}? The current stems stay until the new ones pass their check.','drawer.replace':'Replace','drawer.keep':'Keep',
   'drawer.verify':'Verify','drawer.verifyAgain':'Verify again','drawer.importReplace':'Import stems to replace','drawer.prepareAgain':'Prepare again','drawer.importElsewhere':'Import stems made elsewhere',
   'drawer.checkAgain':'Check again','drawer.retryTrack':'Retry this track',
-  'verify.mixes':'{ok} of 7 stem mixes','verify.pages':'{n} audio pages','verify.pagesAll':'Every audio page','verify.identity':'Matches this track','verify.timing':'In time ({r} match)',
+  'verify.mixes':'{ok} stem mixes verified','verify.pages':'{n} audio pages','verify.pagesAll':'Every audio page','verify.identity':'Matches this track','verify.timing':'In time ({r} match)',
   'empty.noUsb.title':'Connect your music USB','empty.noUsb.body':'Plug in the USB your DJ software exports your music to. XZ Mods finds it and lists its tracks.','empty.noUsb.action':'Connect a USB',
   'empty.noLib.title':'No exported music on {usb}','empty.noLib.body':'Export tracks to this USB from your DJ software, then check again.','empty.noLib.action':'Check again','empty.noLib.other':'Choose another USB',
   'empty.badLib.title':'This USB\'s library can\'t be read','empty.badLib.body':'XZ Mods can check it and repair common damage.','empty.badLib.action':'Check and repair library',
@@ -473,7 +473,7 @@ const stemsApi={
   didNotFit(item){return item.code==='usb_full'||/not enough usb space/i.test(item.error||'');},
   verify(result){
     const check={mixes:result.verified_mixes??0,pages:result.all_pages_verified===true,pageCount:result.verified_pages??null,identity:result.source_identity_verified===true,correlation:result.alignment_correlation??null};
-    return {...check,ok:check.mixes===7&&check.pages&&check.identity};
+    return {...check,ok:Number.isInteger(check.mixes)&&check.mixes>=4&&check.mixes<=7&&check.pages&&check.identity};
   },
   engine(plan){
     const device=plan.device||'cpu',presets=(plan.presets||[]).map(preset=>typeof preset==='string'?{id:preset}:{id:preset.id||preset.name,secondsPerTrack:preset.seconds_per_track??null,installed:preset.installed===true,downloadBytes:preset.download_bytes??null});
@@ -551,7 +551,7 @@ function plainButton(label,action,options={}){
 function selectionSummary(){
   const lib=stemLibrary,items=[...stemSelection.values()],n=items.length;
   const bytes=items.reduce((sum,item)=>sum+item.estimate.bytes,0),low=items.reduce((sum,item)=>sum+item.estimate.low,0),high=items.reduce((sum,item)=>sum+item.estimate.high,0);
-  const remaining=lib.free-bytes,room=Math.max(0,Math.floor((INDEX_LIMIT-lib.indexBytes)/INDEX_ENTRY_BYTES));
+  const remaining=lib.free-bytes,room=Math.max(0,Math.floor(((lib.indexBytes>INDEX_LIMIT?16*MiB:INDEX_LIMIT)-lib.indexBytes)/INDEX_ENTRY_BYTES));
   const fit=!n?'none':room<n?'index':remaining<0?'over':remaining<Math.max(TIGHT_FLOOR,lib.size*0.05)?'tight':'ok';
   let fitCount=n;
   if(fit==='index'||fit==='over'){let used=0;fitCount=0;for(const item of items){if(fitCount>=room||used+item.estimate.bytes>lib.free)break;used+=item.estimate.bytes;fitCount++;}}
@@ -691,14 +691,14 @@ function sizeCell(track,state){
   return cell('≈ '+mb(estimate.bytes),'estimate',t('size.estimateTitle',{low:mb(estimate.low),high:mb(estimate.high)}));
 }
 function rowSub(track,state){
-  const item=batchItem(track.id),check=stemChecks.get(stemSelectionKey+'\n'+track.id);
-  const text={damaged:check&&check.mixes<7?t('sub.damaged',{bad:7-check.mixes}):'The check failed',unavailable:ST['sub.unavailable'],unsupported:t('sub.unsupported',{format:track.format}),
+  const item=batchItem(track.id);
+  const text={damaged:ST['sub.damaged'],unavailable:ST['sub.unavailable'],unsupported:t('sub.unsupported',{format:track.format}),
     error:track.detail,running:stageLabel(item),reused:ST['sub.reused'],failed:item?.error||'',missing:track.canGenerate?'':track.detail}[state];
   if(!text&&ROW_STATES[state].done&&track.needsRegeneration)return el('span',{class:'st-sub',dataset:{tone:'warn'},text:ST['sub.regenerate']});
   return text?el('span',{class:'st-sub',dataset:{tone:ROW_STATES[state].tone},text}):null;
 }
 function verifyChips(check){
-  return el('ul',{class:'st-verify'},el('li',{dataset:{ok:String(check.mixes===7)},text:t('verify.mixes',{ok:check.mixes})}),
+  return el('ul',{class:'st-verify'},el('li',{dataset:{ok:String(Number.isInteger(check.mixes)&&check.mixes>=4&&check.mixes<=7)},text:t('verify.mixes',{ok:check.mixes})}),
     el('li',{dataset:{ok:String(check.pages)},text:check.pageCount?t('verify.pages',{n:check.pageCount.toLocaleString('en-US')}):ST['verify.pagesAll']}),
     el('li',{dataset:{ok:String(check.identity)},text:ST['verify.identity']}),check.correlation===null?null:el('li',{text:t('verify.timing',{r:check.correlation.toFixed(3)})}));
 }

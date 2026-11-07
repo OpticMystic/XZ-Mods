@@ -23,6 +23,7 @@ PAGE_HEADER = 24
 MANIFEST_BYTES = 2600
 INDEX_ENTRY_BYTES = 1200
 INDEX_LIMIT = 4 * 1024 * 1024
+MAX_INDEX_LIMIT = 16 * 1024 * 1024
 FILESYSTEM_CLUSTER = 32768
 # FLAC page size over raw PCM, measured on a real 44.1 kHz master upsampled to
 # 96 kHz (full mix 0.40). Partial roles are sparser; these start a little high
@@ -142,12 +143,13 @@ def estimate_selection(estimates, free_bytes, index_bytes=0, reserve_bytes=64 * 
     high = sum(e['high_bytes'] for e in estimates)
     low = sum(e['low_bytes'] for e in estimates)
     index_after = int(index_bytes) + INDEX_ENTRY_BYTES * len(estimates)
+    limit = MAX_INDEX_LIMIT if index_bytes > INDEX_LIMIT else INDEX_LIMIT
     return {'tracks': len(estimates), 'bytes': total, 'low_bytes': low, 'high_bytes': high,
             'free_bytes': int(free_bytes), 'remaining_bytes': int(free_bytes) - total,
             'fits': high + reserve_bytes <= int(free_bytes),
             'tight': total + reserve_bytes <= int(free_bytes) < high + reserve_bytes,
-            'index_bytes_after': index_after, 'index_fits': index_after <= INDEX_LIMIT,
-            'index_room_tracks': max(0, (INDEX_LIMIT - int(index_bytes)) // INDEX_ENTRY_BYTES)}
+            'index_bytes_after': index_after, 'index_fits': index_after <= limit,
+            'index_room_tracks': max(0, (limit - int(index_bytes)) // INDEX_ENTRY_BYTES)}
 
 
 def required_free_bytes(frames_44100, model=None):

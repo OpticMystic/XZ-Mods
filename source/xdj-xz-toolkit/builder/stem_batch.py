@@ -152,7 +152,8 @@ def generate(request, job, resources):
                     if state['stem_status'] == 'present':
                         child.progress('verify', 'Checking existing stems before reusing them')
                         verified = json.loads(child.run([executable(resources,'xz-overcue-check'), source]))
-                        if (verified.get('format') != 'overcue-stems/4' or verified.get('verified_mixes') != 7
+                        if (verified.get('format') != 'overcue-stems/4' or type(verified.get('verified_mixes')) is not int
+                                or not 4 <= verified['verified_mixes'] <= 7
                                 or verified.get('all_pages_verified') is not True or verified.get('source_identity_verified') is not True):
                             raise ValueError('Existing stems did not pass verification. They were left unchanged.')
                         item.update(state='reused', stage='complete')

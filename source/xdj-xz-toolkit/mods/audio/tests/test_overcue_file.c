@@ -13,7 +13,7 @@ int main(int argc,char **argv){
     if(!strcmp(argv[2],"reject")){assert(result);puts("PASS rejected invalid bundle");return 0;}
     if(result){fprintf(stderr,"%s\n",error);return 1;}
     if(!strcmp(argv[2],"valid44"))assert(assets.sample_rate==44100u);
-    else if(!strcmp(argv[2],"valid")||!strcmp(argv[2],"gain"))assert(assets.sample_rate==96000u);
+    else if(!strcmp(argv[2],"valid")||!strcmp(argv[2],"gain")||!strcmp(argv[2],"four"))assert(assets.sample_rate==96000u);
     if(!strcmp(argv[2],"real")){
         int16_t samples[4096];
         for(unsigned r=0;r<3;r++){assert(!xz_oc_read(assets.role+r,(int64_t)(assets.frames/2),2048,samples));assert(assets.wave_count[r]);}
@@ -28,6 +28,10 @@ int main(int argc,char **argv){
     for(int i=5;i<8;i++)assert(!data[i*2]&&!data[i*2+1]);
     assert(!xz_oc_read(&assets.role[0],-2,4,data));assert(data[0]==0&&data[2]==0&&data[4]==0&&data[6]==1);
     assert(assets.wave_count[0]==5&&assets.wave[0][4]==31);
-    for(unsigned mask=1;mask<=7;mask++)assert(!xz_oc_verify(xz_oc_mix_file(&assets,mask)));
-    xz_oc_close(&assets);puts("PASS verified paged PCM, all seven complete hashes, cross-page reads, bounds and waveform");return 0;
+    const unsigned required[]={1,2,4,7};
+    for(unsigned i=0;i<4;i++)assert(!xz_oc_verify(xz_oc_mix_file(&assets,required[i])));
+    for(unsigned mask=3;mask<=6;mask+=mask==3?2:1)assert(!xz_oc_mix_file(&assets,mask));
+    if(!strcmp(argv[2],"four"))assert(assets.pair_files==0);else assert(assets.pair_files==3);
+    const char *layout=assets.pair_files?"seven-file":"four-file";xz_oc_close(&assets);
+    printf("PASS verified paged PCM, %s complete hashes, cross-page reads, bounds and waveform\n",layout);return 0;
 }

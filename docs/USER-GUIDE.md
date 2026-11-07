@@ -24,7 +24,9 @@ to build source.
    same USB. Open **Prepare stems > Check OverCue track** and choose the original
    track inside `Contents`. This reads the source and all prepared pages without
    changing them. Both new lossless FLAC pages and legacy zlib pages are supported,
-   including OverCue Desktop's **Repack existing** output. Update the USB loader
+   including OverCue Desktop's **Repack existing** output. The four-file stems from
+   OverCue Desktop 2.2.26 and later play, and so do stems after **Remove unused stem
+   files** or **Realign stems**. Update the USB loader
    with this local build before loading FLAC-prepared tracks on the XZ.
 5. Or use the beta stem builder in **Prepare stems > Build stems in XZ Mods**.
    It writes the same [open OverCue format](https://github.com/OverCue-gg/overcue-stems-format)
@@ -268,7 +270,9 @@ setup. App updates use signed architecture-specific bundles when available.
 ## New FLAC stem pages
 
 The reader accepts OverCue's OVPGZ003 FLAC pages and existing OVPGZ001 zlib
-pages. Generate and Import write FLAC and verify all seven playback mixes.
+pages. Generate and Import write FLAC and verify all seven playback mixes, which
+older OverCue firmware still needs. The XZ reads only the vocal, drums, harmonics
+and full-mix files, so OverCue's four-file stems play too.
 Keep Contents and CDJMODS together. Update an older USB loader through USB
 loader > Back up and update loader before using the new FLAC pages on the XZ.
 

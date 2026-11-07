@@ -54,6 +54,36 @@ def fixture(root, signal=False):
     return source, bundle, drum_pages, drum_table
 
 
+PAIRS = ('instrumental', 'vocals-drums', 'vocals-harmonics')
+
+
+def four_file(source, bundle, large_index=False):
+    """Rewrite a bundle as OverCue Desktop 2.2.26+ does: no pair files or pair metadata."""
+    index_path = source.parents[2] / 'CDJMODS/index.json'
+    index = json.loads(index_path.read_text())
+    entry = index['tracks']['1']
+    for role in PAIRS:
+        (bundle / f'stems-sidecar-{role}.s16le.pgz').unlink()
+        (bundle / f'stems-{role}-waveform.EXT').unlink(missing_ok=True)
+        key = role.replace('-', '_')
+        entry.pop(key + '_sha256', None)
+        entry.pop(key + '_page_table_sha256', None)
+    entry.pop('three_part', None)
+    entry['source_timing_policy'] = 'native-mp3-header/1'
+    if large_index:
+        filler = {key: value for key, value in entry.items() if key != 'file_path'}
+        for n in range(2, 4000):
+            index['tracks'][str(n)] = dict(filler, file_path=f'/Contents/filler/{n:05d}-' + 'x' * 900 + '.mp3')
+    index_path.write_text(json.dumps(index))
+    assert not large_index or index_path.stat().st_size > 4 * 1024 * 1024
+    manifest_path = bundle / 'overcue-manifest.json'
+    manifest = json.loads(manifest_path.read_text())
+    for role in PAIRS:
+        manifest['roles'].pop(role)
+    manifest['runtime']['source_timing_policy'] = 'native-mp3-header/1'
+    manifest_path.write_text(json.dumps(manifest))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     compiler = p.add_mutually_exclusive_group(required=True)
@@ -138,8 +168,12 @@ def main():
         invalid['tracks']['1']['sample_rate'] = 96000
         index44.write_text(json.dumps(invalid))
         subprocess.run([str(binary), str(source44), 'reject'], check=True)
+        # FORMAT.md 54a52b8: an entry without sample_rate is the 96 kHz profile, so OVPGZ004 pages are refused.
+        del invalid['tracks']['1']['sample_rate']
+        index44.write_text(json.dumps(invalid))
+        subprocess.run([str(binary), str(source44), 'reject'], check=True)
         index44.write_bytes(valid_index44)
-        role44 = bundle44 / 'stems-sidecar-drums.s16le.pgz'
+        role44 =bundle44 / 'stems-sidecar-drums.s16le.pgz'
         valid_role44 = role44.read_bytes()
         wrong_rate = bytearray(valid_role44)
         first = struct.unpack_from('>Q', wrong_rate, 24)[0]
@@ -151,6 +185,17 @@ def main():
         source, bundle, _, _ = fixture(root / 'mixed-usb')
         repack(source, bundle, roles={'drums', 'vocal'})
         subprocess.run([str(binary), str(source), 'valid'], check=True)
+        source, bundle, _, _ = fixture(root / 'four-usb')
+        repack(source, bundle)
+        four_file(source, bundle)
+        subprocess.run([str(binary), str(source), 'four'], check=True)
+        source, bundle, _, _ = fixture(root / 'four-large-usb')
+        repack(source, bundle)
+        four_file(source, bundle, large_index=True)
+        subprocess.run([str(binary), str(source), 'four'], check=True)
+        missing = bundle / 'stems-sidecar-vocal.s16le.pgz'
+        missing.unlink()
+        subprocess.run([str(binary), str(source), 'reject'], check=True)
         streaming = root / 'stream.exe'
         subprocess.run(compiler + checks + [
             '-DMINIZ_NO_ARCHIVE_APIS', '-DMINIZ_NO_DEFLATE_APIS',
@@ -163,6 +208,10 @@ def main():
         subprocess.run([str(streaming), str(source44)], check=True, timeout=30)
         repack(source, bundle)
         subprocess.run([str(streaming), str(source)], check=True, timeout=30)
+        four_file(source, bundle)
+        subprocess.run([str(streaming), str(source)], check=True, timeout=30)
+        # An MP3 Info frame (1152) plus LAME encoder and decoder delay (576 + 529), as OverCue's MP3 realignment moves it.
+        subprocess.run([str(streaming), str(source), '2257.4'], check=True, timeout=30)
 
 
 if __name__ == '__main__':

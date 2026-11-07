@@ -117,6 +117,12 @@ class EstimateTests(unittest.TestCase):
         nearly_full_index = est.estimate_selection(tracks, free_bytes=high * 2, index_bytes=est.INDEX_LIMIT - 1000)
         self.assertFalse(nearly_full_index['index_fits'])
         self.assertEqual(nearly_full_index['index_room_tracks'], 0)
+        large_index = est.estimate_selection(tracks, free_bytes=high * 2, index_bytes=est.INDEX_LIMIT + 1)
+        self.assertTrue(large_index['index_fits'])
+        self.assertGreater(large_index['index_room_tracks'], 0)
+        full_index = est.estimate_selection(tracks, free_bytes=high * 2, index_bytes=est.MAX_INDEX_LIMIT)
+        self.assertFalse(full_index['index_fits'])
+        self.assertEqual(full_index['index_room_tracks'], 0)
 
     def test_required_free_space_exceeds_the_estimate(self):
         frames = est.frames_from_seconds(300)

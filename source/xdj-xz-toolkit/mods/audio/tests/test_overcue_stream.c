@@ -11,9 +11,11 @@
 #ifdef NDEBUG
 #error Overcue acceptance requires active assertions
 #endif
+/* Native-timeline offset of the prepared full mix, in 44.1 kHz frames. */
+static double lag=29.4;
 static void pause_worker(void){struct timespec t={0,20000000};nanosleep(&t,NULL);}
 static void original(struct xz_oc_assets *a,int64_t at,float pcm[4096]){
-    double first=(at+29.4)*a->sample_rate/44100;int64_t base=(int64_t)floor(first);int16_t raw[10000];
+    double first=(at+lag)*a->sample_rate/44100;int64_t base=(int64_t)floor(first);int16_t raw[10000];
     assert(!xz_oc_read(&a->reference,base,5000,raw));
     for(unsigned i=0;i<2048;i++)for(unsigned c=0;c<2;c++){
         double t=first+i*(double)a->sample_rate/44100-base;size_t k=(size_t)t;double f=t-k;
@@ -28,7 +30,7 @@ int main(int argc,char **argv){
         for(unsigned i=0;i<3;i++){expected+=levels[i]*parts[i];for(unsigned j=0;j<2;j++)if(plan.mask[j]&(1u<<i))actual+=plan.gain[j]*parts[i];}
         assert(fabsf(actual-expected)<0.000001f);
     }
-    if(argc!=2)return 2;struct xz_oc_assets assets;char error[256];assert(!xz_oc_open(argv[1],&assets,error,sizeof(error)));
+    if(argc==3)lag=atof(argv[2]);else if(argc!=2)return 2;struct xz_oc_assets assets;char error[256];assert(!xz_oc_open(argv[1],&assets,error,sizeof(error)));
     struct xz_oc_stream *s=xz_oc_stream_open(argv[1],44100,error,sizeof(error));assert(s);
     float pcm[4096],before[4096];const float unity[3]={1,1,1},mute[3]={0,0,0};struct xz_oc_status status;
     struct timeval begin,end;gettimeofday(&begin,NULL);
@@ -41,7 +43,7 @@ int main(int argc,char **argv){
     gettimeofday(&end,NULL);
     fprintf(stderr,"alignment state=%d lag=%d correlation=%f elapsed_ms=%ld\n",status.state,status.lag,status.correlation,
         (long)((end.tv_sec-begin.tv_sec)*1000+(end.tv_usec-begin.tv_usec)/1000));
-    assert(status.state==XZ_OC_READY);assert(abs(status.lag-29)<=1);assert(status.correlation>0.985);
+    assert(status.state==XZ_OC_READY);assert(abs(status.lag-(int)lag)<=1);assert(status.correlation>0.985);
     original(&assets,15000,pcm);xz_oc_stream_mix(s,pcm,2048,15000,mute);pause_worker();
     original(&assets,15000,pcm);assert(xz_oc_stream_mix(s,pcm,2048,15000,mute)==2048);
     for(unsigned i=0;i<4096;i++)assert(pcm[i]==0);
@@ -57,8 +59,10 @@ int main(int argc,char **argv){
     }
     assert(status.state==XZ_OC_READY);original(&assets,15000,pcm);assert(xz_oc_stream_mix(s,pcm,2048,15000,no_vocals)==2048);
     double energy=0;for(unsigned i=256;i<4096;i++)energy+=pcm[i]*pcm[i];assert(energy>0.01);
-    double start=(15000+29.4)*assets.sample_rate/44100;int64_t base=(int64_t)floor(start);int16_t expected_pcm[10000];
-    assert(!xz_oc_read(&assets.combination[0],base,5000,expected_pcm));
+    double start=(15000+lag)*assets.sample_rate/44100;int64_t base=(int64_t)floor(start);int16_t expected_pcm[10000];
+    int16_t harmonics_pcm[10000];
+    assert(!xz_oc_read(&assets.role[0],base,5000,expected_pcm));assert(!xz_oc_read(&assets.role[1],base,5000,harmonics_pcm));
+    for(unsigned i=0;i<10000;i++)expected_pcm[i]=(int16_t)(expected_pcm[i]+harmonics_pcm[i]);
     double error_sum=0;
     for(unsigned i=128;i<2048;i++)for(unsigned c=0;c<2;c++){
         double t=start+i*(double)assets.sample_rate/44100-base;size_t k=(size_t)t;double f=t-k;

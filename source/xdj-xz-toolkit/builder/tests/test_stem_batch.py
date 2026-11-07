@@ -144,6 +144,14 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(result['failed'], 3)
         self.assertEqual(result['reused'], 0)
 
+    def test_four_to_seven_verified_mixes_are_reused(self):
+        for count in (4,5,6,7,3,8,None,'4',True):
+            with self.subTest(count=count):
+                self.job.verified.update(verified_mixes=count,layout='four-file' if count==4 else 'seven-file')
+                with patch.object(stem_library,'stem_status',return_value={'stem_status':'present'}):
+                    result=self.generate(lambda *args:self.fail('Existing track regenerated'))
+                self.assertEqual(result['reused'],3 if type(count) is int and 4<=count<=7 else 0)
+
     def test_request_validation_before_engine_execution(self):
         for ids in ([], ['1', '1'], [True], ['../1'], ['4294967296'], ['0'], [1] * 101, ['999']):
             with self.subTest(ids=str(ids)[:80]):

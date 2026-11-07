@@ -51,6 +51,32 @@ class LibraryTests(unittest.TestCase):
         self.assertEqual(row['stem_status'],'error')
         self.assertFalse(row['can_verify'])
         self.assertIn('not supported',row['detail'])
+    def test_four_file_overcue_bundle_and_optional_pairs(self):
+        from builder import overcue_writer as writer
+        source=self.root/'Contents/Artist/Track 1.mp3';source.write_bytes(b'ID3'+bytes(200))
+        track={'id':1,'file_path':'/Contents/Artist/Track 1.mp3'}
+        bundle='c'*16;folder=self.root/'CDJMODS/stems'/bundle;folder.mkdir(parents=True)
+        manifest={'schema':writer.MANIFEST_SCHEMA,'writer':{'name':'OverCue'},
+                  'runtime':{'frames':40000,'source_timing_policy':'native-mp3-header/1'},
+                  'roles':{role:{} for role in writer.REQUIRED_ROLES}}
+        (folder/'overcue-manifest.json').write_text(json.dumps(manifest))
+        for role in writer.REQUIRED_ROLES:(folder/writer.role_file(role)).write_bytes(b'OVPGZ003present')
+        entry={'bundle':bundle,'file_path':track['file_path'],'frames':40000,'source_timing_policy':'native-mp3-header/1'}
+        for three_part in (None,0,1,2,'four-file'):
+            with self.subTest(three_part=three_part),patch.object(writer.mp3_timing,'probe',side_effect=AssertionError('OverCue timing is advisory')):
+                if three_part is not None:entry['three_part']=three_part
+                row=stem_library.stem_status(self.root,track,{'tracks':{'1':entry}},None)
+                self.assertEqual(row['stem_status'],'present')
+                self.assertTrue(row['can_verify']);self.assertFalse(row['needs_regeneration'])
+                self.assertEqual(row['stored_bytes'],4*15)
+                self.assertNotIn('seven',row['detail'])
+        for role in writer.ROLES:
+            if role not in writer.REQUIRED_ROLES:(folder/writer.role_file(role)).write_bytes(b'OVPGZ003present')
+        row=stem_library.stem_status(self.root,track,{'tracks':{'1':entry}},None)
+        self.assertEqual((row['stem_status'],row['stored_bytes']),('present',7*15))
+        (folder/writer.role_file('drums')).unlink()
+        self.assertEqual(stem_library.stem_status(self.root,track,{'tracks':{'1':entry}},None)['stem_status'],'error')
+
     def test_mp3_bundle_from_a_gapless_decode_asks_to_prepare_again(self):
         from builder import overcue_writer as writer,mp3_timing
         self.mapping[1]='/Contents/Artist/Track 1.mp3'

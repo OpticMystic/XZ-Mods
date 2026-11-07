@@ -24,10 +24,11 @@ static int run(int argc, char **argv) {
         fprintf(stderr, "%s\n", error); return 1;
     }
     unsigned files = 0,flac_files=0;
-    for (unsigned mask = 1; mask <= 7; mask++) {
-        struct xz_oc_file *file = xz_oc_mix_file(&assets, mask);
+    const unsigned required[] = {1, 2, 4, 7};
+    for (unsigned i = 0; i < 4; i++) {
+        struct xz_oc_file *file = xz_oc_mix_file(&assets, required[i]);
         if (!file || !file->file) {
-            fputs("All seven OverCue prepared mixes are required.\n", stderr);
+            fputs("The vocal, drums, harmonics and full-mix OverCue files are required.\n", stderr);
             xz_oc_close(&assets); return 1;
         }
         if(xz_oc_verify(file)){
@@ -38,9 +39,9 @@ static int run(int argc, char **argv) {
     }
     printf("{\"format\":\"overcue-stems/4\",\"sample_rate\":%u,\"channels\":2,"
            "\"frames\":%llu,\"verified_mixes\":%u,\"all_pages_verified\":true,"
-           "\"page_codec\":\"%s\",\"flac_mixes\":%u,\"source_identity_verified\":%s,\"audio_alignment_verified\":false}\n",
-           assets.sample_rate,(unsigned long long)assets.frames, files,flac_files==7?(assets.sample_rate==44100?"flac-44k1":"flac-96k"):flac_files?"mixed":"zlib",flac_files,
-           assets.source_hash_verified?"true":"false");
+           "\"page_codec\":\"%s\",\"flac_mixes\":%u,\"layout\":\"%s\",\"source_identity_verified\":%s,\"audio_alignment_verified\":false}\n",
+           assets.sample_rate,(unsigned long long)assets.frames, files,flac_files==files?(assets.sample_rate==44100?"flac-44k1":"flac-96k"):flac_files?"mixed":"zlib",flac_files,
+           assets.pair_files?"seven-file":"four-file",assets.source_hash_verified?"true":"false");
     xz_oc_close(&assets); return 0;
 }
 int main(int argc,char **argv){

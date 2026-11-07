@@ -6,6 +6,7 @@ import struct
 import tempfile
 import unittest
 import zlib
+from unittest.mock import patch
 
 from builder import overcue_writer as writer
 
@@ -143,7 +144,7 @@ class MergeTests(unittest.TestCase):
             mods = Path(temp)
             for content in ('{"schema":"overcue-index/2","tracks":{}}', '[]', '{"schema":"overcue-index/1","tracks":[]}',
                             '{"schema":"overcue-index/1","tracks":{"1":{},"1":{}}}',
-                            '{"schema":"overcue-index/1","pad":"' + "x" * (4 * 1024 * 1024) + '"}'):
+                            '{"schema":"overcue-index/1","pad":"' + "x" * writer.MAX_INDEX_JSON + '"}'):
                 (mods / "index.json").write_text(content)
                 with self.assertRaises(ValueError):
                     writer.read_index(mods)
@@ -165,6 +166,49 @@ class PublishTests(unittest.TestCase):
                                  "test-model", "0.0-test", QuietJob(), source=source)
         return roles, receipt
 
+    def test_v2_absent_stays_absent(self):
+        self.publish("legacy")
+        self.assertFalse((self.root / "CDJMODS/index-v2").exists())
+        self.assertFalse((self.root / "CDJMODS/index-v2-pending").exists())
+
+    def test_v2_publish_pending_order_replacement_and_reuse_repair(self):
+        v2 = writer.overcue_index_v2
+        mods = self.root / "CDJMODS"
+        directory = mods / "index-v2"
+        directory.mkdir(parents=True)
+        replace = os.replace
+        seen = []
+        def observe(source, target):
+            target = Path(target)
+            if target.name in ("index.json", "current"):
+                self.assertTrue((mods / "index-v2-pending").is_file())
+                seen.append(target.name)
+            replace(source, target)
+        with patch.object(writer.os, "replace", side_effect=observe):
+            self.publish("first")
+        self.assertEqual(seen, ["index.json", "current"])
+        old = (directory / "current").read_bytes()
+        self.publish("replace", seed=8)
+        self.assertTrue((directory / old[8:24].hex()).is_dir())
+        index = writer.read_index(mods)[0]
+        self.assertEqual(v2.read(directory)[1, 12], v2.record(1, "12", index["tracks"]["12"]))
+        # Reusing unchanged audio/index repairs an interrupted or damaged v2 as well.
+        (directory / "current").write_bytes(b"corrupt")
+        (mods / "index-v2-pending").write_bytes(b"interrupted")
+        self.publish("repair", seed=8)
+        self.assertEqual(v2.read(directory)[1, 12], v2.record(1, "12", index["tracks"]["12"]))
+        self.assertFalse((mods / "index-v2-pending").exists())
+
+    def test_v2_invalid_track_key_refuses_index_replacement(self):
+        mods = self.root / "CDJMODS"
+        (mods / "index-v2").mkdir(parents=True)
+        original = json.dumps({"schema": writer.INDEX_SCHEMA, "tracks": {"invalid": {}}}).encode()
+        (mods / "index.json").write_bytes(original)
+        with self.assertRaisesRegex(ValueError, "positive u32"):
+            self.publish("invalid-key")
+        self.assertEqual((mods / "index.json").read_bytes(), original)
+        self.assertFalse((mods / "index-v2/current").exists())
+
     def test_mp3_manifest_records_the_player_timeline(self):
         mp3 = {"lame_tag": True, "delay_frames": 1105, "padding_frames": 407}
         _, receipt = self.publish("mp3", file_path="/Contents/a.mp3", codec="mp3", source={"sample_rate": 44100, "mp3": mp3})
@@ -172,6 +216,32 @@ class PublishTests(unittest.TestCase):
         self.assertEqual(manifest["source"]["mp3"], {**mp3, "timeline": "player"})
         self.assertEqual((manifest["source"]["codec"], manifest["source"]["sample_rate"]), ("mp3", 44100))
         self.assertEqual(manifest["runtime"]["latency_pad_frames"], 2405)
+
+    def test_index_reader_accepts_16_mib_but_not_more(self):
+        mods=self.root/'CDJMODS';mods.mkdir()
+        path=mods/'index.json'
+        raw=json.dumps({'schema':writer.INDEX_SCHEMA,'tracks':{}}).encode()
+        for size in (writer.MAX_JSON+1,writer.MAX_INDEX_JSON):
+            path.write_bytes(raw+b' '*(size-len(raw)))
+            self.assertEqual(len(writer.read_index(mods)[1]),size)
+        path.write_bytes(raw+b' '*(writer.MAX_INDEX_JSON+1-len(raw)))
+        with self.assertRaisesRegex(ValueError,'16 MiB'):writer.read_index(mods)
+
+    def test_index_write_limit_depends_on_existing_size(self):
+        mods=self.root/'CDJMODS';mods.mkdir()
+        path=mods/'index.json'
+        index={'schema':writer.INDEX_SCHEMA,'tracks':{},'padding':'x'*(writer.MAX_JSON-100)}
+        original=json.dumps(index,separators=(',',':')).encode()
+        self.assertLessEqual(len(original),writer.MAX_JSON)
+        path.write_bytes(original)
+        with self.assertRaisesRegex(ValueError,'4 MiB'):self.publish('small-index')
+        self.assertEqual(path.read_bytes(),original)
+        path.write_bytes(original+b' '*200)
+        self.publish('large-index')
+        written,raw=writer.read_index(mods)
+        self.assertGreater(len(raw),writer.MAX_JSON)
+        self.assertEqual(written['padding'],index['padding'])
+        self.assertIn('12',written['tracks'])
         _, plain = self.publish("plain", seed=3, file_path="/Contents/a.mp3", codec="mp3",
                                 source={"sample_rate": 48000, "mp3": {"lame_tag": False, "delay_frames": 0, "padding_frames": 0}})
         manifest = json.loads((self.root / "CDJMODS/stems" / plain["bundle"] / "overcue-manifest.json").read_text())

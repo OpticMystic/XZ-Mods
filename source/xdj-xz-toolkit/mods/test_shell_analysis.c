@@ -134,6 +134,18 @@ int main(void){
  /* drums 10+11+12, harmonics 20+21+22, vocal 30+31+32 per column, in that order. */
  assert(w.count==50&&w.bands[0]==33&&w.bands[1]==63&&w.bands[2]==93);
  xz_wave_load_free(&w);xz_shana_stems_free(st);
+ /* An index past the 4 MiB older OverCue firmware read (Desktop 2.2.40+) still maps its tracks. */
+ {
+  char ip[512];snprintf(ip,sizeof ip,"%s/CDJMODS/index.json",root);
+  size_t pad=5u*1024u*1024u,cap=pad+512;char *big=malloc(cap);assert(big);
+  int head=snprintf(big,cap,"{\"schema\":\"overcue-index/1\",\"updated\":\"");
+  memset(big+head,'x',pad);
+  snprintf(big+head+pad,cap-head-pad,"\",\"tracks\":{\"1\":{\"file_path\":\"/Contents/One.mp3\",\"bundle\":\"0123456789abcdef\"}}}");
+  text_file(ip,big);free(big);
+  assert(!xz_shana_stems_build(root,&st)&&st&&xz_shana_stems_count(st)==1);
+  assert(!xz_shana_stems_find(st,"/Contents/One.mp3",dir,sizeof dir)&&strstr(dir,"CDJMODS/stems/0123456789abcdef"));
+  xz_shana_stems_free(st);stems_fixture();
+ }
  /* No stem index: an empty map. A malformed one: empty too. */
  assert(!xz_shana_stems_build("shell-analysis-fixture/none",&st)&&st&&!xz_shana_stems_count(st));xz_shana_stems_free(st);
  /* The signature changes when analysis is added, not when nothing changed. */

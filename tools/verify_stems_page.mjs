@@ -65,7 +65,7 @@ function installMock() {
       case 'browse_stem_library': return { running: false, ok: true, result: browse(request) };
       case 'plan_engine_setup': return { running: false, ok: true, result: enginePlan() };
       case 'list_mod_versions': return { running: false, ok: true, result: { format: 'xz-mod-versions/1', versions: [{ id: 'v1', label: 'Fixture build' }], selected: { id: 'v1', pinned: true, revision: 1 }, bundled_id: 'v1' } };
-      case 'inspect_overcue': return { running: false, ok: true, result: { format: 'overcue-stems/4', verified_mixes: 7, all_pages_verified: true, source_identity_verified: true } };
+      case 'inspect_overcue': return { running: false, ok: true, result: { format: 'overcue-stems/4', verified_mixes: 4, layout: 'four-file', all_pages_verified: true, source_identity_verified: true } };
       case 'plan_stem_import': return { running: false, ok: true, result: importPlan(request) };
       case 'import_grouped_stems': fx.lastImport = request; Object.assign(fx.tracks.find(track => track.file_path === request.file_path), { stem_status: 'present', stored_bytes: 534 * MiB, producer: 'xz-mods', can_verify: true }); return { running: false, ok: true, result: { format: 'overcue-index/1', stored_bytes: 534 * MiB, verified_mixes: 7, all_pages_verified: true, source_identity_verified: true } };
       case 'setup_engine':
@@ -259,6 +259,8 @@ try {
 
   await open('fresh');
   await waitFor(ready, 'fresh library');
+  await check(`[4,5,6,7].every(n=>stemsApi.verify({verified_mixes:n,all_pages_verified:true,source_identity_verified:true}).ok)&&[3,8,null,'4'].every(n=>!stemsApi.verify({verified_mixes:n,all_pages_verified:true,source_identity_verified:true}).ok)`, 'checker accepts four through seven verified mixes');
+  await check(`verifyChips(stemsApi.verify({verified_mixes:4,layout:'four-file',all_pages_verified:true,source_identity_verified:true})).firstChild.textContent==='4 stem mixes verified'`, 'four-file verification has no seven-file label');
   await check(`Boolean(button('Set up stem engine'))&&txt('#st-bar .st-engine')==='Stem engine not set up yet · a few minutes, once'`, 'engine not set up: primary becomes Set up stem engine');
   await shot('stems-engine-needed');
   await selectMissing(12);

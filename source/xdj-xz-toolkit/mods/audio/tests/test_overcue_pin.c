@@ -20,9 +20,10 @@ int main(int argc,char **argv){
         int n=snprintf(path,sizeof(path),"%s/stems-sidecar-%s.s16le.pgz",folder,names[i]);assert(n>0&&(size_t)n<sizeof(path));assert(!unlink(path));
     }
     assert(!unlink(argv[1]));
-    for(unsigned mask=1;mask<=7;mask++)assert(!xz_oc_verify(xz_oc_mix_file(&a,mask)));
+    const unsigned required[]={1,2,4,7};
+    for(unsigned i=0;i<4;i++)assert(!xz_oc_verify(xz_oc_mix_file(&a,required[i])));
     int16_t samples[16];assert(!xz_oc_read(&a.role[0],32766,8,samples));
     for(int i=0;i<5;i++){assert(samples[i*2]==(32766+i)%1000&&samples[i*2+1]==-samples[i*2]);}
     assert(a.wave_count[0]==5&&a.wave[0][4]==31);xz_oc_close(&a);assert(!pending&&!held);
-    puts("PASS actual seven compressed stem mixes and wave bins survive source deletion, complete hashes and EOF; all RAM retired");
+    puts("PASS the four pinned stem mixes and wave bins survive source deletion, complete hashes and EOF; all RAM retired");
 }

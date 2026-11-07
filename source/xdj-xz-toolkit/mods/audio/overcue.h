@@ -23,15 +23,17 @@ struct xz_oc_file {
     unsigned char *raw, *compressed;
     struct xz_ram_file_pin ram;
 };
+/* Drums, harmonics and vocal singles plus the prepared full mix. Pair files
+ * (instrumental, vocals-drums, vocals-harmonics) are never opened: four-file
+ * bundles omit them, and every pair is mixed from the singles. */
 struct xz_oc_assets {
-    struct xz_oc_file role[3], reference, combination[3];
+    struct xz_oc_file role[3], reference;
     uint64_t frames;
     unsigned sample_rate;
     float gain[3];
-    float combination_gain[3];
     unsigned char *wave[3];
     uint32_t wave_count[3];
-    unsigned source_hash_verified;
+    unsigned source_hash_verified, pair_files;
 };
 /* Worker-only immutable USB reader. Opens only the source's exact indexed bundle,
  * verifies source identity, metadata/table hashes, and each decoded page. */
@@ -45,6 +47,7 @@ int xz_oc_read(struct xz_oc_file *, int64_t first, size_t frames, int16_t *stere
 /* Worker/desktop verification: checks every page and the complete indexed PCM hash. */
 int xz_oc_verify(struct xz_oc_file *);
 int xz_oc_verify_role(const char *path, uint64_t frames, const char *table_sha, const char *pcm_sha);
+/* Masks 1, 2 and 4 select a single; 7 selects the full mix. Others are NULL. */
 struct xz_oc_file *xz_oc_mix_file(struct xz_oc_assets *, unsigned mask);
 float xz_oc_mix_gain(const struct xz_oc_assets *, unsigned mask);
 struct xz_oc_plan { float source, gain[3]; unsigned mask[3]; };

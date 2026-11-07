@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 """Publish seven rendered roles as an OverCue stems USB bundle (overcue-index/1, BETA).
 
-Stdlib only. Writes nothing outside <usb>/CDJMODS, publishes index.json last,
+Stdlib only. Writes nothing outside <usb>/CDJMODS, publishes indexes after bundles,
 and never replaces another writer's entry. mods/audio/overcue_file.c is the
 acceptance reader, so the manifest carries every field it requires.
 """
@@ -21,15 +21,17 @@ import struct
 import tempfile
 import zlib
 import subprocess
-from . import cache
+from . import cache, overcue_index_v2
 from .jobs import exclusive_lock
 
 ROLES = ("vocal", "instrumental", "drums", "harmonics", "vocals-drums", "vocals-harmonics", "full-mix")
+REQUIRED_ROLES = ("vocal", "drums", "harmonics", "full-mix")
 PAGE_BYTES = 131072
 MAX_PAGES = 4096
 MAX_FRAMES = MAX_PAGES * PAGE_BYTES // 4
 MAX_COMPRESSED = PAGE_BYTES + 4096  # overcue_file.c's compressed page buffer
 MAX_JSON = 4 * 1024 * 1024
+MAX_INDEX_JSON = 16 * 1024 * 1024
 INDEX_SCHEMA = "overcue-index/1"
 MANIFEST_SCHEMA = "overcue-stems/4"
 WRITER = "XZ Mods"
@@ -141,10 +143,10 @@ def verify_role(path, pcm_sha256, frames):
     return hashlib.sha256(header + table).hexdigest()
 
 
-def _read_bytes(path, what):
+def _read_bytes(path, what, limit=MAX_JSON):
     path = cache._regular(path)
-    if path.stat().st_size > MAX_JSON:
-        raise ValueError(f"{what} exceeds 4 MiB")
+    if path.stat().st_size > limit:
+        raise ValueError(f"{what} exceeds {limit // (1024 * 1024)} MiB")
     return path.read_bytes()
 
 
@@ -164,7 +166,7 @@ def read_index(mods):
     path = cache._safe_path(mods / "index.json")
     if not path.exists():
         return {"schema": INDEX_SCHEMA, "keyed_by": "export.pdb", "tracks": {}, "tracks_onelibrary": {}}, None
-    raw = _read_bytes(path, "CDJMODS/index.json")
+    raw = _read_bytes(path, "CDJMODS/index.json", MAX_INDEX_JSON)
     index = _parse_json(raw, "CDJMODS/index.json")
     if index.get("schema") != INDEX_SCHEMA:
         raise ValueError("CDJMODS/index.json uses an unknown schema. XZ Mods left it unchanged.")
@@ -436,11 +438,11 @@ def mp3_timeline(manifest, source_path):
     return "gapless" if probe and probe["lame_tag"] else "player"
 
 
-def _write_json(path, value, compact=False):
+def _write_json(path, value, compact=False, limit=MAX_JSON):
     text = json.dumps(value, ensure_ascii=False, **({"separators": (",", ":")} if compact else {"indent": 1}))
     data = text.encode("utf-8") + b"\n"
-    if len(data) > MAX_JSON:
-        raise ValueError(f"{path.name} would exceed 4 MiB")
+    if len(data) > limit:
+        raise ValueError(f"{path.name} would exceed {limit // (1024 * 1024)} MiB")
     with open(path, "wb") as output:
         output.write(data)
         output.flush()
@@ -554,6 +556,8 @@ def _publish(usb_root, file_path, track_id, source_sha256, source_codec, roles_d
             entry[key + "_page_table_sha256"] = tables[role]
         entry.update(source_sha256=source_sha256, separation=separation)
         merged, replaced = merge(index, track_id, entry, is_replaceable)
+        v2 = cache._safe_path(mods / "index-v2")
+        prepared_v2 = overcue_index_v2.prepare(merged if merged is not None else index) if v2.is_dir() else None
         if merged is not None:
             job.check()
             index_path = cache._safe_path(mods / "index.json")
@@ -564,7 +568,10 @@ def _publish(usb_root, file_path, track_id, source_sha256, source_codec, roles_d
             os.close(handle)
             pending = Path(pending)
             try:
-                _write_json(pending, merged, compact=True)
+                limit = MAX_INDEX_JSON if raw_index and len(raw_index) > MAX_JSON else MAX_JSON
+                _write_json(pending, merged, compact=True, limit=limit)
+                if prepared_v2 is not None:
+                    overcue_index_v2.mark_pending(mods)
                 os.replace(pending, index_path)
             finally:
                 if pending.exists():
@@ -572,6 +579,9 @@ def _publish(usb_root, file_path, track_id, source_sha256, source_codec, roles_d
         published, _ = read_index(mods)
         if published.get("tracks", {}).get(str(track_id), {}).get("bundle") != bundle or conflicts(published, track_id, file_path, bundle):
             raise ValueError("CDJMODS/index.json did not read back as written")
+        if prepared_v2 is not None:
+            overcue_index_v2.mark_pending(mods)
+            overcue_index_v2.publish(mods, prepared_v2)
     receipt = {"bundle": bundle, "frames": frames, "reused": merged is None and not rebuilt,
                "replaced_previous": replaced, "verified": True, "page_codec": codec,
                "waveforms": has_waveforms(folder, frames)}
