@@ -3,6 +3,22 @@
 What changed in each version of XZ Mods for the XDJ-XZ, newest first. XZ Mods is independent and experimental:
 test each build with your own tracks before a set, and keep a known working USB.
 
+## 0.5.1-Beta.2 - 2026-11-06
+
+OverCue's newest stems play, decks 3 and 4 hold SYNC and spin back properly, and AIFF tracks get stems.
+
+- Stems prepared by OverCue Desktop 2.2.26 and later, with four files per track, play on the XZ, and Check OverCue track accepts them. Older stems keep working.
+- AIFF tracks on the USB can be prepared and their stems imported.
+- Decks 3 and 4 stay in sync with SYNC on when the XZ's USB audio runs slightly slow, instead of drifting.
+- A backspin on deck 3 or 4 coasts until the platter stops, and play carries on from there. Nudging with the outer jog bends the speed gently instead of jumping.
+- Stem marks in Browse stay visible on USBs with a large OverCue library.
+- Stems that XZ Mods writes to a USB that OverCue Desktop upgraded also show up on CDJ-3000s running OverCue firmware 0.14.
+- When the app cannot read an audio file, it says why, for example a damaged file or an unsupported format.
+- USB sticks that Windows reports as fixed disks appear in the USB list.
+- Experimental. For the XDJ-XZ on version 1.26 only.
+- To get the deck 3 and 4 and stem fixes on the XZ, update the loader on your USB after updating the app.
+- Hardware testing of this build is still in progress.
+
 ## 0.5.1-Beta.1 - 2026-11-01
 
 Write to USB works on a Mac, and the Mac app updates itself.

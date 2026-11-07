@@ -337,7 +337,7 @@
       "title": "Stems",
       "level": 2,
       "chapter": "desktop-app.md",
-      "sha256": "e5adf38d9be4d54f72a2fa90e870709a389d69ddef2c1e66eefb32faff797fae",
+      "sha256": "1f8aa9ae65ed8698265a5542ef2cce3097e8b9dd6c655995a545acb60dd0a3fd",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -357,7 +357,7 @@
       "title": "Import stems you already have",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "b0564b4e60b51ec451eb16acdbacee8641aa6a6cbb7683aed4fbc2eb7f3e9b34",
+      "sha256": "fdc3a81d2a93191e1062722005fc8babc588cf8bd1ff13257f862e2237443cbb",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -437,7 +437,7 @@
       "title": "App updates",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "52c7cd78a885007da8b2999dc933b346f1764235a8066cbc016251a96ddf628b",
+      "sha256": "e35f07f0947e4edaa787d9ac72154e817b1eaaca157b92c195c34490dfaef77f",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -893,7 +893,7 @@
       "title": "What decks 3 and 4 can do {experimental}",
       "level": 2,
       "chapter": "four-decks.md",
-      "sha256": "c5e9a0e8aa861adab36449777aa7bd117c4b87dac393e81cb829c8b6fa674085",
+      "sha256": "3cbc1d08cbf1112373a553b541d6c018712ee16060f84f7c088856af391d2324",
       "flows": [
         "nav-c-player-3",
         "nav-c-player-4"
@@ -1024,7 +1024,7 @@
       "title": "Updating",
       "level": 2,
       "chapter": "getting-started.md",
-      "sha256": "662c52ad866f175601e66cb4e925842632554e31c47db27e8da1da3f73eee273",
+      "sha256": "4b0a8948638e9325ac84dc8cfb28c0ba48861a24221f91e6577b64089eddceba",
       "flows": [
         "updates"
       ],
