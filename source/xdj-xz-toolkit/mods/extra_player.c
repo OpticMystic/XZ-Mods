@@ -231,8 +231,8 @@ struct deck {
   double rate;
   uint32_t at, interval;
   int at_valid, releasing;
-  int contact,coasting,platter_known,platter_moving;
-  uint32_t released_at;
+  int contact,coasting,platter_known,platter_moving,rested;
+  uint32_t released_at,moved_at; /* moved_at: arrival of the last nonzero count */
   uint64_t release_end;
   int64_t ticks;
   struct scratch_segment segment[SCRATCH_SEGMENTS];
@@ -701,7 +701,7 @@ static void scratch_seal(struct deck *d){
  if(!d->scratch.group_open)return;
  double rate=d->scratch.group_ticks*XZ_XP_SEARCH_MS_PER_REV/
              ((double)XZ_XP_JOG_TICKS_PER_REV*d->scratch.interval);
- if(rate>8)rate=8;
+ if(rate>XZ_XP_SCRATCH_RATE_MAX)rate=XZ_XP_SCRATCH_RATE_MAX;
  double step=(double)d->r->rate/XZ_USB_RATE*rate;
  unsigned first=d->scratch.count-d->scratch.group_count;
  for(unsigned i=first;i<d->scratch.count;i++){
@@ -994,7 +994,7 @@ static void pause_at_heard(struct deck *d, uint32_t now) {
  int scratched=d->state==XZ_XP_SCRATCHING;
  jump(d, d->scratch.releasing?d->heard:heard_now(d,now), now);
  d->state = XZ_XP_CUED;
- if(scratched)d->scratch.contact=d->scratch.coasting=d->scratch.platter_known=d->scratch.platter_moving=0;
+ if(scratched)d->scratch.contact=d->scratch.coasting=d->scratch.platter_known=d->scratch.platter_moving=d->scratch.rested=0;
 }
 static void start(struct deck *d, uint32_t now) {
  d->heard = d->pos >> 32; d->heard_at = now;
@@ -1004,11 +1004,13 @@ static void start(struct deck *d, uint32_t now) {
 static void scratch_release(struct deck *d,uint32_t now){
  if(d->state!=XZ_XP_SCRATCHING)return;
  enum xz_xp_state resume=d->scratch.resume;
- /* A release tail retires only verified completed motion, including on timeout. */
- uint64_t at=loop_frame(d,d->scratch.releasing?d->heard:heard_now(d,now));
+ /* A release tail retires only verified completed motion, including on timeout. A platter that
+    came to rest on its own is the exception: its resting place is known, so play resumes there even
+    when the tail behind it was cut short. */
+ uint64_t at=loop_frame(d,d->scratch.rested?d->scratch.target>>32:d->scratch.releasing?d->heard:heard_now(d,now));
  jump(d,at,now);
  d->state=resume;
- d->scratch.contact=d->scratch.coasting=d->scratch.platter_known=d->scratch.platter_moving=0;
+ d->scratch.contact=d->scratch.coasting=d->scratch.platter_known=d->scratch.platter_moving=d->scratch.rested=0;
 }
 /* Once a qualified stop (or a legacy unknown-speed release) begins draining,
    return after completion or the existing fixed drain deadline. */
@@ -1017,20 +1019,32 @@ static int scratch_tail_done(struct xz_xp_players *p,struct deck *d,uint32_t now
  int finished=!d->scratch.count&&!d->pending&&d->completed>=d->submitted;
  int capped=d->submitted>=d->scratch.release_end&&!d->pending&&d->completed>=d->submitted;
  if(!finished&&!capped&&(uint32_t)(now-d->scratch.released_at)<SCRATCH_RELEASE_MS)return 0;
+ int rested=d->scratch.rested;
  scratch_release(d,now);
- if(!finished)xz_xp_notice(p,"SCRATCH RELEASE TRUNCATED");
+ if(!finished&&!rested)xz_xp_notice(p,"SCRATCH RELEASE TRUNCATED");
  return 1;
 }
-static void scratch_finish(struct deck *d,uint32_t now){
+/* play_out: a platter that came to rest on its own also lets submitted, unheard motion play, so
+   play resumes where the platter stopped instead of one output queue short of it. */
+static void scratch_finish(struct deck *d,uint32_t now,int play_out){
  if(d->state!=XZ_XP_SCRATCHING||d->scratch.releasing)return;
- d->scratch.coasting=0;scratch_seal(d);
+ d->scratch.coasting=0;d->scratch.rested=play_out;scratch_seal(d);
  /* Already-rendered motion keeps the established release-at-heard behavior.
     Defer only when release would erase motion the worker has not submitted. */
- if(!d->scratch.count&&!d->pending){scratch_release(d,now);return;}
+ if(!d->scratch.count&&!d->pending&&(!play_out||d->completed>=d->submitted)){scratch_release(d,now);return;}
  d->scratch.releasing=1;d->scratch.released_at=now;
  d->scratch.release_end=d->completed+SCRATCH_RELEASE_FRAMES;
  if(d->scratch.release_end<d->submitted)d->scratch.release_end=d->submitted;
  if(d->pending>d->scratch.release_end-d->submitted){d->pos=d->block_start;d->pending=0;key_history_reset(d);}
+}
+/* Counts arrived within the quiet window: the platter is still turning. Speed samples can read
+   zero between counts, so counts alone decide when a released platter has come to rest. */
+static int coast_counting(const struct deck *d,uint32_t now){
+ return d->scratch.moved_at&&(uint32_t)(now-d->scratch.moved_at)<XZ_XP_COAST_QUIET_MS;
+}
+/* Once per worker pass: a released platter whose counts have stopped is at rest. */
+static void coast_step(struct deck *d,uint32_t now){
+ if(d->state==XZ_XP_SCRATCHING&&d->scratch.coasting&&!coast_counting(d,now))scratch_finish(d,now,1);
 }
 static void scratch_touch(struct deck *d,int pressed,uint32_t now){
  if(!pressed)d->scratch.contact=0;
@@ -1040,8 +1054,8 @@ static void scratch_touch(struct deck *d,int pressed,uint32_t now){
   /* Hardware JOG packets carry a qualified finite speed. TOP-up transfers a
      known-moving gesture to coast ownership. Legacy/unknown-speed producers
      retain the old bounded release behavior instead of guessing motion. */
-  if(d->scratch.platter_known&&d->scratch.platter_moving){d->scratch.coasting=1;return;}
-  scratch_finish(d,now);return;
+  if(d->scratch.platter_known&&(d->scratch.platter_moving||coast_counting(d,now))){d->scratch.coasting=1;return;}
+  scratch_finish(d,now,0);return;
  }
  if(d->state==XZ_XP_SCRATCHING){
   if(d->scratch.contact)return;
@@ -1611,10 +1625,10 @@ static void jog(struct xz_xp_players *p,struct deck *d,int32_t delta,float platt
   if(qualified_speed)d->scratch.platter_known=1;
   /* Later ticks invalidate an old stopped sample even if speed is unknown.
      Unknown-only gestures still use the existing bounded release. */
-  if(delta)d->scratch.platter_moving=1;
+  if(delta){d->scratch.platter_moving=1;d->scratch.moved_at=arrived?arrived:1u;}
   else if(qualified_speed)d->scratch.platter_moving=platter_speed!=0.f;
   if(!delta){
-   if(d->scratch.coasting&&qualified_speed&&platter_speed==0.f)scratch_finish(d,now);
+   if(d->scratch.coasting&&qualified_speed&&platter_speed==0.f&&!coast_counting(d,arrived))scratch_finish(d,now,1);
    return;
   }
   if(d->scratch.overflow)return;
@@ -1632,7 +1646,7 @@ static void jog(struct xz_xp_players *p,struct deck *d,int32_t delta,float platt
   d->scratch.group_ticks+=fabs((double)delta);
   double rate=d->scratch.group_ticks*XZ_XP_SEARCH_MS_PER_REV/
               ((double)XZ_XP_JOG_TICKS_PER_REV*d->scratch.interval);
-  if(rate>8)rate=8;d->scratch.rate=delta>0?rate:-rate;
+  if(rate>XZ_XP_SCRATCH_RATE_MAX)rate=XZ_XP_SCRATCH_RATE_MAX;d->scratch.rate=delta>0?rate:-rate;
   unsigned tail=(d->scratch.head+d->scratch.count)%SCRATCH_SEGMENTS;
   struct scratch_segment *last=d->scratch.group_count?
     &d->scratch.segment[(tail+SCRATCH_SEGMENTS-1)%SCRATCH_SEGMENTS]:NULL;
@@ -1647,6 +1661,14 @@ static void jog(struct xz_xp_players *p,struct deck *d,int32_t delta,float platt
   if(to<=0||to>=(double)d->r->frames){d->scratch.group_origin=target;d->scratch.ticks=0;}
   if(target==d->scratch.target)return;
   if(!merge&&d->scratch.count==SCRATCH_SEGMENTS){
+   /* Playback is behind the platter (a pass stalled, or the platter outran the rate cap). Motion in
+      the same direction extends the newest leg not yet rendered: the travel is kept and that leg
+      plays faster to catch up. Only a reversal on a full ring is refused. */
+   struct scratch_segment *newest=&d->scratch.segment[(tail+SCRATCH_SEGMENTS-1)%SCRATCH_SEGMENTS];
+   if(!d->scratch.group_count&&d->scratch.count>d->scratch.pending_segments&&
+      (newest->direction>0)==(delta>0)&&newest->end==d->scratch.target){
+    newest->end=target;d->scratch.target=target;return;
+   }
    SP_ONLY(sp_incident(d,p->env.now_ms()));
    jump(d,d->heard,now);d->scratch.overflow=1;
    xz_xp_notice(p,"SCRATCH BUFFER FULL / RETOUCH");return;
@@ -3426,6 +3448,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   if(q.event.kind==XZ_EXTRA_IN_LOAD)xz_extra_order_release(q.event.load.order);
  }
  if(d->state==XZ_XP_SCRATCHING&&d->scratch.group_open&&(int32_t)(now-d->scratch.at)>0)scratch_seal(d);
+ coast_step(d,now);
  d->sync_capture=atomic_load(&p->sync_requests)!=0;
  ramp_step(d,now);direction_step(d,now);master_handoff(p,d,now);
  if(!streaming(d->state)&&d->sync.requested){xz_usb_position none={0};sync_update(p,d,&none,now);}

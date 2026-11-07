@@ -348,6 +348,7 @@ On a side that controls deck 3 or 4, these controls work on that deck {experimen
 | Pads | Hot cues, beat loops, slip loops and beat jumps, as on decks 1 and 2. |
 | [[IN/CUE]], [[OUT]], [[RELOOP/EXIT]] | Manual loops, loop adjustment with the jog, reloop and exit. |
 | [[SLIP]], [[DIRECTION REV]], [[VINYL]] | Slip, reverse and vinyl mode. |
+| Jog | Turn the side while the deck plays to bend its speed. The faster you turn, the more it bends, so a gentle nudge moves it only a little. With VINYL on, scratch on the platter top. For a backspin, spin the platter and let go: the deck follows the platter until it stops, then plays on. |
 | [[TEMPO RANGE]], [[TEMPO RESET]], [[MASTER TEMPO]] | Tempo range up to WIDE, original speed, and key lock while the tempo moves. |
 | [[SYNC]], [[MASTER]] | Follow the master deck's tempo, and with QUANTIZE its beat. Make this deck the master. See [SYNC on decks 3 and 4](#sync-on-decks-3-and-4). |
 | [[SHIFT]] + [[SYNC]], [[MASTER TEMPO]] | KEY SYNC to the master deck, and back to the deck's own key. See [Keys and KEY SYNC](performance#keys-and-key-sync). |

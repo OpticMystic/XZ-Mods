@@ -20,11 +20,28 @@ enum xz_xp_state { XZ_XP_EMPTY, XZ_XP_LOADING, XZ_XP_CUED, XZ_XP_PLAYING, XZ_XP_
 #define XZ_XP_TEMPO_RANGE_X100 1000    /* initial +-10 % */
 #define XZ_XP_GAIN 1.0f                /* level against the native decks: one line to match on the deck */
 #define XZ_XP_AHEAD_FRAMES 2048u       /* output frames queued in the transport before USB staging takes them */
-#define XZ_XP_BEND_PER_TICK 0.004f     /* playing jog: speed added per tick, decaying */
-#define XZ_XP_BEND_MAX 0.9f
-#define XZ_XP_BEND_DECAY_MS 150u
 #ifndef XZ_XP_JOG_TICKS_PER_REV
 #define XZ_XP_JOG_TICKS_PER_REV 360    /* reference scale for standalone host fixtures; build.py sets the hardware estimate */
+#endif
+/* Side nudge (outer jog while playing, or any turn in CDJ mode). The bend follows platter speed: a
+   steady turn of one revolution per second adds this much to the playing speed (0.2 = +20 %), so a
+   gentle nudge of a tenth of a turn per second bends about 2 %. It is set per revolution, never per
+   encoder count, so the encoder's resolution cannot change the feel. Provisional until compared
+   against a stock deck; a build may override it. */
+#ifndef XZ_XP_BEND_PER_REV_PER_S
+#define XZ_XP_BEND_PER_REV_PER_S 0.2f
+#endif
+#define XZ_XP_BEND_MAX 0.9f
+#define XZ_XP_BEND_DECAY_MS 150u       /* a bend fades out linearly over this after the last tick */
+/* Speed each count adds before it decays. At a steady turn the decay balances the counts, which
+   leaves XZ_XP_BEND_PER_REV_PER_S times the turn rate. */
+#define XZ_XP_BEND_PER_TICK ((float)XZ_XP_BEND_PER_REV_PER_S*1000.f/((float)XZ_XP_BEND_DECAY_MS*(float)XZ_XP_JOG_TICKS_PER_REV))
+/* A platter released while turning (a backspin) plays on until it rests: no counts for this long. */
+#define XZ_XP_COAST_QUIET_MS 40u
+/* Fastest platter-top playback, against one revolution per 1.8 s: 8x is about 4.4 turns a second. A
+   faster platter is followed late, never short: its motion queues and catches up. */
+#ifndef XZ_XP_SCRATCH_RATE_MAX
+#define XZ_XP_SCRATCH_RATE_MAX 8.0
 #endif
 #define XZ_XP_SEARCH_MS_PER_REV 1800   /* paused jog: audio one platter turn moves through */
 /* VINYL SPEED ADJUST brake/start time from full speed with the knob fully counterclockwise and fully

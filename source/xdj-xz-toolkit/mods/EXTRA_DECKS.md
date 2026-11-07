@@ -50,10 +50,20 @@ for RELOOP.
 
 Vinyl hold submits no new audio until the jog moves. Forward and reverse motion
 produce actual PCM; release restores the preceding playing or paused state.
-Direction changes flush once to the heard position. The current conversion uses
-360 jog ticks per revolution and 1.8 seconds per revolution, inherited from the
-existing input path. Platter calibration and scratch latency need physical
-acceptance.
+Direction changes flush once to the heard position. One platter revolution moves
+1.8 seconds of audio; the hardware build assumes 6600 counts per revolution
+(`build.py --jog-counts-per-rev`, provisional) and host fixtures use 360.
+
+A platter released while turning (a backspin) keeps control until its counts
+stop for `XZ_XP_COAST_QUIET_MS`, then play resumes where it came to rest. Speed
+samples do not end the spin while counts still arrive. When playback falls behind
+the platter (faster than `XZ_XP_SCRATCH_RATE_MAX`, or a stalled worker pass), a
+full motion ring extends its newest same-direction leg instead of dropping the
+rest of the gesture. The side nudge is set per revolution, not per count:
+`XZ_XP_BEND_PER_REV_PER_S` (provisional 0.2) is the bend at a steady turn of one
+revolution per second. `tests/verify_jog_feel.py` checks both through the
+production decoder. Platter calibration, the bend gain and scratch latency need
+physical acceptance.
 
 ## Additional stock controls
 
