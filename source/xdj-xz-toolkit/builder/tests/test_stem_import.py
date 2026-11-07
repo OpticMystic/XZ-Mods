@@ -255,5 +255,54 @@ class ImportTests(Environment):
         self.assertEqual([item['origin'] for item in receipt['files']], ['override'] * 3)
 
 
+@unittest.skipIf(np is None, AUDIO_MISSING)
+@unittest.skipUnless(os.environ.get('XZ_AUDIO_HELPER'), 'Set XZ_AUDIO_HELPER to the built native audio helper')
+class DawExportImportTests(Environment):
+    """Issue #1: own stems exported from a DAW (24-bit, 48 kHz) for a track that is not a 44.1 kHz 16-bit WAV."""
+
+    def setUp(self):
+        super().setUp()
+        self.mix, self.parts = song(2, seconds=6.0)
+        publish = overcue_writer.publish
+        for patcher in (patch.object(stem_import, 'import_python', lambda job, resources: Path(sys.executable)),
+                        patch('builder.managed_usb.check_target'),
+                        patch.object(overcue_writer, 'publish', lambda *args, page_python=None, source=None: publish(*args, source=source))):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def import_own_stems(self, suffix, container):
+        usb, track = self.root / 'usb', '/Contents/Artist/My Song' + suffix
+        write_export(usb.joinpath(*rekordbox_pdb.EXPORT_PDB), {7: track})
+        source = usb / track.lstrip('/')
+        source.parent.mkdir(parents=True)
+        sf.write(source, self.mix, 48000, format=container, subtype='PCM_24')
+        files = []
+        for part, group in (('vocals', 'vocals'), ('drums', 'drums'), ('bass', 'harmonics')):
+            path = self.root / f'My Song ({part}){suffix}'
+            sf.write(path, self.parts[part], 48000, format=container, subtype='PCM_24')
+            files.append({'path': str(path), 'group': group})
+        request = {'volume': str(usb), 'expected_identity': {}, 'file_path': track, 'files': files}
+        plan = stem_import.plan(request, ProcessJob(), self.resources)
+        self.assertEqual(plan['alignment']['verdict'], 'aligned', plan['warnings'])
+        self.assertEqual(plan['track_frames'], -(-len(self.mix) * 44100 // 48000))
+        receipt = stem_import.import_groups({**request, **plan['import_request']}, ProcessJob(), self.resources)
+        self.assertTrue(receipt['verified'])
+        manifest = json.loads((usb / 'CDJMODS/stems' / receipt['bundle'] / 'overcue-manifest.json').read_text(encoding='utf-8'))
+        self.assertEqual(manifest['separation']['alignment']['verdict'], 'aligned')
+        # Importing the same stems again replaces them in place; the existing output is not an error.
+        again = stem_import.import_groups({**request, **plan['import_request']}, ProcessJob(), self.resources)
+        self.assertTrue(again['verified'])
+        self.assertEqual(again['bundle'], receipt['bundle'])
+        return manifest
+
+    def test_aiff_track_with_aiff_stems_imports(self):
+        manifest = self.import_own_stems('.aiff', 'AIFF')
+        self.assertEqual(manifest['source']['codec'], 'aiff')
+
+    def test_24_bit_48_khz_wav_track_with_wav_stems_imports(self):
+        manifest = self.import_own_stems('.wav', 'WAV')
+        self.assertEqual(manifest['source']['codec'], 'wav')
+
+
 if __name__ == '__main__':
     unittest.main()

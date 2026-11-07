@@ -27,7 +27,7 @@ def resources():
     return Path(configured).resolve()
 
 VERSION='0.5.1-Beta.1'
-SOURCE_FORMATS=['WAV','FLAC','MP3']
+SOURCE_FORMATS=['WAV','AIFF','FLAC','MP3']
 # 96 kHz roles are capped at 4096 pages; resample_poly(320/147) output is ceil(frames*320/147).
 MAX_SOURCE_FRAMES=overcue_writer.MAX_FRAMES*147//320
 

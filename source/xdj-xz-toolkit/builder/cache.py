@@ -50,8 +50,42 @@ def _regular(value: str | os.PathLike) -> Path:
     return path
 
 
-SUPPORTED_SUFFIXES = (".wav", ".flac", ".mp3")
+# File name suffix -> the "format" the native helper reports for it.
+SUPPORTED_FORMATS = {".wav": "wav", ".aif": "aiff", ".aiff": "aiff", ".flac": "flac", ".mp3": "mp3"}
+SUPPORTED_SUFFIXES = tuple(SUPPORTED_FORMATS)
 MIN_RATE, MAX_RATE = 8000, 192000
+READABLE = "WAV, AIFF, FLAC and MP3"
+
+# The native helper prints "code: detail" on failure. Each code gets one plain-language reason.
+HELPER_PROBLEMS = {
+    "open": "{name} could not be opened. Check that the file is still there and that no other program has it open.",
+    "format": "{name} is not WAV, AIFF, FLAC or MP3 audio, although its name ends in {suffix}. "
+              "Export it again from your DJ software or audio editor.",
+    "damaged": "{name} could not be read ({detail}). The file looks damaged. Export or copy it again.",
+    "encoding": "{name} holds compressed audio ({detail}). XZ Mods reads uncompressed WAV and AIFF. "
+                "Export it again as 16-bit or 24-bit PCM.",
+    "rate": "{name} has a sample rate of {detail}. XZ Mods reads 8 kHz to 192 kHz. Export it at 44.1 kHz or 48 kHz.",
+    "channels": "{name} has {detail} audio channels. XZ Mods reads mono and stereo. Export a stereo version.",
+    "length": "{name} is longer than stems allow (about 23 minutes).",
+    "empty": "{name} holds no audio.",
+    "truncated": "{name} ends early or is damaged ({detail}). Wait until copying has finished, or export it again.",
+}
+
+
+def helper_problem(path: Path, stderr: str) -> str:
+    """The plain-language reason for a native helper failure on ``path``."""
+    line = (stderr or "").strip().splitlines()[-1:] or [""]
+    code, _, detail = line[0].partition(": ")
+    template = HELPER_PROBLEMS.get(code)
+    if template is None:
+        return f"XZ Mods could not read {path.name}: {line[0][:300] or 'the audio helper stopped without a reason'}"
+    return template.format(name=path.name, suffix=path.suffix, detail=detail.strip()[:200])
+
+
+def unsupported_format(path: Path) -> str:
+    kind = path.suffix.lstrip('.').upper() + ' files' if path.suffix else 'files without a type'
+    return (f"XZ Mods cannot use {path.name}. It prepares and imports stems for {READABLE} tracks, not {kind}. "
+            "Export the track in one of those formats from your DJ software.")
 
 
 def frames_at_44100(source_frames: int, rate: int) -> int:
@@ -60,7 +94,7 @@ def frames_at_44100(source_frames: int, rate: int) -> int:
 
 
 def inspect_audio(path: str | os.PathLike) -> dict:
-    """Inspect WAV, FLAC or MP3 audio with XZ_AUDIO_HELPER; plain 44.1 kHz PCM16 WAV needs no helper.
+    """Inspect WAV, AIFF, FLAC or MP3 audio with XZ_AUDIO_HELPER; plain 44.1 kHz PCM16 WAV needs no helper.
 
     "frames" is always the 44.1 kHz frame count the pipeline works in;
     "source_frames" and "sample_rate" describe the file itself.
@@ -70,8 +104,8 @@ def inspect_audio(path: str | os.PathLike) -> dict:
     path = _regular(path)
     before = path.stat()
     suffix = path.suffix.lower()
-    if suffix not in SUPPORTED_SUFFIXES:
-        raise ValueError("Only .wav, .flac and .mp3 audio files are supported")
+    if suffix not in SUPPORTED_FORMATS:
+        raise ValueError(unsupported_format(path))
     helper = os.environ.get("XZ_AUDIO_HELPER")
     if helper:
         if not Path(helper).is_absolute():
@@ -81,21 +115,26 @@ def inspect_audio(path: str | os.PathLike) -> dict:
                                 capture_output=True, text=True, encoding="utf-8", timeout=120,
                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if result.returncode:
-            raise ValueError("Native audio inspection failed: " + result.stderr.strip()[:500])
+            raise ValueError(helper_problem(path, result.stderr))
         try:
             info = json.loads(result.stdout)
             source_frames, rate = info["frames"], info["sample_rate"]
             valid = (type(source_frames) is int and source_frames > 0 and type(rate) is int
                      and MIN_RATE <= rate <= MAX_RATE and (info["channels"], info["sample_width"]) == (2, 2)
-                     and info["format"] == suffix[1:] and info["pcm_bytes"] == source_frames * 4)
+                     and isinstance(info["format"], str) and info["pcm_bytes"] == source_frames * 4)
         except (ValueError, KeyError, TypeError) as exc:
-            raise ValueError("Invalid native audio inspection response") from exc
-        if not valid or _identity(before) != _identity(path.stat()):
-            raise ValueError("Invalid native audio or input changed during inspection")
+            raise ValueError("The audio helper returned an answer XZ Mods cannot read. Reinstall XZ Mods.") from exc
+        if not valid:
+            raise ValueError("The audio helper returned an answer XZ Mods cannot read. Reinstall XZ Mods.")
+        if info["format"] != SUPPORTED_FORMATS[suffix]:
+            raise ValueError(f"{path.name} holds {info['format'].upper()} audio, although its name ends in {path.suffix}. "
+                             "Export it again from your DJ software or audio editor.")
+        if _identity(before) != _identity(path.stat()):
+            raise ValueError(f"{path.name} changed while XZ Mods was reading it. Wait until copying has finished, then try again.")
         return {**info, "frames": frames_at_44100(source_frames, rate), "source_frames": source_frames,
                 "path": str(path), "file_bytes": before.st_size}
     if suffix != ".wav":
-        raise ValueError("FLAC and MP3 require the bundled XZ_AUDIO_HELPER executable")
+        raise ValueError("FLAC, AIFF and MP3 require the bundled XZ_AUDIO_HELPER executable")
     try:
         with wave.open(str(path), "rb") as audio:
             frames = audio.getnframes()

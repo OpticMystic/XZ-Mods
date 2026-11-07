@@ -35,7 +35,7 @@ async fn pick_path(app:tauri::AppHandle,kind:String)->Result<Option<String>,Stri
         let dialog=app.dialog().file();
         let selected=match kind.as_str(){
             "folder"=>dialog.blocking_pick_folder(),
-            "audio"=>dialog.add_filter("Compatible audio",&["wav","flac","mp3"]).blocking_pick_file(),
+            "audio"=>dialog.add_filter("Compatible audio",&["wav","aif","aiff","flac","mp3"]).blocking_pick_file(),
             "image"=>dialog.add_filter("PNG or JPEG",&["png","jpg","jpeg"]).blocking_pick_file(),
             "file"=>dialog.blocking_pick_file(),
             _=>return Err("Unknown file picker".to_string()),
