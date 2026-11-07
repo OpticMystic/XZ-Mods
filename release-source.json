@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "version": "0.5.1-Beta.1",
+  "version": "0.5.1-Beta.2",
   "source_directory": "source/xdj-xz-toolkit",
   "source_repository": "https://github.com/OpticMystic/XZ-Mods",
   "native_source_archive_sha256": "b285e7a156c0109bf243d4cbe546414b7624475d91dbcd06a1a4a2ecd4eb7098",
   "runtime_sha256": "baba82b889cfd604074f8d5bf794687d447d7fde877bcfb51cba13e46ee43bd9",
-  "matching_archive": "XZ-Mods-0.5.1-Beta.1-source.zip",
+  "matching_archive": "XZ-Mods-0.5.1-Beta.2-source.zip",
   "local_build": true,
   "receiver_sha256": "102cd2978111c21c3957b5197e6ef9ce160f8532ba6e37fb344f9da1e993b772",
   "native_source": {

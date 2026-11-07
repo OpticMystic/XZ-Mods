@@ -219,8 +219,9 @@ mod tests{
         /* 0.5.1-Beta follows every 0.5.0 preview on the beta channel. */
         assert!(beta_build("0.5.1-Beta"));assert_eq!(beta_comparison("0.5.0-preview.22.13.4","0.5.1-Beta").unwrap(),std::cmp::Ordering::Greater);
         assert_eq!(beta_comparison("0.5.1-Beta","0.5.0-preview.22.13.4").unwrap(),std::cmp::Ordering::Less);
-        /* The 0.5.1-Beta.1 hotfix is offered to 0.5.1-Beta. */
+        /* The 0.5.1-Beta.1 hotfix is offered to 0.5.1-Beta, and 0.5.1-Beta.2 to both. */
         assert!(beta_build("0.5.1-Beta.1"));assert_eq!(beta_comparison("0.5.1-Beta","0.5.1-Beta.1").unwrap(),std::cmp::Ordering::Greater);
+        assert!(beta_build("0.5.1-Beta.2"));assert_eq!(beta_comparison("0.5.1-Beta.1","0.5.1-Beta.2").unwrap(),std::cmp::Ordering::Greater);assert_eq!(beta_comparison("0.5.1-Beta","0.5.1-Beta.2").unwrap(),std::cmp::Ordering::Greater);
         assert!(BETA_FEED.starts_with(BETA_PAGE));assert!(!BETA_FEED.contains("releases/latest"));
     }
     #[test]fn versions_do_not_downgrade(){assert_eq!(newer("0.1.7","v0.1.5").unwrap(),std::cmp::Ordering::Less);assert_eq!(newer("0.1.7","0.1.8").unwrap(),std::cmp::Ordering::Greater);assert!(newer("0.1.7","garbage").is_err());}
