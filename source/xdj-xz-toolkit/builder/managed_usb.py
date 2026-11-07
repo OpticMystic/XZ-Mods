@@ -156,8 +156,25 @@ def inspect(volume,resources):
             'backups':recoveries(volume),'games':games.installed(volume),'space':space,'stems':stem_library.stems_on_usb(volume),
             'rekordbox':volume.joinpath(*rekordbox_pdb.EXPORT_PDB).is_file(),'dj_profiles':dj_profile.summary(volume),**usb.target_info(volume)}
 
+def _windows_volumes():
+    """(root, label, drive type, filesystem, writable) for each lettered removable or fixed drive. filesystem and writable
+    are None when Windows cannot read the volume."""
+    kernel=ctypes.windll.kernel32;found=[]
+    for number in range(26):
+        root=Path(chr(65+number)+':/')
+        if not kernel.GetLogicalDrives()&(1<<number):continue
+        kind=kernel.GetDriveTypeW(str(root))
+        if kind not in (2,3):continue
+        label=ctypes.create_unicode_buffer(261);name=ctypes.create_unicode_buffer(64);flags=ctypes.c_uint32()
+        try:known=kernel.GetVolumeInformationW(str(root),label,261,None,None,ctypes.byref(flags),name,64)
+        except OSError:continue
+        # FILE_READ_ONLY_VOLUME: a locked SD card or a write-protected stick.
+        found.append((root,label.value,kind,name.value.upper() if known else None,not flags.value&0x80000 if known else None))
+    return found
+
 def discover(resources):
-    """Drives the setup wizard can offer: removable volumes, plus any volume already carrying an XZ Mods loader.
+    """Drives the setup wizard can offer: USB volumes, plus any volume already carrying an XZ Mods loader.
+    removable is True for a USB stick, disk or card (by its bus on Windows, so a stick Windows calls a fixed disk counts).
     filesystem is shown to the DJ; writable False means no loader can go on it. Each is None when unknown."""
     found=[]
     def describe(root,label,removable,filesystem=None,writable=None):
@@ -167,17 +184,8 @@ def discover(resources):
         found.append({'volume':str(root),'label':label or str(root),'removable':removable,'loader':loader,'settings':settings,'rekordbox':rekordbox,
                       'filesystem':filesystem or None,'writable':writable,'games':sum(game['installed'] for game in games.installed(root))})
     if os.name=='nt':
-        kernel=ctypes.windll.kernel32
-        for number in range(26):
-            root=Path(chr(65+number)+':/')
-            if not kernel.GetLogicalDrives()&(1<<number):continue
-            kind=kernel.GetDriveTypeW(str(root))
-            if kind not in (2,3):continue
-            label=ctypes.create_unicode_buffer(261);name=ctypes.create_unicode_buffer(64);flags=ctypes.c_uint32()
-            try:known=kernel.GetVolumeInformationW(str(root),label,261,None,None,ctypes.byref(flags),name,64)
-            except OSError:continue
-            # FILE_READ_ONLY_VOLUME: a locked SD card or a write-protected stick.
-            describe(root,label.value,kind==2,name.value.upper() if known else None,not flags.value&0x80000 if known else None)
+        for root,label,kind,filesystem,writable in _windows_volumes():
+            describe(root,label,usb.on_usb(kind,usb.windows_bus(root),filesystem),filesystem,writable)
     elif sys.platform=='darwin':
         import subprocess
         from .host import mac_volume

@@ -128,4 +128,44 @@ class MacDiscoverTests(unittest.TestCase):
         self.assertEqual((drives['KINGSTON']['filesystem'],drives['KINGSTON']['writable']),('FAT32',True))
         self.assertEqual((drives['LOCKED']['filesystem'],drives['LOCKED']['writable']),('EXFAT',False))
 
+# Windows STORAGE_BUS_TYPE values.
+USB_BUS,SATA_BUS,NVME_BUS=7,0x0B,0x11
+
+class WindowsDiscoverTests(unittest.TestCase):
+    """Windows calls many fast USB 3 sticks and USB SSDs fixed disks. The bus they sit on, not the removable flag, makes them USB."""
+    # name: (GetDriveTypeW, bus or None when Windows did not say, file system)
+    DRIVES={'PNY256FAT':(3,USB_BUS,'FAT32'),'PNY256EXFAT':(3,USB_BUS,'EXFAT'),'CHEAP32':(2,USB_BUS,'FAT32'),
+            'USBSSD':(3,USB_BUS,'NTFS'),'SYSTEM':(3,NVME_BUS,'NTFS'),'DATA':(3,SATA_BUS,'NTFS'),'SATAEXFAT':(3,SATA_BUS,'EXFAT'),
+            'UNKNOWNEXFAT':(3,None,'EXFAT'),'UNKNOWNNTFS':(3,None,'NTFS')}
+    def test_lists_usb_disks_by_bus_and_leaves_out_internal_disks(self):
+        temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup)
+        roots={name:Path(temp.name).resolve()/name for name in self.DRIVES}
+        for root in roots.values():root.mkdir()
+        rows=[(roots[name],name,kind,filesystem,True) for name,(kind,_,filesystem) in self.DRIVES.items()]
+        buses={roots[name]:bus for name,(_,bus,_) in self.DRIVES.items()}
+        with patch.object(usb.os,'name','nt'),patch.object(usb,'_windows_volumes',return_value=rows),             patch.object(usb.usb,'windows_bus',side_effect=lambda root:buses[root]):
+            found={drive['label']:drive for drive in usb.discover(None)['usbs']}
+        # Both 256 GB sticks Windows reports as fixed, the small removable stick, a USB SSD in NTFS, and a fixed
+        # FAT or exFAT disk whose bus Windows would not name (the file-system rule target_info applies).
+        self.assertEqual(sorted(found),['CHEAP32','PNY256EXFAT','PNY256FAT','UNKNOWNEXFAT','USBSSD'])
+        self.assertTrue(all(drive['removable'] for drive in found.values()))
+        self.assertEqual(found['PNY256EXFAT']['filesystem'],'EXFAT')
+
+    def test_an_internal_disk_with_a_loader_is_listed_but_not_as_usb(self):
+        temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup)
+        root=Path(temp.name).resolve()/'DATA';root.mkdir();(root/'autoexec.bin').write_bytes(b'loader kept on an internal disk')
+        with patch.object(usb.os,'name','nt'),patch.object(usb,'_windows_volumes',return_value=[(root,'DATA',3,'NTFS',True)]),             patch.object(usb.usb,'windows_bus',return_value=SATA_BUS):
+            found=usb.discover(None)['usbs']
+        self.assertEqual([(drive['label'],drive['removable'],drive['loader']) for drive in found],[('DATA',False,True)])
+
+class OnUsbTests(unittest.TestCase):
+    def test_the_bus_decides_and_the_old_rule_covers_an_unknown_bus(self):
+        cases=[((3,USB_BUS,'FAT32'),True),((3,USB_BUS,'EXFAT'),True),((3,USB_BUS,'NTFS'),True),((2,USB_BUS,'FAT32'),True),
+               ((3,0x0C,'EXFAT'),True),((3,0x0D,'FAT32'),True),
+               ((3,NVME_BUS,'NTFS'),False),((3,SATA_BUS,'NTFS'),False),((3,SATA_BUS,'EXFAT'),False),
+               ((2,None,'NTFS'),True),((3,None,'EXFAT'),True),((3,None,'FAT32'),True),((3,None,'NTFS'),False),((3,None,None),False)]
+        for (kind,bus,filesystem),expected in cases:
+            with self.subTest(kind=kind,bus=bus,filesystem=filesystem):
+                self.assertIs(usb.usb.on_usb(kind,bus,filesystem),expected)
+
 if __name__=='__main__':unittest.main()

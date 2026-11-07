@@ -120,11 +120,11 @@ class FakeKernel:
 
 class TargetInfoTests(unittest.TestCase):
     """Any USB drive root takes the loader, whatever its file system. Computer disks and read-only drives do not."""
-    def target(self,filesystem,*,drive_type=2,read_only=False,folder=False,boot_loader=True):
+    def target(self,filesystem,*,drive_type=2,bus=None,read_only=False,folder=False,boot_loader=True):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary).resolve();path=root/'staging' if folder else root
             path.mkdir(exist_ok=True)
-            with patch.object(usb.os,'name','nt'),patch.object(ctypes,'windll',SimpleNamespace(kernel32=FakeKernel(str(root),filesystem,drive_type,read_only)),create=True):
+            with patch.object(usb.os,'name','nt'),patch.object(ctypes,'windll',SimpleNamespace(kernel32=FakeKernel(str(root),filesystem,drive_type,read_only)),create=True),                 patch.object(usb,'windows_bus',return_value=bus):
                 return usb.target_info(path,boot_loader=boot_loader)
 
     def test_any_file_system_on_a_usb_drive_takes_the_loader(self):
@@ -144,6 +144,14 @@ class TargetInfoTests(unittest.TestCase):
         folder=self.target('NTFS',drive_type=3,folder=True)
         self.assertTrue(folder['requires_copy_to_usb_root']);self.assertFalse(folder['direct_usb_root'])
 
+    def test_a_fixed_disk_on_the_usb_bus_takes_the_loader_in_any_file_system(self):
+        for filesystem in ('NTFS','exFAT','FAT32'):
+            with self.subTest(filesystem=filesystem):self.assertTrue(self.target(filesystem,drive_type=3,bus=7)['direct_usb_root'])
+
+    def test_an_internal_ntfs_disk_root_is_refused(self):
+        for bus in (0x0B,0x11):
+            with self.subTest(bus=bus),self.assertRaisesRegex(ValueError,'not a USB'):self.target('NTFS',drive_type=3,bus=bus)
+
     def test_a_read_only_usb_is_refused(self):
         with self.assertRaisesRegex(ValueError,'read-only'):self.target('exFAT',read_only=True)
         with self.assertRaisesRegex(ValueError,'read-only'):self.target('FAT32',read_only=True)
@@ -152,7 +160,7 @@ class TargetInfoTests(unittest.TestCase):
         for filesystem in ('exFAT','NTFS'):
             with self.subTest(filesystem=filesystem),tempfile.TemporaryDirectory() as temporary:
                 root=Path(temporary).resolve()
-                with patch.object(usb.os,'name','nt'),patch.object(ctypes,'windll',SimpleNamespace(kernel32=FakeKernel(str(root),filesystem)),create=True):
+                with patch.object(usb.os,'name','nt'),patch.object(ctypes,'windll',SimpleNamespace(kernel32=FakeKernel(str(root),filesystem)),create=True),                     patch.object(usb,'windows_bus',return_value=None):
                     path,target=usb.require_loader_target(root)
                 self.assertEqual(path,root);self.assertTrue(target['direct_usb_root'])
 
