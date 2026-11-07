@@ -30,6 +30,8 @@ p.add_argument('--first-seed', type=int, default=1)
 p.add_argument('--run-ms', type=int, default=15000)
 p.add_argument('--lock-seeds', type=int, default=200)
 p.add_argument('--explore', action='store_true')
+p.add_argument('--usb-ppm', type=float, default=0.,
+               help='USB audio clock offset from the engine clock, in ppm (SIM_USB_PPM); 0 is the gated run')
 p.add_argument('--stage', help='Linux scratch folder (default /tmp/xz-sync-master-sim-<hash>)')
 a = p.parse_args()
 mods = Path(__file__).resolve().parents[1]
@@ -47,6 +49,8 @@ SOURCES = ['tests/test_sync_master_sim.c', 'tests/sync_master_sim_decks.c', 'tes
 # are reported as NOTE lines, not failures.
 GATED = {'SIM_REASSERT': '0', 'SIM_TOGGLE': '0', 'SIM_EMPTY': '1', 'SIM_UNLOAD': '1', 'SIM_STOP': '0',
          'SIM_CONSUMER_MAX': '50', 'SIM_STOCK_CLASSES_REPORT_ONLY': '1'}
+if a.usb_ppm:
+    GATED['SIM_USB_PPM'] = repr(a.usb_ppm)
 
 
 def linux(path):
@@ -99,6 +103,11 @@ for arch, cc in [('host', 'gcc'), ('arm', 'arm-linux-gnueabi-gcc')]:
     jobs.append(('seeds', run + [str(a.first_seed), str(a.seeds), str(a.run_ms), '--minimize'], {**env, **GATED}))
     if a.lock_seeds:
         jobs.append(('lock', run + ['lock', str(a.first_seed), str(a.lock_seeds), '30000'], {**env, **GATED}))
+        # The USB audio clock is not the CPU clock: the lock must hold with it 0.2 % slow or fast.
+        if not a.usb_ppm:
+            for ppm in ('-2000', '+2000'):
+                jobs.append(('lock' + ppm + 'ppm', run + ['lock', str(a.first_seed), str(a.lock_seeds), '30000'],
+                             {**env, **GATED, 'SIM_USB_PPM': ppm}))
     if a.explore:
         jobs.append(('explore', run + [str(a.first_seed), str(a.seeds), str(a.run_ms), '--minimize'], env))
     for name, cmd, job_env in jobs:

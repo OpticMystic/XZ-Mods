@@ -346,8 +346,12 @@ static double act_rate(int d,double w,double span){
  if(fabs((m-a)/(span/2)-r)>.02+.05*fabs(r))return NAN;
  return r;
 }
-static double act_time_us(double w){return (double)consume_us-((double)mono_wire-w)*1000000./XZ_USB_RATE;}
-static double act_wire_at(double us){return (double)mono_wire-((double)consume_us-us)*XZ_USB_RATE/1000000.;}
+/* SIM_USB_PPM: the USB audio clock runs this far off the engine clock (native decks, CPU time). The
+   transport then consumes 44.1 x (1 + ppm) frames per simulated millisecond. Issue #5 asks whether such
+   a clock-domain offset alone makes decks 3/4 drift against 1/2; the lock checks answer it. */
+static double usb_scale=1.;
+static double act_time_us(double w){return (double)consume_us-((double)mono_wire-w)*1000000./(XZ_USB_RATE*usb_scale);}
+static double act_wire_at(double us){return (double)mono_wire-((double)consume_us-us)*XZ_USB_RATE*usb_scale/1000000.;}
 static void act_complete(int d,const struct shadow_block *b,double end){
  int64_t begin=(int64_t)llround(end-(double)b->frames);
  if(begin<0)return;
@@ -920,7 +924,7 @@ static void check_lock(void){
   }else{
    const struct xz_extra_deck *md=&v.deck[m-2];uint32_t bM=deck_bpm_x100(md);
    double sM=act_at(m-2,W),rM=act_rate(m-2,W,441.);
-   if(md->playing&&bM&&!isnan(rM)&&rM>.05){beatsM=track_beats(bM,sM);bpmM=bM/100.*rM;}
+   if(md->playing&&bM&&!isnan(rM)&&rM>.05){beatsM=track_beats(bM,sM);bpmM=bM/100.*rM*usb_scale;}
   }
   if(!fplaying||isnan(beatsM)||isnan(bpmM))continue; /* keep the window and the kept offset meanwhile */
   uint32_t marks[]={disturb_ms[i+2],disturb_ms[m]};
@@ -945,15 +949,15 @@ static void check_lock(void){
   if(s->nudge_pending){s->nudge_pending=0;if(quantize){s->expect_ms=err;s->expect_set=1;}s->ok_since=0;
    if(lock_trace)printf("  offset t=%u deck=%d kept=%.2fms\n",now-trace_start,i+3,err);}
   cov_lock_samples++;
-  double bpmF=bF/100.*rF,tempo=bpmF/bpmM-1.;
+  double bpmF=bF/100.*rF*usb_scale,tempo=bpmF/bpmM-1.;
   if(held(&s->tempo_bad,since>LOCK_TEMPO_SETTLE_MS&&fabs(tempo)>(quantize?LOCK_TEMPO_INSTANT:LOCK_TEMPO_ONLY*2),300))
    fail(F_TEMPO_MISMATCH,"deck=%d master=%d follower=%.3f master=%.3f BPM err=%.2f%% since=%u reason=%d matched=%d",i+3,m+1,bpmF,bpmM,tempo*100,since,d->sync.reason,d->sync.tempo_matched);
   /* One second average: the follower's own tempo, without the phase trim or a nudge in the window. */
   double r1=act_rate(i,W,44100.);
   if(!isnan(r1)&&since>LOCK_TEMPO_SETTLE_MS+1200&&(uint32_t)(now-s->nudge_last)>1300){
    double bpmM1=bpmM;
-   if(m>=2){uint32_t bM=deck_bpm_x100(&v.deck[m-2]);double rM1=act_rate(m-2,W,44100.);bpmM1=isnan(rM1)?NAN:bM/100.*rM1;}
-   double avg=isnan(bpmM1)?0:(bF/100.*r1)/bpmM1-1.;
+   if(m>=2){uint32_t bM=deck_bpm_x100(&v.deck[m-2]);double rM1=act_rate(m-2,W,44100.);bpmM1=isnan(rM1)?NAN:bM/100.*rM1*usb_scale;}
+   double avg=isnan(bpmM1)?0:(bF/100.*r1*usb_scale)/bpmM1-1.;
    if(held(&s->avg_bad,fabs(avg)>(quantize?LOCK_TEMPO_AVERAGE:LOCK_TEMPO_ONLY),200))
     fail(F_TEMPO_MISMATCH,"deck=%d master=%d 1s-average err=%.3f%% follower-track=%u master-bpm=%.3f since=%u reason=%d",i+3,m+1,avg*100,bF,bpmM1,since,d->sync.reason);
   }
@@ -1013,9 +1017,9 @@ static void check_sync_off(void){
      (int32_t)(lock_master_change_ms-soff_at[i])>0||(int32_t)(global_disturb_ms-soff_at[i])>0)continue;
   uint32_t bF=deck_bpm_x100(&v.deck[i]);double r1=act_rate(i,W,44100.),bpmM1=NAN;
   if(m<2){if(nat[m].loaded&&nat[m].playing&&!nat[m].touch&&!nat[m].brake)bpmM1=nat[m].bpm;}
-  else{uint32_t bM=deck_bpm_x100(&v.deck[m-2]);double rM1=act_rate(m-2,W,44100.);bpmM1=isnan(rM1)?NAN:bM/100.*rM1;}
-  if(bF&&!isnan(r1)&&!isnan(bpmM1)&&fabs(bF/100.*r1/bpmM1-1.)>.0008)
-   fail(F_SYNC_OFF_STEP,"deck=%d 1.5 s after SYNC off plays %.3f BPM, master %.3f (not the synced BPM)",i+3,bF/100.*r1,bpmM1);
+  else{uint32_t bM=deck_bpm_x100(&v.deck[m-2]);double rM1=act_rate(m-2,W,44100.);bpmM1=isnan(rM1)?NAN:bM/100.*rM1*usb_scale;}
+  if(bF&&!isnan(r1)&&!isnan(bpmM1)&&fabs(bF/100.*r1*usb_scale/bpmM1-1.)>.0008)
+   fail(F_SYNC_OFF_STEP,"deck=%d 1.5 s after SYNC off plays %.3f BPM, master %.3f (not the synced BPM)",i+3,bF/100.*r1*usb_scale,bpmM1);
  }
 }
 /* What a stock follower is handed when the engine follows virtual player 3/4: the beat packet's
@@ -1139,6 +1143,7 @@ static void draw_policy_and_schedule(void){
  if((e=getenv("SIM_NATIVE_VINYL")))policy.native_vinyl=atoi(e);
  /* Hardware-like timing: the transport publishes its position about every 10 ms; workers pass every 2 ms. */
  if((e=getenv("SIM_USB_BURST")))sch.usb_burst=(unsigned)atoi(e);
+ if((e=getenv("SIM_USB_PPM")))usb_scale=1.+atof(e)*1e-6;
  if((e=getenv("SIM_WORKER")))sch.worker_ms=(unsigned)atoi(e);
  if((e=getenv("SIM_CONSUMER")))sch.consumer_ms=(unsigned)atoi(e);
 }
@@ -1619,7 +1624,7 @@ static int run_one(int verbose){
    nat_beats[d][now32()%NAT_RING]=n->beats;nat_motion[d][now32()%NAT_RING]=motion;
   }
   nat_hist_end=now32();
-  if(t%sch.usb_burst==0){sim_consume(0,44.1*sch.usb_burst);sim_consume(1,44.1*sch.usb_burst);mono_wire=wire_base+(uint64_t)llround(f.wire[0]);consume_us=sim_us;}
+  if(t%sch.usb_burst==0){sim_consume(0,44.1*usb_scale*sch.usb_burst);sim_consume(1,44.1*usb_scale*sch.usb_burst);mono_wire=wire_base+(uint64_t)llround(f.wire[0]);consume_us=sim_us;}
   while(next_action<action_count&&actions[next_action].at_ms<=t){
    if(action_enabled[next_action])apply(&actions[next_action]);
    next_action++;

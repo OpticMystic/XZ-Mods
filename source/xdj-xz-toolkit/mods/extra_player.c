@@ -3214,15 +3214,17 @@ static void completed_timeline(struct deck *d,const xz_usb_deck_position *q,uint
  d->timeline_sink_frame=q->source_completed_wire_frame<=wire_completed?q->source_completed_wire_frame:0;
  d->timeline_wire_completed=wire_completed;
 }
-/* Lower envelope of (observation time - wire time), allowed to rise 0.5 ms a second for the
-   USB and CPU clocks drifting apart. A new route restarts the wire count. publish_lock. */
+/* Lower envelope of (observation time - wire time), allowed to rise 5 ms a second for the
+   USB and CPU clocks drifting apart: a USB clock slower than the CPU clock raises every sample,
+   and an envelope that cannot follow skews every wire time (0.5 ms/s broke SYNC past 500 ppm).
+   A new route restarts the wire count. publish_lock. */
 static void wire_origin_observe(struct xz_xp_players *p,uint32_t route,uint64_t wire,uint32_t at){
  if(!wire)return;
  double sample=(double)at-(double)wire*1000./XZ_USB_RATE;
  if(!p->wire_origin_valid||route!=p->wire_origin_route||wire<p->wire_origin_seen){
   p->wire_origin_ms=sample;p->wire_origin_valid=1;p->wire_origin_route=route;
  }else{
-  p->wire_origin_ms+=(double)(uint32_t)(at-p->wire_origin_at)*.0005;
+  p->wire_origin_ms+=(double)(uint32_t)(at-p->wire_origin_at)*.005;
   if(sample<p->wire_origin_ms)p->wire_origin_ms=sample;
  }
  p->wire_origin_seen=wire;p->wire_origin_at=at;
