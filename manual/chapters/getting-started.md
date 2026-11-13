@@ -36,6 +36,8 @@ The player starts without XZ Mods. Plug the XZ Mods USB back in and start again 
 
 The app gets and checks the files it needs. Nothing from the player's maker is included in the XZ Mods download.
 
+If a download is interrupted or fails verification, the app makes up to three attempts. Each attempt starts again and must pass the same size and checksum checks. If it still fails, the error distinguishes an incomplete download from a checksum mismatch. Check your connection and try again. If it continues, include that error when reporting the problem.
+
 > **Caution.** XZ Mods is a preview. Test every new USB at home before you use it in a set.
 
 ## Prepare a USB

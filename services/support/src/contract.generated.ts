@@ -3649,7 +3649,7 @@ export const SOURCES = {
         "app_usb",
         "other"
       ],
-      "max_read_bytes": 131072,
+      "max_read_bytes": 262144,
       "time_basis": "current",
       "safe_fields": [
         "component",

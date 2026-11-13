@@ -2,6 +2,7 @@
 """Managed, independent separation setup with verified model downloads, GPU planning and a persistent worker."""
 from __future__ import annotations
 import hashlib
+from http.client import IncompleteRead
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,7 @@ import statistics
 import tempfile
 import time
 import urllib.request
+import urllib.error
 from . import cache
 from .host import executable, detect_accelerator, detect_nvidia, torch_install, torch_download_bytes
 from .jobs import exclusive_lock
@@ -30,27 +32,57 @@ def artifact_present(record,folder):
     target=Path(folder)/record['filename']
     return target.is_file() and target.stat().st_size==record['bytes'] and file_sha(target)==record['sha256']
 
+class _DownloadVerificationError(ValueError):
+    pass
+
+
+def _download_attempt(record,temporary,job,attempt):
+    headers={'User-Agent':'XZMods/0.2','Accept-Encoding':'identity'}
+    if attempt>1:headers['Cache-Control']='no-cache'
+    request=urllib.request.Request(record['url'],headers=headers)
+    digest=hashlib.sha256();received=0;last_report=0
+    with urllib.request.urlopen(request,timeout=15) as response,temporary.open('wb') as output:
+        if not response.geturl().startswith('https://'):raise ValueError('Artifact download redirected away from HTTPS')
+        while True:
+            job.check();block=response.read(1024*1024)
+            if not block:break
+            received+=len(block)
+            if received>record['bytes']:raise ValueError('Artifact exceeds its declared size')
+            output.write(block);digest.update(block)
+            if received-last_report>=8*1024*1024:
+                job.progress('download',f'{record["filename"]}: {received*100//record["bytes"]}%',pct=received*100/record['bytes'],bytes=received,total=record['bytes']);last_report=received
+    if received!=record['bytes']:
+        raise _DownloadVerificationError(f'Download incomplete for {record["filename"]}: received {received} of {record["bytes"]} bytes')
+    if digest.hexdigest()!=record['sha256']:
+        raise _DownloadVerificationError(f'Download checksum mismatch for {record["filename"]}')
+
+
 def download(record,folder,job):
     name=record['filename']
     if Path(name).name!=name or not record['url'].startswith('https://'):raise ValueError('Invalid packaged artifact manifest')
+    job.check()
     folder=cache._safe_path(folder);folder.mkdir(parents=True,exist_ok=True)
     target=cache._safe_path(folder/name)
     if artifact_present(record,folder):return target
     with tempfile.NamedTemporaryFile(prefix='.download-',dir=folder,delete=False) as file:temporary=Path(file.name)
     try:
-        request=urllib.request.Request(record['url'],headers={'User-Agent':'XZMods/0.2'})
-        digest=hashlib.sha256();received=0;last_report=0
-        with urllib.request.urlopen(request,timeout=15) as response,temporary.open('wb') as output:
-            if not response.geturl().startswith('https://'):raise ValueError('Artifact download redirected away from HTTPS')
-            while True:
-                job.check();block=response.read(1024*1024)
-                if not block:break
-                received+=len(block)
-                if received>record['bytes']:raise ValueError('Artifact exceeds its declared size')
-                output.write(block);digest.update(block)
-                if received-last_report>=8*1024*1024:
-                    job.progress('download',f'{name}: {received*100//record["bytes"]}%',pct=received*100/record['bytes'],bytes=received,total=record['bytes']);last_report=received
-        if received!=record['bytes'] or digest.hexdigest()!=record['sha256']:raise ValueError(f'Integrity check failed for {name}')
+        for attempt in range(1,4):
+            job.check()
+            try:
+                _download_attempt(record,temporary,job,attempt)
+                break
+            except urllib.error.HTTPError as exc:
+                exc.close()
+                if exc.code not in (408,429,500,502,503,504) or attempt==3:raise
+            except _DownloadVerificationError as exc:
+                if attempt==3:
+                    raise ValueError(f'{exc} after 3 attempts. No unverified file was saved. Check your connection and try again; if it continues, report this error.') from exc
+            except (urllib.error.URLError,TimeoutError,ConnectionError,IncompleteRead):
+                if attempt==3:raise
+            job.progress('download',f'{name}: download interrupted or verification failed. Retrying ({attempt+1}/3).',pct=0,bytes=0,total=record['bytes'])
+            for _ in range(attempt*10):
+                job.check();time.sleep(.1)
+        job.check()
         cache._safe_path(target);os.replace(temporary,target)
         return target
     finally:
