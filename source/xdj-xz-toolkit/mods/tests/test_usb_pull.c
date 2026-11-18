@@ -29,13 +29,18 @@ static int fixture_open(const char *path,size_t arena,struct xz_shlib **out) {
 #undef xz_shmedia_refresh
 #undef gettimeofday
 void xz_log(const char *message){(void)message;}
+/* usb_release.h's gate as the stock USB STOP sets it: this mount id is being stopped. */
+static unsigned long long hidden_dev; /* both fixture slots share a root path and a mount id; the device differs */
+int xz_usb_release_hidden(const char *point,unsigned long mount_id,unsigned long long dev){
+ (void)point;(void)mount_id;return hidden_dev&&dev==hidden_dev;
+}
 void xz_extra_order_release(struct xz_extra_order *order){assert(!order);}
 int xz_native_four_mixer_order(void){return 0;}
 int main(int argc,char **argv) {
  assert(argc==2);(void)&xz_shmedia_refresh;
  /* Keep identity and export bytes identical across a transient read failure. */
  for(int s=0;s<2;s++){
-  mounted[s].mount_id=41+s;mounted[s].root_inode=100+s;mounted[s].attachment_inode=200+s;
+  mounted[s].mount_id=41+s;mounted[s].root_inode=100+s;mounted[s].attachment_inode=200+s;mounted[s].root_device=(dev_t)(7+s);
   snprintf(mounted[s].database,sizeof mounted[s].database,"%s/PIONEER/rekordbox/export.pdb",argv[1]);
   snprintf(mounted[s].root,sizeof mounted[s].root,"%s",argv[1]);
   snprintf(mounted[s].source,sizeof mounted[s].source,"/dev/sd%c1",'a'+s);
@@ -70,7 +75,25 @@ int main(int argc,char **argv) {
  queue_command(&old);assert(!queue.count);
  old.media_generation=reinserted;queue_command(&old);assert(queue.count==1);
  scan_usb();assert(opens==4); /* Healthy cached library is not reopened. */
- for(int s=0;s<2;s++){xz_shlib_free(usb[s].lib);usb[s].lib=NULL;analysis_drop(s);xz_shpl_free(&edits[s]);}
  puts("PASS old generation refused, current LOAD admitted and healthy library cache retained");
+ /* USB STOP: from the stock stop on, the stick counts as gone. Both export.pdb readers (the shell's library and
+    the resolver's own copy) are dropped on the worker's next scan, loads from it are refused, the other slot stays. */
+ pthread_mutex_lock(&resolver_lock);assert(own_library(0)&&own[0].lib);pthread_mutex_unlock(&resolver_lock);
+ unsigned before_stop=opens;uint32_t live=usb[0].generation;
+ hidden_dev=mounted[0].root_device;xz_shell_runtime_usb_stopping(1);
+ assert(__atomic_load_n(&usb_stop_scan,__ATOMIC_ACQUIRE)==1);
+ scan_usb();
+ assert(!usb[0].lib&&!usb[0].generation&&!xz_extra_source_generation(1)&&usb[0].status==USB_NONE);
+ assert(!own[0].lib&&!own[0].index&&"RESOLVER_COPY_DROPPED_AT_STOP");
+ assert(usb[1].lib==other_lib&&usb[1].generation==other);
+ struct xz_extra_track t;assert(xz_extra_resolve_track_checked(1,101,live,&t)<0);
+ pthread_mutex_lock(&resolver_lock);assert(!own_library(0));pthread_mutex_unlock(&resolver_lock);
+ clock_ms+=1000;scan_usb();assert(opens==before_stop&&!usb[0].lib); /* nothing reopens it while it is stopping */
+ /* A stop that never unmounted: once the gate lets go, the same mount is a new generation and is read again. */
+ hidden_dev=0;clock_ms+=1000;scan_usb();
+ assert(usb[0].lib&&usb[0].generation&&usb[0].generation!=live&&opens==before_stop+1);
+ puts("PASS USB STOP hides the stick: both export.pdb readers closed, no reopen while stopping, other slot kept");
+ pthread_mutex_lock(&resolver_lock);own_drop(0);own_drop(1);pthread_mutex_unlock(&resolver_lock);
+ for(int s=0;s<2;s++){xz_shlib_free(usb[s].lib);usb[s].lib=NULL;analysis_drop(s);xz_shpl_free(&edits[s]);}
  return 0;
 }

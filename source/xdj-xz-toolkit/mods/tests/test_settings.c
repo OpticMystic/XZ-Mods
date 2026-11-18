@@ -18,7 +18,7 @@ static void rekordbox_buttons(void) {
     for(int press=0;press<XZ_REKORDBOX_ACTIONS;press++)for(int shift=0;shift<XZ_REKORDBOX_ACTIONS;shift++){
         struct xz_settings w=a;w.rekordbox_press=press;w.rekordbox_shift=shift;w.rekordbox_menu=press==XZ_REKORDBOX_MODS;
         assert(xz_settings_format(&w,text,sizeof(text))>0&&strstr(text,press==XZ_REKORDBOX_MODS?"rekordbox_menu=1\n":"rekordbox_menu=0\n"));
-        assert(!xz_settings_parse_present(text,&b,&present)&&present==58&&!memcmp(&w,&b,sizeof(w)));
+        assert(!xz_settings_parse_present(text,&b,&present)&&present==62&&!memcmp(&w,&b,sizeof(w)));
     }
     { struct xz_settings w=a;w.rekordbox_press=XZ_REKORDBOX_ACTIONS;assert(xz_settings_format(&w,text,sizeof(text))<0);
       w=a;w.rekordbox_shift=-1;assert(xz_settings_format(&w,text,sizeof(text))<0); }
@@ -29,7 +29,7 @@ static void rekordbox_buttons(void) {
     /* modern_stems: MODERN's own stem layout, PADS by default; a record without it keeps PADS; 0..5 only. */
     { char bad[1024];assert(a.modern_stems==XZ_MODERN_STEMS_PADS&&a.stems_overlay==XZ_STEM_LAYOUT_BELOW);
       for(int mode=0;mode<XZ_MODERN_STEMS_COUNT;mode++){struct xz_settings w=a;w.modern_stems=mode;
-        assert(xz_settings_format(&w,bad,sizeof(bad))>0&&!xz_settings_parse_present(bad,&b,&present)&&present==58&&b.modern_stems==mode);}
+        assert(xz_settings_format(&w,bad,sizeof(bad))>0&&!xz_settings_parse_present(bad,&b,&present)&&present==62&&b.modern_stems==mode);}
       strcpy(bad,text);field(bad,"modern_stems=",'6');assert(xz_settings_parse(bad,&b)<0);
       strcpy(bad,text);field(bad,"modern_stems=",'0');cut(bad,"modern_stems=");
       assert(!xz_settings_parse_present(bad,&b,&present)&&present==43&&b.modern_stems==XZ_MODERN_STEMS_PADS);
@@ -84,7 +84,7 @@ static void deck_view_block(void) {
     for(int view=0;view<XZ_DECK_VIEW_COUNT;view++)for(int button=0;button<2;button++){
         struct xz_settings w=a;w.deck_view=view;w.deck_view_button=button;
         assert(xz_settings_format(&w,text,sizeof(text))>0);
-        assert(!xz_settings_parse_present(text,&b,&present)&&present==58&&b.deck_view_button==1);
+        assert(!xz_settings_parse_present(text,&b,&present)&&present==62&&b.deck_view_button==1);
         w.deck_view_button=1;assert(!memcmp(&w,&b,sizeof(w)));
     }
     { struct xz_settings w=a;w.deck_view=XZ_DECK_VIEW_COUNT;assert(xz_settings_format(&w,text,sizeof(text))<0);
@@ -130,7 +130,7 @@ static void browse_preview_preference(void) {
     for(int shown=0;shown<=1;shown++){
         a.browse_preview=shown;
         assert(xz_settings_format(&a,text,sizeof text)>0);
-        assert(!xz_settings_parse_present(text,&b,&present)&&present==58&&b.browse_preview==shown);
+        assert(!xz_settings_parse_present(text,&b,&present)&&present==62&&b.browse_preview==shown);
         assert(!xz_settings_overlay(&b,&a,present)&&b.browse_preview==shown);
     }
     a.browse_preview=2;assert(xz_settings_format(&a,text,sizeof text)<0);
@@ -145,7 +145,76 @@ static void browse_preview_preference(void) {
     assert(!xz_settings_overlay(&a,&b,present)&&a.browse_preview==1);
     puts("PASS browse preview: default hidden, both values round-trip, old records default hidden, old overlay preserves choice, invalid values refused");
 }
+/* Field 60: default OFF, both values round-trip, a record without it leaves the applied choice alone. */
+/* Field 61: default DISABLED, OFF and SEND round-trip, a record without it (60 fields) leaves the applied mode alone. */
+static void ableton_link_preference(void) {
+    struct xz_settings s,read,applied;char text[1024];unsigned present;
+    xz_settings_default(&s);assert(s.ableton_link==XZ_ABLETON_LINK_OFF);
+    for(int mode=XZ_ABLETON_LINK_OFF;mode<XZ_ABLETON_LINK_MODES;mode++){
+        s.ableton_link=mode;int n=xz_settings_format(&s,text,sizeof text);assert(n>0&&n<1000);
+        assert(!xz_settings_parse_present(text,&read,&present)&&present==62&&read.ableton_link==mode);
+    }
+    applied=read;
+    char *last=strstr(text,"ableton_link=");*last=0;
+    assert(!xz_settings_parse_present(text,&read,&present)&&present==60&&read.ableton_link==XZ_ABLETON_LINK_OFF);
+    assert(!xz_settings_overlay(&applied,&read,present)&&applied.ableton_link==XZ_ABLETON_LINK_SEND);
+    strcpy(last,"ableton_link=2\n");assert(xz_settings_parse(text,&read)<0);
+    strcpy(last,"ableton_link=1\nextra=1\n");assert(xz_settings_parse(text,&read)<0);
+    s.ableton_link=XZ_ABLETON_LINK_MODES;assert(xz_settings_format(&s,text,sizeof text)<0);
+    s.ableton_link=-1;assert(xz_settings_format(&s,text,sizeof text)<0);
+    puts("PASS ABLETON LINK: field 61, default disabled, off/send round trip, older record keeps the applied mode, invalid refused");
+}
+/* Field 62: default XZ_RECORDING_TRACKLIST_DEFAULT (off), both values round-trip, a record without it (61 fields)
+   loads as the default and leaves the applied choice alone on overlay, anything else is refused. */
+static void recording_tracklist_preference(void) {
+    struct xz_settings s,read,applied;char text[1024];unsigned present;
+    xz_settings_default(&s);assert(s.recording_tracklist==XZ_RECORDING_TRACKLIST_DEFAULT&&XZ_RECORDING_TRACKLIST_DEFAULT==0);
+    int n=xz_settings_format(&s,text,sizeof text);assert(n>0&&n<1000);
+    assert(!strcmp(text+n-strlen("ableton_link=0\nrecording_tracklist=0\n"),"ableton_link=0\nrecording_tracklist=0\n"));
+    for(int on=0;on<=1;on++){
+        s.recording_tracklist=on;assert(xz_settings_format(&s,text,sizeof text)>0);
+        assert(!xz_settings_parse_present(text,&read,&present)&&present==62&&read.recording_tracklist==on);
+    }
+    applied=read;
+    char *last=strstr(text,"recording_tracklist=");*last=0;
+    assert(!xz_settings_parse_present(text,&read,&present)&&present==61&&read.recording_tracklist==XZ_RECORDING_TRACKLIST_DEFAULT);
+    assert(!xz_settings_overlay(&applied,&read,present)&&applied.recording_tracklist==1);
+    strcpy(last,"recording_tracklist=2\n");assert(xz_settings_parse(text,&read)<0);
+    strcpy(last,"recording_tracklist=1\nextra=1\n");assert(xz_settings_parse(text,&read)<0);
+    s.recording_tracklist=2;assert(xz_settings_format(&s,text,sizeof text)<0);
+    s.recording_tracklist=-1;assert(xz_settings_format(&s,text,sizeof text)<0);
+    puts("PASS RECORDING TRACKLIST: field 62, default off, round trip, older record keeps the applied choice, invalid refused");
+}
+static void pro_dj_link_preference(void) {
+    struct xz_settings s,read,applied;char text[1024];unsigned present;
+    xz_settings_default(&s);assert(s.pro_dj_link_decks==0);
+    int n=xz_settings_format(&s,text,sizeof text);assert(n>0&&n<1000);
+    assert(strstr(text,"\npro_dj_link_decks=0\nableton_link=0\n")&&!strcmp(text+n-strlen("ableton_link=0\nrecording_tracklist=0\n"),"ableton_link=0\nrecording_tracklist=0\n"));
+    s.pro_dj_link_decks=1;assert(xz_settings_format(&s,text,sizeof text)>0);
+    assert(!xz_settings_parse_present(text,&read,&present)&&present==62&&read.pro_dj_link_decks==1);
+    applied=read;
+    char *last=strstr(text,"pro_dj_link_decks=");*last=0;
+    assert(!xz_settings_parse_present(text,&read,&present)&&present==59&&read.pro_dj_link_decks==0);
+    assert(!xz_settings_overlay(&applied,&read,present)&&applied.pro_dj_link_decks==1);
+    strcpy(last,"pro_dj_link_decks=2\n");assert(xz_settings_parse(text,&read)<0);
+    strcpy(last,"pro_dj_link_decks=1\nextra=1\n");assert(xz_settings_parse(text,&read)<0);
+    s.pro_dj_link_decks=2;assert(xz_settings_format(&s,text,sizeof text)<0);
+    puts("PASS PRO DJ LINK DECKS 3/4: field 60, default off, round trip, older record keeps the applied choice, invalid refused");
+}
 int main(void) {
+    struct xz_settings defaults,disabled,old_preference;char preference[1024];unsigned fields;
+    xz_settings_default(&defaults);assert(defaults.network_dhcp==1);
+    disabled=defaults;disabled.network_dhcp=0;
+    assert(xz_settings_format(&disabled,preference,sizeof preference)>0);
+    assert(!xz_settings_parse_present(preference,&old_preference,&fields)&&fields==62&&!old_preference.network_dhcp);
+    char *last=strstr(preference,"pro_dj_link_decks=");assert(last);*last=0;
+    assert(!xz_settings_parse_present(preference,&old_preference,&fields)&&fields==59&&!old_preference.network_dhcp);
+    last=strstr(preference,"network_dhcp=");assert(last);*last=0;
+    assert(!xz_settings_parse_present(preference,&old_preference,&fields)&&fields==58&&old_preference.network_dhcp);
+    assert(!xz_settings_overlay(&disabled,&old_preference,fields)&&!disabled.network_dhcp);
+    pro_dj_link_preference();
+    ableton_link_preference();
+    recording_tracklist_preference();
     browse_preview_preference();
     deck_view_block();
     rekordbox_buttons();
@@ -168,7 +237,7 @@ int main(void) {
         current.key_feedback=1;current.wave_mode=2;
         assert(!xz_settings_overlay(&current,&record,present)&&current.key_feedback==1&&current.wave_mode==2);
         struct xz_settings off=current;off.key_feedback=0;off.wave_mode=0;
-        assert(xz_settings_format(&off,text,sizeof(text))>0&&!xz_settings_parse_present(text,&record,&present)&&present==58);
+        assert(xz_settings_format(&off,text,sizeof(text))>0&&!xz_settings_parse_present(text,&record,&present)&&present==62);
         assert(!xz_settings_overlay(&current,&record,present)&&!current.key_feedback&&!current.wave_mode);
         record=current;record.theme=XZ_THEME_COUNT;struct xz_settings kept=current;
         assert(xz_settings_overlay(&current,&record,38)<0&&!memcmp(&kept,&current,sizeof(kept)));

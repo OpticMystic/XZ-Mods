@@ -166,7 +166,7 @@ window.myReports = (() => {
         plainButton(XZText('Turn off status links'), () => act('revoke'), { key: 'revoke' })] : []),
       plainButton(XZText('Forget this report'), () => { current.confirm = true; renderTrack(); }, { key: 'forget' })),
       current.confirm ? el('div', { class: 'sr-confirm' }, XZText('Forget removes the receipt from this computer. You will no longer see its status here. The maintainer keeps the report.'),
-        el('div', { class: 'actions' }, plainButton(XZText('Forget this report'), () => act('forget'), { primary: true, key: 'forget-yes' }), plainButton(XZText('Keep it'), () => { current.confirm = false; renderTrack(); }, { key: 'forget-no' }))) : null);
+        el('div', { class: 'actions' }, plainButton(XZText('Forget this report'), () => act('forget'), { danger: true, key: 'forget-yes' }), plainButton(XZText('Keep it'), () => { current.confirm = false; renderTrack(); }, { key: 'forget-no' }))) : null);
     more.open = Boolean(current.more || current.confirm);
     more.ontoggle = () => { if (current) current.more = more.open; };
     const primary = r.state === 'accepted' || r.state === 'expired' ? plainButton(XZText('Close'), () => track.close(), { primary: true, key: 'close' })

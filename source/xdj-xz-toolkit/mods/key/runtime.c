@@ -5,6 +5,8 @@
 #include "../runtime.h"
 #include "../audio/trace.h"
 #include <limits.h>
+#include <pthread.h>
+#include "../xz_mutex.h"
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
@@ -28,7 +30,8 @@ struct xz_key_deck {
 static struct xz_key_deck decks[XZ_KEY_DECKS];
 static int desired_cents[XZ_KEY_DECKS];
 static uint32_t desired_epoch[XZ_KEY_DECKS];
-static unsigned char request_writer[XZ_KEY_DECKS];
+/* Was a spinlock per deck; see stock_dialog.c for why a spinning waiter at a higher priority never gets it. */
+static pthread_mutex_t request_mutex=XZ_MUTEX_INITIALIZER;
 static int started;
 static int observe_only;
 __attribute__((visibility("default"))) struct xz_key_audio_proof xz_mods_key_audio_proof_v1={.version=1};
@@ -190,8 +193,8 @@ static void publish_request(int deck,uint32_t epoch,int cents){
     __atomic_store_n(&desired_epoch[deck],epoch,__ATOMIC_RELEASE);
 }
 /* Control writers serialize here. The audio callback never takes this lock. */
-static void lock_request(int deck){while(__atomic_test_and_set(&request_writer[deck],__ATOMIC_ACQUIRE)){}}
-static void unlock_request(int deck){__atomic_clear(&request_writer[deck],__ATOMIC_RELEASE);}
+static void lock_request(int deck){(void)deck;pthread_mutex_lock(&request_mutex);}
+static void unlock_request(int deck){(void)deck;pthread_mutex_unlock(&request_mutex);}
 int xz_key_set_desired_cents(int deck,uint32_t epoch,int cents){
     if(deck<0||deck>=XZ_KEY_DECKS||!epoch||cents < -1200||cents>1200)return -1;
     lock_request(deck);publish_request(deck,epoch,cents);unlock_request(deck);return 0;

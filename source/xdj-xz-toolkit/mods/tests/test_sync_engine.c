@@ -14,8 +14,11 @@ static int engine_observe(struct xz_master_observation *out){
 static int engine_resolve(int source,uint32_t id,struct xz_extra_track *out){
  int rc=sync_resolve(source,id==3?1:id,out);if(id==3){out->track_id=id;out->anlz_dir[0]=0;}return rc;
 }
+/* Jumps land one pump turn past the published count, as on the unit (pump_turn_frames, test_extra_player.c):
+   a SYNC snap is checked against the grid where its audio really starts, not where a pump with no turn would
+   start it. */
 static void engine_begin(int q,int id){
- clock_ms=1000;wire_horizon=882;position_interval=position_noise=position_blocked=threaded_clock=hold_flush=0;
+ clock_ms=1000;wire_horizon=882;pump_turn_frames=66;position_interval=position_noise=position_blocked=threaded_clock=hold_flush=0;
  authority_calls=revision_race=0;authority_churn=0;
  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,engine_resolve,master_bpm,NULL,NULL,0,q};
  p=xz_xp_create(&env);assert(p);fake_route(91001);step();load(0,(uint32_t)id);

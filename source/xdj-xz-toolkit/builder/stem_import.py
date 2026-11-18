@@ -10,7 +10,7 @@ import stat
 import tempfile
 import time
 import zipfile
-from . import cache,engines,usb,overcue_writer,stem_roles_map
+from . import cache,engines,usb,overcue_writer,stem_estimate,stem_roles_map
 
 AUDIO_SUFFIXES=('.wav','.flac','.aif','.aiff','.ogg','.mp3')
 MAX_FILES=128
@@ -142,6 +142,7 @@ def _length_warnings(files,mix_frames):
 def plan(request,job,resources):
     """Proposed mapping and alignment for an import. Reads the stems; writes nothing to the USB."""
     source,track,titles=_target(request)
+    rate=overcue_writer.requested_rate(request)
     with engines.engine_lock():
         sweep_extractions()
         entries,mapping=stem_files(request,job,titles)
@@ -149,7 +150,7 @@ def plan(request,job,resources):
         stems=[entry for entry,found in zip(entries,mapping['files']) if found['group']!=stem_roles_map.MIX]
         alignment=None;lengths={}
         if stems:
-            engines.require_scratch(track.frames)
+            engines.require_scratch(track.frames,rate)
             python=import_python(job,resources)
             with tempfile.TemporaryDirectory(prefix='xz-import-plan-',dir=engines.data_root()) as temp:
                 temp=Path(temp);request_file=temp/'request.json'
@@ -191,8 +192,9 @@ def import_groups(request,job,resources):
     alignment=parse_alignment(request.get('alignment'))
     if type(request.get('accept_weak_alignment',False)) is not bool:raise ValueError('Invalid alignment choice')
     require=None if alignment is None else 'weak' if request.get('accept_weak_alignment') else 'aligned'
-    engines.require_scratch(track.frames)
-    needed=int(track.frames/44100*96000*4*7*1.04)+16*1024*1024
+    rate=overcue_writer.requested_rate(request)
+    engines.require_scratch(track.frames,rate)
+    needed=int(stem_estimate.role_frames(track.frames,rate)*4*7*1.04)+16*1024*1024
     if shutil.disk_usage(track.usb_root).free<needed:raise ValueError('Not enough USB space. Free space before importing stems.')
     with engines.engine_lock():
         entries,mapping=stem_files(request,job,titles)
@@ -206,13 +208,13 @@ def import_groups(request,job,resources):
         with tempfile.TemporaryDirectory(prefix='xz-import-groups-',dir=engines.data_root()) as temp:
             temp=Path(temp);audio=temp/'audio';manifest=temp/'request.json'
             manifest.write_text(json.dumps({'mix':str(source),'files':files,'fit_length':request.get('fit_length',False),
-                'alignment':alignment,'require':require}),encoding='utf-8')
+                'alignment':alignment,'require':require,'sample_rate':rate}),encoding='utf-8')
             job.progress('import','Combining stems and preparing OverCue audio')
             split_model=None
             if stem_roles_map.INSTRUMENTAL in groups:
                 job.run([python,'-I',*_grouped(resources,'group',manifest,audio)])
                 split,split_model=_drum_split(audio/'instrumental.wav',temp/'split',job,resources)
-                render_request=temp/'render.json';render_request.write_text(json.dumps({'split':split}),encoding='utf-8')
+                render_request=temp/'render.json';render_request.write_text(json.dumps({'split':split,'sample_rate':rate}),encoding='utf-8')
                 job.run([python,'-I',*_grouped(resources,'render',render_request,audio)])
             else:job.run([python,'-I',*_grouped(resources,'combine',manifest,audio)])
             check=json.loads((audio/'groups.json').read_text(encoding='utf-8'))['check']

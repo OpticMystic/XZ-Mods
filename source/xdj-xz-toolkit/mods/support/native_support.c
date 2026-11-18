@@ -7,6 +7,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include "../xz_thread.h"
+#include "../usb_probe.h"
+#include "../xz_mutex.h"
 #include <poll.h>
 #include <signal.h>
 #include <spawn.h>
@@ -23,7 +26,7 @@
 #define SUPPORT_STATE_DIR "/dev/shm/xz-support-state"
 #define MIN_VALID_EPOCH 1767225600LL
 
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mutex = XZ_MUTEX_INITIALIZER;
 static struct xz_support_model state = {
     .phase = XZ_SUPPORT_IDLE,
     .status = "PREPARE A SANITIZED DIAGNOSTIC DRAFT TO PREVIEW"
@@ -364,7 +367,8 @@ void xz_support_read(struct xz_support_model *out, int requested_page) {
     pthread_mutex_lock(&mutex);
     reap_helper_locked();
     state.ready = helper_ready();
-    state.usb_writable = usb_ready();
+    /* Called from the drawing path: the stick is only asked by the probe worker (usb_probe.h). */
+    state.usb_writable = XZ_PROBE_CACHED(usb_ready);
     state.clock_ready = check_clock_ready();
     fill_preview_page_locked(&state, requested_page);
     *out = state;
@@ -647,7 +651,7 @@ int xz_support_request(const struct xz_support_request_args *req) {
              req->op == XZ_SUPPORT_OP_REPORT ? "SENDING YOUR REPORT..." :
              "WRITING SANITIZED REPORT BUNDLE TO USB...");
     pthread_t th;
-    if (pthread_create(&th, NULL, worker_run, copy) == 0) {
+    if (XZ_WORKER_CREATE(&th,worker_run,copy) == 0) {
         pthread_detach(th);
         pthread_mutex_unlock(&mutex);
         return 0;

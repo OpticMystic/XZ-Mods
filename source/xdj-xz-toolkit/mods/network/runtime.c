@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: MIT */
 #include "runtime.h"
 #include <pthread.h>
+#include "../xz_mutex.h"
 #include <string.h>
-static pthread_mutex_t guard=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t guard=XZ_MUTEX_INITIALIZER;
 static struct xz_net_service *service;
 static struct xz_net_linux *linux_backend;
 static struct xz_net_linux_os *os;
@@ -14,6 +15,9 @@ enum xz_net_result xz_net_runtime_start(const struct xz_net_linux_config *config
         if(!r)r=xz_net_service_start(&service,&backend);
         if(r){xz_net_linux_destroy(linux_backend);linux_backend=NULL;xz_net_linux_os_destroy(os);os=NULL;}}
     pthread_mutex_unlock(&guard);return r;
+}
+void xz_net_runtime_set_dhcp(int enabled){
+    pthread_mutex_lock(&guard);xz_net_service_set_dhcp(service,enabled);pthread_mutex_unlock(&guard);
 }
 enum xz_net_result xz_net_runtime_read(struct xz_net_view *v){
     if(pthread_mutex_trylock(&guard))return XZ_NET_BUSY;

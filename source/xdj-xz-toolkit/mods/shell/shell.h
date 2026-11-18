@@ -25,7 +25,9 @@
    4. Serialise input, model snapshots and render on one thread. */
 #include <stddef.h>
 #include <stdint.h>
+#include "../ui/rec_reading.h"
 
+#define XZ_SHELL_PREROLL_LIMIT_MS 3600000 /* signed native display sanity bound; does not seek or alter audio */
 #define XZ_SHELL_WIDTH 800
 #define XZ_SHELL_HEIGHT 480
 /* The model's capacity. model.deck_count says how many decks the unit plays now. */
@@ -159,6 +161,8 @@ struct xz_shell_deck {
  int sync_master_deck;
  uint32_t master_scope;             /* bits for decks governed by this master; 12 means software3/4 only */
  int32_t elapsed_ms, total_ms;
+ double elapsed_fraction_ms;         /* private projection remainder, preserved until presentation */
+ uint32_t playback_projection_age_ms; /* part of the 50 ms budget already consumed at mapping */
  int32_t playback_rate_ppm;          /* signed observed source seconds per output second */
  int moving;                        /* confirmed motion, including paused vinyl scratching */
  uint32_t elapsed_at_ms;             /* model clock_ms when elapsed_ms was read; 0 = not stamped, no
@@ -260,6 +264,7 @@ struct xz_shell_settings {
  /* NEEDLE LOCK (XZ manual p.123; item XZ_SHELL_ITEM_NEEDLE_LOCK): 1 = LOCK, the overview searches only
     on a paused deck. Its own known flag: the setting ids above are fixed by the item id space. */
  int needle_lock_known, needle_lock;
+ int load_lock;  /* UTILITY LOAD LOCK read and set to LOCK (sh_deck_load_locked) */
 };
 /* BEAT FX section of the mixer. Bits of known are enum xz_shell_fx_field; a clear bit draws the
    flagship blank convention. Strings are runtime-owned. */
@@ -281,6 +286,16 @@ struct xz_shell_fx {
  int32_t bpm_x10;                    /* BEAT FX BPM, 0.1 BPM */
  int tap;                            /* BPM source: 1 = TAP, 0 = AUTO */
  int quantize;                       /* XZ_SHELL_FX_F_QUANTIZE: BEAT FX QUANTIZE is on (its own lamp) */
+};
+/* ABLETON LINK as PLAY shows it (the runtime maps link_status.h's states onto these four). ON covers "in the
+   session" whether or not the unit has a tempo master to send; FAILED covers a helper that is not staged and one
+   that could not start. peers: the other apps in the session, meaningful in ON. */
+enum xz_shell_ableton_state { XZ_SHELL_ABLETON_OFF, XZ_SHELL_ABLETON_STARTING, XZ_SHELL_ABLETON_ON, XZ_SHELL_ABLETON_FAILED };
+struct xz_shell_ableton {
+ int known;                          /* 0: no Link runtime; PLAY draws no control and none answers */
+ int enabled;                        /* the setting (settings ableton_link) */
+ enum xz_shell_ableton_state state;
+ unsigned peers;
 };
 /* Filled by later units; opaque here. NULL hands the screen to the stock UI. */
 struct xz_shell_browse_model; struct xz_shell_settings_model; struct xz_shell_source_model; struct xz_shell_info_model;
@@ -317,6 +332,9 @@ struct xz_shell_model {
  const struct xz_shell_browse_model *browse;
  const struct xz_shell_settings_model *settings_screen;
  const struct xz_shell_source_model *source;
+ const uint16_t *idle_logo; /* 160 x 160 RGB565, NULL uses the XZ Mods logo */
+ const char *idle_dj_name;
+ int startup_idle; /* no track load has been observed since this runtime started */
  const struct xz_shell_info_model *info;
  const struct xz_shell_mods_model *mods;  /* the MODS screen's mod tabs (shell_settings.h); NULL: the MODS header
                                              button opens the runtime's own mod panel (XZ_SHELL_ACT_OPEN_MODS) */
@@ -340,6 +358,12 @@ struct xz_shell_model {
     came up under the card (the READY hold and wipe), 0 when it did not. */
  uint32_t route_card_since_ms, route_card_ready_at_ms;
  int browse_preview; /* saved MODERN browse display preference, 0 collapsed */
+ /* The unit's recorder, one reading stamped in the clock_ms domain (ui/rec_reading.h). Zero: no REC mark.
+    PLAY draws the mark in its own slot between the BEAT FX strip and DECKS, every other screen in the header slot left of X
+    (ui/rec_mark.h). */
+ struct xz_rec_reading recorder;
+ /* ABLETON LINK on PLAY, from the Link runtime's published glance (link_runtime.h). Zero (known 0): no control. */
+ struct xz_shell_ableton ableton;
 };
 
 enum xz_shell_event_kind {
@@ -409,7 +433,9 @@ enum xz_shell_action_kind {
  XZ_SHELL_ACT_WAVE_ORDER, /* value 0 numeric or 1 mixer, saved DECK VIEW preference */
  XZ_SHELL_ACT_DECK_LAYOUT, /* DECK VIEW: value enum xz_deck_layout; display only, no deck assignment */
  XZ_SHELL_ACT_ROUTE_RESCAN, /* connector wake only */
- XZ_SHELL_ACT_BROWSE_PREVIEW /* value 0 hidden/collapsed, 1 shown; queued settings edit */
+ XZ_SHELL_ACT_BROWSE_PREVIEW, /* value 0 hidden/collapsed, 1 shown; queued settings edit */
+ XZ_SHELL_ACT_ABLETON_LINK  /* PLAY's ABLETON LINK control: value 1 enabled, 0 disabled. The runtime runs MODS >
+                               CONNECT > NETWORK's own ABLETON LINK action (setting, runtime and save alike) */
 };
 /* TAG LIST edits (XZ manual pp.85-89). Results come back as m->notice ("ADDED 12, 3 ALREADY ON THE LIST",
    "TAG LIST IS FULL: 100 TRACKS"). Tag list to playlist is XZ_SHELL_ACT_PLAYLIST op PL_FROM_TAG_LIST. */
@@ -486,6 +512,7 @@ struct xz_shell_filter {
 /* Pending browse choice is value-owned so key probes can safely copy the shell. */
 struct xz_shell_load_choice {
  int mode, first, cursor, deck_count, row, has_cues;
+ int mixer; /* deck rows in MIXER ORDER (3, 1, 2, 4), as DECK VIEW was when the menu opened */
  enum xz_shell_screen screen;
  uint64_t media_generation;
  uint32_t track, list;
@@ -535,13 +562,15 @@ struct xz_shell {
     model.notice; the runtime may also read it as the reason for a hand-off. */
  const char *notice;
  uint32_t notice_at_ms;
+ int notice_deck;                    /* the deck a refusal names (NEEDLE LOCK lights that deck's mark), -1 none */
  struct { int valid, screen, depth, popup, panel, tab; } header_frame;
  struct xz_shell_key_frame key_frame; /* last successfully rendered C buffer; value-owned for copy probes */
  /* DECK VIEW on PLAY: the picker (open, the encoder's tile), the encoder's focus on the play screen's own
     DECK VIEW controls (enum xz_shell_play_focus), a touch the overlay owns until release, the last PLAY
     input (clock_ms; the card's motion rests 60 s after it) and the token of the last painted overlay,
-    which a touch must match. */
- struct { int open, tile, focus, contact; uint32_t input_at, painted; } deck_view;
+    which a touch must match. cable: the picker is the one the loopback cable opened
+    (xz_shell_deck_view_cable_open) and nothing has touched it yet. */
+ struct { int open, tile, focus, contact; uint32_t input_at, painted; int cable; } deck_view;
 };
 enum xz_shell_play_focus { XZ_SHELL_FOCUS_NONE, XZ_SHELL_FOCUS_CARD_PRIMARY, XZ_SHELL_FOCUS_CARD_TWO, XZ_SHELL_FOCUS_DECK_VIEW };
 
@@ -587,6 +616,16 @@ uint32_t xz_shell_play_motion_ms(const struct xz_shell *, const struct xz_shell_
 /* The frame period whatever moves on screen wants: the decks 3 and 4 card on PLAY, the cable picture on the
    MODS 4 DECKS page; 0 when nothing moves. */
 uint32_t xz_shell_motion_ms(const struct xz_shell *, const struct xz_shell_model *);
+/* DECK VIEW and the loopback cable (the runtime decides when, shell_runtime.c cable_tick_locked).
+   quiet: PLAY is on top with no popup, panel or LOAD menu, no touch is held, the picker and the encoder's PLAY
+   focus are closed, and PLAY has had no input for XZ_DECK_VIEW_CABLE_QUIET_MS (ui/deck_view.h).
+   cable_open: opens the picker with view marked and the cable's line (XZ_DECK_VIEW_CABLE_LINE). It closes after
+   XZ_DECK_VIEW_CABLE_TIMEOUT_MS untouched; a choice, BACK or any key closes it as always; a touch outside it
+   (the DECKS button aside) closes it and goes on to what is under it; other input makes it an ordinary picker.
+   cable_close: closes that picker if it is still the cable's; 1 when it did. Neither changes DECK VIEW. */
+int xz_shell_deck_view_quiet(const struct xz_shell *, const struct xz_shell_model *);
+void xz_shell_deck_view_cable_open(struct xz_shell *, const struct xz_shell_model *, int view);
+int xz_shell_deck_view_cable_close(struct xz_shell *);
 /* Selection encoded by the published semantic projection, side 0 or 1. */
 static inline int xz_shell_key_frame_selected(uint32_t projection,int side){return side+2*(int)((projection>>(4+side))&1u);}
 struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *, enum xz_shell_play_region, int deck);
@@ -602,10 +641,20 @@ struct xz_shell_rect xz_shell_bypass_button(const struct xz_shell *, const struc
 /* A stem mute button's touch target (44 px tall), stem 0 drums, 1 harmonics (INST), 2 vocal. Drawn
    DRUMS, VOCAL, INST from the left as on the stock deck. Zero size while the deck shows none. */
 struct xz_shell_rect xz_shell_stem_button(const struct xz_shell *, const struct xz_shell_model *, int deck, int stem);
+/* PLAY's ABLETON LINK control as drawn: in the top bar between A. CUE and the BEAT FX strip, XZ_SHELL_ABLETON_GAP
+   from each, one line: LINK and the count. The same rectangle in every state and every PLAY view: x 187..244,
+   y 1..24 (at the bar's left edge, x 8..65, while the mode lamps are hidden). The BEAT FX strip keeps its own
+   place and size (x 251..497, y 2..23). Zero size when model.ableton.known is 0, and then nothing is drawn there.
+   The touch target is the control's columns from the top of the screen down to XZ_SHELL_ABLETON_HIT_H, as the
+   other top-bar controls; below the bar a stem button of the top lane wins. */
+enum { XZ_SHELL_ABLETON_Y=1, XZ_SHELL_ABLETON_W=58, XZ_SHELL_ABLETON_H=24, XZ_SHELL_ABLETON_GAP=6,
+ XZ_SHELL_ABLETON_HIT_H=XZ_SHELL_HEADER_HIT_H };
+struct xz_shell_rect xz_shell_ableton_rect(const struct xz_shell *, const struct xz_shell_model *);
 /* Track position under x on the deck's overview, clamped to 0..total. */
 int32_t xz_shell_overview_ms(const struct xz_shell_model *, int32_t total_ms, int x, int deck);
 /* The deck's position this frame: elapsed_ms, advanced while playing as XZ_SHELL_EXTRAPOLATE_MAX_MS
    describes and clamped to 0..total_ms when the total is known. -1 when elapsed is not known. */
+double xz_shell_elapsed_precise(const struct xz_shell_model *,int deck);
 int32_t xz_shell_elapsed_now(const struct xz_shell_model *, int deck);
 /* Key traffic light against the master deck's key: GREEN same key or its relative, AMBER one step on
    the key wheel either way, NONE anything else, UNKNOWN when either key is unread or unparsed. The

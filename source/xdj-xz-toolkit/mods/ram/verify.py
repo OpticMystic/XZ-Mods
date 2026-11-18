@@ -22,11 +22,17 @@ parser.add_argument('--stop-key',action='store_true',help='Exercise safe USB STO
 parser.add_argument('--presentation',action='store_true',help='Exercise detached native track identity')
 parser.add_argument('--display-assets',action='store_true',help='Exercise raw ejection and retained native display assets')
 parser.add_argument('--scalars',action='store_true',help='Exercise native title/wave/control identity getters')
+parser.add_argument('--attach-close',action='store_true',help='Exercise stock decoder reads during a slow stick close at RAM attach')
 parser.add_argument('--firmware', type=Path, default=HERE.parents[1] / 'vendor/decrypted_iso/pdj/extracted/pdj/rbp')
 args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
 output = args.output.resolve()
 firmware = args.firmware.resolve()
+if not firmware.is_file():
+    # The manufacturer's player binary is never in a repository; exit 77 is "skipped" for run_all_host.py. A file
+    # that exists but is not firmware 1.26 still fails below.
+    print(f'SKIPPED: needs --firmware, the stock player rbp of firmware 1.26 (sha256 6571c40b...); not found at {firmware}')
+    raise SystemExit(77)
 if hashlib.sha256(firmware.read_bytes()).hexdigest() != '6571c40b0523954d4091a4649f8200c4c615492fc37bae7f86cc89c6289510d2':
     raise ValueError('Unknown firmware')
 from elftools.elf.elffile import ELFFile
@@ -85,7 +91,7 @@ subprocess.run(prefix + ['cc', *warnings, '-fsanitize=address,undefined', '-fno-
 assertion = subprocess.run(prefix + [linux(host), '--prove-assertions'], capture_output=True)
 if assertion.returncode == 0:
     raise ValueError('Disabled assertion acceptance')
-mode=['--display-assets'] if args.display_assets else ['--scalars'] if args.scalars else ['--presentation'] if args.presentation else ['--stop-key'] if args.stop_key else ['--auto'] if args.auto else []
+mode=['--attach-close'] if args.attach_close else ['--display-assets'] if args.display_assets else ['--scalars'] if args.scalars else ['--presentation'] if args.presentation else ['--stop-key'] if args.stop_key else ['--auto'] if args.auto else []
 host_result = subprocess.run(prefix + [linux(host)]+mode, check=True, capture_output=True, text=True, timeout=60)
 print(host_result.stdout.strip())
 arm = output / 'ram-arm-test'

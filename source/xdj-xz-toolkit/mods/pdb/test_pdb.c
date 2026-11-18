@@ -15,6 +15,8 @@ struct guarded {
     unsigned char after[32];
 };
 static struct guarded memory;
+static struct guarded lookup_memory;
+static int extended_cache;
 static unsigned char original[512 * 1024], mutated[512 * 1024], tiny[16384];
 static uint32_t random_state = 0x91c4fa37;
 static uint32_t rng(void) {
@@ -58,7 +60,7 @@ static int equal(pdb_text s, const char *text) { return s.len == strlen(text) &&
 static int inspect_track(void *user, const pdb_track *t) {
     size_t *count = user; (*count)++;
     const pdb_text texts[] = {t->title, t->artist, t->album, t->genre, t->key, t->label,
-                             t->color, t->file_path, t->artwork_path, t->date_added};
+                             t->color, t->file_path, t->artwork_path, t->date_added, t->analysis_path};
     for (size_t i = 0; i < sizeof(texts) / sizeof(texts[0]); ++i) text_ok(texts[i]);
     assert(t->rating <= 5);
     return 0;
@@ -69,7 +71,9 @@ static int expected_track(void *user, const pdb_track *t) {
     inspect_track(&ctx->count, t);
     assert(pdb_each_track(ctx->db, inspect_track, &ctx->count) == PDB_EBUSY);
     assert(pdb_reset(ctx->db, pdb_mark(ctx->db)) == PDB_EBUSY);
+    assert(pdb_set_lookup_cache(ctx->db, NULL, 0) == PDB_EBUSY);
     assert(t->id == ctx->count * 101);
+    assert(equal(t->analysis_path,"/PIONEER/USBANLZ/P001/00000001/ANLZ0000.DAT"));
     assert(t->bitrate == 320 && t->track_number == ctx->count && t->sample_rate == 48000);
     assert(equal(t->date_added, "2026-10-18") && equal(t->label, "Independent"));
     if (t->id == 101) {
@@ -121,9 +125,16 @@ static void acceptance(struct source *s, int corrupt) {
     pdb *d;
     guards();
     assert(pdb_open(&d, read_memory, s, s->length, memory.arena, sizeof(memory.arena)) == PDB_OK);
+    if (extended_cache) {
+        memset(&lookup_memory, 0x5a, sizeof lookup_memory);
+        assert(pdb_set_lookup_cache(d, lookup_memory.arena + 1, sizeof lookup_memory.arena - 1) == PDB_EINVAL);
+        assert(pdb_set_lookup_cache(d, lookup_memory.arena, 1) == PDB_ENOMEM);
+        assert(pdb_set_lookup_cache(d, lookup_memory.arena, extended_cache==2?2048:sizeof lookup_memory.arena) == PDB_OK);
+    }
     size_t mark = pdb_mark(d);
     struct track_context ctx = {d, 0};
     assert(pdb_each_track(d, expected_track, &ctx) == PDB_OK && ctx.count == 4);
+    if (extended_cache == 1) assert(pdb_get_stats(d).cache_misses <= 7);
     assert(pdb_memory_used(d) == mark);
     assert(pdb_get_stats(d).corrupt_pages == (uint64_t)corrupt);
     assert(pdb_each_track(d, stop_track, NULL) == PDB_STOP);
@@ -158,8 +169,17 @@ static void acceptance(struct source *s, int corrupt) {
     search(d, "\t \r\n", all, 4); search(d, "does-not-exist", NULL, 0);
     const uint32_t *bad_ids;
     assert(pdb_search(d, (pdb_text){"\xc0\x80", 2}, &bad_ids, &count) == PDB_EINVAL);
-    assert(pdb_get_stats(d).cache_hits > 0 && pdb_get_stats(d).cache_misses > 0);
+    /* A deliberately saturated tiny optional cache can have zero hits; the
+     * complete metadata, search and ordering checks above must still pass. */
+    assert(pdb_get_stats(d).cache_misses > 0);
+    if (extended_cache != 2) assert(pdb_get_stats(d).cache_hits > 0);
     assert(pdb_reset(d, 0) == PDB_EINVAL);
+    if (extended_cache) {
+        for (size_t i=0;i<32;i++) assert(lookup_memory.before[i]==0x5a&&lookup_memory.after[i]==0x5a);
+        assert(pdb_set_lookup_cache(d, NULL, 0) == PDB_OK);
+        memset(lookup_memory.arena, 0xa5, sizeof lookup_memory.arena);
+        ctx.count=0;assert(pdb_each_track(d, expected_track, &ctx)==PDB_OK&&ctx.count==4);
+    }
     check_guards();
     printf("PASS metadata, UTF-8, 8 indexes, search, playlists/history, corruption=%d; base arena=%zu bytes\n", corrupt, mark);
 }
@@ -167,6 +187,7 @@ static void exercise(struct source *s, size_t arena_size) {
     guards(); pdb *d = NULL;
     int rc = pdb_open(&d, read_memory, s, s->length, memory.arena, arena_size);
     if (!rc) {
+        if (extended_cache) assert(pdb_set_lookup_cache(d, lookup_memory.arena, sizeof lookup_memory.arena)==PDB_OK);
         size_t count = 0, mark = pdb_mark(d);
         rc = pdb_each_track(d, inspect_track, &count); assert(rc == PDB_OK || rc == PDB_ENOMEM);
         count = 0; rc = pdb_each_playlist(d, inspect_playlist, &count); assert(rc == PDB_OK || rc == PDB_ENOMEM);
@@ -274,10 +295,13 @@ int main(int argc, char **argv) {
     struct source input = {original, length, 0, 0};
     int is_corrupt = argc >= 3 && !strcmp(argv[2], "corrupt");
     acceptance(&input, is_corrupt);
+    extended_cache=1;acceptance(&input,is_corrupt);
+    extended_cache=2;acceptance(&input,is_corrupt);extended_cache=0;
     if (argc >= 3 && !strcmp(argv[argc - 1], "fuzz")) {
         limits(&input);
         if (!is_corrupt) corruptions(&input);
         fuzz(&input);
+        extended_cache=1;fuzz(&input);extended_cache=0;
     }
     return 0;
 }

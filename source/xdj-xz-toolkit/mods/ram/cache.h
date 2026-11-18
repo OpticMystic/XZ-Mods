@@ -13,7 +13,15 @@ struct xz_ram_copy {
     int (*read)(void *, uint32_t offset, void *, uint32_t count);
     int (*cancelled)(void *);
     void (*progress)(void *, uint32_t copied);
+    /* Optional. The file offset the consumer of the source reads at now, or UINT32_MAX when it does not read it.
+     * The copy then takes the first missing piece at or after that place and wraps round at the end: what plays
+     * next reaches RAM, and on its way the file cache, first. NULL: from the start to the end. */
+    uint32_t (*wanted)(void *);
+    /* Optional, with wanted. Bytes ahead of wanted() that the consumer must not wait for, 0 when it is not
+     * playing. While a track loads elsewhere the copy stands back for everything but those pieces. */
+    uint32_t (*lead)(void *);
 };
+#define XZ_RAM_COPY_PIECE 32768u
 int xz_ram_copy_all(unsigned char *destination, uint32_t bytes,
                     const struct xz_ram_copy *);
 int xz_ram_budget(uint64_t bytes, uint64_t allocated, uint64_t free_ram);

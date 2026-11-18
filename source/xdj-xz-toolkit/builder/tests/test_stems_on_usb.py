@@ -35,7 +35,24 @@ class StemsOnUsbTests(unittest.TestCase):
     def test_library_summary_reports_the_same_bytes(self):
         stems=self.root/'CDJMODS/stems';(stems/'one').mkdir(parents=True);(stems/'one/a.bin').write_bytes(b'a'*9)
         summary=stem_library.library_summary(self.root,[],{},None)
-        self.assertEqual(summary,{'counts':{'present':0,'missing':0,'unsupported':0,'unavailable':0,'error':0},'stems_bytes':9,'tracks':0})
+        self.assertEqual(summary,{'counts':{'present':0,'missing':0,'unsupported':0,'unavailable':0,'error':0},
+                                  'stem_sample_rates':{'44100':0,'96000':0},'stems_bytes':9,'tracks':0,'overcue_index_v2':False})
+
+    def test_library_summary_counts_stems_by_sample_rate_and_spots_overcue_index_v2(self):
+        music=self.root/'Contents';music.mkdir()
+        tracks=[]
+        for number in range(1,5):
+            (music/f'{number}.wav').write_bytes(b'RIFF');tracks.append({'id':number,'file_path':f'/Contents/{number}.wav'})
+        index={'tracks':{'1':{'bundle':'a'*16,'file_path':'/Contents/1.wav','sample_rate':44100},
+                         '2':{'bundle':'b'*16,'file_path':'/Contents/2.wav'}},
+               'tracks_onelibrary':{'9':{'bundle':'c'*16,'file_path':'/Contents/3.wav','sample_rate':44100}}}
+        summary=stem_library.library_summary(self.root,tracks,index,None)
+        # An entry without sample_rate is the 96 kHz profile; track 4 has no stems.
+        self.assertEqual((summary['counts']['present'],summary['counts']['missing']),(3,1))
+        self.assertEqual(summary['stem_sample_rates'],{'44100':2,'96000':1})
+        self.assertFalse(summary['overcue_index_v2'])
+        (self.root/'CDJMODS/index-v2').mkdir(parents=True)
+        self.assertTrue(stem_library.library_summary(self.root,tracks,index,None)['overcue_index_v2'])
 
 
 if __name__=='__main__':

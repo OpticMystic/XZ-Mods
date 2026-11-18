@@ -20,9 +20,11 @@ static inline uint16_t c565(uint32_t c) { return C565(c); }
 /* Front to back: high over mid over low, as the flagship's 3BAND draws. The played part of an overview greys out. */
 static _Thread_local uint16_t band_ink[2][3]={{C565(SH_WAVE_LOW),C565(SH_WAVE_MID),C565(SH_WAVE_HIGH)},{C565(0x343434),C565(0x5c5c5c),C565(0x8c8c8c)}};
 static _Thread_local uint32_t band_rgb[3]={SH_WAVE_LOW,SH_WAVE_MID,SH_WAVE_HIGH};
+static _Thread_local uint16_t band_overlap=C565(0xa96b27);
 static _Thread_local uint32_t preview_rgb[3]={SH_WAVE_LOW,SH_WAVE_MID,SH_WHITE};
 void sh_wave_colors(const struct xz_shell_model *m){
  static const uint32_t standard[3]={SH_WAVE_LOW,SH_WAVE_MID,SH_WAVE_HIGH};
+ band_overlap=c565(m->wave_band_rgb[0]||m->wave_band_rgb[1]?xz_blend(m->wave_band_rgb[1]?m->wave_band_rgb[1]:SH_WAVE_MID,SH_BLACK,80):0xa96b27);
  for(int i=0;i<3;i++){band_rgb[i]=m->wave_band_rgb[i]?m->wave_band_rgb[i]:standard[i];band_ink[0][i]=c565(band_rgb[i]);preview_rgb[i]=m->wave_band_rgb[i]?m->wave_band_rgb[i]:i==2?SH_WHITE:standard[i];}
 }
 const uint32_t *sh_wave_band_rgb(void){return preview_rgb;}
@@ -87,17 +89,15 @@ static uint32_t stem_reciprocal(int sum) {
 /* Mirrored about cy, size px each way at full scale. */
 static void column_centered(const struct span_canvas *s, int x, int cy, const int16_t *scale, const int band[3], enum xz_shell_wave_color mode) {
  if(mode==XZ_SHELL_WAVE_3BAND){
-  int sum=band[0]+band[1]+band[2];
-  if(!sum)return;
-  int outer=scale[sh_max(band[0],sh_max(band[1],band[2]))];
-  uint32_t k=stem_reciprocal(sum)*(uint32_t)outer;
-  int lo=(int)((uint32_t)band[2]*k>>16),mid=(int)((uint32_t)(band[1]+band[2])*k>>16);
+  if(!(band[0]|band[1]|band[2]))return;
+  /* Detail gains are relative 1 : 0.75 : 0.15; preview stacking has its own scale. */
+  int low=scale[band[0]],mid=scale[(band[1]*3+2)/4],high=scale[(band[2]*3+10)/20];
+  int outer=sh_max(low,mid),overlap=sh_min(low,mid);
   const uint16_t *ink=band_ink[0];
-  /* Paint back to front as nested spans: each pixel written once. */
-  if(outer>mid){vspan(s,x,cy-outer,cy-mid,ink[0]);vspan(s,x,cy+mid+1,cy+outer+1,ink[0]);}
-  if(mid>lo){vspan(s,x,cy-mid,cy-lo,ink[1]);vspan(s,x,cy+lo+1,cy+mid+1,ink[1]);}
-  /* The core: the highs, or on a column without them the front-most band that reaches it. */
-  vspan(s,x,cy-lo,cy+lo+1,ink[lo>0?2:mid>0?1:outer>0?0:band[2]?2:band[1]?1:0]);
+  /* Detail bands share an axis: each height is independent. Highs draw in front. */
+  if(band[0]||band[1])vspan(s,x,cy-outer,cy+outer+1,ink[low>mid?0:1]);
+  if(band[0]&&band[1])vspan(s,x,cy-overlap,cy+overlap+1,band_overlap);
+  if(band[2])vspan(s,x,cy-high,cy+high+1,ink[2]);
   return;
  }
  int peak=sh_max(band[0],sh_max(band[1],band[2]));
@@ -367,11 +367,11 @@ void sh_deck_overview(struct xz_canvas c, struct xz_shell_rect r, const struct x
 void sh_deck_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int64_t first_px, int pps) {
  sh_deck_lane_axis(c,r,amp,u,m,d,first_px,(struct sh_wave_axis){.pps=pps,.rate=10000});
 }
-int32_t xz_shell_elapsed_now(const struct xz_shell_model *m, int deck) {
+double xz_shell_elapsed_precise(const struct xz_shell_model *m, int deck) {
  if(!m||deck<0||deck>=sh_deck_count(m))return -1;
  const struct xz_shell_deck *d=&m->deck[deck];
  if(!sh_has(d,XZ_SHELL_F_ELAPSED))return -1;
- int64_t e=d->elapsed_ms;
+ double e=d->elapsed_ms+d->elapsed_fraction_ms;
  int timeline=sh_has(d,XZ_SHELL_F_MOTION);
  int moving=timeline?d->moving:sh_has(d,XZ_SHELL_F_PLAYING)&&d->playing;
  int rate_known=sh_has(d,XZ_SHELL_F_PLAYBACK_RATE);
@@ -379,29 +379,34 @@ int32_t xz_shell_elapsed_now(const struct xz_shell_model *m, int deck) {
   uint32_t dt=m->clock_ms-d->elapsed_at_ms;
   if(dt<=0x7fffffffu){
    uint32_t limit=(timeline||rate_known)?XZ_SHELL_TIMELINE_EXTRAPOLATE_MS:XZ_SHELL_EXTRAPOLATE_MAX_MS;
+   if(timeline||rate_known)limit=d->playback_projection_age_ms<limit?limit-d->playback_projection_age_ms:0;
    if(dt>limit)dt=limit;
    int64_t rate=rate_known?d->playback_rate_ppm:1000000+(int64_t)(sh_has(d,XZ_SHELL_F_TEMPO)?d->tempo_x100:0)*100;
    if(!rate_known&&rate<0)rate=0;
-   int64_t advanced=e+(int64_t)dt*rate/1000000;
+   double advanced=e+(double)dt*rate/1000000.;
    const struct xz_shell_loop *l=&d->loop;
    if(sh_has(d,XZ_SHELL_F_LOOP)&&l->active&&l->out_ms>l->in_ms&&e>=l->in_ms&&e<l->out_ms&&
       (advanced>=l->out_ms||advanced<l->in_ms)){
-    int64_t span=(int64_t)l->out_ms-l->in_ms,offset=(advanced-l->in_ms)%span;
+    double span=(double)l->out_ms-l->in_ms,offset=fmod(advanced-l->in_ms,span);
     advanced=l->in_ms+(offset<0?offset+span:offset);
    }
    e=advanced;
   }
  }
- if(e<0)e=0;
+ double minimum=deck<2?-XZ_SHELL_PREROLL_LIMIT_MS:0;
+ if(e<minimum)e=minimum;
  if(sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0&&e>d->total_ms)e=d->total_ms;
- return (int32_t)e;
+ return e;
 }
+int32_t xz_shell_elapsed_now(const struct xz_shell_model *m,int deck){return (int32_t)xz_shell_elapsed_precise(m,deck);}
 
 /* ---- four-deck status strip ----
-   Under the non-play screens of the four-deck view each deck gets a quarter: the player badge, REMAIN
-   or TIME with the time, a mini overview under them, and the BPM box (orange digits and MASTER for
-   the master deck). Numerals use the text face; a quarter has no room for the numeral faces. */
-enum { Q_BADGE_W=48, Q_TEXT_X=58, Q_BPM_W=52 };
+   Under the non-play screens of the four-deck view each deck gets a quarter: the player badge, then three
+   rows between it and the BPM box (the track title, REMAIN or TIME with the time, a mini overview), and
+   the BPM box (orange digits and MASTER for the master deck). Numerals use the text face; a quarter has
+   no room for the numeral faces. Row tops are from the quarter's top; the overview ends 4 px above its
+   bottom on every screen, so BROWSE's taller strip gives it the extra height. */
+enum { Q_BADGE_W=48, Q_TEXT_X=58, Q_BPM_W=52, Q_TITLE_Y=2, Q_TIME_Y=15, Q_OVERVIEW_Y=31 };
 struct xz_shell_rect sh_strip_cell(const struct xz_shell_model *m, struct xz_shell_rect band, int deck) {
  int count=m?sh_deck_count(m):2,w=band.w/count;
  return (struct xz_shell_rect){band.x+sh_strip_column(count,deck)*w,band.y,w,band.h};
@@ -413,19 +418,16 @@ static void quarter(const struct xz_shell *u, const struct xz_shell_model *m, st
  char text[24];
  xz_rect(c,x,y,w,h,SH_CHROME);
  int bx=x+4,by=y+3,bh=h-6;
- int control=sh_control_active(m,deck);
- uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=control?accent:SH_RAIL,badge_ink=sh_ink_on(tile);
+ enum sh_side side=sh_side_of(m,deck);
+ uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=side==SH_SIDE_DRIVES?accent:SH_RAIL;
  xz_rect(c,bx,by,Q_BADGE_W,bh,tile);
  /* The deck's number in its badge (deck_colour.h), as on the four-deck play strips; under it, the side's
-    fill, arrow and USB stick stripe say who drives the deck and where its track came from. */
+    fill, the side mark and the USB stick stripe say who drives the deck and where its track came from. */
  xz_rect(c,bx,by,Q_BADGE_W,22,xz_deck_box_fill(deck,1,tile));xz_rect(c,bx,by+22,Q_BADGE_W,1,SH_BLACK);
- if(!control&&accent!=SH_BLUE)xz_rect(c,bx,by+23,3,bh-23,accent);
+ if(side!=SH_SIDE_DRIVES&&accent!=SH_BLUE)xz_rect(c,bx,by+23,3,bh-23,accent);
  snprintf(text,sizeof text,"%d",deck+1);
  sh_num(c,bx+(Q_BADGE_W-sh_num_width(SH_NUM_MID,text))/2,by+1,text,SH_NUM_MID,xz_deck_box_ink(deck,1,tile));
- if(control){
-  sh_control_arrow(c,bx+(Q_BADGE_W-27)/2,by+bh-20,deck&1);
-  sh_text_center(c,bx+Q_BADGE_W/2,by+bh-10,"CONTROL",SH_SMALL,badge_ink);
- }
+ sh_side_mark(c,bx+Q_BADGE_W/2,by+23+(bh-23)/2,32,16,5,deck,side);
  if(u->deck==deck)xz_border(c,bx,by,Q_BADGE_W,bh,SH_WHITE);
  int loaded_known=sh_has(d,XZ_SHELL_F_LOADED),loaded=loaded_known&&d->loaded;
  if(loaded_known&&!loaded){sh_text_center(c,(x+Q_TEXT_X+x+w-4)/2,y+(h-SH_CAP_TEXT)/2-3,"Not Loaded.",SH_TEXT,SH_RED);return;}
@@ -435,21 +437,27 @@ static void quarter(const struct xz_shell *u, const struct xz_shell_model *m, st
  else if(sh_setting(m,XZ_SHELL_SET_TIME_MODE))mode=m->settings.time_mode;
  else mode_known=0;
  const char *caption=mode==XZ_SHELL_TIME_ELAPSED?"TIME":"REMAIN";
- int tx=x+Q_TEXT_X;
- sh_text(c,tx,y+9,caption,SH_SMALL,mode_known?SH_WHITE:SH_DIM);
+ int tx=x+Q_TEXT_X,px=x+w-4-Q_BPM_W;
+ /* The title on top, cut to the overview's width as the four-deck play tiles cut theirs: "---" while the deck
+    or its title is not known yet. */
+ if(loaded&&sh_has(d,XZ_SHELL_F_TITLE)&&d->title)sh_text_fit(c,tx,y+Q_TITLE_Y,px-6-tx,d->title,SH_SMALL,SH_WHITE);
+ else sh_text(c,tx,y+Q_TITLE_Y,"---",SH_SMALL,SH_DIM);
+ sh_text(c,tx,y+Q_TIME_Y+5,caption,SH_SMALL,mode_known?SH_WHITE:SH_DIM);
  int32_t e=loaded?xz_shell_elapsed_now(m,deck):-1,shown=-1;
- int timed=e>=0&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0;
- if(mode==XZ_SHELL_TIME_ELAPSED&&e>=0)shown=e;
- else if(mode==XZ_SHELL_TIME_REMAIN&&timed)shown=sh_max(0,d->total_ms-e);
- if(shown>=0){
-  int32_t s=shown/1000,min=s/60,sec=s%60;
+ int have_elapsed=loaded&&sh_has(d,XZ_SHELL_F_ELAPSED);
+ int timed=have_elapsed&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0;
+ if(mode==XZ_SHELL_TIME_ELAPSED&&have_elapsed)shown=e;
+ else if(mode==XZ_SHELL_TIME_REMAIN&&timed)shown=(int64_t)d->total_ms-e>INT32_MAX?INT32_MAX:d->total_ms-e;
+ int time_known=mode==XZ_SHELL_TIME_ELAPSED?have_elapsed:timed;
+ if(time_known){
+  int32_t s=(shown<0?-shown:shown)/1000,min=s/60,sec=s%60;
   if(min>99){min=99;sec=59;}
-  snprintf(text,sizeof text,"%02d:%02d",(int)min,(int)sec);
+  snprintf(text,sizeof text,"%s%02d:%02d",shown<0?"-":"",(int)min,(int)sec);
  }
  else snprintf(text,sizeof text,"--:--");
- sh_text(c,tx+sh_text_width(c,"REMAIN",SH_SMALL)+3,y+4,text,SH_TEXT,shown>=0?SH_WHITE:SH_DIM);
+ sh_text(c,tx+sh_text_width(c,"REMAIN",SH_SMALL)+3,y+Q_TIME_Y,text,SH_TEXT,time_known?SH_WHITE:SH_DIM);
  /* BPM box at the right edge, the mini overview under the time */
- int px=x+w-4-Q_BPM_W,master=sh_has(d,XZ_SHELL_F_MASTER)&&d->master;
+ int master=sh_has(d,XZ_SHELL_F_MASTER)&&d->master;
  uint32_t ink=master?SH_RED:SH_WHITE;
  xz_border(c,px,by,Q_BPM_W,bh,master?SH_RED:SH_WHITE);
  sh_text(c,px+4,by+3,master?"MASTER":"BPM",SH_SMALL,ink);
@@ -458,8 +466,9 @@ static void quarter(const struct xz_shell *u, const struct xz_shell_model *m, st
   snprintf(text,sizeof text,"%d.%d",(int)(b/100),(int)((b/10)%10));
   sh_text_right(c,px+Q_BPM_W-4,by+bh-18,text,SH_TEXT,ink);
  }else sh_text_right(c,px+Q_BPM_W-4,by+bh-18,"---.-",SH_TEXT,SH_DIM);
- struct xz_shell_rect ov={tx,y+24,px-6-tx,h-28};
- int ph=timed?ov.x+(int)((int64_t)sh_min(e,d->total_ms)*(ov.w-1)/d->total_ms):-1;
+ struct xz_shell_rect ov={tx,y+Q_OVERVIEW_Y,px-6-tx,h-4-Q_OVERVIEW_Y};
+ int ph=timed?ov.x+(int)((int64_t)sh_max(0,sh_min(e,d->total_ms))*(ov.w-1)/d->total_ms):-1;
+ if(timed&&deck<2){int64_t us=(int64_t)(xz_shell_elapsed_precise(m,deck)*1000+.5);if(us<0)us=0;ph=ov.x+(int)(us*(ov.w-1)/((int64_t)d->total_ms*1000));}
  xz_rect(c,ov.x,ov.y,ov.w,ov.h,SH_BLACK);
  if(loaded)sh_deck_overview(c,(struct xz_shell_rect){ov.x,ov.y,ov.w,ov.h-1},u,m,d,ph);
  xz_rect(c,ov.x,ov.y+ov.h-1,ov.w,1,SH_RAIL);

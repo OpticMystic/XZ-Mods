@@ -182,10 +182,10 @@ static void test_play_states(void) {
  render(&u,&m,pixels);
  struct xz_shell_rect corner={lane0.x+lane0.w-80,lane0.y,80,22};
  assert(count_color(pixels,corner,SH_RED)>count_color(other,corner,SH_RED)+100);
- /* Loop point under the jog: the time box in loop orange. */
+ /* Loop point under the jog: its edge and the time chip in the adjust yellow (test_loop_adjust.c has the rest). */
  m.deck[0].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT);m.deck[0].loop_edit=(struct xz_shell_loop_edit){1,m.deck[0].elapsed_ms+500};
  render(&u,&m,other);
- assert(count_color(other,lane0,SH_LOOP)>count_color(pixels,lane0,SH_LOOP));
+ assert(count_color(other,lane0,SH_ADJUST)>count_color(pixels,lane0,SH_ADJUST)+400);
  /* Hot cues waiting for CALL draw as outlines. */
  struct xz_shell_rect pads=xz_shell_play_rect(&m,XZ_SHELL_R_PAD_ROW,0);
  render(&u,&m,pixels);
@@ -314,8 +314,10 @@ static void test_link_picker(void) {
  assert(u.stack[u.depth-1].scroll>0);
  key(&u,&m,XZ_SHELL_KEY_BACK);
  assert(xz_shell_screen(&u)==XZ_SHELL_SOURCE&&u.stack[u.depth-1].scroll==0);
- /* Touch: first highlights, second picks. */
- tap(&u,&m,link);tap(&u,&m,link);
+ /* Touch: first highlights, second picks. LINK is still highlighted after BACK, so one touch reopens the
+    picker (a second one would land on the picker's rows). */
+ tap(&u,&m,link);
+ assert(u.stack[u.depth-1].scroll==1);
  struct xz_shell_rect row=xz_shell_source_link_rect(2);
  assert(tap(&u,&m,row)==0);
  assert(tap(&u,&m,row)>=1&&out[0].value==3);

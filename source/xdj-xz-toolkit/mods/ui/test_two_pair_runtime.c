@@ -2,7 +2,7 @@
 /* 2 DECKS follows the sides (FOUR_DECK.md): the real wave transaction (native_wave_runtime.c lock and unlock
    hooks) over a fixture stock surface, offline. A side on DECK 3 or 4 replaces exactly its half; both native
    sides, the route down and a revoked scene leave the stock frame untouched; the painted pair is published for
-   the overlay and touch and revoked with the scene; a switch raises one banner. */
+   the overlay and touch and revoked with the scene; no notice draws on the surface. */
 #define _GNU_SOURCE
 #include "../clock_compat.h"
 static unsigned fake_ms=1000;
@@ -126,7 +126,6 @@ int main(void){
  assert(!xz_native_inline_start(stem_layout,render_rows,NULL));
  deck_fixture();
 
- /* Frames far apart (more than 500 ms) adopt a new pair without a switch banner. */
  /* Both native, route down and up: the stock frame, nothing published. */
  sides(0,0,0);frame(1000);assert(xz_native_two_pair()==0&&stock_rows(0,267));
  /* No style, no rows, no notice: the transaction leaves stock alone (route up still admits the scene). */
@@ -182,33 +181,21 @@ int main(void){
  theme=0;
  puts("PASS one theme pass per pair frame, native layers kept for the native side only, software layers exact");
 
- /* Switch notices: a side switching while frames run says where it went, for 2 s; returning to native too. */
+ /* No notice draws on this surface any more (owner 2026-11-17: no notices over the waveforms). A side switching
+    deck says nothing: the lanes and the DECKS button show it. A player's refusal goes to CLASSIC's top bar
+    (xz_native_play_notice, play_notice.h); a quiet one (a new MASTER) goes nowhere. */
  sides(1,0,0);frame(10000);frame(10016);
  unsigned plain=banner_pixels();
- sides(1,1,0);frame(10032);assert(pair_banner(10032)&&!strcmp(pair_banner(10032),"LEFT: DECK 3"));
- assert(banner_pixels()>plain+100);
- frame(11500);assert(pair_banner(11500));
- frame(12040);assert(!pair_banner(12040)&&xz_native_two_pair()==1u);
- sides(1,0,0);frame(12056);assert(!strcmp(pair_banner(12056),"LEFT: DECK 1"));
- assert(xz_native_two_pair()==0&&!stock_rows(244,265)&&stock_rows(0,243)&&stock_rows(266,267));
- frame(14100);assert(!pair_banner(14100)&&stock_rows(0,267));
- sides(1,1,1);frame(14116);assert(!strcmp(pair_banner(14116),"LEFT: DECK 3  RIGHT: DECK 4"));
- sides(1,1,0);frame(14132);assert(!strcmp(pair_banner(14132),"RIGHT: DECK 2"));
- /* A gap in the frames (the play screen was away) adopts the new pair without a notice. */
- frame(17000);assert(!pair_banner(17000));sides(1,0,0);frame(17900);assert(!pair_banner(17900));
- /* Route loss ends a banner at once; the players' ROUTE LOST notice is theirs to show. */
- frame(17916);sides(1,1,0);frame(17932);assert(pair_banner(17932));
- sides(0,0,0);frame(17948);assert(!pair_banner(17948));
- sides(1,0,0);frame(17964);frame(17980);assert(!pair_banner(17980));
- /* Four-deck views say nothing: the lanes do not move. */
- layout=XZ_LAYOUT_FOUR;sides(1,1,0);frame(17996);assert(!pair_banner(17996));layout=XZ_LAYOUT_TWO;
- frame(18012);assert(!pair_banner(18012));
- /* The newer of a switch and a player notice is the one drawn. */
- sides(1,0,0);frame(18028);assert(pair_banner(18028));
- frame(18044);static uint16_t switch_banner[536*22];memcpy(switch_banner,surface+244*536,sizeof switch_banner);
- snprintf(fixture.notice,sizeof fixture.notice,"DECK 3 REFUSED");fixture.notice_seq=1;fixture.notice_at_ms=18050;
- frame(18060);assert(pair_banner(18060)&&memcmp(switch_banner,surface+244*536,sizeof switch_banner));
- fixture.notice_at_ms=18000;frame(18076);assert(!memcmp(switch_banner,surface+244*536,sizeof switch_banner));
- puts("PASS switch banner: LEFT/RIGHT/both texts, 2 s, back to native too, frame gaps and four-deck views silent, route loss ends it, newer notice wins");
+ sides(1,1,0);frame(10032);assert(banner_pixels()==plain&&xz_native_two_pair()==1u);
+ sides(1,0,0);frame(10048);assert(banner_pixels()==plain&&stock_rows(0,267));
+ char said[XZ_NATIVE_PLAY_NOTICE_BYTES];
+ snprintf(fixture.notice,sizeof fixture.notice,"DECK 3 REFUSED");fixture.notice_seq=1;fixture.notice_at_ms=10050;
+ frame(10060);assert(stock_rows(0,267));
+ assert(xz_native_play_notice(&fixture,10060,said)&&!strcmp(said,"DECK 3 REFUSED"));
+ assert(!xz_native_play_notice(&fixture,10050+3500,said));
+ snprintf(fixture.notice,sizeof fixture.notice,"MASTER: DECK 3");fixture.notice_seq=2;fixture.notice_at_ms=10070;
+ frame(10080);assert(stock_rows(0,267)&&!xz_native_play_notice(&fixture,10080,said));
+ sides(1,1,0);frame(10096);assert(banner_pixels()==plain);
+ puts("PASS notices: nothing on the wave surface; a refusal reaches the top-bar text, a quiet one nowhere");
  return 0;
 }

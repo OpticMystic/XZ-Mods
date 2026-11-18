@@ -36,10 +36,16 @@ int main(void){
  for(int playing=0;playing<2;playing++){
   deck.playing=playing;uint64_t known=deck.known;
   position[0].valid=1;position[0].following=1;position[0].base_us=10000000;
-  native_observed_position(0,&deck,720);
+  native_observed_position(0,&deck,720,1000,720);
   assert(deck.elapsed_ms==720&&!deck.elapsed_at_ms&&deck.playing==playing&&deck.known==known);
-  assert(!position[0].valid&&!position[0].following);
+  assert(position[0].valid&&!position[0].following&&position[0].base_us==720000);
  }
+ native_input_at[0]=native_input_at[1]=0;
+ xz_shell_runtime_native_contact(0,1000,1);
+ assert(native_input_mask_at(2000)==1);
+ xz_shell_runtime_native_contact(1,2100,1);assert(native_input_mask_at(2200)==3);
+ xz_shell_runtime_native_contact(0,2300,0);assert(native_input_mask_at(2500)==2);
+ xz_shell_runtime_native_contact(1,2600,0);assert(native_input_mask_at(2800)==0);
  dirty_flag=1;assert(!xz_shell_runtime_idle());
  dirty_flag=0;owns_flag=0;assert(!xz_shell_runtime_idle());
  struct xz_sync_native_snapshot copy;
@@ -49,7 +55,9 @@ int main(void){
  assert(xz_extra_native_sync_clock(&copy)&&copy.source_revision==9&&copy.position_ms==12345);
  native_sync_cache.source_revision=0;assert(!xz_extra_native_sync_clock(&copy)&&copy.reason==XZ_SYNC_NATIVE_SOURCE_CHANGED);
  native_sync_cache.source_revision=9;native_sync_cache.captured_ms=(uint32_t)(mono_us()/1000u)-1000;
- assert(!xz_extra_native_sync_clock(&copy)&&copy.reason==XZ_SYNC_NATIVE_TIME_INVALID);
+ native_sync_cache.phase_available=1;native_sync_cache.playing_native_mask=3;
+ assert(xz_extra_native_sync_clock(&copy)&&copy.available&&!copy.phase_available&&!copy.playing_native_mask);
+ assert(copy.captured_ms==native_sync_cache.captured_ms&&copy.source_revision==9);
  native_sync_cache.captured_ms=(uint32_t)(mono_us()/1000u)+1000;
  assert(!xz_extra_native_sync_clock(&copy)&&copy.reason==XZ_SYNC_NATIVE_TIME_INVALID);
  puts("PASS native SYNC cache getter preserves unavailability reasons and rejects unknown load generation, stale and future snapshots without native-memory reads");

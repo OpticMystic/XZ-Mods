@@ -4,19 +4,34 @@
 #include "network.h"
 #include "../clock_compat.h"
 #include <pthread.h>
+#include "../xz_thread.h"
+#include "../xz_mutex.h"
+#include "../xz_wake.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
+/* Pro DJ Link supervision (djlink_runtime.h) rides this worker's 100 ms wake: a normal-priority periodic
+   thread that already exists, so the helper costs the player no thread of its own. */
+extern void xz_djlink_runtime_service(void) __attribute__((weak));
+/* Ableton Link (link_runtime.h) rides it too. While on it asks for a 40 ms wake; the network work below keeps
+   its own 100 ms pace. */
+extern unsigned xz_link_runtime_service(void) __attribute__((weak));
+
 struct xz_net_service {
     pthread_mutex_t mutex;
-    pthread_cond_t changed;
+    pthread_cond_t changed;   /* worker to stopper only: results and done */
+    struct xz_wake wake;      /* to the worker (normal priority); the interface submits from real-time threads,
+                                 so never the condition variable, see xz_wake.h */
     pthread_t thread;
     struct xz_net_backend backend;
     struct xz_net_command command;
     struct xz_net_view view;
     int queued, active, stopping, done, cancel;
+    int auto_dhcp, disable_dhcp;
+    uint64_t retry_at, auto_id;
+    unsigned retry_ms;
     unsigned stop_attempts;
     enum xz_net_result stop_result;
 };
@@ -50,10 +65,44 @@ static void *worker(void *p) {
     struct xz_net_service *s=p;struct xz_net_backend_ticket *ticket=NULL;
     struct xz_net_view v={.phase=XZ_NET_IDLE,.result=XZ_NET_NEEDS_DETECT};
     snprintf(v.detail,sizeof v.detail,"Set up network to detect actual adapters");publish(s,&v);
+    unsigned wake=100,idle=0;
     for(;;){
         pthread_mutex_lock(&s->mutex);
         while(!s->queued&&!s->stopping){
-            struct timespec t=until(100);pthread_cond_timedwait(&s->changed,&s->mutex,&t);
+            unsigned waited=wake;xz_wake_wait_locked(&s->wake,&s->mutex,waited);
+            if(xz_link_runtime_service){pthread_mutex_unlock(&s->mutex);unsigned w=xz_link_runtime_service();pthread_mutex_lock(&s->mutex);wake=w?w:100;}
+            idle+=waited;
+            if(idle<100&&!s->disable_dhcp&&!s->queued&&!s->stopping)continue;
+            idle=0;
+            if(xz_djlink_runtime_service){pthread_mutex_unlock(&s->mutex);xz_djlink_runtime_service();pthread_mutex_lock(&s->mutex);}
+            if(s->disable_dhcp&&!s->queued&&!s->stopping){
+                s->disable_dhcp=0;
+                if(ticket&&v.applied_known){
+                    for(unsigned i=0;i<v.applied.count;i++)if(v.applied.order[i].mode==XZ_NET_DHCP){
+                        s->command=(struct xz_net_command){.kind=XZ_NET_CMD_REVERT,.request_id=++s->auto_id,.body.trial_id=v.trial_id};s->queued=s->active=1;break;
+                    }
+                }
+            }
+            if(!ticket&&!s->queued&&!s->stopping&&s->auto_dhcp&&now(s)>=s->retry_at){
+                pthread_mutex_unlock(&s->mutex);
+                struct xz_net_snapshot snapshot={0};struct xz_net_error error={0};
+                struct xz_net_control detection=control(s,2000,0);
+                enum xz_net_result detected=s->backend.detect(s->backend.context,&detection,&snapshot,&error);
+                pthread_mutex_lock(&s->mutex);
+                s->retry_ms=s->retry_ms?s->retry_ms*2:2000;if(s->retry_ms>60000)s->retry_ms=60000;
+                s->retry_at=now(s)+s->retry_ms;
+                if(!detected&&s->auto_dhcp&&!s->queued&&!s->stopping){
+                    for(unsigned i=0;i<snapshot.count;i++){
+                        struct xz_net_adapter *a=&snapshot.adapter[i];
+                        /* The XZ's LAN only; never select a USB or replacement adapter. */
+                        if(strcmp(a->id.name,"eth0")||a->link_up!=XZ_NET_YES)continue;
+                        struct xz_net_command command={.kind=XZ_NET_CMD_APPLY_TRIAL,.request_id=++s->auto_id};
+                        command.body.apply=(struct xz_net_trial){.selected=a->id,.expected_generation=snapshot.generation,.expected_state_revision=a->state_revision,
+                            .policy={.schema=1,.count=1,.order={{.adapter=a->id,.mode=XZ_NET_DHCP}}}};
+                        s->command=command;s->queued=s->active=1;__atomic_store_n(&s->cancel,0,__ATOMIC_RELEASE);break;
+                    }
+                }
+            }
             if(ticket&&s->backend.maintain&&!s->queued&&!s->stopping){
                 pthread_mutex_unlock(&s->mutex);struct xz_net_control c=control(s,250,0);
                 enum xz_net_result r=s->backend.maintain(s->backend.context,ticket,&c,&v);
@@ -104,7 +153,7 @@ static void *worker(void *p) {
             if(!ticket||cmd.body.trial_id!=v.trial_id)failed(&v,XZ_NET_STALE,NULL);
             else if(restore(s,ticket,&v)==XZ_NET_OK){s->backend.release(s->backend.context,ticket);ticket=NULL;}
         }
-        publish(s,&v);pthread_mutex_lock(&s->mutex);s->active=0;pthread_cond_broadcast(&s->changed);pthread_mutex_unlock(&s->mutex);
+        publish(s,&v);pthread_mutex_lock(&s->mutex);if(ticket)s->retry_ms=0;else if(cmd.kind==XZ_NET_CMD_APPLY_TRIAL&&(cmd.request_id&(UINT64_C(1)<<63)))s->retry_at=now(s)+s->retry_ms;s->active=0;pthread_cond_broadcast(&s->changed);pthread_mutex_unlock(&s->mutex);
     }
     publish(s,&v);pthread_mutex_lock(&s->mutex);s->stop_result=XZ_NET_OK;s->done=1;pthread_cond_broadcast(&s->changed);pthread_mutex_unlock(&s->mutex);return NULL;
 }
@@ -112,15 +161,22 @@ enum xz_net_result xz_net_service_start(struct xz_net_service **out,const struct
     if(!out||!b||!b->now_ms||!b->detect||!b->prepare||!b->apply||!b->verify||!b->restore||!b->release||!b->describe)return XZ_NET_INVALID;
     struct timespec probe;if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&probe))return XZ_NET_NEEDS_BACKEND;
     struct xz_net_service *s=calloc(1,sizeof *s);if(!s)return XZ_NET_NEEDS_BACKEND;s->backend=*b;
-    if(pthread_mutex_init(&s->mutex,NULL)){free(s);return XZ_NET_NEEDS_BACKEND;}
+    if(xz_mutex_init(&s->mutex)){free(s);return XZ_NET_NEEDS_BACKEND;}
     pthread_condattr_t attributes;if(pthread_condattr_init(&attributes)){pthread_mutex_destroy(&s->mutex);free(s);return XZ_NET_NEEDS_BACKEND;}
     int condition_error=pthread_condattr_setclock(&attributes,CLOCK_MONOTONIC);
     if(!condition_error)condition_error=pthread_cond_init(&s->changed,&attributes);
     pthread_condattr_destroy(&attributes);
     if(condition_error){pthread_mutex_destroy(&s->mutex);free(s);return XZ_NET_NEEDS_BACKEND;}
-    s->view.result=XZ_NET_NEEDS_DETECT;
-    if(pthread_create(&s->thread,NULL,worker,s)){pthread_cond_destroy(&s->changed);pthread_mutex_destroy(&s->mutex);free(s);return XZ_NET_NEEDS_BACKEND;}
+    s->auto_id=UINT64_C(1)<<63;s->view.result=XZ_NET_NEEDS_DETECT;
+    if(XZ_WORKER_CREATE(&s->thread,worker,s)){pthread_cond_destroy(&s->changed);pthread_mutex_destroy(&s->mutex);free(s);return XZ_NET_NEEDS_BACKEND;}
     *out=s;return XZ_NET_OK;
+}
+void xz_net_service_set_dhcp(struct xz_net_service *s,int enabled){
+    if(!s)return;pthread_mutex_lock(&s->mutex);
+    if(s->auto_dhcp!=!!enabled){s->auto_dhcp=!!enabled;s->disable_dhcp=!enabled;
+        if(!enabled&&s->active&&(s->command.request_id&(UINT64_C(1)<<63)))__atomic_store_n(&s->cancel,1,__ATOMIC_RELEASE);
+        s->retry_at=0;s->retry_ms=0;xz_wake_set(&s->wake);}
+    pthread_mutex_unlock(&s->mutex);
 }
 enum xz_net_result xz_net_service_submit(struct xz_net_service *s,const struct xz_net_command *c) {
     if(!s||!c||!c->request_id||c->kind<XZ_NET_CMD_DETECT||c->kind>XZ_NET_CMD_CANCEL)return XZ_NET_INVALID;
@@ -132,14 +188,14 @@ enum xz_net_result xz_net_service_submit(struct xz_net_service *s,const struct x
         if(!s->active||c->body.trial_id!=id)r=XZ_NET_STALE;
         else __atomic_store_n(&s->cancel,1,__ATOMIC_RELEASE);
     }else if(s->active||s->queued)r=XZ_NET_BUSY;
-    else{s->command=*c;s->queued=s->active=1;__atomic_store_n(&s->cancel,0,__ATOMIC_RELEASE);pthread_cond_signal(&s->changed);}
+    else{s->command=*c;s->queued=s->active=1;__atomic_store_n(&s->cancel,0,__ATOMIC_RELEASE);xz_wake_set(&s->wake);}
     pthread_mutex_unlock(&s->mutex);return r;
 }
 enum xz_net_result xz_net_service_try_read(struct xz_net_service *s,struct xz_net_view *v) {
     if(!s||!v)return XZ_NET_INVALID;if(pthread_mutex_trylock(&s->mutex))return XZ_NET_BUSY;*v=s->view;pthread_mutex_unlock(&s->mutex);return XZ_NET_OK;
 }
 enum xz_net_result xz_net_service_stop(struct xz_net_service *s,uint64_t deadline) {
-    if(!s)return XZ_NET_OK;pthread_mutex_lock(&s->mutex);unsigned attempt=s->stop_attempts;s->stopping=1;__atomic_store_n(&s->cancel,1,__ATOMIC_RELEASE);pthread_cond_signal(&s->changed);
+    if(!s)return XZ_NET_OK;pthread_mutex_lock(&s->mutex);unsigned attempt=s->stop_attempts;s->stopping=1;__atomic_store_n(&s->cancel,1,__ATOMIC_RELEASE);xz_wake_set(&s->wake);
     while(!s->done&&s->stop_attempts==attempt&&now(s)<deadline){struct timespec t=until(20);pthread_cond_timedwait(&s->changed,&s->mutex,&t);}
     if(s->stop_attempts!=attempt){enum xz_net_result r=s->stop_result;pthread_mutex_unlock(&s->mutex);return r;}
     if(!s->done){pthread_mutex_unlock(&s->mutex);return XZ_NET_BUSY;}

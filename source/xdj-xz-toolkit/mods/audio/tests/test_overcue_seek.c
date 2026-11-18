@@ -1,20 +1,23 @@
 #include "../overcue_stream.c"
+#include "../stem_pool.c"
 #include <assert.h>
 /* Decoder boundary mocks: no files, USB, native engine, or device access. */
 static struct xz_oc_assets *mock_assets;
 static int16_t reference_sample(int64_t n,unsigned c){uint32_t x=(uint32_t)n*2654435761u+c*2246822519u;x^=x>>16;x*=2246822519u;x^=x>>13;return (int16_t)((int)(x%40001)-20000);}
 float xz_oc_mix_gain(const struct xz_oc_assets *a,unsigned m){(void)a;(void)m;return 1;}
 static uint64_t single_frames_read;
+static int test_hold_loop,test_loop_parked;
 struct xz_oc_file *xz_oc_mix_file(struct xz_oc_assets *a,unsigned m){assert(m==1||m==2);return &a->role[m==1?0:1];}
 /* Drums and harmonics each carry half of the selected mix. */
-int xz_oc_read(struct xz_oc_file *f,int64_t first,size_t n,int16_t *out){if(f!=&mock_assets->reference)__atomic_fetch_add(&single_frames_read,n,__ATOMIC_RELAXED);for(size_t i=0;i<n;i++)for(unsigned c=0;c<2;c++)out[i*2+c]=f==&mock_assets->reference?reference_sample(first+(int64_t)i,c):(first+(int64_t)i<500000?2048:6144);return 0;}
+int xz_oc_read(struct xz_oc_file *f,int64_t first,size_t n,int16_t *out){if(f!=&mock_assets->reference&&first>=290400&&first<300000&&__atomic_load_n(&test_hold_loop,__ATOMIC_ACQUIRE)){__atomic_store_n(&test_loop_parked,1,__ATOMIC_RELEASE);while(__atomic_load_n(&test_hold_loop,__ATOMIC_ACQUIRE)){struct timespec t={0,1000000};nanosleep(&t,NULL);}}if(f!=&mock_assets->reference)__atomic_fetch_add(&single_frames_read,n,__ATOMIC_RELAXED);for(size_t i=0;i<n;i++)for(unsigned c=0;c<2;c++)out[i*2+c]=f==&mock_assets->reference?reference_sample(first+(int64_t)i,c):(first+(int64_t)i<500000?2048:6144);return 0;}
 int xz_oc_open(const char *p,struct xz_oc_assets *a,char *e,size_t n){(void)p;(void)a;(void)e;(void)n;abort();}
 int xz_oc_bundle(const char *p,char *e,size_t n){(void)p;(void)e;(void)n;abort();}
-int xz_oc_assets_pin(struct xz_oc_assets *a){(void)a;abort();}
+int xz_oc_assets_pin(struct xz_oc_assets *a){(void)a;abort();} void xz_oc_assets_release_audio(struct xz_oc_assets *a){(void)a;abort();} int xz_oc_assets_pin_supported(void){return 0;} int xz_oc_assets_pin_polled(struct xz_oc_assets *a,int (*poll)(void *),void *context){(void)a;(void)poll;(void)context;abort();}
 void xz_oc_close(struct xz_oc_assets *a){(void)a;}
 size_t xz_oc_assets_ram_bytes(const struct xz_oc_assets *a){(void)a;return 0;}
 struct xz_foreign_stems *xz_foreign_open(const char *p,char *e,size_t n){(void)p;(void)e;(void)n;abort();}
 void xz_foreign_close(struct xz_foreign_stems *f){(void)f;}
+void xz_foreign_release_audio(struct xz_foreign_stems *f){(void)f;}
 unsigned xz_foreign_stem_count(const struct xz_foreign_stems *f){(void)f;abort();}
 uint32_t xz_foreign_rate(const struct xz_foreign_stems *f){(void)f;abort();}
 uint64_t xz_foreign_frames(const struct xz_foreign_stems *f){(void)f;abort();}

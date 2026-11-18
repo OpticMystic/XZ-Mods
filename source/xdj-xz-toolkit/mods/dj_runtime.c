@@ -13,6 +13,8 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include "xz_thread.h"
+#include "xz_wake.h"
 
 /* What the worker last saw on a port; any change rereads the stick. */
 enum { SEEN_TOP, SEEN_TOPS, SEEN_STICK_FILE, SEEN_INDEX, SEEN_CARD, SEEN_FILES };
@@ -21,7 +23,9 @@ struct seen { char root[1024]; unsigned long mount; struct stat file[SEEN_FILES]
 static pthread_mutex_t *lock;
 static struct xz_ui_dj *view;
 static pthread_t thread;
-static pthread_cond_t wake = PTHREAD_COND_INITIALIZER;
+/* Wakes the profile worker (normal priority). Interface actions run on real-time threads: never a condition
+   variable, see xz_wake.h. */
+static struct xz_wake wake;
 static int running, created, rescan;
 static struct xz_dj_stick *stick[2], *scratch;
 static int present[2], reading;
@@ -31,6 +35,9 @@ static char pick_ref[512];
 /* Each stick's rekordbox colour as 0xRRGGBB, 0 when it has none. */
 static uint32_t stick_color[2];
 static uint16_t folder_tile[XZ_DJ_TILE_SIDE * XZ_DJ_TILE_SIDE];
+static uint16_t active_logo[2][2][XZ_DJ_TILE_SIDE*XZ_DJ_TILE_SIDE];
+static int active_logo_buffer[2];
+static uint64_t active_logo_revision;
 static char status[160];
 /* Requests for the DJ PROFILE page and editor, each served once by the worker. */
 struct detail_job { int wanted, entry, usb; char id[XZ_DJ_ID_MAX], tile[1024], logo[1024]; };
@@ -105,7 +112,7 @@ void xz_dj_runtime_current(int master_usb, int playing_usb, int browse_usb) {
 }
 void xz_dj_runtime_rescan(void) {
     if (!view) return;
-    rescan = 1; pthread_cond_signal(&wake);
+    rescan = 1; xz_wake_set(&wake);
 }
 void xz_dj_runtime_pick(int entry) {
     if (!view || entry < 0 || entry >= view->count || view->pending >= 0) return;
@@ -119,7 +126,7 @@ void xz_dj_runtime_pick(int entry) {
     const struct xz_dj_profile *p = &s->profile[index];
     snprintf(pick_ref, sizeof(pick_ref), "%s", xz_dj_profile_ref(p));
     pick_slot = e->usb; pick_entry = entry; view->pending = entry;
-    pthread_cond_signal(&wake);
+    xz_wake_set(&wake);
 }
 static const struct xz_dj_profile *profile_of(int entry) {
     if (!view || entry < 0 || entry >= view->count) return NULL;
@@ -136,13 +143,13 @@ void xz_dj_runtime_detail(int entry) {
     snprintf(detail_request.id, sizeof(detail_request.id), "%s", p->dj_id);
     snprintf(detail_request.tile, sizeof(detail_request.tile), "%s", p->tile_path);
     snprintf(detail_request.logo, sizeof(detail_request.logo), "%s", p->logo_path);
-    pthread_cond_signal(&wake);
+    xz_wake_set(&wake);
 }
 void xz_dj_runtime_images(int usb) {
     if (!view || usb < 0 || usb > 1) return;
     images_wanted = usb; view->images_reading = 1; view->images_usb = usb;
     view->preview = -1; view->preview_state = XZ_UI_PREVIEW_NONE;
-    pthread_cond_signal(&wake);
+    xz_wake_set(&wake);
 }
 void xz_dj_runtime_preview(int image) {
     if (!view || view->images_reading || image < 0 || image >= view->image_count) return;
@@ -150,7 +157,7 @@ void xz_dj_runtime_preview(int image) {
     preview_request.wanted = 1; preview_request.index = image; preview_request.usb = view->images_usb;
     snprintf(preview_request.path, sizeof(preview_request.path), "%s", view->images[image]);
     view->preview = image; view->preview_state = XZ_UI_PREVIEW_LOADING; view->preview_error = NULL;
-    pthread_cond_signal(&wake);
+    xz_wake_set(&wake);
 }
 void xz_dj_runtime_save(const struct xz_ui *edit) {
     if (!view || !edit || view->saving || edit->edit_usb < 0 || edit->edit_usb > 1) return;
@@ -173,7 +180,7 @@ void xz_dj_runtime_save(const struct xz_ui *edit) {
     if (!edit->edit_id[0] && stick_color[edit->edit_usb]) hex_rgb(d->accent, stick_color[edit->edit_usb]);
     d->remove_logo = edit->edit_logo == XZ_UI_LOGO_NONE;
     save_request.entry_usb = edit->edit_usb; save_request.wanted = 1; view->saving = 1;
-    pthread_cond_signal(&wake);
+    xz_wake_set(&wake);
 }
 /* Reads one stick-relative file of at most cap bytes; -1 when missing, a symlink or larger. */
 static int read_file(const char *root, const char *relative, void *out, size_t cap, size_t *got) {
@@ -311,6 +318,17 @@ static uint32_t finish_stick(const char *root, struct xz_dj_stick *s) {
     }
     return rgb;
 }
+static int read_active_logo(const char *root,const struct xz_dj_stick *s,uint16_t *out){
+ if(!root[0]||s->active<0||s->active>=s->count)return 0;
+ const struct xz_dj_profile *p=&s->profile[s->active];if(p->damaged)return 0;
+ size_t got=0;
+ if(p->tile_path[0]&&!read_file(root,p->tile_path,out,XZ_DJ_TILE_BYTES,&got)&&got==XZ_DJ_TILE_BYTES){
+  for(int i=0;i<XZ_DJ_TILE_SIDE*XZ_DJ_TILE_SIDE;i++){const uint8_t *b=(const uint8_t *)&out[i];out[i]=(uint16_t)(b[0]|b[1]<<8);}return 1;
+ }
+ char path[1400];
+ return p->logo_path[0]&&snprintf(path,sizeof path,"%s/%s",root,p->logo_path)<(int)sizeof path&&
+        xz_dj_image_tile(path,out,NULL,NULL)==XZ_DJ_IMAGE_OK;
+}
 /* Fills *now for a port and says whether it differs from *before. */
 static int look(int slot, struct seen *now, const struct seen *before) {
     memset(now, 0, sizeof(*now));
@@ -355,6 +373,8 @@ static void *worker(void *unused) {
                 rc = xz_dj_stick_read(now.root, scratch);
             }
             uint32_t rgb = rc >= 0 && now.root[0] ? finish_stick(now.root, scratch) : 0;
+            int logo_buffer=1-active_logo_buffer[slot];
+            int has_logo=rc==0&&now.root[0]&&read_active_logo(now.root,scratch,active_logo[slot][logo_buffer]);
             pthread_mutex_lock(lock);
             /* A read error keeps what was shown and tries again next poll. */
             if (rc >= 0) {
@@ -363,6 +383,9 @@ static void *worker(void *unused) {
                 if (present[slot] == 2) stick[slot]->count = 0;
                 stick_color[slot] = now.root[0] ? rgb : 0;
                 seen[slot] = now;
+                active_logo_buffer[slot]=logo_buffer;
+                view->usb_logo[slot]=has_logo?active_logo[slot][logo_buffer]:NULL;
+                view->usb_logo_revision[slot]=++active_logo_revision;
             }
             reading = 0;
             publish_locked();
@@ -379,9 +402,7 @@ static void *worker(void *unused) {
             view->pending = -1;
         }
         if (running && !work_waiting()) {
-            struct timeval tv; gettimeofday(&tv, NULL);
-            struct timespec until = { tv.tv_sec + 1, tv.tv_usec * 1000 };
-            pthread_cond_timedwait(&wake, lock, &until);
+            xz_wake_wait_locked(&wake, lock, 1000);
         }
     }
     pthread_mutex_unlock(lock);
@@ -397,14 +418,14 @@ int xz_dj_runtime_start(pthread_mutex_t *ui_lock, struct xz_ui_dj *out) {
     detail_request.wanted = 0; images_wanted = -1; preview_request.wanted = 0; save_request.wanted = 0;
     present[0] = present[1] = 0; reading = 1; view->reading = 1; status_set = 0; rescan = 1;
     pthread_mutex_lock(lock); running = 1; pthread_mutex_unlock(lock);
-    if (pthread_create(&thread, NULL, worker, NULL)) {
+    if (XZ_WORKER_CREATE(&thread,worker,NULL)) {
         running = 0; free(stick[0]); free(stick[1]); free(scratch); stick[0] = stick[1] = scratch = NULL; view = NULL; return -1;
     }
     created = 1; return 0;
 }
 void xz_dj_runtime_stop(void) {
     if (!created) return;
-    pthread_mutex_lock(lock); running = 0; pthread_cond_signal(&wake); pthread_mutex_unlock(lock);
+    pthread_mutex_lock(lock); running = 0; xz_wake_set(&wake); pthread_mutex_unlock(lock);
     pthread_join(thread, NULL); created = 0;
     pthread_mutex_lock(lock);
     if (view) { view->count = 0; view->current = -1; }

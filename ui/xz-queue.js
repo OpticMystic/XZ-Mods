@@ -259,7 +259,7 @@ window.xzQueue = (() => {
       el('span', { class: 'sr-tag', dataset: { tone }, text: state }),
       done ? el('span') : plainButton(XZText('Revoke'), () => { sticksView.confirm = l.loader_id; sticksView.message = ''; redraw(); document.querySelector('[data-key="xz-revoke-no"]')?.focus(); }, { key: 'xz-revoke-' + l.loader_id }),
       confirming ? el('div', { class: 'sr-confirm' }, 'Revoke ' + l.loader_id + XZText('? The XZ can no longer send reports from this stick. Writing XZ Mods to it again gives it a new key.'),
-        el('div', { class: 'actions' }, plainButton(XZText('Revoke this stick'), () => revoke(l), { primary: true, key: 'xz-revoke-yes' }),
+        el('div', { class: 'actions' }, plainButton(XZText('Revoke this stick'), () => revoke(l), { danger: true, key: 'xz-revoke-yes' }),
           plainButton(XZText('Keep it'), () => { sticksView.confirm = null; redraw(); document.querySelector('[data-key="xz-revoke-' + CSS.escape(l.loader_id) + '"]')?.focus(); }, { key: 'xz-revoke-no' }))) : null);
   }
   async function revoke(l) {

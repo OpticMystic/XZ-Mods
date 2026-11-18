@@ -26,6 +26,8 @@ int xz_shell_runtime_frame(uint16_t *pixels,size_t stride,const struct xz_shell_
  for(unsigned y=0;y<480;y++)for(unsigned x=0;x<800;x++)pixels[y*stride+x]=0x1234;
  return 1;
 }
+static int fixture_content=1;
+static int content_now(void){return fixture_content;}
 static struct xz_vj_connection_v1 link_state;
 static void pc(int connected){
  memset(&link_state,0,sizeof link_state);link_state.version=1;link_state.size=sizeof link_state;
@@ -70,7 +72,7 @@ static unsigned churn(struct watch *w,uint32_t ms){
  pc(1);return n;
 }
 int main(void){
- started=1;settings_readonly=1;native_play=native_active=1;
+ started=1;settings_readonly=1;native_play=native_active=1;receiver_vj_content=content_now;
  xz_ui_init(&ui);xz_ui_init(&inline_ui);xz_native_touch_init(&touch,&ui,&model,apply,NULL);stock_touch=stock;
 
  /* A real connect in MODERN: the takeover shows and MODERN steps aside. */

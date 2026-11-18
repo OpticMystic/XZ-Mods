@@ -41,7 +41,7 @@ One USB-B to USB-A cable runs from the rear USB socket over the back edge into a
 3. Plug the USB-B end of the loopback cable into the **rear USB socket**.
 4. Plug the USB-A end directly into your chosen top port, **USB 1** or **USB 2**.
 5. Set the **CH3** and **CH4** input switches to **USB**.
-6. Tap **DECKS** at the top of the play screen and choose one of the **4 DECKS** pictures, or open MODS and choose [4 DECKS](mods-menu#4-decks).
+6. Tap **DECKS** at the top of the play screen and choose one of the **4 DECKS** pictures, or open MODS and choose [4 DECKS](mods-menu#4-decks). In MODERN you can skip this step: if the play screen shows two decks when decks 3 and 4 become ready, it switches to **4 DECKS** in mixer order by itself.
 7. Wait for **DECKS 3 AND 4 ARE READY**. The card in the lanes of decks 3 and 4 tells you each step it is waiting for.
 8. Press [[SHIFT]] twice on the left side to play deck 3, or on the right side to play deck 4.
 
@@ -109,7 +109,7 @@ Four decks in number order before the cable is plugged in. CLASSIC draws the sam
 5 @ 720,266 TWO DECKS | Goes back to the two-deck view. Decks 3 and 4 keep trying in the background.
 6 @ 82,240 Deck 3 tag | NOT CONNECTED while deck 3 is not running.
 7 @ 150,410 Deck 3 channel | The bottom channel of deck 3 waits for the loopback cable.
-8 @ 637,12 DECKS button | Shows the current view. The small amber dot means decks 3 and 4 are not connected.
+8 @ 560,13 DECKS button | Shows the current view. The small amber dot means decks 3 and 4 are not connected.
 ```
 
 You can drive the card with the encoder. While the card shows, push the encoder to highlight **RESCAN**, turn it to move between the card's buttons and the **DECKS** button, and push again to press. [[BACK]], or six seconds without input, gives the encoder back to the player.
@@ -138,11 +138,11 @@ modern:card-10-ready-hold DECKS 3 AND 4 ARE READY. The card turns green
 modern:card-11-ready-wipe The card wipes away and decks 3 and 4 appear
 ```
 
-When the route comes up, a banner says **DECKS 3 AND 4 ARE READY** for a few seconds. If the play screen shows two decks at that moment, the banner says **DECKS 3 AND 4 ARE READY. TAP DECKS AT THE TOP FOR FOUR DECKS.** The view does not change by itself.
+When the route comes up in a four-deck view, the card in the lanes of decks 3 and 4 says **DECKS 3 AND 4 ARE READY**, turns green and wipes away. In MODERN, if the play screen shows two decks at that moment, it switches to **4 DECKS** in mixer order (3 1 2 4) by itself, and the DECK VIEW picker drops down with the line **DECKS 3 AND 4 CONNECTED: 4 DECKS SHOWN**. It waits until you are not touching the play screen and no other screen is open. Tap **2 DECKS** in the picker to go back. The picker closes after eight seconds, or when you tap anywhere else. If the play screen already shows four decks, nothing changes. In CLASSIC the view does not change by itself, and the top bar says **DECKS 3 AND 4 ARE READY. TAP DECKS AT THE TOP FOR FOUR DECKS.** for a few seconds.
 
 ### With the loopback cable in {experimental}
 
-When you plug in the loopback cable, the play screen stays as it is in MODERN, MODS and CLASSIC, whether four decks are on or not. Decks 3 and 4 work as described here.
+When you unplug the loopback cable in MODERN, decks 3 and 4 go silent. After about a second and a half the play screen goes back to **2 DECKS**, and a side that plays deck 3 or deck 4 goes back to deck 1 or deck 2. A drop shorter than that changes nothing. When you plug the cable in again, the play screen switches to four decks again. In CLASSIC the view stays as it is. Decks 3 and 4 work as described here.
 
 When you connect a music hub with the loopback cable in, stop or pause decks 1 and 2 and let the hub finish connecting. A hub in the loopback port, a second hub behind the first, or a hub that does not support high-speed USB 2.0 does not work. Remove that hub or connect the music stick directly.
 
@@ -171,28 +171,28 @@ DECK VIEW is saved to the USB with your other settings. You can change it in fiv
 
 ### The DECKS button and its picker
 
-The **DECKS** button is always at the top of the play screen in both interfaces. It names the decks on screen: **DECKS 1 2**, **DECKS 1234**, **DECKS 3124**, or the pair the sides control in 2 DECKS, such as **DECKS 3 2**. In MODERN it sits left of the INFO button. In CLASSIC it sits in the black space between VJ.TOOLS and the METRICS readout.
+The **DECKS** button is always at the top of the play screen in both interfaces. It names the decks on screen, in screen order. In MODERN it shows the numbers alone, left of the INFO button: **1 2**, **1 2 3 4**, **3 1 2 4**, or the pair the sides control in 2 DECKS, such as **3 2**. In CLASSIC it reads **DECKS 1 2**, **DECKS 1234**, **DECKS 3124** or **DECKS 3 2**, in the black space between VJ.TOOLS and the METRICS readout.
 
 ```nav deck-view The DECKS button and its picker
 ```
 
 ```figure modern:deckview-02-picker DECK VIEW picker
 Tap DECKS to open the picker. Tap a picture to choose it.
-1 @ 637,12 DECKS button | Opens and closes the picker. It shows the view now on screen.
+1 @ 560,13 DECKS button | Opens and closes the picker. It shows the view now on screen.
 2 @ 420,185 2 DECKS | The two decks the sides control, like the player itself.
 3 @ 575,165 4 DECKS, number order | All four decks, lanes 1 2 3 4.
 4 @ 740,165 4 DECKS, mixer order | All four decks, lanes 3 1 2 4, matching the mixer channels.
-5 @ 618,188 Status | LIKE THE PLAYER ITSELF for two decks. DECKS 3 AND 4 READY in green, or 3 AND 4 NOT CONNECTED in amber.
+5 @ 448,205 Status | LIKE THE PLAYER ITSELF for two decks. DECKS 3 AND 4 READY in green, or 3 AND 4 NOT CONNECTED in amber.
 ```
 
-A tap outside the picker, [[BACK]], or six seconds without input closes it. The encoder also turns and pushes inside the open picker.
+A tap outside the picker, [[BACK]], or six seconds without input closes it. The encoder also turns and pushes inside the open picker. When the picker opened by itself for the loopback cable, it stays eight seconds, and a tap outside it also does what that tap does on the play screen.
 
 ```gallery
 modern:deckview-01-two-decks 2 DECKS. The player's own two-deck screen with the DECKS button at the top
 modern:deckview-03-four-1234-ready 4 DECKS in number order with decks 3 and 4 ready
 modern:deckview-04-four-3124-ready 4 DECKS in mixer order. Lanes 3 1 2 4 over channels 3 1 2 4
 modern:deckview-05-two-decks-pair-3-2 2 DECKS with the left side on deck 3. The screen shows decks 3 and 2
-modern:deckview-06-two-decks-ready-notice 2 DECKS when decks 3 and 4 come up. The banner says how to show four
+modern:cable-02-connected-picker-3124 The loopback cable connected: 4 DECKS in mixer order and the picker with its green line
 ```
 
 ## Switch a side between decks {experimental}
@@ -208,21 +208,21 @@ physical-double-shift-2 | Right side
 
 After a switch the tempo fader does not jump. The deck you switched to keeps its tempo until you move the fader across that deck's value. The same holds when you switch back.
 
-In 2 DECKS the screen follows the sides. A side on deck 3 or 4 shows that deck's waveform, tag and channel, and the screen says where the side went for two seconds, for example **LEFT: DECK 3**. In a four-deck view the lanes stay where they are, and a pale blue tag marks the decks the sides control.
+In 2 DECKS the screen follows the sides. A side on deck 3 or 4 shows that deck's waveform, tag and channel, and the **DECKS** button names the pair, for example **3 2**. In a four-deck view the lanes stay where they are. In MODERN a side mark on every deck shows which decks the sides control; see [The side mark](#the-side-mark). In CLASSIC the tags of those decks turn pale blue.
 
-If decks 3 and 4 are not running, [[SHIFT]] pressed twice does not switch. The screen says **DECK 3 AND 4 NEED THE CH3/CH4 ROUTE**. If the route is lost while a side plays deck 3 or 4, both sides go back to decks 1 and 2 and the screen says **DECK 3/4 ROUTE LOST**.
+If decks 3 and 4 are not running, [[SHIFT]] pressed twice does not switch. The top bar says **DECK 3 AND 4 NEED THE CH3/CH4 ROUTE**. If the route is lost while a side plays deck 3 or 4, both sides go back to decks 1 and 2 and the top bar says **DECK 3/4 ROUTE LOST**.
 
 ```figure modern:shortcut-4deck-deck-select-left-3 SHORTCUT · DECK SELECT {modern}
 SHORTCUT with the left side on deck 3.
 1 @ 708,66 DECK SELECT | Each deck row has its switch. Tap 1 or 3 for the left side, 2 or 4 for the right side.
-2 @ 100,470 CONTROL | In the bottom strip, the decks the sides control carry CONTROL with an arrow.
+2 @ 50,466 Side mark | In the bottom strip, the white wheel and the blue badge mark the decks the sides control.
 ```
 
 ```gallery {modern}
 modern:shortcut-4deck SHORTCUT with four decks before the software players report. No DECK SELECT yet
 modern:shortcut-4deck-deck-select-native DECK SELECT with both sides on decks 1 and 2
 modern:shortcut-4deck-deck-select-both DECK SELECT with both sides on decks 3 and 4
-modern:play-4deck-players-left-3 The play screen with the left side on deck 3. Its tag and channel read CONTROL
+modern:play-4deck-players-left-3 The play screen with the left side on deck 3. Its tag and channel are blue, with a white wheel
 ```
 
 ## The MODERN four-deck screen {modern}
@@ -232,8 +232,8 @@ modern:play-4deck-players-left-3 The play screen with the left side on deck 3. I
 
 ```figure modern:play-4deck-full MODERN · four decks, number order
 All four decks loaded and playing.
-1 @ 637,12 DECKS button | Shows DECKS 1234 or DECKS 3124. Tap it to change the view.
-2 @ 240,192 Lane tag | The deck's badge, source stick and the key it plays in now, in the key match colours.
+1 @ 560,13 DECKS button | Shows 1 2 3 4 or 3 1 2 4. Tap it to change the view.
+2 @ 80,302 Lane tag | The deck's badge, source stick and the key it plays in now, in the key match colours.
 3 @ 68,246 VINYL | Whether VINYL is on for deck 3 or 4.
 4 @ 198,436 Bottom channels | The four decks in mixer order 3 1 2 4: time, tempo, range, BPM, hot cues and the whole-track overview.
 5 @ 362,350 MASTER | The tempo master. A software master reads 3/4 MASTER.
@@ -254,6 +254,29 @@ modern:play-4deck-long-titles Long titles are cut short to fit
 modern:play-4deck-alert-deck3 A read error on deck 3. CANNOT READ THE TRACK, with CHOOSE TRACK
 modern:play-4deck-grid-deck4 GRID ADJUST on deck 4
 modern:play-4deck-grid-deck4-stems GRID ADJUST on deck 4 with stem rows on decks 1 and 2
+```
+
+### The side mark {modern}
+
+In a four-deck view every deck's tag, and its badge in the bottom channels, carries a small black box: the XZ, seen from above, with its two jog wheels. The filled wheel sits on the deck's own side, left for decks 1 and 3, right for decks 2 and 4. The dotted circle is the other side.
+
+- **White wheel**: this side plays this deck now. Its tag is blue, or the colour of its USB stick.
+- **Grey wheel**: the deck belongs to this side, but the side is on its other deck. Its tag is grey.
+
+When you switch a side with [[SHIFT]] pressed twice, one wheel turns white and the other turns grey in that side's two tiles. Nothing on the screen moves. 2 DECKS shows no mark, because its two decks are always the ones under your hands.
+
+```figure modern:four-3-2 MODERN · side marks {modern}
+Four decks in number order. The left side plays deck 3 and the right side plays deck 2.
+1 @ 80,212 White wheel | Deck 3: the left side plays it now. The wheel is on the left because deck 3 belongs to the left side.
+2 @ 80,290 Grey wheel | Deck 4 belongs to the right side, but the right side is on deck 2.
+3 @ 88,168 Blue tag | Deck 2 is under the right side's hands, so its tag is blue with a white wheel on the right.
+```
+
+```gallery {modern}
+modern:four-1-2 Both sides on decks 1 and 2
+modern:four-3-4 Both sides on decks 3 and 4
+modern:mixer-3-2 Mixer order 3 1 2 4, left side on deck 3
+modern:browse-3-2 BROWSE: the four-deck strip shows the marks and the title on each deck
 ```
 
 Stem buttons show in a half row under a deck's waveform, only for decks 1 and 2 and only while the deck's track has prepared stems. Decks 3 and 4 have no stems. A deck without stems shows no stem buttons and its waveform keeps the whole lane.
@@ -280,11 +303,17 @@ CLASSIC keeps the player's own look and adds what four decks need.
 - **Stem rows** are not drawn while four decks show, because there is no room, and **STEMS** stays dark. Your stem layout comes back when you return to two decks. Pressing STEMS meanwhile changes nothing and says **STEM BUTTONS SHOW IN 2 DECKS VIEW**.
 - **2 DECKS** shows the decks the sides control. A side on deck 3 or 4 gets a whole half: its waveform, its side tag and its bottom panel.
 
-Tap a lane, side tag or channel title of deck 3 or 4 to open its detail panel. Touch the overview in the bottom channel to search the track. NEEDLE LOCK refuses a search while the deck plays.
+Tap a lane, side tag or channel title of deck 3 or 4 to open its detail panel. Touch the overview in the bottom channel to search the track. NEEDLE LOCK refuses a search while the deck plays, and its mark on the overview lights.
 
 ## Load tracks onto decks 3 and 4 {experimental}
 
-[[LOAD]] on a side loads the highlighted track into the deck that side controls, deck 3 or deck 4 included. In CLASSIC this goes through the player's own browser. In MODERN, tap a track to see a **LOAD** chip with one cell per deck, then tap the deck number. See [Browsing and loading](browse) for the rest.
+[[LOAD]] on a side loads the highlighted track into the deck that side controls, deck 3 or deck 4 included. In CLASSIC this goes through the player's own browser. In MODERN, tap a track to see a **LOAD** chip with one cell per deck, then tap the deck number. Or push the encoder on a track: the **LOAD TRACK** menu lists **LOAD TO DECK** for every deck. See [Browsing and loading](browse) for the rest.
+
+The LOAD cells and the menu rows list the decks in the order of the lanes. In mixer order they read 3, 1, 2, 4, otherwise 1, 2, 3, 4. The menu keeps its order while it is open, even if you change DECK VIEW.
+
+While the **LOAD TRACK** menu is open, a [[LOAD]] key loads only the deck the highlighted row names. If the highlight is on another deck, the first press moves the highlight to the key's own deck and loads nothing. Press it again to load. So a [[LOAD]] key never replaces a track on a deck you did not see highlighted. With the menu closed, [[LOAD]] loads in one press, as before.
+
+With **LOAD LOCK** on (UTILITY), a playing deck takes no new track, on all four decks. Its row and its LOAD cell are dimmed, and a load onto it says **LOAD LOCK: DECK 3 IS PLAYING**, with the deck's number. Pause the deck, or turn LOAD LOCK off, to load it.
 
 ```nav nav-a-four-load Load tracks onto decks 3 and 4
 ```
@@ -293,7 +322,7 @@ Tap a lane, side tag or channel title of deck 3 or 4 to open its detail panel. T
 A tapped track with its LOAD cells.
 1 @ 455,231 LOAD | Tap a deck number to load the track there. LOAD returns to the play screen.
 2 @ 608,186 Target deck | The blue cell is the deck the screen acts on now.
-3 @ 100,470 Bottom strip | The four decks in mixer order while you browse.
+3 @ 100,470 Bottom strip | The four decks in mixer order while you browse, each with the title of its track.
 ```
 
 ```gallery {modern}
@@ -309,14 +338,14 @@ Decks 3 and 4 cannot load a track at a memory point from the CUE/LOOP LIST. The 
 
 ## INFO, SOURCE and UTILITY with four decks {modern}
 
-INFO has a tab for each deck. SOURCE shows which decks use each stick. UTILITY and the other full screens keep a compact strip of all four decks at the bottom.
+INFO has a tab for each deck. SOURCE shows which decks use each stick. BROWSE, INFO, UTILITY and the other full screens keep a compact strip of all four decks at the bottom, in mixer order 3 1 2 4. Each deck's quarter shows the title of its track, the time and a small overview, so you can see what is on every deck while you pick the next track. A long title is cut short with "...". A deck with no track reads **Not Loaded.**
 
 ```nav nav-a-four-fullscreens INFO, SOURCE and UTILITY with four decks {modern}
 ```
 
 ```gallery {modern}
 modern:info-4deck INFO with tabs DECK 1 to DECK 4
-modern:source-4deck SOURCE. Decks 1 and 2 on USB 1, decks 3 and 4 on USB 2
+modern:source-01-cable-in SOURCE with the loopback cable in USB 2: all four decks play from USB 1
 modern:utility-4deck UTILITY with the four-deck strip at the bottom
 modern:parity-info-player3 INFO tabs named PLAYER 3 and PLAYER 4 are other players on the LINK network, not decks 3 and 4
 modern:parity-info-player4 A LINK player with no track loaded
@@ -338,6 +367,7 @@ Decks 3 and 4 are software players. They follow the player's own controls on the
 | Key sync and key shift | Yes | Yes. Both can shift together; new shifts check measured audio headroom. |
 | Stems | Yes, with USB stems set up | No. Decks 3 and 4 have no stems. |
 | RAM tracks | Yes | Yes, while the loopback cable is connected. See [RAM tracks](performance#ram-tracks). |
+| Hot cues, memory points and beat grid from your library | Yes | Yes |
 
 On a side that controls deck 3 or 4, these controls work on that deck {experimental}:
 
@@ -346,7 +376,7 @@ On a side that controls deck 3 or 4, these controls work on that deck {experimen
 | [[PLAY/PAUSE]], [[CUE]] | Play and pause, back cue and cue audition. With VINYL on, pause brakes to a stop at the VINYL SPEED ADJUST rate. |
 | [[HOT CUE]], [[BEAT LOOP]], [[SLIP LOOP]], [[BEAT JUMP]] | Set the pad mode of deck 3 or 4. Deck 1 or 2 on that side keeps its own mode. |
 | Pads | Hot cues, beat loops, slip loops and beat jumps, as on decks 1 and 2. |
-| [[IN/CUE]], [[OUT]], [[RELOOP/EXIT]] | Manual loops, loop adjustment with the jog, reloop and exit. |
+| [[IN/CUE]], [[OUT]], [[RELOOP/EXIT]] | Manual loops, reloop and exit. During a loop, press [[IN/CUE]] or [[OUT]] and turn the jog to move that end of the loop; the loop keeps playing while you turn. |
 | [[SLIP]], [[DIRECTION REV]], [[VINYL]] | Slip, reverse and vinyl mode. |
 | Jog | Turn the side while the deck plays to bend its speed. The faster you turn, the more it bends, so a gentle nudge moves it only a little. With VINYL on, scratch on the platter top. For a backspin, spin the platter and let go: the deck follows the platter until it stops, then plays on. |
 | [[TEMPO RANGE]], [[TEMPO RESET]], [[MASTER TEMPO]] | Tempo range up to WIDE, original speed, and key lock while the tempo moves. |
@@ -358,7 +388,7 @@ On a side that controls deck 3 or 4, these controls work on that deck {experimen
 
 On decks 3 and 4, TRACK SEARCH respects AUTO CUE. With AUTO CUE on, a newly loaded track waits at its cue point. With AUTO CUE off, a deck that was playing continues with the new track; a paused deck stays paused.
 
-Hot cues and memory points you set on decks 3 and 4 are saved on the music stick for those decks only. Decks 1 and 2 and your DJ software do not see them, and the exported library stays unchanged.
+Decks 3 and 4 load the hot cues, memory points and beat grid your DJ software exported with the track. Hot cues and memory points you set on decks 3 and 4 are saved on the music stick for those decks only. Decks 1 and 2 and your DJ software do not see them, and the exported library stays unchanged.
 
 ### SYNC on decks 3 and 4 {experimental}
 
@@ -414,9 +444,11 @@ The detail panel adds a line about the reason, for example:
 ## Limits
 
 - Decks 1 and 2 must be stopped or paused while decks 3 and 4 start.
-- Keep the music stick connected while you play. Decks 3 and 4 read from it all the time.
+- Keep the music stick connected while you play. A deck 3 or 4 track is copied into the player's memory as soon as it is loaded, starting where the deck plays, when there is room ([RAM tracks](performance#ram-tracks)). Until that copy is complete the deck reads the stick.
+- **USB STOP** on the music stick: a deck 3 or 4 track that is fully in memory keeps playing. A track that still reads from that stick stops at once and the deck is emptied. Stop or let such a deck finish before you press USB STOP.
 - Decks 3 and 4 play WAV, AIFF, FLAC, MP3 and Ogg Vorbis files. AAC and M4A files do not play on decks 3 and 4.
 - A deck 3 or 4 master reads MASTER when decks 1 and 2 can follow it too, and 3/4 MASTER when it drives decks 3 and 4 only.
+- With deck 3 or 4 as master, press [[SYNC]] on a playing deck 1 or 2 and it takes the master's tempo and lines up on its beat, as with a deck 1 or 2 master. To line it up again, press [[SYNC]] off and on.
 - Press [[MASTER]] on a playing deck 3 or 4 and it is master at once. The MASTER buttons show the change.
 - When you pause the master, MASTER passes at once to the next playing deck. A deck with SYNC on comes first. Otherwise after deck 3 comes deck 4, then decks 1 and 2. After deck 4 come decks 1 and 2, then deck 3. In VINYL mode MASTER passes when you press pause, while the deck slows down.
 - When you pause a deck 1 or 2 master, a playing deck 3 or 4 takes MASTER at once. If the other of decks 1 and 2 is playing, MASTER goes to that deck instead, as with two decks.
@@ -424,7 +456,7 @@ The detail panel adds a line about the reason, for example:
 - Load a new track on the master and MASTER passes to the other playing deck. The loading deck keeps SYNC on and plays its new track at the tempo the decks shared.
 - A handover never changes the tempo.
 - A master set by another player over LINK is never taken.
-- Some lamps on the player do not yet light as they do for decks 1 and 2. The beat loop and slip loop pad colours are provisional.
+- The MASTER and SYNC lamps follow decks 3 and 4, but in one known case with deck 3 or 4 as master a lamp can stay wrong. Go by the MASTER shown on the screen. The beat loop and slip loop pad colours are provisional.
 - Four decks, the handover of MASTER between decks 1 and 2 and decks 3 and 4, and scratching on decks 3 and 4 are experimental in this version.
 
 If something goes wrong, the card or the 4 DECKS page names the state. [Messages and troubleshooting](troubleshooting) lists every notice.

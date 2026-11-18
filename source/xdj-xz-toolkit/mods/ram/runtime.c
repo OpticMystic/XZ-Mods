@@ -7,10 +7,14 @@
 #include "abi.h"
 #include "removal.h"
 #include "presentation.h"
+#include "lowzone.h"
 #include "../runtime.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include "../xz_thread.h"
+#include "../xz_mutex.h"
+#include "../xz_wake.h"
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +41,8 @@ struct deck {
     uint32_t epoch, player, reader;
     unsigned device, node;
     int bound, pending, auto_blocked, manual;
+    /* The worker is putting the RAM file in place of the decoder's stick descriptor, without the mutex (load). */
+    int swapping;
     unsigned stock_users;
     struct binding source;
     struct xz126_deck_source source_snapshot;
@@ -53,8 +59,10 @@ struct deck {
 static struct deck decks[2];
 static struct binding captures[8];
 static unsigned capture_next;
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t changed = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t mutex = XZ_MUTEX_INITIALIZER;
+/* Wakes the idle-priority worker. Stock load and decode threads signal it, some of them real-time: never a
+   condition variable, see xz_wake.h. */
+static struct xz_wake changed;
 static pthread_t worker;
 static int running, installed, worker_created;
 static void *(*stock_create)(void *, const void *);
@@ -75,6 +83,16 @@ static void message(struct deck *deck, enum xz_ram_state state, const char *text
 {
     deck->status.state = state;
     snprintf(deck->status.message, sizeof(deck->status.message), "%s", text);
+}
+/* With the mutex held, before anything that lets the stock close or reuse the decoder's descriptor number:
+ * waits (the mutex released meanwhile) until the worker's swap of that descriptor is over. At most one stick
+ * request (load); never on a stock decoder or audio thread. */
+static void settle_swap(struct deck *deck)
+{
+    while (deck->swapping) {
+        uint32_t ticket = xz_wake_ticket(&changed);
+        pthread_mutex_unlock(&mutex); xz_wake_wait(&changed, ticket, 100); pthread_mutex_lock(&mutex);
+    }
 }
 
 static void *create_hook(void *impl, const void *track)
@@ -140,7 +158,7 @@ static int read_hook(void *stream, void *output, int count)
         pthread_mutex_lock(&mutex);
         --stock_owner->stock_users;
         if (!stock_owner->stock_users && stock_owner->data && stock_owner->status.state == XZ_RAM_LOADING)
-            pthread_cond_signal(&changed);
+            xz_wake_set(&changed);
         pthread_mutex_unlock(&mutex);
     }
     return result;
@@ -243,12 +261,13 @@ void xz_ram_invalidate(int index)
     if (index < 0 || index >= 2) return;
     pthread_mutex_lock(&mutex);
     struct deck *deck = &decks[index];
+    settle_swap(deck);
     ++deck->epoch;
     deck->bound = 0;
     deck->pending = 0;
     deck->status.copied = deck->status.bytes = 0;
     message(deck, running ? XZ_RAM_EMPTY : XZ_RAM_UNAVAILABLE, "LOAD A USB TRACK, THEN LOAD IT INTO RAM");
-    pthread_cond_signal(&changed);
+    xz_wake_set(&changed);
     pthread_mutex_unlock(&mutex);
 }
 
@@ -257,6 +276,9 @@ void xz_ram_bind(int index, const struct xz126_deck_source *source)
     if (index < 0 || index >= 2 || !source) return;
     pthread_mutex_lock(&mutex);
     struct deck *deck = &decks[index];
+    /* Every stock load invalidates first (audio/runtime.c load_hook), so this never waits there; it is for any
+     * other caller, and comes before the captures are read because it lets the mutex go. */
+    settle_swap(deck);
     if (running && local_usb(source->path)) {
         unsigned count = capture_next < 8 ? capture_next : 8;
         for (unsigned i = 0; i < count; ++i) {
@@ -280,7 +302,7 @@ void xz_ram_bind(int index, const struct xz126_deck_source *source)
             message(deck, XZ_RAM_EMPTY, "PLAY TRACK FOR AUTO RAM / OR LOAD NOW");
             if(binding->identity.st_size<=0||(uint64_t)binding->identity.st_size>XZ_RAM_TRACK_LIMIT)
                 message(deck,XZ_RAM_ERROR,"TRACK EXCEEDS 64 MB / KEEP USB CONNECTED");
-            pthread_cond_signal(&changed);
+            xz_wake_set(&changed);
             break;
         }
     }
@@ -319,7 +341,7 @@ static void progress(void *opaque, uint32_t copied)
 
 static void dispose(unsigned char *data, uint32_t bytes, struct xz_ram_ticket *ticket)
 {
-    if (data) { munlock(data, bytes); munmap(data, bytes); }
+    if (data) xz_lowzone_release(data, bytes);
     xz_ram_return(ticket);
 }
 
@@ -348,17 +370,20 @@ static void load(int index, uint32_t epoch, struct binding source)
     /* Reserve tmpfs pages before mapping, so a full RAM filesystem cannot
      * produce SIGBUS halfway through a copy. The file is never published. */
     int reserved = ram_fd >= 0 && !posix_fallocate(ram_fd, 0, bytes);
-    data = reserved ? mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, ram_fd, 0) : MAP_FAILED;
+    data = reserved ? xz_lowzone_mmap(bytes, PROT_READ | PROT_WRITE, MAP_SHARED, ram_fd, 0) : MAP_FAILED;
     if (data == MAP_FAILED) {
         data = NULL;
         goto finish;
     }
     error = "CANNOT PIN TRACK IN RAM / KEEP USB CONNECTED";
-    if (mlock(data, bytes)) goto finish;
+    if (xz_lowzone_mlock(data, bytes)) goto finish;
     error = "RAM LOAD INTERRUPTED / RECONNECT USB AND RETRY";
-    struct xz_ram_copy copy = {&context, copy_read, cancelled, progress};
+    struct xz_ram_copy copy = {&context, copy_read, cancelled, progress, NULL, NULL};
     if (xz_ram_copy_all(data, bytes, &copy) || fstat(context.fd, &after) ||
         !same_file(&before, &after)) goto finish;
+    /* The RAM copy is the track from here on. The kernel's cached pages of the file are a second copy that
+     * it would only evict under pressure, during a later load; clean pages only, nothing is written. */
+    (void)posix_fadvise(context.fd, 0, 0, POSIX_FADV_DONTNEED);
     close(context.fd);
     context.fd = -1;
     xz_ram_publish(&ticket);
@@ -375,17 +400,36 @@ static void load(int index, uint32_t epoch, struct binding source)
         /* New reads now use immutable RAM while any older USB read drains.
          * Keep LOADING until the stock FILE descriptor also points at RAM. */
         while (running && deck->bound && deck->epoch == epoch &&
-               deck->status.state == XZ_RAM_LOADING && deck->stock_users)
-            pthread_cond_wait(&changed, &mutex);
-        struct stat decoder;
+               deck->status.state == XZ_RAM_LOADING && deck->stock_users) {
+            uint32_t ticket = xz_wake_ticket(&changed);
+            pthread_mutex_unlock(&mutex); xz_wake_wait(&changed, ticket, 100); pthread_mutex_lock(&mutex);
+        }
         int active = running && deck->bound && deck->epoch == epoch && deck->status.state == XZ_RAM_LOADING;
-        if (active && !fstat(source.decoder_fd, &decoder) && same_file(&decoder, &source.identity) &&
-            !fstat(ram_fd, &deck->ram_identity) && dup2(ram_fd, source.decoder_fd) >= 0) {
-            fcntl(source.decoder_fd, F_SETFD, source.decoder_flags | FD_CLOEXEC);
-            *((unsigned char *)source.stream + 0x330) = 1;
-            message(deck, XZ_RAM_READY, "ORIGINAL TRACK IN RAM / PREPARED STEMS STILL NEED USB");
-            error = NULL;
-        } else error = "RAM FILE HANDOFF FAILED / USB PLAYBACK RETAINED";
+        if (active) {
+            /* The swap asks the stick: fstat of the FUSE file may send GETATTR, and dup2 closes it, which sends
+             * FLUSH; both wait behind every request queued at the stick (tens to hundreds of ms in a load).
+             * read_hook takes this mutex for every stock decoder read of both decks (PcmReader, RR 58), so the
+             * swap runs without it. While `swapping` is set the descriptor stays the stock's stick file: no stock
+             * read starts on this deck (its RAM data is current; xz_ram_cancel leaves it so), none is in flight
+             * (stock_users is 0), and a new load or unload (xz_ram_invalidate) waits in settle_swap before the
+             * stock may close the FILE and reuse the number. */
+            deck->swapping = 1;
+            pthread_mutex_unlock(&mutex);
+            struct stat decoder, ram;
+            int swapped = !fstat(source.decoder_fd, &decoder) && same_file(&decoder, &source.identity) &&
+                !fstat(ram_fd, &ram) && dup2(ram_fd, source.decoder_fd) >= 0;
+            if (swapped) fcntl(source.decoder_fd, F_SETFD, source.decoder_flags | FD_CLOEXEC);
+            pthread_mutex_lock(&mutex);
+            deck->swapping = 0;
+            xz_wake_set(&changed);
+            if (swapped) {
+                deck->ram_identity = ram;
+                *((unsigned char *)source.stream + 0x330) = 1;
+                if (running && deck->bound && deck->epoch == epoch && deck->status.state == XZ_RAM_LOADING)
+                    message(deck, XZ_RAM_READY, "ORIGINAL TRACK IN RAM / PREPARED STEMS STILL NEED USB");
+                error = NULL;
+            } else error = "RAM FILE HANDOFF FAILED / USB PLAYBACK RETAINED";
+        }
     }
     pthread_mutex_unlock(&mutex);
 finish:
@@ -424,8 +468,7 @@ static void release_copy(int index, uint32_t epoch, struct binding source)
 static void *work(void *unused)
 {
     (void)unused;
-    if (sched_setscheduler(0, SCHED_IDLE, &(struct sched_param){0}))
-        setpriority(PRIO_PROCESS, 0, 10);
+    setpriority(PRIO_PROCESS, 0, XZ_RAM_COPY_NICE); /* this thread only; see budget.h */
     for (;;) {
         pthread_mutex_lock(&mutex);
         int index = -1;
@@ -456,10 +499,8 @@ static void *work(void *unused)
         if (old) { pthread_mutex_unlock(&mutex); dispose(old, old_bytes, &old_ticket); continue; }
         if (!running) { pthread_mutex_unlock(&mutex); break; }
         if (index < 0) {
-            struct timeval now;gettimeofday(&now,NULL);
-            struct timespec wake={now.tv_sec,now.tv_usec*1000+250000000};
-            if(wake.tv_nsec>=1000000000){wake.tv_sec++;wake.tv_nsec-=1000000000;}
-            pthread_cond_timedwait(&changed,&mutex,&wake);pthread_mutex_unlock(&mutex);continue;
+            uint32_t ticket = xz_wake_ticket(&changed);
+            pthread_mutex_unlock(&mutex); xz_wake_wait(&changed, ticket, 250); continue;
         }
         struct deck *deck = &decks[index];
         int kind = deck->pending, manual = deck->manual;
@@ -473,6 +514,18 @@ static void *work(void *unused)
     return NULL;
 }
 
+static void status_locked(int index, struct xz_ram_status *status);
+/* For the drawing path: 0 and *status untouched when a worker holds the lock. */
+int xz_ram_status_try(int index, struct xz_ram_status *status)
+{
+    if (!status || index < 0 || index >= 2 || pthread_mutex_trylock(&mutex)) return 0;
+    memset(status, 0, sizeof(*status));
+    status->state = XZ_RAM_UNAVAILABLE;
+    snprintf(status->message, sizeof(status->message), "RAM ENGINE UNAVAILABLE / REBUILD LOADER IN XZ MODS");
+    status_locked(index, status);
+    pthread_mutex_unlock(&mutex);
+    return 1;
+}
 void xz_ram_status(int index, struct xz_ram_status *status)
 {
     if (!status) return;
@@ -481,6 +534,11 @@ void xz_ram_status(int index, struct xz_ram_status *status)
     snprintf(status->message, sizeof(status->message), "RAM ENGINE UNAVAILABLE / REBUILD LOADER IN XZ MODS");
     if (index < 0 || index >= 2) return;
     pthread_mutex_lock(&mutex);
+    status_locked(index, status);
+    pthread_mutex_unlock(&mutex);
+}
+static void status_locked(int index, struct xz_ram_status *status)
+{
     if (running) {
         struct deck *d = &decks[index]; *status = d->status;
         status->supported = status->route_up = 1;
@@ -494,7 +552,6 @@ void xz_ram_status(int index, struct xz_ram_status *status)
         if (status->state == XZ_RAM_READY || status->state == XZ_RAM_DETACHED) status->retained_assets = XZ_RAM_AUDIO;
         status->reason = !d->bound ? XZ_RAM_NO_SOURCE : status->bytes > XZ_RAM_TRACK_LIMIT ? XZ_RAM_TOO_LARGE : XZ_RAM_OK;
     }
-    pthread_mutex_unlock(&mutex);
 }
 static int native_request(int index, const uint64_t *expected)
 {
@@ -511,7 +568,7 @@ static int native_request(int index, const uint64_t *expected)
             deck->status.copied = deck->status.bytes = 0;
             message(deck, XZ_RAM_LOADING, "LOADING ORIGINAL TRACK / KEEP USB CONNECTED");
             deck->pending = 1; deck->manual = 1;
-            pthread_cond_signal(&changed);
+            xz_wake_set(&changed);
         }
     }
     pthread_mutex_unlock(&mutex);
@@ -524,12 +581,16 @@ static int native_cancel(int index, const uint64_t *expected)
     struct deck *deck = &decks[index];
     if (expected && *expected != deck->epoch) { pthread_mutex_unlock(&mutex); return -2; }
     int result = -1;
-    if (running && deck->status.state == XZ_RAM_LOADING) {
+    if (running && deck->swapping) {
+        /* The copy is complete and is being attached: a cancel after attachment retains it (README). */
+        deck->auto_blocked = 1;
+        result = 0;
+    } else if (running && deck->status.state == XZ_RAM_LOADING) {
         deck->auto_blocked=1;
         ++deck->epoch;
         deck->pending = 0;
         message(deck, XZ_RAM_EMPTY, "RAM LOAD CANCELLED / USB PLAYBACK RETAINED");
-        pthread_cond_signal(&changed);
+        xz_wake_set(&changed);
         result = 0;
     }
     pthread_mutex_unlock(&mutex);
@@ -546,7 +607,7 @@ static int native_release(int index, const uint64_t *expected)
         deck->auto_blocked=1;
         deck->pending = 2;
         message(deck, XZ_RAM_READY, "CHECKING USB SOURCE BEFORE RELEASING RAM");
-        pthread_cond_signal(&changed);
+        xz_wake_set(&changed);
         result = 0;
     }
     pthread_mutex_unlock(&mutex);
@@ -574,7 +635,7 @@ int xz_ram_start(void)
     __atomic_store_n(&running, 1, __ATOMIC_RELEASE);
     for (unsigned i = 0; i < 2; ++i) message(&decks[i], XZ_RAM_EMPTY, "LOAD A USB TRACK / AUTO CACHE WHEN PLAYING");
     pthread_mutex_unlock(&mutex);
-    if (pthread_create(&worker, NULL, work, NULL)) {
+    if (XZ_WORKER_CREATE(&worker,work,NULL)) {
         __atomic_store_n(&running, 0, __ATOMIC_RELEASE);
         return -1;
     }
@@ -585,9 +646,10 @@ void xz_ram_stop(void)
 {
     if (!worker_created) return;
     pthread_mutex_lock(&mutex);
+    for (unsigned i = 0; i < 2; ++i) settle_swap(&decks[i]);
     __atomic_store_n(&running, 0, __ATOMIC_RELEASE);
     for (unsigned i = 0; i < 2; ++i) { ++decks[i].epoch; decks[i].bound = decks[i].pending = 0; }
-    pthread_cond_signal(&changed);
+    xz_wake_set(&changed);
     pthread_mutex_unlock(&mutex);
     pthread_join(worker, NULL);
     worker_created = 0;

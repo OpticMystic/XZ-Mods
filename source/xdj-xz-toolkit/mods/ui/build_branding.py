@@ -21,9 +21,12 @@ def main():
     if args.output.exists():
         parser.error('Choose a new output path; existing packs are never overwritten')
     original = ImagePack.read(args.stock_pack)
+    # The same images as the release's branding folder (build_branding_assets.py), from the vector mark.
+    sys.path.insert(0, str(ROOT / 'mods/ui'))
+    from build_logo import banner_image, load, splash_image
+    layers = load()
     build_theme(args.stock_pack, args.output, args.preview_dir,
-                preferred_font=ROOT / 'mods/ui/fonts/BarlowSemiCondensed-Medium.ttf',
-                logo_path=ROOT / 'mods/ui/assets/xz-mods.png')
+                splash=splash_image(layers), logo=banner_image(layers))
     result = ImagePack.read(args.output)
     before, after = original.to_bytes(), result.to_bytes()
     if original.entries != result.entries or len(before) != len(after):

@@ -46,6 +46,18 @@ class TimingStoreTests(DataRootTest):
                                0.20 * FRAMES / 44100 + 20)
         self.assertAlmostEqual(engines.estimate_separation_seconds('balanced', FRAMES, device='cpu'), self.prior('cpu'))
 
+    def test_publish_timings_are_kept_per_stem_sample_rate(self):
+        self.assertAlmostEqual(engines.estimate_publish_seconds(FRAMES), engines.PUBLISH_PRIOR_RATE * 180)
+        engines.record_publish_timing(FRAMES, 0.4 * 180, 96000)
+        # No 44.1 kHz run yet: the slower 96 kHz runs stand in, so the first estimate errs high.
+        self.assertAlmostEqual(engines.estimate_publish_seconds(FRAMES, 44100), 0.4 * 180)
+        engines.record_publish_timing(FRAMES, 0.1 * 180, 44100)
+        self.assertAlmostEqual(engines.estimate_publish_seconds(FRAMES, 44100), 0.1 * 180)
+        self.assertAlmostEqual(engines.estimate_publish_seconds(FRAMES, 96000), 0.4 * 180)
+        self.assertEqual(sorted(key for key in engines.read_timings() if key.startswith('publish/')), ['publish/44100', 'publish/any'])
+        engines.record_publish_timing(FRAMES, 1.0, 48000)
+        self.assertNotIn('publish/48000', engines.read_timings())
+
     def test_runs_without_load_keep_load_prior(self):
         engines.record_timing('balanced', 'cuda', timing(0.5))
         self.assertEqual(engines.read_timings()['balanced/cuda']['loads'], [])

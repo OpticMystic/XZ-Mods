@@ -24,6 +24,8 @@ with tempfile.TemporaryDirectory(prefix='xz-profiles-') as temporary:
     sources += [ROOT/'arcade'/name for name in ('arcade.c','render.c','input.c','clock.c','native_clock.c')]
     sources += [ROOT/name for name in ('settings.c','settings_internal.c','usb_profile.c','doom/native_bridge.c','doom/wad_catalog.c','ota/native_update.c','audio/vendor/sha256/sha256.c','pc_control/stems.c')]
     sources += [ROOT/'kart'/name for name in ('xz_kart_input.c','xz_kart_runtime.c')]
+    # The REC mark reads the recorder through the shared poller; on the host the stand-in state.
+    sources += [ROOT/'recorder_poll.c',ROOT/'recorder_state_stub.c']
     binary=Path(temporary)/'profiles'
     subprocess.run(['gcc','-std=c11','-O1','-g','-UNDEBUG','-DXZ_SETTINGS_INTERNAL_TEST','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
         '-fsanitize=address,undefined','-fno-sanitize-recover=all',*map(str,sources),'-pthread','-ldl','-lm','-o',str(binary)],check=True)

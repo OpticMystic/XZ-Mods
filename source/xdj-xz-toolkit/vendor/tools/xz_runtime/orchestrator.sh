@@ -4,6 +4,24 @@
 
 export PATH="/usr/sbin:/usr/bin:/sbin:/bin:/root/pdj:$PATH"
 
+# LOADER_RAM_BEGIN
+# Run from a RAM copy, started in /. The stock decryptor loop-mounts autoexec.bin at /mnt/iso, runs this script
+# from there and, once it returns, unmounts /mnt/iso a single time. A shell keeps its script open, and each
+# background subshell below (the coldplug watcher, the early-boot verifier) is a fork that kept that descriptor
+# and /mnt/iso busy, so the image's loop device stayed for the whole power-on and USB STOP could not unmount the
+# stick. Any failure here runs the script from /mnt/iso as before.
+case "$0" in
+    /dev/shm/xz-loader-*/autoexec.sh) rm -rf "${0%/autoexec.sh}" 2>/dev/null ;;
+    autoexec.sh|*/autoexec.sh)
+        XZ_LOADER_RAM="/dev/shm/xz-loader-$$"
+        if mkdir "$XZ_LOADER_RAM" 2>/dev/null && cat "$0" > "$XZ_LOADER_RAM/autoexec.sh" 2>/dev/null && cd /; then
+            exec /bin/sh "$XZ_LOADER_RAM/autoexec.sh" "$@"
+        fi
+        rm -rf "$XZ_LOADER_RAM" 2>/dev/null
+        ;;
+esac
+# LOADER_RAM_END
+
 USB="$1"
 export XZ_MODS_USB="$USB"
 export XZ_MODS_DECK_INPUT_TRACE=1
@@ -31,6 +49,8 @@ SOURCE_GUI_IP_PATCH="$PAYLOAD_ROOT/tools/xz-gui-ip-patch"
 EXPECTED_GUI_IP_PATCH_MD5_FILE="$PAYLOAD_ROOT/tools/xz-gui-ip-patch.md5"
 GUI_IP_PATCH_RAM="/dev/shm/xz-gui-ip-patch"
 NETWORK_TOOLS_RAM="/dev/shm"
+DJLINK_RAM="/dev/shm/xz-djlink"
+LINK_RAM="/dev/shm/xz-link"
 APPLYING_FLAG="/tmp/xz_mod_applying"
 APPLIED_FLAG="/tmp/xz_mod_applied"
 LOADER_LOCK="/tmp/xz_mod_loader_lock"
@@ -404,8 +424,62 @@ stage_network_tools() {
     log "NETWORK_TOOLS_STAGED: DHCP is idle until on-device Apply."
 }
 
+# Optional Pro DJ Link helper for DECK 3/4 (mods/djlink_runtime.h). The player starts it only while
+# the PRO DJ LINK DECKS 3/4 setting is on. A missing or mismatching member leaves the setting showing
+# HELPER MISSING; it never stops the load.
+stage_djlink_helper() {
+    DJLINK_SOURCE="$PAYLOAD_ROOT/tools/xz-djlink"
+    [ -f "$DJLINK_SOURCE" ] || return 0
+    DJLINK_EXPECTED=$(awk 'NR == 1 {print $1}' "$DJLINK_SOURCE.md5" 2>/dev/null)
+    if [ -z "$DJLINK_EXPECTED" ] || [ "$(file_md5 "$DJLINK_SOURCE")" != "$DJLINK_EXPECTED" ]; then
+        log "DJLINK: helper hash does not match its manifest; not staged."
+        return 0
+    fi
+    if [ -L "$DJLINK_RAM" ] || ! mkdir -p "$DJLINK_RAM" || [ "$(cd -P "$DJLINK_RAM" && pwd -P)" != "$DJLINK_RAM" ]; then
+        log "DJLINK: $DJLINK_RAM is not a plain directory; not staged."
+        return 0
+    fi
+    if ! cp "$DJLINK_SOURCE" "$DJLINK_RAM/xz-djlink.next" ||
+       [ "$(file_md5 "$DJLINK_RAM/xz-djlink.next")" != "$DJLINK_EXPECTED" ] ||
+       ! chmod 700 "$DJLINK_RAM/xz-djlink.next" ||
+       ! mv -f "$DJLINK_RAM/xz-djlink.next" "$DJLINK_RAM/xz-djlink"; then
+        rm -f "$DJLINK_RAM/xz-djlink.next"
+        log "DJLINK: helper copy failed its check; not staged."
+        return 0
+    fi
+    log "DJLINK_STAGED: md5=$DJLINK_EXPECTED; it starts only with PRO DJ LINK DECKS 3/4 on."
+}
+
+# Optional Ableton Link helper (mods/link_runtime.h, GPL-2.0-or-later, source shipped beside the release). The
+# player starts it only while ABLETON LINK is ENABLED. A missing or mismatching member leaves the setting showing
+# HELPER MISSING; it never stops the load.
+stage_link_helper() {
+    LINK_SOURCE="$PAYLOAD_ROOT/tools/xz-link-peer"
+    [ -f "$LINK_SOURCE" ] || return 0
+    LINK_EXPECTED=$(awk 'NR == 1 {print $1}' "$LINK_SOURCE.md5" 2>/dev/null)
+    if [ -z "$LINK_EXPECTED" ] || [ "$(file_md5 "$LINK_SOURCE")" != "$LINK_EXPECTED" ]; then
+        log "ABLETON LINK: helper hash does not match its manifest; not staged."
+        return 0
+    fi
+    if [ -L "$LINK_RAM" ] || ! mkdir -p "$LINK_RAM" || [ "$(cd -P "$LINK_RAM" && pwd -P)" != "$LINK_RAM" ]; then
+        log "ABLETON LINK: $LINK_RAM is not a plain directory; not staged."
+        return 0
+    fi
+    if ! cp "$LINK_SOURCE" "$LINK_RAM/xz-link-peer.next" ||
+       [ "$(file_md5 "$LINK_RAM/xz-link-peer.next")" != "$LINK_EXPECTED" ] ||
+       ! chmod 700 "$LINK_RAM/xz-link-peer.next" ||
+       ! mv -f "$LINK_RAM/xz-link-peer.next" "$LINK_RAM/xz-link-peer"; then
+        rm -f "$LINK_RAM/xz-link-peer.next"
+        log "ABLETON LINK: helper copy failed its check; not staged."
+        return 0
+    fi
+    log "ABLETON_LINK_STAGED: md5=$LINK_EXPECTED; it starts only with ABLETON LINK enabled."
+}
+
 stage_optional_assets() {
     stage_network_tools || return 1
+    stage_djlink_helper
+    stage_link_helper
     if [ -f "$SOURCE_FB_TOOL" ]; then
         if cp "$SOURCE_FB_TOOL" "$FB_TOOL_RAM" 2>>"$LOG"; then
             chmod 755 "$FB_TOOL_RAM"

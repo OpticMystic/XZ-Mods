@@ -84,6 +84,22 @@ int xz_anlz_beat_grid(const uint8_t *f, size_t n, struct xz_extra_beat **grid, u
  return 0;
 }
 
+/* A track's analysis is named in two ways. The folder (".../P016/0001A2B3", files ANLZ0000.*) is what a scan
+   of the stick finds. The analysis file without its extension (".../P016/0001A2B3/ANLZ0000") is what the
+   library index built from export.pdb gives, because the database names the file. This loader used to
+   append "/ANLZ0000.DAT" to either: for the second form that file does not exist, so DECK 3/4 loaded with no
+   beat grid and no hot cues, and SYNC could only follow tempo, never the beat. */
+int xz_anlz_named(const char *dir){
+ if(!dir)return 0;
+ const char *base=strrchr(dir,'/');base=base?base+1:dir;
+ if(strlen(base)!=8||strncmp(base,"ANLZ",4))return 0;
+ for(int i=4;i<8;i++)if(base[i]<'0'||base[i]>'9')return 0;
+ return 1;
+}
+int xz_anlz_file(char *out,size_t cap,const char *dir,const char *extension){
+ if(!out||!cap||!dir||!dir[0]||!extension)return 0;
+ return snprintf(out,cap,"%s%s.%s",dir,xz_anlz_named(dir)?"":"/ANLZ0000",extension)<(int)cap;
+}
 static uint8_t *read_all(const char *path, size_t *n) {
  FILE *f=fopen(path,"rb");if(!f)return NULL;
  uint8_t *data=NULL;
@@ -101,10 +117,10 @@ void xz_anlz_extra_load(const char *dir, struct xz_anlz_extra *out) {
  memset(out,0,sizeof *out);
  if(!dir||!dir[0])return;
  char path[1100];size_t n=0;uint8_t *f;
- if(snprintf(path,sizeof path,"%s/ANLZ0000.EXT",dir)<(int)sizeof path&&(f=read_all(path,&n))){
+ if(xz_anlz_file(path,sizeof path,dir,"EXT")&&(f=read_all(path,&n))){
   out->hot_cues_found=xz_anlz_hot_cues(f,n,out->hot_cue)>=0;free(f);
  }
- if(snprintf(path,sizeof path,"%s/ANLZ0000.DAT",dir)>=(int)sizeof path||!(f=read_all(path,&n)))return;
+ if(!xz_anlz_file(path,sizeof path,dir,"DAT")||!(f=read_all(path,&n)))return;
  if(!out->hot_cues_found)out->hot_cues_found=xz_anlz_hot_cues(f,n,out->hot_cue)>=0;
  (void)xz_anlz_beat_grid(f,n,&out->grid,&out->grid_count,&out->grid_bpm_x100);
  free(f);

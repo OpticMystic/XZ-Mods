@@ -45,7 +45,9 @@ for arch, compiler in [('host', 'gcc'), ('arm', 'arm-linux-gnueabi-gcc')]:
              'ui/layered_wave_source.c', 'ui/layered_wave.c', 'audio/stem_media.c', 'audio/stem_mp3.c',
              'audio/stem_decode.c', 'test_extra_decks.c']
     command=[compiler,*flags,'-DXZ_XP_TEST_RENDER_HOOK','-DXZ_PLACEMENT_CONNECTOR_TEST',
-             '-DUSB_MAJOR=1','-DPOLL_DOWN_MS=50','-DPOLL_UP_MS=5',
+             # A refused route waits for a route event or the safety interval (extra_route_events.h, 5 s on the
+             # unit); test_extra_decks.c expects retries within 200 ms, as verify_extra_player.py builds it.
+             '-DUSB_MAJOR=1','-DPOLL_DOWN_MS=50','-DROUTE_EVENT_SAFETY_MS=50','-DPOLL_UP_MS=5',
              *[linux(root/s) for s in sources],'-lm','-o',linux(connector)]
     for i,cmd in enumerate([command,run[:-1]+[linux(connector)]]):
         r=subprocess.run(['wsl','-d','Ubuntu','--exec',*cmd],capture_output=True,text=True,timeout=60)

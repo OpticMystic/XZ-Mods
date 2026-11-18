@@ -5138,7 +5138,7 @@ dependencies = [
 
 [[package]]
 name = "xz-mods-builder"
-version = "0.5.1-Beta.2"
+version = "0.6.0"
 dependencies = [
  "reqwest",
  "ring",

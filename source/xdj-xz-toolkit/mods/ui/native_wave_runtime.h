@@ -40,4 +40,10 @@ uint32_t xz_native_four_card_success(uint32_t now_ms);
 /* RAM ONLY: bit d (0..3) while deck d plays its whole track from RAM since the music USB went out (any thread).
    The wave surface shows the RAM card (ram_notice.h) in that deck's lane while it has no waveform to draw. */
 void xz_native_ram_notice_set(unsigned mask);
+/* The sentence CLASSIC's play screen shows now (the route-up notice, else the players' fresh notice, neither
+   quiet: notice_policy.h), copied into out, or NULL. Drawn in the top bar (play_notice.h), never over the lanes.
+   s: the caller's snapshot of the players (NULL: none); now_ms: monotonic ms. Any thread. */
+#define XZ_NATIVE_PLAY_NOTICE_BYTES 64
+struct xz_extra_decks;
+const char *xz_native_play_notice(const struct xz_extra_decks *s,uint32_t now_ms,char out[XZ_NATIVE_PLAY_NOTICE_BYTES]);
 #endif

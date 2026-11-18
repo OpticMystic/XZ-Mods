@@ -21,8 +21,38 @@
 static char test_path[128];
 static int test_open(const char *path, int flags) { (void)path; return open(test_path, flags); }
 #define open(path, flags) test_open(path, flags)
+/* --attach-close: on the unit the decoder's file is on the stick's FUSE mount. Closing it (dup2 over it) sends
+ * FLUSH and fstat may send GETATTR; either waits behind every request queued at the stick (47 ms per 128 KiB).
+ * Model that: once armed, a dup2 over, or fstat of, the armed descriptor while it is still the stick file
+ * sleeps 300 ms after the real call (the kernel switches the slot first, then flushes the old file). */
+static int slow_fd = -1, slow_now;
+static int stick_file(int fd)
+{
+    struct stat a, b;
+    return fd >= 0 && !fstat(fd, &a) && !stat(test_path, &b) && a.st_dev == b.st_dev && a.st_ino == b.st_ino;
+}
+static void stick_wait(void)
+{
+    __atomic_store_n(&slow_now, 1, __ATOMIC_RELEASE); usleep(300000); __atomic_store_n(&slow_now, 0, __ATOMIC_RELEASE);
+}
+static int test_fstat(int fd, struct stat *out)
+{
+    int stick = fd == __atomic_load_n(&slow_fd, __ATOMIC_ACQUIRE) && stick_file(fd), result = fstat(fd, out);
+    if (stick) stick_wait();
+    return result;
+}
+static int test_dup2(int from, int to)
+{
+    int stick = to == __atomic_load_n(&slow_fd, __ATOMIC_ACQUIRE) && stick_file(to), result = dup2(from, to);
+    if (stick) stick_wait();
+    return result;
+}
+#define fstat(fd, out) test_fstat(fd, out)
+#define dup2(from, to) test_dup2(from, to)
 #include "runtime.c"
 #undef open
+#undef fstat
+#undef dup2
 #include "removal.c"
 #include "presentation.c"
 
@@ -258,6 +288,24 @@ static void bind_deck(int index)
     strcpy(source.path, "/media/usb1/fixture.mp3"); xz_ram_bind(index, &source);
     wait_state(index, XZ_RAM_EMPTY);
 }
+static long now_ms(void)
+{
+    struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t);
+    return (long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+}
+/* Until the attach is at the (modelled) stick. */
+static void stick_seen(void)
+{
+    for (unsigned i = 0; i < 10000 && !__atomic_load_n(&slow_now, __ATOMIC_ACQUIRE); ++i) usleep(1000);
+    if (!__atomic_load_n(&slow_now, __ATOMIC_ACQUIRE)) { fprintf(stderr, "FAIL the attach never reached the stick\n"); assert(0); }
+}
+static int invalidated_on_stick;
+static void *invalidate_deck0(void *unused)
+{
+    (void)unused; xz_ram_invalidate(0);
+    __atomic_store_n(&invalidated_on_stick, __atomic_load_n(&slow_now, __ATOMIC_ACQUIRE) || stick_file(fileno(files[0])), __ATOMIC_RELEASE);
+    return NULL;
+}
 struct fault { int mode; uint32_t copied; };
 static int fault_read(void *opaque, uint32_t offset, void *out, uint32_t count)
 {
@@ -380,17 +428,53 @@ int main(int argc, char **argv)
         snprintf(test_path,sizeof(test_path),"/tmp/xz-ram-auto-%ld",(long)getpid());
         memset(fixture,0x5a,sizeof(fixture));assert(!xz_ram_start());fixture_write(65536);bind_deck(0);
         usleep(300000);struct xz_ram_status s;xz_ram_status(0,&s);assert(s.state==XZ_RAM_EMPTY);
-        player[0][0xe77]=1;pthread_mutex_lock(&mutex);pthread_cond_signal(&changed);pthread_mutex_unlock(&mutex);
+        player[0][0xe77]=1;pthread_mutex_lock(&mutex);xz_wake_set(&changed);pthread_mutex_unlock(&mutex);
         wait_state(0,XZ_RAM_READY);assert(!xz_ram_release(0));wait_state(0,XZ_RAM_EMPTY);
         usleep(400000);xz_ram_status(0,&s);assert(s.state==XZ_RAM_EMPTY);
         xz_ram_stop();fclose(files[0]);unlink(test_path);
         puts("PASS automatic playing-track retention, paused deck exclusion and explicit release remains released");return 0;
     }
+    if(argc==2&&!strcmp(argv[1],"--attach-close")){
+        snprintf(test_path,sizeof(test_path),"/tmp/xz-ram-attach-%ld",(long)getpid());
+        for (size_t i = 0; i < sizeof(fixture); ++i) fixture[i] = (unsigned char)(i * 73 + i / 256);
+        assert(!xz_ram_start());fixture_write(65536);bind_deck(0);bind_deck(1);
+        unsigned char out[4096];
+        /* 1. Both stock decoders (PcmReader, RR 58 on the unit) read while the attach of deck 1 is at the stick.
+              Deck 1 reads its new RAM copy, deck 2 still its stick file: neither may wait for the attach. */
+        __atomic_store_n(&slow_fd,fileno(files[0]),__ATOMIC_RELEASE);
+        assert(!xz_ram_request(0));stick_seen();
+        long waited[2];
+        for(int d=0;d<2;d++){
+            seek_stream(d,1000);long started=now_ms();
+            assert(read_hook(stream[d],out,sizeof(out))==sizeof(out));waited[d]=now_ms()-started;
+            assert(!memcmp(out,fixture+1000,sizeof(out)));
+        }
+        if(waited[0]>100||waited[1]>100){
+            fprintf(stderr,"FAIL stock decoder reads waited %ld ms (deck 1) and %ld ms (deck 2) behind deck 1's RAM attach at the stick\n",waited[0],waited[1]);
+            assert(0);
+        }
+        wait_state(0,XZ_RAM_READY);assert(!stick_file(fileno(files[0])));
+        /* 2. A new LOAD on that deck (xz_ram_invalidate, before the stock closes its FILE) during the attach returns
+              only after the swap: the stock may then close and reuse the descriptor number. */
+        assert(!xz_ram_release(0));wait_state(0,XZ_RAM_EMPTY);assert(stick_file(fileno(files[0])));
+        assert(!xz_ram_request(0));stick_seen();
+        pthread_t loader;assert(!pthread_create(&loader,NULL,invalidate_deck0,NULL));assert(!pthread_join(loader,NULL));
+        if(invalidated_on_stick){fprintf(stderr,"FAIL invalidate returned while the attach still held the stock descriptor\n");assert(0);}
+        /* 3. CANCEL during the swap keeps the attached copy (README: cancelling after attachment retains it). */
+        bind_deck(0);__atomic_store_n(&slow_fd,fileno(files[0]),__ATOMIC_RELEASE);
+        assert(!xz_ram_request(0));stick_seen();(void)xz_ram_cancel(0);
+        wait_state(0,XZ_RAM_READY);assert(!stick_file(fileno(files[0])));
+        unsigned before=stock_reads;seek_stream(0,4321);
+        assert(read_hook(stream[0],out,sizeof(out))==sizeof(out)&&!memcmp(out,fixture+4321,sizeof(out))&&stock_reads==before);
+        __atomic_store_n(&slow_fd,-1,__ATOMIC_RELEASE);
+        xz_ram_stop();fclose(files[0]);fclose(files[1]);unlink(test_path);
+        puts("PASS stock decoder reads never wait for a RAM attach at the stick; a load or cancel during it waits or retains");return 0;
+    }
     if (argc > 1) assert(0);
     snprintf(test_path, sizeof(test_path), "/tmp/xz-ram-fixture-%ld", (long)getpid());
     for (size_t i = 0; i < sizeof(fixture); ++i) fixture[i] = (unsigned char)(i * 73 + i / 256);
     struct fault fault = {0}; unsigned char copied[512];
-    struct xz_ram_copy copy = {&fault, fault_read, fault_cancelled, fault_progress};
+    struct xz_ram_copy copy = {&fault, fault_read, fault_cancelled, fault_progress, NULL, NULL};
     assert(!xz_ram_copy_all(copied, sizeof(copied), &copy));
     assert(!memcmp(copied, fixture, sizeof(copied)) && fault.copied == sizeof(copied));
     fault = (struct fault){1, 0}; assert(xz_ram_copy_all(copied, sizeof(copied), &copy) == -1);

@@ -38,6 +38,9 @@ enum xz_rekordbox_action {
 /* DECK VIEW: what the play screen shows. Display only: sound, mixer channels and which deck each side
    controls do not change. Values are ui/layout_cycle.h enum xz_deck_layout. */
 enum xz_deck_view { XZ_DECK_VIEW_TWO = 0, XZ_DECK_VIEW_FOUR = 1, XZ_DECK_VIEW_MIXER = 2, XZ_DECK_VIEW_COUNT = 3 };
+/* Ableton Link: OFF, or SEND (the session follows the unit's tempo master). A mode that lets the decks follow the
+   session would be the next value. */
+enum xz_ableton_link { XZ_ABLETON_LINK_OFF, XZ_ABLETON_LINK_SEND, XZ_ABLETON_LINK_MODES };
 struct xz_settings {
     /* theme is derived, never chosen: xz_settings_look(ui_interface, classic_theme).
        It keeps its wire slot so older records migrate (24 = MODERN). */
@@ -71,9 +74,16 @@ struct xz_settings {
     int usb_colors;        /* enum xz_shell_usb_colors: 0 ALL (default), 1 TILE, 2 OFF */
     int hidden_parts;      /* bit per enum xz_shell_indicator set: hidden (mode lamps, quantize lamp, bypass, titles),
                               and XZ_HIDE_FOUR_STEMS */
+    int network_dhcp; /* field 59, default on; only MODS-owned DHCP */
     int controller_locale; /* wire field 58; 0 English, 1..14 independent mod locales */
     int modern_browse_columns; /* optional field 57: shell column bitmask, 0 keeps automatic columns, 0..2047 */
+    int pro_dj_link_decks; /* field 60, default off: DECK 3 and DECK 4 announced on Pro DJ Link (djlink_runtime.h) */
+    int ableton_link; /* field 61, enum xz_ableton_link, default off (link_runtime.h) */
+    int recording_tracklist; /* field 62, default XZ_RECORDING_TRACKLIST_DEFAULT: a TXT/CUE list beside each MASTER REC
+                                file, written when the file closes (tracklist_runtime.h) */
 };
+/* RECORDING TRACKLIST when no record names it: 0 off, 1 on. One constant, so the default is one edit. */
+#define XZ_RECORDING_TRACKLIST_DEFAULT 0
 /* hidden_parts bit 4: MODERN's 4 DECKS view hides its stem buttons. The STEMS button sets and clears it there
    (ui/wave_viewport.h xz_stems_press); the 2 DECKS layout, modern_stems, stays as it is. */
 #define XZ_HIDE_FOUR_STEMS 16

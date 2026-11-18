@@ -29,4 +29,6 @@ int xz_ui_runtime_profile_selected(void); /* -1 until a local USB is browsed */
 void xz_ui_runtime_profile_snapshot(struct xz_settings *out);
 /* Replace live preferences with a validated profile; does not queue a save. */
 void xz_ui_runtime_profile_apply(const struct xz_settings *saved);
+/* Lock-free visibility gate for the native waveform and inline renderers. */
+int xz_ui_runtime_native_wave_visible(void);
 #endif

@@ -126,6 +126,21 @@ void sh_usb_icon(struct xz_canvas c, int x, int y, uint32_t color) {
  xz_rect(c,x,y+5,4,2,color);xz_rect(c,x,y+5,2,4,color);xz_disc(c,x+1,y+9,1,color);
  xz_rect(c,x+6,y+3,4,2,color);xz_rect(c,x+8,y+3,2,4,color);xz_rect(c,x+8,y+7,2,2,color);
 }
+/* The dots of the other side's circle: twelve points round the rim (cos, sin x 1024), every 30 degrees. */
+static const short rim12[12][2]={{1024,0},{887,512},{512,887},{0,1024},{-512,887},{-887,512},
+ {-1024,0},{-887,-512},{-512,-887},{0,-1024},{512,-887},{887,-512}};
+static int rim_at(int r,int v){return (r*v+(v<0?-512:512))/1024;}
+void sh_side_mark(struct xz_canvas c, int cx, int cy, int w, int h, int r, int deck, enum sh_side side) {
+ if(side==SH_SIDE_NONE)return;
+ int x=cx-w/2,y=cy-h/2,inset=(h-2*r-1)/2;
+ int left=x+inset+r,right=x+w-1-inset-r,own=deck&1?right:left,other=deck&1?left:right;
+ xz_rect(c,x,y,w,h,SH_BLACK);
+ xz_border(c,x,y,w,h,SH_UNIT_EDGE);
+ /* This deck's wheel: white while the side drives the deck (under the hand), dimmed while the side is on its
+    other deck. Same place and size in both, so a side switch never moves the mark. */
+ xz_disc(c,own,cy,r,side==SH_SIDE_DRIVES?SH_WHITE:SH_WHEEL_DIM);xz_ring(c,own,cy,r,1,SH_BLACK);
+ for(int i=0;i<12;i++)xz_rect(c,other+rim_at(r,rim12[i][0]),cy+rim_at(r,rim12[i][1]),1,1,SH_WHITE);
+}
 void sh_info_icon(struct xz_canvas c, int cx, int cy, uint32_t color) {
  xz_ring(c,cx,cy,7,1,color);
  xz_rect(c,cx-1,cy-4,2,2,color);
@@ -156,22 +171,23 @@ int sh_notice_shown(const struct xz_shell_model *m) {
  /* The time comes first: an expired notice's pointer may already be retired. */
  return m->clock_ms-m->notice_at_ms<(uint32_t)XZ_SHELL_NOTICE_MS&&m->notice&&*m->notice;
 }
-/* Byte offset of the space to break at, or -1 for one line. */
-static int notice_break(const char *text) {
+/* Byte offset of the space to break at, or -1 for one line, for lines of at most max pixels in face. */
+static int notice_break_in(const char *text, enum sh_face face, int max) {
  char buffer[256];
- if(sh_text_width(notice_measure,text,SH_TEXT)<=NOTICE_TEXT_MAX)return -1;
+ if(sh_text_width(notice_measure,text,face)<=max)return -1;
  int best=-1,best_w=1<<30;
  for(int i=1;text[i]&&i<(int)sizeof buffer-1;i++){
   if(text[i]!=' ')continue;
   memcpy(buffer,text,(size_t)i);buffer[i]=0;
-  int first=sh_text_width(notice_measure,buffer,SH_TEXT);
-  if(first>NOTICE_TEXT_MAX)break;
-  int second=sh_text_width(notice_measure,text+i+1,SH_TEXT);
+  int first=sh_text_width(notice_measure,buffer,face);
+  if(first>max)break;
+  int second=sh_text_width(notice_measure,text+i+1,face);
   int worst=first>second?first:second;
   if(worst<best_w){best_w=worst;best=i;}
  }
  return best;
 }
+static int notice_break(const char *text) { return notice_break_in(text,SH_TEXT,NOTICE_TEXT_MAX); }
 struct xz_shell_rect sh_notice_rect(const char *text, int *lines) {
  int cut=text?notice_break(text):-1,w;
  if(lines)*lines=cut<0?1:2;
@@ -192,9 +208,59 @@ static const char *notice_text(const struct xz_shell *u, const struct xz_shell_m
  if(shell_live&&(!model_live||(int32_t)(u->notice_at_ms-m->notice_at_ms)>=0))return u->notice;
  return model_live?m->notice:NULL;
 }
+/* ---- the notice on PLAY ----
+   Owner 2026-11-17: no notice over the waveforms. On PLAY the sentence takes the top bar's BEAT FX strip
+   (xz_shell_play_rect XZ_SHELL_R_FX, the same place in every deck view), hiding the FX readout while it shows;
+   lanes, columns and deck strips keep every pixel. A sentence too wide for the strip widens it left over the
+   mode chips, and one too wide for that breaks onto two lines of the small face. NEEDLE LOCK draws nothing here:
+   the refused deck's own NEEDLE LOCK mark lights instead (shell_play.c). */
+enum { BAR_PAD=8, BAR_LEFT=8, BAR_FILL=0x2b1d00, BAR_EDGE=0xffa82e };
+struct xz_shell_rect sh_notice_bar_rect(const struct xz_shell_model *m, const char *text, int *lines) {
+ struct xz_shell_rect r=xz_shell_play_rect(m,XZ_SHELL_R_FX,0);
+ if(lines)*lines=1;
+ if(!text)return (struct xz_shell_rect){0,0,0,0};
+ int w=sh_text_width(notice_measure,text,SH_SMALL);
+ if(w>r.w-2*BAR_PAD){
+  r.w+=r.x-BAR_LEFT;r.x=BAR_LEFT;
+  if(w>r.w-2*BAR_PAD&&lines)*lines=2;
+ }
+ return r;
+}
+static int notice_on_play(const struct xz_shell *u) { return xz_shell_screen(u)==XZ_SHELL_PLAY; }
+struct xz_shell_rect sh_notice_place(const struct xz_shell *u, const struct xz_shell_model *m, const char *text, int *lines) {
+ if(notice_on_play(u)){
+  if(text&&!strcmp(text,SH_NEEDLE_NOTICE)){if(lines)*lines=0;return (struct xz_shell_rect){0,0,0,0};}
+  return sh_notice_bar_rect(m,text,lines);
+ }
+ return sh_notice_rect(text,lines);
+}
+const char *sh_notice_live(const struct xz_shell *u, const struct xz_shell_model *m) { return notice_text(u,m); }
+static void notice_bar(const struct xz_shell_model *m, struct xz_canvas c, const char *text) {
+ int lines;struct xz_shell_rect r=sh_notice_bar_rect(m,text,&lines);
+ xz_rect(c,r.x,r.y,r.w,r.h,BAR_FILL);
+ xz_border(c,r.x,r.y,r.w,r.h,BAR_EDGE);
+ xz_rect(c,r.x,r.y,3,r.h,BAR_EDGE);
+ int room=r.w-2*BAR_PAD;
+ if(lines==1){
+  int w=sh_text_width(c,text,SH_SMALL);
+  sh_text(c,r.x+(r.w-w)/2,r.y+6,text,SH_SMALL,SH_WHITE);
+  return;
+ }
+ int cut=notice_break_in(text,SH_SMALL,room);
+ if(cut<0){sh_text_fit(c,r.x+BAR_PAD,r.y+6,room,text,SH_SMALL,SH_WHITE);return;}
+ char first[256];memcpy(first,text,(size_t)cut);first[cut]=0;
+ sh_text_center(c,r.x+r.w/2,r.y+1,first,SH_SMALL,SH_WHITE);
+ const char *second=text+cut+1;
+ int sw=sh_min(sh_text_width(c,second,SH_SMALL),room);
+ sh_text_fit(c,r.x+(r.w-sw)/2,r.y+11,room,second,SH_SMALL,SH_WHITE);
+}
 void sh_notice(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  const char *text=notice_text(u,m);
  if(!text)return;
+ if(notice_on_play(u)){
+  if(strcmp(text,SH_NEEDLE_NOTICE))notice_bar(m,c,text);
+  return;
+ }
  struct xz_shell_model shown=*m;shown.notice=text;
  m=&shown;
  int lines;

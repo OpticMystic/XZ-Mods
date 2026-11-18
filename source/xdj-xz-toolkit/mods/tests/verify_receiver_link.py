@@ -39,6 +39,10 @@ static volatile uint32_t last_activity_ms;
 static int closed;
 static void log_line(const char *s){(void)s;}
 static void handle_vjfs_client(int c){(void)c;}
+/* The client thread first leaves the stock thread's core (helper_roam: cores 0 and 2, never display or audio).
+   On the host that is only counted. */
+static int roams;
+static void helper_roam(void){roams++;}
 static int fake_close(int c){(void)c;closed++;return 0;}
 #define close fake_close
 /* A probe's socket: what recv(MSG_PEEK) would see within the 500 ms header window. */
@@ -56,6 +60,7 @@ int main(void){
  /* The session's own client goes (a reconnect is on its way): the slot empties, the picture stays for its age limits. */
  live_session(7);vjfs_client_thread((void*)(intptr_t)7);
  EXPECT("a dropped client empties the slot",vjfs_client_fd==-1);
+ EXPECT("the client thread moves to the helper cores first",roams==1);
  EXPECT("a dropped client leaves the last picture to its age limits",latest_visible&&preview_valid&&tick_valid&&last_activity_ms==123456u);
  /* An evicted older client (a newer one already holds the slot) changes nothing. */
  live_session(9);vjfs_client_thread((void*)(intptr_t)7);

@@ -1,6 +1,6 @@
 ---
 interface: both
-settings: controller_locale
+settings: controller_locale, recording_tracklist
 ---
 
 EXTRAS holds what is not about playing a set: games, apps from a USB, reporting a problem, the About page and the language of the MODS menu. Nothing here starts on its own. The XZ always starts in its normal DJ view, and a game or app opens only when you choose it.
@@ -26,6 +26,8 @@ The HOME card for EXTRAS counts the games and the apps found on your USBs, for e
 
 ## Games
 
+Games are off unless you install them, so a USB set up for a gig carries none. To turn them on, add a free game to the USB from the XZ Mods app: choose games while it writes the USB, or use **Tools** > **Game downloads** ([The XZ Mods app](desktop-app#game-downloads)). Once the USB holds a game, every game here works, the built-in ones included. Without one, choosing a game says **GAMES ARE NOT INSTALLED** and nothing starts. The XZ checks the USB for games once, when it starts.
+
 Every game runs on the XZ itself. The music keeps playing while you play, and PLAY and track search keep their normal jobs in Beat Arcade. Doom and Beat Arcade make no sound of their own.
 
 ```nav games Games
@@ -45,10 +47,10 @@ Every game, plus USB WAD LOADER and MY HOUSE / SETUP.
 
 | Game | What it is | Needs |
 |---|---|---|
-| Beat Arcade {experimental} | Solo Pong, Pong Duel on both jogs, Solo Breaks and a two-player Breakout. Tap CUE on the beat to build charge | Nothing. Built in |
-| Wave Rider {experimental} | The loaded track's waveform becomes hills. Steer with the jog, hold [[CUE]] to add weight. Solo, Co-op or Versus | Nothing. Built in |
-| Rhythm Lab | Ten short rhythm studies for the jogs and pads. They are prototypes, and you can rate each one | Nothing. Built in |
-| Static Surfer | A rhythm platformer. Tap to jump and tilt the jog to pass through the glyphs | Nothing. Built in |
+| Beat Arcade {experimental} | Solo Pong, Pong Duel on both jogs, Solo Breaks and a two-player Breakout. Tap CUE on the beat to build charge | Built in. On once the USB holds an installed game |
+| Wave Rider {experimental} | The loaded track's waveform becomes hills. Steer with the jog, hold [[CUE]] to add weight. Solo, Co-op or Versus | Built in. On once the USB holds an installed game |
+| Rhythm Lab | Ten short rhythm studies for the jogs and pads. They are prototypes, and you can rate each one | Built in. On once the USB holds an installed game |
+| Static Surfer | A rhythm platformer. Tap to jump and tilt the jog to pass through the glyphs | Built in. On once the USB holds an installed game |
 | Doom | Classic Doom or Doom II | Game files on the USB |
 | Chex Quest | The original Chex Quest | Game files on the USB |
 
@@ -212,6 +214,21 @@ Step 1 of SET UP APPS, with the app manager not running.
 4. **Live test.** Push **RUN TEST APP**. When it shows, push **IT WORKS**.
 
 > **Note.** **APP MANAGER NOT RUNNING** means XZ Mods did not start it. Switch the XZ off, start it again with its XZ Mods USB in, then push **CHECK AGAIN**.
+
+## Recording
+
+The player's own recorder (MASTER REC) works with XZ Mods. While it records, a red dot and the recording time show at the top of the screen; see [The REC mark](play-screen#the-rec-mark).
+
+### Recording tracklist {experimental}
+
+With **RECORDING TRACKLIST** on (MODS > **PLAY**, off by default), XZ Mods writes a list of the tracks you played beside each recording. When a recording ends, a text file with the same name as the recording appears next to it, for example `REC003.TXT` beside `REC003.WAV`. It lists each track that was on air, with its title, artist and the time in the recording where it came in. A cue sheet (`REC003.CUE`) comes with it, so a player or editor can jump from track to track.
+
+- A track counts once it has been heard for 30 seconds: loaded, playing and its mixer channel on air. Decks 3 and 4 count too.
+- Nothing is written to the stick while it records. The list is kept in memory and written when the recording file closes.
+- **TRACK MARK** starts a new recording file, and a new list with it. A track that was already playing is listed at 00:00:00 in the new list and marked as continued.
+- **USB STOP** on the stick that records ends the list there and writes it, with a line saying the stick was stopped.
+- A stick pulled out without USB STOP loses the list of the recording on it.
+- Turning the setting on during a recording gives that recording no list; the next one gets one. Turning it off during a recording ends its list with a note.
 
 ## Report an issue
 

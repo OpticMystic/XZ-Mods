@@ -55,7 +55,7 @@ def track(t):
     ]:
         put(row, at, fmt, value)
     for i in range(21):
-        value = {10: "2026-10-18", 17: t["title"], 20: t["path"]}.get(i, "")
+        value = {10: "2026-10-18", 14: "/PIONEER/USBANLZ/P001/00000001/ANLZ0000.DAT", 17: t["title"], 20: t["path"]}.get(i, "")
         put(row, 0x5e + i * 2, "H", len(row))
         row += string(value, "long" if i == 20 and t["id"] == 101 else None)
     return row
@@ -82,7 +82,7 @@ def page(number, kind, rows, next_page=0, deleted=(), index=False):
     put(buf, 30, "H", used - 40)
     return buf
 
-def make(corrupt=False, page_size=PAGE):
+def make(corrupt=False, page_size=PAGE, metadata_stress=False):
     global PAGE
     PAGE = page_size
     pages = [bytearray(PAGE)]
@@ -104,6 +104,8 @@ def make(corrupt=False, page_size=PAGE):
         (12, [struct.pack("<III", 202, 3000, 2), struct.pack("<III", 101, 3000, 1)]),
         (13, [named(13, 40, "/PIONEER/Artwork/a.jpg"), named(13, 41, "/PIONEER/Artwork/夏.jpg")]),
     ]:
+        if metadata_stress and kind == 2:
+            rows = [named(2, 1000 + i, 'Unused ' + str(i)) for i in range(60)] + rows + [named(2, 1, 'WRONG DUPLICATE')]
         first = len(pages)
         pages.append(page(first, kind, [], first + 1, index=True))
         # Deleted slots span two groups, including slot 16. Do not parse their garbage.

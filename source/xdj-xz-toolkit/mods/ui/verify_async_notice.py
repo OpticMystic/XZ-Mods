@@ -12,6 +12,8 @@ with tempfile.TemporaryDirectory(prefix='xz-async-notice-') as temporary:
     sources += [HERE.parent/'arcade'/name for name in ('arcade.c','render.c','input.c','clock.c','native_clock.c')]
     sources += [HERE.parent/'audio/vendor/sha256/sha256.c',HERE.parent/'pc_control/stems.c']
     sources += [HERE.parent/'kart'/name for name in ('xz_kart_input.c','xz_kart_runtime.c')]
+    # The REC mark reads the recorder through the shared poller; on the host the stand-in state.
+    sources += [HERE.parent/'recorder_poll.c',HERE.parent/'recorder_state_stub.c']
     subprocess.run(['gcc','-std=c11','-O1','-UNDEBUG','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
                     '-fsanitize=address,undefined','-fno-sanitize-recover=all',*map(str,sources),'-pthread','-ldl','-lm','-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

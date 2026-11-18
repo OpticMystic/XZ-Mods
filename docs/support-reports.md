@@ -8,7 +8,7 @@ device ownership and active-media identity checks remain enforced.
 
 This is not universal support for other models or firmware. Do not remove the
 music USB during playback. Full RAM carry and active music swapping are not
-supported by this beta.
+supported by this release.
 
 ## Submit a report
 

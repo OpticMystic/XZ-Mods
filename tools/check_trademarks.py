@@ -45,6 +45,12 @@ ALLOW = [
      'archive, which the loader is built from'),
     (r'^PioneerDJ$', "the USB device name the player reports, compared in C"),
     (r'\bCDJMODS\b', 'the stems folder on the USB, shared with other tools'),
+    (r'\bPIONEER REC\b', "the stock recorder's fixed folder on the USB, which the recorder code must match. Folder "
+     'structures and functions the stock player defines are not brand use (owner, 2026-11-16)'),
+    (r'rekordbox over (?:a USB cable|LAN|USB)\b|\brekordbox USB\b|rekordbox is not available|Its rekordbox library could not be read|'
+     r'(?-i:^REKORDBOX$)|cable-in-rekordbox', "the stock player's own sources on the SOURCE screen (its link to the DJ "
+     'software over LAN or USB, and a USB that software exported), named as the unit names them, and a preview file '
+     'name. Stock functions are not brand use (owner, 2026-11-16)'),
 ]
 ALLOWED = re.compile('|'.join(f'(?:{a})' for a, _ in ALLOW), re.I | re.M)
 

@@ -354,9 +354,10 @@ static void test_refusal(void) {
  two.browse=four.browse=&b;two.capabilities|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_LOAD;four.capabilities=two.capabilities;
  for(int d=0;d<4;d++){
   xz_shell_init(&u);deck_key(&u,&four,XZ_SHELL_KEY_BROWSE,-1,out);
-  size_t n=deck_key(&u,&four,XZ_SHELL_KEY_LOAD,d&1,out);assert(n==0&&u.load_choice.mode);
-  n=deck_key(&u,&four,XZ_SHELL_KEY_LOAD,d>=2,out);
-  assert(n==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==d&&out[0].id==42);
+  /* The key names its deck (the runtime gives a side driving DECK 3 / 4 that deck): one press loads,
+     as stock's LOAD does (test_browse_load_choice.c). */
+  size_t n=deck_key(&u,&four,XZ_SHELL_KEY_LOAD,d,out);
+  assert(n==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==d&&out[0].id==42&&!u.load_choice.mode);
   xz_shell_init(&u);deck_key(&u,&two,XZ_SHELL_KEY_BROWSE,-1,out);
   n=deck_key(&u,&two,XZ_SHELL_KEY_LOAD,d,out);
   assert(d<2?n==1&&out[0].deck==d:n==0);
@@ -419,14 +420,15 @@ static void test_players(void) {
  m.browse=&b;m.capabilities|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_LOAD;
  for(int d=0;d<4;d++){
   xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_BROWSE,-1,out);
-  assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,d&1,out)==0&&u.load_choice.mode);
-  assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,d>=2,out)==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==d&&out[0].id==42);
+  assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,d,out)==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==d&&out[0].id==42&&!u.load_choice.mode);
  }
  /* An unavailable native target stays disabled while its extra partner remains selectable. */
  m.deck[0].caps_off|=XZ_SHELL_CAP_LOAD;
  xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_BROWSE,-1,out);
- assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,0,out)==0&&u.load_choice.mode);
- assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,0,out)==0&&!u.load_choice.mode);
+ /* The key names the native deck: it goes to stock's own browser, which says why; its partner still loads. */
+ assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,0,out)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&!u.load_choice.mode);
+ xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_BROWSE,-1,out);
+ assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,2,out)==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==2);
  render_both(&u,&m);
  m.deck[0].caps_off&=~XZ_SHELL_CAP_LOAD;
  /* DECK SELECT: a tile per side, only in a four-deck model with the capability. */

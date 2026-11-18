@@ -7,6 +7,9 @@
 #include <signal.h>
 #include <spawn.h>
 #include <pthread.h>
+#include "../usb_probe.h"
+#include "../games_gate.h"
+#include "../xz_mutex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,7 +22,7 @@
 #include <unistd.h>
 
 static struct xz_game_native bridge;
-static pthread_mutex_t browser_mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t browser_mutex=XZ_MUTEX_INITIALIZER;
 static struct xz_wad_catalog catalog;
 static int catalog_scanning,base_index=-1,map_index=-1;
 static void *scan_games(void *unused) {
@@ -160,7 +163,10 @@ static int game_paths(char binary[1024],char wad[1024]) {
     if(access(wad,R_OK)) snprintf(wad,1024,"/dev/shm/doom1.wad");
     return 0;
 }
-int xz_doom_ready(void) {
+static int doom_ready_now(void);
+/* Called from the drawing path: the stick is only asked by the probe worker (usb_probe.h). */
+int xz_doom_ready(void) { return XZ_GAMES_ON() && XZ_PROBE_CACHED(doom_ready_now); }   /* no stick probe unless games are installed */
+static int doom_ready_now(void) {
     char binary[1024],wad[1024];
     if(!bridge.input || game_paths(binary,wad) || access(binary,X_OK))return 0;
     pthread_mutex_lock(&browser_mutex);int selected=base_index>=0,ready=selected;
@@ -174,6 +180,7 @@ static void *reap_game(void *value) {
     return NULL;
 }
 int xz_doom_launch(void) {
+    if(!XZ_GAMES_ON())return -1;
     char binary[1024],wad[1024],map[1024]={0};int family=XZ_WAD_DOOM;
     if(!bridge.input || game_paths(binary,wad) || access(binary,X_OK)) return -1;
     pthread_mutex_lock(&browser_mutex);

@@ -2,11 +2,13 @@
 #define _GNU_SOURCE
 #include "trace.h"
 #include <pthread.h>
+#include "../xz_thread.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <sys/stat.h>
+#include "../ram/lowzone.h"
 #include <unistd.h>
 #include <sys/syscall.h>
 #include "../clock_compat.h"
@@ -19,8 +21,18 @@ struct trace_record {uint32_t time_low,time_high,tid,first,saved;struct xz_audio
 struct trace_ring {uint32_t busy,dropped,count,cursor;struct trace_record records[TRACE_RECORDS];float pcm[TRACE_FRAMES*2];};
 struct trace_capture {uint32_t version,enabled,frames,records,record_bytes,ring_bytes;};
 __attribute__((visibility("default"))) struct trace_capture xz_audio_trace_v1={.version=2,.frames=TRACE_FRAMES,.records=TRACE_RECORDS,.record_bytes=sizeof(struct trace_record),.ring_bytes=sizeof(struct trace_ring)};
-static struct trace_ring trace_rings[2][XZ_TRACE_STAGES];
-#define CAPTURE_BYTES (sizeof(xz_audio_trace_v1)+sizeof(trace_rings))
+enum { TRACE_DORMANT,TRACE_ARMED,TRACE_QUIESCING,TRACE_FROZEN,TRACE_EXPORTED,TRACE_ERROR };
+struct trace_control {uint32_t version,state,error,exports;};
+__attribute__((visibility("default"))) struct trace_control xz_audio_trace_control_v1={.version=1};
+static void state(unsigned state,int error){__atomic_store_n(&xz_audio_trace_control_v1.error,(uint32_t)error,__ATOMIC_RELAXED);__atomic_store_n(&xz_audio_trace_control_v1.state,state,__ATOMIC_RELEASE);}
+/* Two decks by four stages: 27.75 MiB. As a static array that was over half of the runtime's 45 MiB image,
+   reserved in the player's scarce address room on every unit for a diagnostic that only a test bench arms.
+   The rings are now taken from the low zone by the worker when the diagnostic is armed (the `arm` command),
+   and kept from then on. A unit whose loader only names XZ_AUDIO_TRACE_DIR, and never arms, pays nothing.
+   Nothing can record before that: recording needs `enabled`, which the worker sets after the rings exist. */
+static struct trace_ring (*trace_rings)[XZ_TRACE_STAGES];
+#define TRACE_RINGS_BYTES (2u*XZ_TRACE_STAGES*sizeof(struct trace_ring))
+#define CAPTURE_BYTES (sizeof(xz_audio_trace_v1)+TRACE_RINGS_BYTES)
 static pthread_t worker;
 static int running,created;
 static uint32_t auto_trigger_ms;
@@ -37,7 +49,7 @@ uint64_t xz_audio_trace_time(void){
 int xz_audio_trace_enabled(void){return __atomic_load_n(&xz_audio_trace_v1.enabled,__ATOMIC_ACQUIRE)!=0;}
 int xz_audio_trace_source_sample(void){return (++source_calls%67u)==0;}
 void xz_audio_trace_record(unsigned deck,unsigned stage,const float *pcm,const struct xz_audio_trace_context *context){
-    if(!xz_audio_trace_enabled()||deck>=2||stage>=XZ_TRACE_STAGES||!context)return;
+    if(!xz_audio_trace_enabled()||!trace_rings||deck>=2||stage>=XZ_TRACE_STAGES||!context)return;
     struct trace_ring *ring=&trace_rings[deck][stage];uint32_t idle=0;
     if(!__atomic_compare_exchange_n(&ring->busy,&idle,1,0,__ATOMIC_ACQUIRE,__ATOMIC_RELAXED)){__atomic_add_fetch(&ring->dropped,1,__ATOMIC_RELAXED);return;}
     if(!xz_audio_trace_enabled()){__atomic_store_n(&ring->busy,0,__ATOMIC_RELEASE);return;}
@@ -50,12 +62,13 @@ void xz_audio_trace_record(unsigned deck,unsigned stage,const float *pcm,const s
         if(count>tail)memcpy(ring->pcm,pcm+tail*2,(count-tail)*2*sizeof(float));
     }
     ring->records[ring->count%TRACE_RECORDS]=(struct trace_record){(uint32_t)at,(uint32_t)(at>>32),thread_id,ring->cursor,count,*context};
-    ring->cursor+=count;ring->count++;__atomic_store_n(&ring->busy,0,__ATOMIC_RELEASE);
+    ring->cursor+=count;ring->count++;
     uint32_t heavy_clip=context->frames<128u?context->frames:128u;
     if(stage==XZ_TRACE_STEMS&&(((context->mix[3]&4u)&&!context->mix[15])||context->mix[13]||(heavy_clip&&context->mix[12]>=heavy_clip))){
         uint32_t idle_trigger=0,now=(uint32_t)(at/1000u);if(!now)now=1;
         __atomic_compare_exchange_n(&auto_trigger_ms,&idle_trigger,now,0,__ATOMIC_RELEASE,__ATOMIC_RELAXED);
     }
+    __atomic_store_n(&ring->busy,0,__ATOMIC_RELEASE);
 }
 static int write_all(int fd,const void *buffer,size_t bytes){
     const unsigned char *data=buffer;size_t done=0;
@@ -69,14 +82,20 @@ static void report(const char *state,int error,const char *capture){
     int fd=open(temporary,O_WRONLY|O_CREAT|O_TRUNC,0600);
     if(fd>=0){int ok=write_all(fd,message,(size_t)n);int saved=errno;if(close(fd)&&!ok){ok=-1;saved=errno;}if(!ok)rename(temporary,path);errno=saved;}
 }
-static int freeze_capture(unsigned *serial){
+static int quiesce_capture(void){
+    if(!trace_rings){state(TRACE_FROZEN,0);return 0;}   /* never armed: nothing is recording */
+    state(TRACE_QUIESCING,0);
     __atomic_store_n(&xz_audio_trace_v1.enabled,0,__ATOMIC_RELEASE);
     int busy=1;
     for(unsigned attempt=0;attempt<500&&busy;attempt++){
         busy=0;for(unsigned d=0;d<2;d++)for(unsigned s=0;s<XZ_TRACE_STAGES;s++)busy|=__atomic_load_n(&trace_rings[d][s].busy,__ATOMIC_ACQUIRE)!=0;
         if(busy)usleep(1000);
     }
-    if(busy){report("ERROR_BUSY",EBUSY,NULL);return -1;}
+    if(busy){state(TRACE_ERROR,EBUSY);return -1;}
+    state(TRACE_FROZEN,0);return 0;
+}
+static int export_capture(unsigned *serial){
+    if(!trace_rings){report("ERROR_NOT_ARMED",EINVAL,NULL);errno=EINVAL;return -1;}
     char path[320],temporary[328];int fd=-1;
     for(unsigned attempt=0;attempt<100;attempt++){
         snprintf(path,sizeof(path),"%s/capture-%ld-%llu-%u.bin",directory,(long)getpid(),(unsigned long long)xz_audio_trace_time(),(*serial)++);
@@ -86,30 +105,54 @@ static int freeze_capture(unsigned *serial){
     }
     if(fd<0){report("ERROR_OPEN",errno,NULL);return -1;}
     int ok=write_all(fd,&xz_audio_trace_v1,sizeof(xz_audio_trace_v1));
-    if(!ok)ok=write_all(fd,trace_rings,sizeof(trace_rings));
+    if(!ok)ok=write_all(fd,trace_rings,TRACE_RINGS_BYTES);
     int saved=errno;
     if(close(fd)&&!ok){ok=-1;saved=errno;}
     if(ok){report("ERROR_WRITE",saved,temporary);return -1;}
     if(link(temporary,path)){report("ERROR_COMMIT",errno,temporary);return -1;}
-    unlink(temporary);report("FROZEN",0,path);return 0;
+    unlink(temporary);report("EXPORTED",0,path);
+    __atomic_add_fetch(&xz_audio_trace_control_v1.exports,1,__ATOMIC_RELAXED);state(TRACE_EXPORTED,0);return 0;
 }
 static int request_file(const char *path){struct stat status;return !lstat(path,&status)&&S_ISREG(status.st_mode);}
+/* File commands belong to this worker, never the audio callback. Freeze only
+   quiesces RAM: exporting a full capture is a separate explicit stopped-playback step. */
 static void *drain(void *unused){
-    (void)unused;char request[320],arm[320],retry[320];unsigned serial=0;int failed=0;
-    snprintf(request,sizeof(request),"%s/freeze",directory);snprintf(arm,sizeof(arm),"%s/arm",directory);snprintf(retry,sizeof(retry),"%s/retry",directory);
+    (void)unused;char request[320],arm[320],retry[320],dump[320];unsigned serial=0;int frozen=0,exported=0;
+    snprintf(request,sizeof(request),"%s/freeze",directory);snprintf(arm,sizeof(arm),"%s/arm",directory);
+    snprintf(retry,sizeof(retry),"%s/retry",directory);snprintf(dump,sizeof(dump),"%s/dump",directory);
     while(__atomic_load_n(&running,__ATOMIC_ACQUIRE)){
-        int retrying=request_file(retry);if(retrying)unlink(retry);
+        int manual=request_file(request),retrying=request_file(retry);
+        if(manual)unlink(request);if(retrying)unlink(retry);
         uint32_t trigger=__atomic_load_n(&auto_trigger_ms,__ATOMIC_ACQUIRE);
         int automatic=trigger&&(uint32_t)(xz_audio_trace_time()/1000u-trigger)>=250u;
-        if((request_file(request)||automatic)&&(!failed||retrying)){
-            failed=freeze_capture(&serial)!=0;
-            if(!failed){unlink(request);__atomic_store_n(&auto_trigger_ms,0,__ATOMIC_RELEASE);}
+        if(manual||automatic||(retrying&&frozen)){
+            frozen=1;exported=0;
+            quiesce_capture();
+            __atomic_store_n(&auto_trigger_ms,0,__ATOMIC_RELEASE);
         }
-        /* A failed freeze stays frozen. Explicit retry preserves the same evidence. */
-        if(!request_file(request)&&request_file(arm)){
-            unlink(arm);failed=0;__atomic_store_n(&auto_trigger_ms,0,__ATOMIC_RELEASE);__atomic_store_n(&xz_audio_trace_v1.enabled,1,__ATOMIC_RELEASE);report("ARMED",0,NULL);
+        if(request_file(dump)){
+            unlink(dump);
+            if(frozen&&!quiesce_capture()){
+                if(!export_capture(&serial))exported=1;
+                else state(TRACE_ERROR,errno);
+            }else if(!frozen){state(xz_audio_trace_enabled()?TRACE_ARMED:TRACE_DORMANT,EINVAL);report("ERROR_NOT_FROZEN",EINVAL,NULL);}
         }
-        usleep(10000);
+        if(request_file(arm)){
+            unlink(arm);
+            /* An unexported frozen capture is evidence; arm cannot overwrite it. */
+            if((!frozen||exported)&&!trace_rings){
+                /* First arm: take the rings and fault their pages in here, on this worker, before any audio
+                   callback can record into them. */
+                void *rings=xz_lowzone_alloc(TRACE_RINGS_BYTES);
+                if(rings){memset(rings,0,TRACE_RINGS_BYTES);__atomic_store_n(&trace_rings,rings,__ATOMIC_RELEASE);}
+                else{state(TRACE_ERROR,ENOMEM);report("ERROR_NO_MEMORY",ENOMEM,NULL);}
+            }
+            if((!frozen||exported)&&trace_rings){
+                frozen=exported=0;__atomic_store_n(&auto_trigger_ms,0,__ATOMIC_RELEASE);
+                __atomic_store_n(&xz_audio_trace_v1.enabled,1,__ATOMIC_RELEASE);state(TRACE_ARMED,0);report("ARMED",0,NULL);
+            }
+        }
+        usleep(100000);
     }
     return NULL;
 }
@@ -120,10 +163,12 @@ int xz_audio_trace_start(void){
     for(const char *p=path+prefix;*p;p++)if(!(*p>='a'&&*p<='z')&&!(*p>='0'&&*p<='9')&&*p!='-')return -1;
     struct stat status;if(lstat(path,&status)||!S_ISDIR(status.st_mode))return -1;
     if(created)return 0;snprintf(directory,sizeof(directory),"%s",path);
-    /* Fault in the PCM pages before audio callbacks begin. */
-    for(unsigned d=0;d<2;d++)for(unsigned s=0;s<XZ_TRACE_STAGES;s++)memset(&trace_rings[d][s],0,sizeof(struct trace_ring));
-    __atomic_store_n(&running,1,__ATOMIC_RELEASE);__atomic_store_n(&xz_audio_trace_v1.enabled,1,__ATOMIC_RELEASE);
-    if(pthread_create(&worker,NULL,drain,NULL)){__atomic_store_n(&running,0,__ATOMIC_RELEASE);__atomic_store_n(&xz_audio_trace_v1.enabled,0,__ATOMIC_RELEASE);return -1;}
-    created=1;report("ARMED",0,NULL);return 0;
+    /* Clear stale commands: setting DIR or retaining an old marker never arms a new run. */
+    const char *commands[]={"arm","freeze","dump","retry"};
+    for(unsigned i=0;i<sizeof(commands)/sizeof(commands[0]);i++){char command[320];snprintf(command,sizeof(command),"%s/%s",directory,commands[i]);unlink(command);}
+    __atomic_store_n(&auto_trigger_ms,0,__ATOMIC_RELEASE);
+    __atomic_store_n(&running,1,__ATOMIC_RELEASE);__atomic_store_n(&xz_audio_trace_v1.enabled,0,__ATOMIC_RELEASE);state(TRACE_DORMANT,0);
+    if(XZ_WORKER_CREATE(&worker,drain,NULL)){__atomic_store_n(&running,0,__ATOMIC_RELEASE);__atomic_store_n(&xz_audio_trace_v1.enabled,0,__ATOMIC_RELEASE);return -1;}
+    created=1;report("DORMANT",0,NULL);return 0;
 }
 void xz_audio_trace_stop(void){if(!created)return;__atomic_store_n(&xz_audio_trace_v1.enabled,0,__ATOMIC_RELEASE);__atomic_store_n(&running,0,__ATOMIC_RELEASE);pthread_join(worker,NULL);created=0;}

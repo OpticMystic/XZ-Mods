@@ -13,6 +13,7 @@ int xz_read_memory(uint32_t address,void *out,size_t n){
  memcpy(out,&value,4);return 0;
 }
 static void reset_input(void){
+ fake_shell_running=fake_owns=0;
  memset(&model,0,sizeof(model));memset(&pads,0,sizeof(pads));
  started=audio_available=requested_stems=native_active=native_play=1;
  model.enabled=XZ_UI_STEM;model.stems_overlay=XZ_STEM_LAYOUT_BELOW;
@@ -182,10 +183,31 @@ static void menu_back_navigation(void){
  unsigned char play[12]={0};uint16_t play_key=0x4101;memcpy(play+8,&play_key,2);menu_back_key_hook(NULL,play);assert(back_stock_calls==6);
  puts("PASS onscreen Back on every page/theme; previous page/root close; physical press/long/release capture; stock-held and other-key passthrough");
 }
+static void hidden_inline(void){
+ static uint16_t pixels[536*XZ_WAVE_INLINE_HEIGHT];
+ reset_input();inline_layout_publish();
+ assert(inline_enabled()!=XZ_STEM_LAYOUT_HIDDEN);
+ assert(render_inline(NULL,pixels,sizeof pixels/sizeof *pixels,536,536,XZ_WAVE_INLINE_HEIGHT));
+ fake_shell_running=fake_owns=1;inline_layout_publish();
+ assert(inline_enabled()==XZ_STEM_LAYOUT_HIDDEN);
+ uint32_t before=xz_prepared_proof_v1.sequence;
+ for(size_t i=0;i<sizeof pixels/sizeof *pixels;i++)pixels[i]=0x1234;
+ assert(!render_inline(NULL,pixels,sizeof pixels/sizeof *pixels,536,536,XZ_WAVE_INLINE_HEIGHT));
+ pthread_mutex_lock(&ui_mutex);
+ assert(!render_inline(NULL,pixels,sizeof pixels/sizeof *pixels,536,536,XZ_WAVE_INLINE_HEIGHT));
+ pthread_mutex_unlock(&ui_mutex);
+ assert(xz_prepared_proof_v1.sequence==before);
+ for(size_t i=0;i<sizeof pixels/sizeof *pixels;i++)assert(pixels[i]==0x1234);
+ fake_shell_running=fake_owns=0;inline_layout_publish();
+ assert(inline_enabled()!=XZ_STEM_LAYOUT_HIDDEN);
+ assert(render_inline(NULL,pixels,sizeof pixels/sizeof *pixels,536,536,XZ_WAVE_INLINE_HEIGHT));
+ puts("PASS hidden native inline controls perform no refresh or drawing while MODERN owns the display, and resume on handback");
+}
 int main(int argc,char **argv){
  assert(argc==2||(argc==3&&!strcmp(argv[1],"keys")));
  if(!strcmp(argv[1],"keys"))key_strip_busy(argv[2]);
  else if(!strcmp(argv[1],"scene"))scene_release();
+ else if(!strcmp(argv[1],"hidden"))hidden_inline();
  else if(!strcmp(argv[1],"shortcut"))shortcut_drag();
  else if(!strcmp(argv[1],"buttons"))busy_buttons();
  else if(!strcmp(argv[1],"redraw"))paint_only_redraw();

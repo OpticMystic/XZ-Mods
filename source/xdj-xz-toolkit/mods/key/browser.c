@@ -4,13 +4,15 @@
 #include "catalog.h"
 #include <dirent.h>
 #include <pthread.h>
+#include "../xz_thread.h"
+#include "../xz_mutex.h"
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <sys/time.h>
 
-static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mutex=XZ_MUTEX_INITIALIZER;
 static pthread_cond_t changed=PTHREAD_COND_INITIALIZER;
 static pthread_t thread;
 static int running,created,master_valid,display_format;
@@ -60,7 +62,7 @@ static void *worker(void *unused){
 }
 int xz_key_browser_start(void){
     if(created)return 0;pthread_mutex_lock(&mutex);running=1;pthread_mutex_unlock(&mutex);
-    if(pthread_create(&thread,NULL,worker,NULL)){running=0;return -1;}created=1;return 0;
+    if(XZ_WORKER_CREATE(&thread,worker,NULL)){running=0;return -1;}created=1;return 0;
 }
 void xz_key_browser_stop(void){
     if(!created)return;pthread_mutex_lock(&mutex);running=0;pthread_cond_signal(&changed);pthread_mutex_unlock(&mutex);
@@ -169,7 +171,7 @@ const char *xz_key_browser_status(void){
 }
 
 enum { KEY_LINE_BASE = 0x224e19c, KEY_LINE_STRIDE = 0x224 };
-static pthread_mutex_t key_line_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t key_line_mutex = XZ_MUTEX_INITIALIZER;
 static char key_line_text[2][32];
 __attribute__((visibility("default"))) struct xz_key_line_proof xz_mods_key_line_proof_v1 = {.version = 1};
 

@@ -182,3 +182,17 @@ class IndexV2Tests(unittest.TestCase):
                 v2.publish(self.mods, v2.prepare(synthetic(2)))
         self.assertEqual((self.directory / "current").read_bytes(), old)
         self.assertTrue((self.mods / "index-v2-pending").exists())
+
+
+class SampleRateRecordTests(unittest.TestCase):
+    def test_44k1_entry_keeps_only_the_published_binding_fields(self):
+        """FORMAT.md: records hold bundle, frames, three_part, page_bytes and every *_sha256, in index order."""
+        entry = {"bundle": "0123456789abcdef", "file_path": "/Contents/a.wav", "frames": 44100, "three_part": 1,
+                 "page_bytes": 131072, "page_codec": "flac-44k1", "sample_rate": 44100,
+                 "preparation_profile": "cdj2000-44k1/1", "source_timing_policy": "decoded-timeline/1",
+                 "vocal_sha256": "a" * 64, "vocal_page_table_sha256": "b" * 64, "source_sha256": "c" * 64,
+                 "separation": "model"}
+        self.assertEqual(v2.record(1, "7", entry),
+                         b'{"schema":"overcue-index/1","keyed_by":"export.pdb","tracks":{"7":{"bundle":"0123456789abcdef",'
+                         b'"frames":44100,"three_part":1,"page_bytes":131072,"vocal_sha256":"' + b"a" * 64 +
+                         b'","vocal_page_table_sha256":"' + b"b" * 64 + b'","source_sha256":"' + b"c" * 64 + b'"}}}')

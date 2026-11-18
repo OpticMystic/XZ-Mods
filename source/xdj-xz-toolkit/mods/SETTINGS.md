@@ -357,10 +357,52 @@ COLOR, TIME, ALBUM, GENRE, DATE ADDED. TITLE is always included when a custom
 mask is applied. This is an advanced numeric field in the desktop schema.
 The on-deck browse column picker remains the normal way to choose columns.
 
-Records may stop at 47, 50, 56 or 57 fields. A partial colour or display block
+Records may stop at 47, 50, 56, 57, 58, 59, 60, 61 or 62 fields. A partial colour or display block
 is invalid. An absent block receives its defaults on parse, and leaves the
 current values unchanged on profile overlay. The maximum valid complete
-record is 829 bytes, below the internal store's 1023-byte payload limit.
+record is 895 bytes, below the internal store's 1023-byte payload limit.
+
+`controller_locale` (field 58) and `network_dhcp` (field 59, default 1: MODS
+DHCP on at startup) were appended alone in the same way.
+
+`pro_dj_link_decks` is field 60, appended alone, 0 by default. 1 announces DECK 3
+and DECK 4 on Pro DJ Link as players 3 and 4 of the unit, through the separate
+`xz-djlink` helper (`djlink_runtime.h`). It takes effect at once, without a
+restart: turning it off withdraws both decks and stops the helper. A record
+without the field loads as off and leaves the applied choice unchanged on
+profile overlay. The menu row is PRO DJ LINK DECKS 3/4 on the NETWORK page.
+
+`ableton_link` is field 61, appended alone, 0 by default. 0 is DISABLED. 1 is
+ENABLED: the unit joins the Ableton Link session on its Ethernet port through
+the separate `xz-link-peer` helper (`link_runtime.h`), and the session follows
+the unit's tempo master, tempo and bar phase at quantum 4. The decks are only
+read; Ableton Link never moves them in this version, and Link start/stop is
+left alone. It takes effect at once, without a restart: turning it off leaves
+the session and stops the helper. A record without the field loads as off and
+leaves the applied choice unchanged on profile overlay. The value 2 is kept for
+a later mode in which the decks follow the session; this runtime refuses it.
+The menu row is ABLETON LINK: ENABLED / DISABLED on the NETWORK page, under PRO
+DJ LINK DECKS 3/4. MODERN's PLAY screen sets the same field with its LINK
+control in the top bar, left of the BEAT FX strip (`shell.h`
+`xz_shell_ableton_rect`): one touch
+runs that row's own action, saving included, and the control shows the number
+of other apps in the session from the Link runtime's published glance
+(`xz_link_runtime_glance`, one atomic word).
+
+`recording_tracklist` is field 62, appended alone, 0 by default
+(`XZ_RECORDING_TRACKLIST_DEFAULT` in `settings.h`). 1 writes `RECnnn.TXT` (and
+`RECnnn.CUE` when the file ends normally) beside each MASTER REC file on the USB 2
+stick: the tracks that were on air, with their times in the recording. The list
+is kept in memory and written once the recording file has closed; nothing is
+written to the stick while it records (`tracklist_runtime.h`). USB STOP on the
+stick that records ends the list there and writes it, with its CUE sheet and a
+line saying the stick was stopped, before the stick is unmounted; a stick pulled
+without USB STOP loses the list of the recording on it. It takes effect
+at once: turning it off ends a list in progress with a note, turning it on
+leaves a recording already running without a list. A record without the field
+loads as off and leaves the applied choice unchanged on profile overlay. The
+environment variable `XZ_MODS_TRACKLIST` (`1`, `live` or `0`) overrides the
+setting for tests. The menu row is RECORDING TRACKLIST on the PLAY page.
 An older runtime refuses the newer record as a whole and keeps its current
 settings, as with the earlier append-only additions. It does not truncate or
 partially apply the file.

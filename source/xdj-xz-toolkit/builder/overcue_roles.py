@@ -1,5 +1,9 @@
 # SPDX-License-Identifier: MIT
-"""Render the seven OverCue stem roles at 96 kHz from a mix and two separated parts.
+"""Render the seven OverCue stem roles from a 44.1 kHz mix and its separated parts.
+
+The default 44.1 kHz profile stores the separated samples at their own positions: no resampler runs, so a
+role differs from the separation output only by the common headroom gain (none when nothing would clip).
+``--rate 96000`` renders the CDJ-3000 profile instead, resampled by 320/147.
 
 Run in the managed engine environment with ``python -I overcue_roles.py``.
 Parts use inference.encode_part's convention: stored PCM = true * gain * 32767.
@@ -19,8 +23,14 @@ import wave
 import numpy as np
 from scipy.signal import resample_poly
 
-SOURCE_RATE, RATE, UP, DOWN = 44100, 96000, 320, 147
+SOURCE_RATE = 44100
+# Output rate -> (up, down) from the 44.1 kHz parts; None keeps every sample where it is.
+CONVERSIONS = {44100: None, 96000: (320, 147)}
+DEFAULT_RATE = 44100
+RATE = 96000  # spill() renders this rate.
+UP, DOWN = CONVERSIONS[RATE]
 MAX_FRAMES = 4096 * 131072 // 4  # OverCue readers cap a role at 4096 pages of 128 KiB.
+# One source limit (about 23 minutes) for both profiles: the decoder and separation stages share it.
 MAX_SOURCE_FRAMES = MAX_FRAMES * DOWN // UP
 CHUNK = 1 << 20
 # Spec table order; it also feeds the bundle name. full-mix is the original mix, not a sum.
@@ -89,7 +99,10 @@ def headroom_gain(peak):
     return float(gain)
 
 
-def render(mix_path, vocals_path, vocals_gain, harmonics_path, harmonics_gain, output_dir, drums_path=None, drums_gain=1.0):
+def render(mix_path, vocals_path, vocals_gain, harmonics_path, harmonics_gain, output_dir, drums_path=None, drums_gain=1.0,
+           rate=DEFAULT_RATE):
+    if type(rate) is not int or rate not in CONVERSIONS:
+        raise ValueError("Stem sample rate must be 44100 or 96000 Hz")
     for gain in (vocals_gain, harmonics_gain, drums_gain):
         if not (math.isfinite(gain) and gain > 0):
             raise ValueError("Stem gains must be finite and positive")
@@ -99,7 +112,7 @@ def render(mix_path, vocals_path, vocals_gain, harmonics_path, harmonics_gain, o
     output.mkdir(exist_ok=False)
     parts = []
     try:
-        result = _render(sources, output, parts)
+        result = _render(sources, output, parts, rate)
     except BaseException:
         for part in parts:part._mmap.close()
         parts.clear()
@@ -109,10 +122,17 @@ def render(mix_path, vocals_path, vocals_gain, harmonics_path, harmonics_gain, o
     return result
 
 
-def _render(sources, output, parts):
+def _render(sources, output, parts, rate):
     spilled = [output / f".part-{number}.f32" for number in range(len(sources))]
     source_frames = None
     for (path, gain), target in zip(sources, spilled):
+        if CONVERSIONS[rate] is None:
+            # Read straight into the part map; it is used as is, sample for sample.
+            parts.append(read_wav(path, gain, target))
+            if source_frames not in (None, len(parts[-1])):
+                raise ValueError("The mix and both stems must have exactly the same frame count")
+            source_frames = len(parts[-1])
+            continue
         source_map = output / '.source.f32'
         audio = read_wav(path, gain, source_map)
         try:
@@ -143,7 +163,7 @@ def _render(sources, output, parts):
     parts.clear()
     for path in spilled:
         path.unlink()
-    return {"frames": frames, "sample_rate": RATE, "channels": 2, "format": "s16le",
+    return {"frames": frames, "sample_rate": rate, "channels": 2, "format": "s16le",
             "headroom_gain": gain, "source_frames": source_frames,
             "roles": {name: {"file": f"{name}.s16le", "sha256": digests[name].hexdigest()} for name in ROLES}}
 
@@ -156,8 +176,9 @@ def main(argv=None):
     parser.add_argument("--harmonics", required=True, type=Path)
     parser.add_argument("--harmonics-gain", required=True, type=float)
     parser.add_argument("--output-dir", required=True, type=Path)
+    parser.add_argument("--rate", type=int, choices=sorted(CONVERSIONS), default=DEFAULT_RATE)
     args = parser.parse_args(argv)
-    render(args.mix, args.vocals, args.vocals_gain, args.harmonics, args.harmonics_gain, args.output_dir)
+    render(args.mix, args.vocals, args.vocals_gain, args.harmonics, args.harmonics_gain, args.output_dir, rate=args.rate)
     print(json.dumps({"status": "complete", "result": str(args.output_dir / "result.json")}))
     return 0
 

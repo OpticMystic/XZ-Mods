@@ -12,7 +12,10 @@
 #include "../support/native_support.h"
 #include "sdk_ui.h"
 #include "metrics.h"
+#include "rec_reading.h"
 #include "../network/ui_types.h"
+#include "../djlink_status.h"
+#include "../link_status.h"
 
 #define XZ_UI_WIDTH 800
 #define XZ_UI_HEIGHT 480
@@ -39,7 +42,8 @@ enum xz_ui_cap {
     XZ_UI_GATE=1u, XZ_UI_SMART=2u, XZ_UI_PREVIEW=4u, XZ_UI_STEM=8u,
     XZ_UI_GROOVE=16u, XZ_UI_SAMPLE=32u, XZ_UI_THEME=64u, XZ_UI_SERVER=128u,
     XZ_UI_KEY=256u, XZ_UI_HYBRID=512u, XZ_UI_HOTCUE=1024u,
-    XZ_UI_VJ_CONNECTION=2048u, XZ_UI_VJ_DISCOVERY=4096u, XZ_UI_KEYSYNC=8192u
+    XZ_UI_VJ_CONNECTION=2048u, XZ_UI_VJ_DISCOVERY=4096u, XZ_UI_KEYSYNC=8192u,
+    XZ_UI_TRACKLIST=16384u /* PLAY > RECORDING TRACKLIST, an ENABLE row (settings recording_tracklist) */
 };
 enum xz_ui_action_kind {
     XZ_UI_NONE, XZ_UI_PANEL, XZ_UI_DECK, XZ_UI_CLOSE, XZ_UI_UNAVAILABLE,
@@ -132,6 +136,10 @@ enum xz_ui_action_kind {
     XZ_UI_SHELL_BROWSE_COLUMNS, /* appended: MODERN column mask in value; zero means automatic */
     XZ_UI_RAM_SETUP_OPEN, XZ_UI_RAM_SETUP_STEP, XZ_UI_RAM_CHOOSE, XZ_UI_RAM_CONNECT, XZ_UI_RAM_MANAGE,
     XZ_UI_LANGUAGE,
+    /* NETWORK page: PRO DJ LINK DECKS 3/4 (settings pro_dj_link_decks). value 1 on, 0 off. Saved. */
+    XZ_UI_PRO_DJ_LINK,
+    /* NETWORK page: ABLETON LINK (settings ableton_link). value 1 enabled, 0 disabled. Saved. */
+    XZ_UI_ABLETON_LINK,
 };
 /* The REKORDBOX key's choices, numbered as settings.h enum xz_rekordbox_action (stored values). */
 enum xz_ui_rekordbox { XZ_UI_RB_MODS, XZ_UI_RB_STOCK, XZ_UI_RB_INTERFACE, XZ_UI_RB_VJ_SCREEN, XZ_UI_RB_STEMS,
@@ -261,6 +269,8 @@ struct xz_ui_dj_entry {
 struct xz_ui_dj {
     int count;
     int current;          /* entry shown in the header: the master deck's stick, else -1 */
+    const uint16_t *usb_logo[2]; /* active profile, 160 x 160 RGB565, UI-lock lifetime */
+    uint64_t usb_logo_revision[2];
     unsigned usb_present; /* bit per mounted USB slot */
     int reading;          /* a USB is being read */
     int pending;          /* entry being switched to, or -1 */
@@ -317,9 +327,16 @@ struct xz_ui_model {
     uint64_t ram_original_bytes, ram_asset_bytes;
     int metrics_enabled;
     struct xz_metrics_sample metrics;
+    /* The unit's recorder (rec_reading.h), stamped in the clock_ms domain. The panel's header and CLASSIC's top
+       band show the REC mark (rec_mark.h) while it records; zero shows nothing. */
+    struct xz_rec_reading recorder;
     const struct xz_ui_dj *dj; /* NULL: this runtime has no DJ Profile support, so no header chip */
     int four_wave_mixer; /* deck_view == MIXER, for the retired FOUR_WAVE_ORDER readers */
     struct xz_net_view network;
+    int pro_dj_link_decks; /* settings pro_dj_link_decks */
+    struct xz_djlink_status djlink; /* refreshed with the network view; enabled 0 without the runtime */
+    int ableton_link; /* settings ableton_link: 0 disabled, 1 enabled (the session follows this unit) */
+    struct xz_link_status ablink; /* refreshed with the network view; enabled 0 without the runtime */
     /* DECK VIEW (settings.h enum xz_deck_view). */
     int deck_view;
     int browse_preview; /* MODERN browse preview column: 0 hidden (default), 1 shown. Saved. */

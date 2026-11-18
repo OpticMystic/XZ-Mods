@@ -47,17 +47,17 @@ def build_usb(work, mp3):
     return usb, track, target
 
 
-def decode_role(path):
+def decode_role(path, sample_rate):
     data = path.read_bytes()
     magic, page_bytes, count, total = data[:8], *struct.unpack('>IIQ', data[8:24])
-    assert magic == b'OVPGZ003', magic
+    assert magic == {96000: b'OVPGZ003', 44100: b'OVPGZ004'}[sample_rate], magic
     pcm = bytearray()
     for n in range(count):
         offset, comp, exp = struct.unpack('>QII', data[24 + 48 * n:24 + 48 * n + 16])
         page_hash = data[24 + 48 * n + 16:24 + 48 * n + 48]
         decoded, rate = sf.read(io.BytesIO(data[offset:offset + comp]), dtype='int16', always_2d=True)
         raw = decoded.astype('<i2').tobytes()
-        assert rate == 96000 and len(raw) == exp and hashlib.sha256(raw).digest() == page_hash, f'page {n} of {path.name}'
+        assert rate == sample_rate and len(raw) == exp and hashlib.sha256(raw).digest() == page_hash, f'page {n} of {path.name}'
         pcm += raw
     assert len(pcm) == total
     return np.frombuffer(bytes(pcm), dtype='<i2').reshape(-1, 2), hashlib.sha256(bytes(pcm)).hexdigest()
@@ -66,7 +66,7 @@ def decode_role(path):
 def correlate(native, prepared, search=8192):
     n = min(len(native), len(prepared))
     mid = n // 2
-    span = min(96000 * 10, n // 2 - search - 1)
+    span = min(441000, n // 2 - search - 1)
     a = native[mid - span:mid + span, 0].astype(np.float64)
     best = (-2.0, 0)
     for lag in range(-search, search + 1, 64):
@@ -125,15 +125,16 @@ def main():
     print('native checker:', {k: verified.get(k) for k in ('format', 'verified_mixes', 'all_pages_verified', 'source_identity_verified')})
     roles = {}
     for role in overcue_writer.ROLES:
-        pcm, digest = decode_role(bundle / f'stems-sidecar-{role}.s16le.pgz')
+        pcm, digest = decode_role(bundle / f'stems-sidecar-{role}.s16le.pgz', result['sample_rate'])
         assert digest == entry[role.replace('-', '_') + '_sha256'], role
         roles[role] = pcm
     native44, rate = sf.read(source, dtype='float32', always_2d=True)
-    native96 = resample_poly(native44, 320, 147, axis=0)
-    native96 = (np.clip(native96, -1, 1) * 32767).astype(np.int16)
-    r, lag = correlate(native96, roles['full-mix'])
+    up, down = (320, 147) if result['sample_rate'] == 96000 else (1, 1)
+    native = resample_poly(native44, up, down, axis=0) if up != down else native44
+    native = (np.clip(native, -1, 1) * 32767).astype(np.int16)
+    r, lag = correlate(native, roles['full-mix'])
     timing = cache.inspect_audio(source).get('mp3') or {}
-    expected_lag = round(timing.get('delay_frames', 0) * 320 / 147) if timing.get('lame_tag') else 0
+    expected_lag = round(timing.get('delay_frames', 0) * up / down) if timing.get('lame_tag') else 0
     print(f'full-mix alignment vs independent decode: r={r:.5f} at lag {lag} frames (device needs r>0.995 within +-8192)')
     print(f'libsndfile decodes gapless; the bundle keeps every frame like a player, so the expected lag is {expected_lag} (LAME tag: {timing.get("lame_tag")})')
     v, d, h, full = (roles[k].astype(np.int32) for k in ('vocal', 'drums', 'harmonics', 'full-mix'))
@@ -147,7 +148,7 @@ def main():
               'expected_lag': expected_lag, 'mp3_timing': timing}
     if args.report:
         args.report.write_text(json.dumps(report, indent=2))
-    ok = r > 0.995 and abs(lag - expected_lag) <= 3 and verified.get('verified_mixes') == 7 and verified.get('all_pages_verified') is True and 0.8 <= ratio <= 1.2
+    ok = r > 0.995 and abs(lag - expected_lag) <= 3 and verified.get('verified_mixes') in (4, 7) and verified.get('all_pages_verified') is True and 0.8 <= ratio <= 1.2
     print('RESULT:', 'VERIFIED' if ok else 'NOT VERIFIED')
     return 0 if ok else 1
 

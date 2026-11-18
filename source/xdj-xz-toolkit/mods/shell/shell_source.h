@@ -14,9 +14,12 @@
 /* STOCK: the slot is browsed in the stock screen (LINK: linked players' media and DJ software control;
    COMPUTER: export mode playback, a laptop's or phone's library over the network). Selecting it emits
    SET_SOURCE {id = the slot, value 0} and nothing else: the runtime hands the screen to stock and runs the
-   stock key for that slot, so stock opens it at once. */
+   stock key for that slot, so stock opens it at once.
+   UNREADABLE: a stick whose rekordbox library could not be read (not selectable).
+   LOOPBACK: this top USB port holds the DECK 3/4 loopback cable (not selectable). The runtime sets it only when it
+   knows: the route is READY and the other top port holds the music (the helper refuses music on the cable's port). */
 enum xz_shell_device_status { XZ_SHELL_DEVICE_NOT_CONNECTED, XZ_SHELL_DEVICE_LOADING, XZ_SHELL_DEVICE_READY,
- XZ_SHELL_DEVICE_STOCK };
+ XZ_SHELL_DEVICE_STOCK, XZ_SHELL_DEVICE_UNREADABLE, XZ_SHELL_DEVICE_LOOPBACK };
 enum xz_shell_device_field {
  XZ_SHELL_D_STATUS, XZ_SHELL_D_NAME, XZ_SHELL_D_COLOR, XZ_SHELL_D_FREE, XZ_SHELL_D_TOTAL, XZ_SHELL_D_TRACKS,
  XZ_SHELL_DEVICE_FIELD_COUNT
@@ -28,6 +31,8 @@ struct xz_shell_device {
  uint32_t color;                     /* 0xRRGGBB background colour the owner chose for this device */
  uint64_t free_bytes, total_bytes;
  int32_t tracks;
+ const uint16_t *logo; /* 160 x 160 RGB565 active DJ logo, model-owned */
+ const char *profile_name;
 };
 /* One medium in another LINK player (XZ manual pp.67, 114). */
 enum xz_shell_link_slot { XZ_SHELL_LINK_USB, XZ_SHELL_LINK_SD, XZ_SHELL_LINK_COMPUTER };
@@ -57,8 +62,27 @@ struct xz_shell_source_model {
                SET_SOURCE {id LINK, value = 1 + media index}. Rows then load onto
                either deck with the row LOAD chips as for a local stick. */
 
-/* Tile n's rect (n = enum xz_shell_source - 1); the close button for n = -1. */
+/* The rear USB bar under the tiles: what holds the rear USB port (the port a computer uses for DJ software
+   and rekordbox over a USB cable), read from the model's route state (shell.h route_state, route_fail_part,
+   route_reason; enum xz_extra_route_state). Drawn only; it takes no input. */
+#define XZ_SHELL_SOURCE_BAR (-2)
+/* Tile n's rect (n = enum xz_shell_source - 1); the close button for n = -1; the rear USB bar for
+   XZ_SHELL_SOURCE_BAR. */
 struct xz_shell_rect xz_shell_source_rect(int tile);
+/* The rear USB port as the SOURCE screen tells it, from the route state alone. */
+enum xz_shell_rear_port {
+ XZ_SHELL_REAR_UNUSED,   /* decks 3/4 are not installed or not running (NO_ENGINE): the bar names the port only */
+ XZ_SHELL_REAR_FREE,     /* no loopback cable found (not detected, scanning, lost): a computer can use the port */
+ XZ_SHELL_REAR_STARTING, /* decks 3/4 are starting or wait for decks 1/2 to stop. The connector reports this before it
+                            checks the cable (ui/ui_sections.c), so the screen does not claim the cable is in */
+ XZ_SHELL_REAR_CABLE,    /* decks 3/4 play through the cable (READY) */
+ XZ_SHELL_REAR_FAILED    /* decks 3/4 did not start; the cable may or may not be in */
+};
+enum xz_shell_rear_port xz_shell_source_rear(const struct xz_shell_model *m);
+/* For the runtime: with the route READY (route_state), a top port that shows nothing while the other shows a
+   stick (ready, loading or unreadable) holds the loopback cable, because the helper refuses music on the
+   cable's port. Marks that tile LOOPBACK and returns its index, or -1 when it cannot know. */
+int xz_shell_source_mark_loopback(struct xz_shell_source_model *sm, int route_state);
 /* The LINK picker: visible row i (44 px tall). The picker is shell state (the view's scroll: 0 shut,
    k = open with medium k-1 highlighted); BACK shuts it. */
 #define XZ_SHELL_LINK_ROWS 6

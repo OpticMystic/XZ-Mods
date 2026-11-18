@@ -63,6 +63,11 @@ static void hold_menu(struct xz_shell *u, const struct xz_shell_model *m) {
  assert(key(u,m,XZ_SHELL_KEY_MENU_HOLD)==0);
  assert(xz_shell_screen(u)==XZ_SHELL_UTILITY&&u->mods_view.tab==TAB_UTILITY&&u->mods_view.on_tabs==1);
 }
+/* Back to UTILITY's rail: one BACK closes UTILITY from its items (test_settings.c), so close and hold MENU. */
+static void to_rail(struct xz_shell *u, const struct xz_shell_model *m) {
+ for(int i=0;i<8&&u->depth>1;i++)key(u,m,XZ_SHELL_KEY_BACK);
+ hold_menu(u,m);
+}
 /* From the rail: open page t and push into it. */
 static void enter_tab(struct xz_shell *u, const struct xz_shell_model *m, int t) {
  assert(u->mods_view.on_tabs==1);
@@ -142,15 +147,16 @@ static void test_held_menu_and_back_chain(void) {
  fxs_item(XZ_SHELL_ITEM_LOAD_LOCK)->writable=1;
  assert(push(&u,&m)==0&&u.mods_view.on_tabs==0&&pane(&u)==ITEMS_PANE);
  assert(push(&u,&m)==0&&pane(&u)==VALUES_PANE);
- /* BACK: values, items, the rail, closed. No BACK does anything else on the way. */
+ /* BACK: values, then closed from the items (test_settings.c). No BACK does anything else on the way. */
  assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&pane(&u)==ITEMS_PANE&&u.depth==2&&!u.mods_view.on_tabs);
- assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.mods_view.on_tabs==1&&u.depth==2&&u.mods_view.tab==TAB_UTILITY);
  assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1&&xz_shell_screen(&u)==XZ_SHELL_PLAY);
  /* Held MENU always lands on UTILITY with the row focused, whatever tab was last open. */
  hold_menu(&u,&m);enter_tab(&u,&m,TAB_LOOK);
  assert(key(&u,&m,XZ_SHELL_KEY_MENU_HOLD)==0&&u.depth==2&&u.mods_view.tab==TAB_UTILITY&&u.mods_view.on_tabs==1);
- /* Held again on the UTILITY row, MENU closes MODS, so the key never falls through to the stock menu. */
- assert(key(&u,&m,XZ_SHELL_KEY_MENU_HOLD)==0&&u.depth==1);
+ /* Held again on the UTILITY row, MENU keeps it there (test_my_settings.c, test_play.c); the key never falls
+    through to the stock menu. BACK closes it. */
+ assert(key(&u,&m,XZ_SHELL_KEY_MENU_HOLD)==0&&u.depth==2&&u.mods_view.tab==TAB_UTILITY);
+ assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1);
  hold_menu(&u,&m);
  /* From BROWSE, held MENU stacks MODS over it, and BACK returns there. */
  key(&u,&m,XZ_SHELL_KEY_BACK);assert(u.depth==1);
@@ -158,7 +164,7 @@ static void test_held_menu_and_back_chain(void) {
  int under=u.depth;enum xz_shell_screen below=xz_shell_screen(&u);
  hold_menu(&u,&m);assert(u.depth==under+1);
  assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==under&&xz_shell_screen(&u)==below);
- /* A mod tab with one section enters at its items, and BACK from them goes straight to the row. */
+ /* A mod tab with one section enters at its items, and one BACK from them closes MODS (test_settings.c). */
  xz_shell_init(&u);hold_menu(&u,&m);
  static const struct xz_shell_setting_item one[]={{7,0,"ONLY",fxs_off_on,2,0,1,1}};
  static const struct xz_shell_settings_model one_model={1,one,NULL};
@@ -166,62 +172,39 @@ static void test_held_menu_and_back_chain(void) {
  static const struct xz_shell_mods_model one_mods={1,one_tab};
  m.mods=&one_mods;
  enter_tab(&u,&m,1);assert(pane(&u)==ITEMS_PANE);
- assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.mods_view.on_tabs==1&&u.depth==2);
- puts("PASS held MENU lands on MODS > UTILITY on the rail; turn picks a page, push enters, BACK steps values, items, rail, close");
+ assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1);
+ puts("PASS held MENU lands on MODS > UTILITY on the rail; turn picks a page, push enters, BACK steps values, then closes");
 }
 
 static void test_header_mods(void) {
  struct xz_shell u;struct xz_shell_model m;model(&m);
- xz_shell_init(&u);
  int x=XZ_SHELL_MODS_X+XZ_SHELL_MODS_W/2,y=12;
- /* With mod tabs published, MODS opens the shell's own screen on the first mod tab. */
- assert(tap(&u,&m,x,y)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.depth==2);
- assert(u.mods_view.tab==TAB_STEMS&&u.mods_view.on_tabs==1);
- /* Already open on UTILITY deep in a pane: it switches tab in place. */
- key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);push(&u,&m);push(&u,&m);
- assert(u.mods_view.tab==TAB_UTILITY&&!u.mods_view.on_tabs);
- assert(tap(&u,&m,x,y)==0&&u.depth==2&&u.mods_view.tab==TAB_STEMS&&u.mods_view.on_tabs==1&&pane(&u)==RAIL_PANE);
- /* No mods model, an empty one, or no tabs: the runtime's panel opens as before. */
+ /* The MODS header button asks the runtime for its one menu, on the page it was last on, whether or not mod
+    tabs are published (test_mods_entry.c); the shell stays where it is under the panel. */
  static const struct xz_shell_mods_model empty={0,fxm_tabs},no_tabs={3,NULL};
- const struct xz_shell_mods_model *none[]={NULL,&empty,&no_tabs};
- for(size_t i=0;i<sizeof none/sizeof *none;i++){
-  m.mods=none[i];xz_shell_init(&u);
+ const struct xz_shell_mods_model *models[]={&fxm_model,NULL,&empty,&no_tabs};
+ for(size_t i=0;i<sizeof models/sizeof *models;i++){
+  m.mods=models[i];xz_shell_init(&u);
+  fill(buffer_a);assert(xz_shell_render_frame(&u,&m,frame(buffer_a),STRIDE));   /* the header acts on a drawn frame */
   size_t n=tap(&u,&m,x,y);
-  assert(n==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&out[0].value==0&&u.depth==1);
-  /* Held MENU still opens UTILITY, with a single tab. */
-  hold_menu(&u,&m);turn(&u,&m,1);assert(u.mods_view.tab==TAB_UTILITY);
-  render_into(buffer_a,&u,&m);
+  assert(n==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&out[0].value==-1&&u.depth==1);
+  /* Held MENU still opens UTILITY on its rail. */
+  hold_menu(&u,&m);render_into(buffer_a,&u,&m);
  }
- puts("PASS MODS header button opens the first mod tab; without mod tabs it hands MODS to the runtime");
+ puts("PASS MODS header button hands MODS to the runtime's one menu; held MENU opens UTILITY");
 }
 
-/* A key assigned to MODS (the REKORDBOX button): opens MODS on its first mod tab from any screen, list
-   screens included, and closes it again; encoder and BACK then drive it as usual. */
+/* A key assigned to MODS (the REKORDBOX button): the runtime's one menu from any screen; on UTILITY it
+   closes UTILITY (test_mods_entry.c). */
 static void test_mods_key(void) {
  struct xz_shell u;struct xz_shell_model m;model(&m);
  xz_shell_init(&u);
- assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.depth==2);
- assert(u.mods_view.tab==TAB_STEMS&&u.mods_view.on_tabs==1);
- render_into(buffer_a,&u,&m);
- assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&u.depth==1&&xz_shell_screen(&u)==XZ_SHELL_PLAY);
- /* Over another screen it opens on top and closes back to it. */
+ assert(key(&u,&m,XZ_SHELL_KEY_MODS)==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&u.depth==1);
  assert(key(&u,&m,XZ_SHELL_KEY_SHORTCUT)==0&&xz_shell_screen(&u)==XZ_SHELL_SHORTCUT);
- assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.depth==3);
- assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&xz_shell_screen(&u)==XZ_SHELL_SHORTCUT&&u.depth==2);
- /* Open on UTILITY deep in a pane: it closes MODS (as short MENU there), never just switches tab. */
+ assert(key(&u,&m,XZ_SHELL_KEY_MODS)==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&xz_shell_screen(&u)==XZ_SHELL_SHORTCUT);
  xz_shell_init(&u);hold_menu(&u,&m);push(&u,&m);
  assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&u.depth==1);
- /* Hardware only: MODS key, encoder into a tab, BACK out to the rail, BACK closes. */
- assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&u.mods_view.on_tabs==1);
- enter_tab(&u,&m,TAB_LOOK);
- assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.mods_view.on_tabs==1);
- assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1);
- /* No mod tabs: UTILITY; nothing to show: inert. */
- m.mods=NULL;xz_shell_init(&u);
- assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.mods_view.tab==TAB_UTILITY);
- m.settings_screen=NULL;xz_shell_init(&u);
- assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&u.depth==1);
- puts("PASS MODS key: opens the first mod tab from any screen, closes it, encoder and BACK drive it");
+ puts("PASS MODS key: the runtime's one menu from any screen; on UTILITY it closes UTILITY");
 }
 static void test_set_requests(void) {
  struct xz_shell u;struct xz_shell_model m;model(&m);
@@ -233,7 +216,7 @@ static void test_set_requests(void) {
  turn(&u,&m,-1);
  assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_AUTO_CUE&&out[0].value==0);
  /* A mod tab: SET_MOD with the tab index, the runtime's item id and the choice index. */
- while(!u.mods_view.on_tabs)key(&u,&m,XZ_SHELL_KEY_BACK);
+ to_rail(&u,&m);
  enter_tab(&u,&m,TAB_STEMS);
  goto_item(&u,&m,1,22);
  assert(push(&u,&m)==0&&pane(&u)==VALUES_PANE&&value_cursor(&u)==1);
@@ -241,14 +224,14 @@ static void test_set_requests(void) {
  assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_MOD&&out[0].deck==TAB_STEMS-1&&out[0].id==22&&out[0].value==3);
  assert(u.depth==2&&pane(&u)==ITEMS_PANE);
  /* The same through touch: highlight a value, then confirm it. */
- key(&u,&m,XZ_SHELL_KEY_BACK);   /* items, then the rail */
+ to_rail(&u,&m);
  enter_tab(&u,&m,TAB_JUMP);
  goto_item(&u,&m,1,15);
  struct xz_shell_rect v=xz_shell_settings_rect(XZ_SHELL_SR_VALUES);
  push(&u,&m);
  int row=0-((u.stack[u.depth-1].scroll>>12)&0xfff)+2;   /* choice 2 ("1/2") on screen */
  int ty=v.y+row*XZ_SHELL_SETTINGS_ROW_H+XZ_SHELL_SETTINGS_ROW_H/2;
- assert(tap(&u,&m,v.x+40,ty)==0&&value_cursor(&u)==2);
+ /* One tap sets a value (test_settings.c: one-tap items and values). */
  assert(tap(&u,&m,v.x+40,ty)==1&&out[0].kind==XZ_SHELL_ACT_SET_MOD&&out[0].deck==TAB_JUMP-1&&out[0].id==15&&out[0].value==2);
  /* Picking the value already set asks for nothing. */
  hold_menu(&u,&m);enter_tab(&u,&m,TAB_LOOK);goto_item(&u,&m,2,3);
@@ -355,18 +338,18 @@ static void test_page_tabs(void) {
  xz_shell_init(&u);hold_menu(&u,&m);
  turn(&u,&m,TAB_PROFILE);
  render_into(buffer_a,&u,&m);
- /* Push enters the page tab (no action), push again opens the page in the runtime's panel. */
- assert(push(&u,&m)==0&&!u.mods_view.on_tabs);
+ /* From the rail a push on a page tab opens that page in the runtime's panel at once (test_mods_entry.c);
+    the encoder stays on the rail. */
+ assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&out[0].value==24&&u.mods_view.on_tabs);
  render_into(buffer_b,&u,&m);
- assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&out[0].value==24);
  struct xz_shell_rect b=xz_shell_mods_page_button();
  assert(tap(&u,&m,b.x+b.w/2,b.y+b.h/2)==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&out[0].value==24);
- /* Turn on a page tab does nothing; BACK returns to the row. */
+ /* With the page button touched the encoder left the rail: turn does nothing, BACK closes UTILITY. */
  assert(turn(&u,&m,1)==0&&u.mods_view.tab==TAB_PROFILE);
- assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.mods_view.on_tabs==1&&u.depth==2);
- turn(&u,&m,1);assert(u.mods_view.tab==TAB_GAMES);
- assert(tap(&u,&m,b.x+b.w/2,b.y+b.h/2)==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&out[0].value==13);
- puts("PASS page tabs: push or the button opens the page through OPEN_MODS value = page");
+ assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1);
+ hold_menu(&u,&m);turn(&u,&m,TAB_GAMES);
+ assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&out[0].value==13);
+ puts("PASS page tabs: a push from the rail or the page button opens the page through OPEN_MODS value = page");
 }
 
 static void test_tab_touch(void) {
@@ -375,25 +358,26 @@ static void test_tab_touch(void) {
  assert(!u.mods_view.on_tabs&&pane(&u)==ITEMS_PANE);
  for(int t=TABS-1;t>=0;t--){
   struct xz_shell_rect r=xz_shell_mods_tab_rect(&u,&m,t);
-  assert(tap(&u,&m,r.x+r.w/2,r.y+r.h/2)==0&&u.mods_view.tab==t&&u.mods_view.on_tabs==1&&u.depth==2);
+  size_t n=tap(&u,&m,r.x+r.w/2,r.y+r.h/2);
+  /* A page's cell opens it in the runtime's panel in one touch; an item page's cell picks it. */
+  if(t==TAB_PROFILE||t==TAB_GAMES)assert(n==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&u.depth==2);
+  else assert(n==0&&u.mods_view.tab==t&&u.mods_view.on_tabs==1&&u.depth==2);
   render_into(buffer_a,&u,&m);
  }
  /* A changed page starts at its top; touching the lit entry again enters it. */
- assert(u.mods_view.on_tabs&&u.stack[1].scroll==0);
+ assert(u.mods_view.on_tabs&&u.mods_view.tab==TAB_UTILITY&&u.stack[1].scroll==0);
  struct xz_shell_rect first=xz_shell_mods_tab_rect(&u,&m,0);
  assert(tap(&u,&m,first.x+first.w/2,first.y+first.h/2)==0&&!u.mods_view.on_tabs&&pane(&u)==ITEMS_PANE);
- /* A touch in the items takes the encoder off the rail too; BACK returns to it, the back button closes. */
- key(&u,&m,XZ_SHELL_KEY_BACK);assert(u.mods_view.on_tabs);
+ /* A touch in the items takes the encoder off the rail; the back button closes. */
+ to_rail(&u,&m);
  struct xz_shell_rect items=xz_shell_settings_rect(XZ_SHELL_SR_ITEMS);
  send(&u,&m,XZ_SHELL_TOUCH_DOWN,items.x+40,items.y+2*XZ_SHELL_SETTINGS_ROW_H+10,0);
  assert(!u.mods_view.on_tabs);
  send(&u,&m,XZ_SHELL_TOUCH_UP,items.x+40,items.y+2*XZ_SHELL_SETTINGS_ROW_H+10,0);
- key(&u,&m,XZ_SHELL_KEY_BACK);
- assert(u.mods_view.on_tabs);
  struct xz_shell_rect back=xz_shell_settings_rect(XZ_SHELL_SR_BACK_BUTTON);
  tap(&u,&m,back.x+back.w/2,back.y+back.h/2);
  assert(u.depth==1);
- puts("PASS rail touch picks a page, a second touch enters; a content touch leaves the rail; back button closes");
+ puts("PASS rail touch: a page opens in one touch, an item page is picked and a second touch enters; a content touch leaves the rail; back button closes");
 }
 
 static void test_one_value(void) {
@@ -472,7 +456,7 @@ static void test_probe_and_wild(void) {
  }
  /* A mods model that shrinks under an open tab falls back to UTILITY. */
  m.mods=&fxm_model;
- xz_shell_init(&u);hold_menu(&u,&m);enter_tab(&u,&m,TAB_GAMES);
+ xz_shell_init(&u);hold_menu(&u,&m);turn(&u,&m,TAB_GAMES);assert(u.mods_view.tab==TAB_GAMES);   /* a page tab: picked, not entered */
  m.mods=NULL;
  render_into(buffer_a,&u,&m);
  push(&u,&m);turn(&u,&m,1);render_into(buffer_a,&u,&m);

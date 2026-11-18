@@ -307,6 +307,7 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
   if(k==XZ_UI_STEM)return "Plays prepared stem files from the USB so pads and stem buttons can mute vocals, harmonics and drums. Off gives every pad its normal job back.";
   if(k==XZ_UI_GATE)return "Hot cue pads play only while you hold them and jump back to the hot cue when you let go. Use it to stab hot cues like samples.";
   if(k==XZ_UI_SMART)return "Pressing a hot cue also moves the CUE point there, so CUE takes you back to the last hot cue you used.";
+  if(k==XZ_UI_TRACKLIST)return "When a MASTER REC recording ends, writes the tracks that were on air, with their times, to a text file beside it. Nothing is written while it records.";
   return "Turns this feature on or off.";
  case XZ_UI_FOUR_WAVE_ORDER:return "Four-deck waveforms: numeric 1 2 3 4 or physical mixer 3 1 2 4. Shared across interfaces until reboot.";
  case XZ_UI_STEMS_OVERLAY:return "Push to cycle where the stem mute row sits on the play screen.";
@@ -447,6 +448,8 @@ int xz_ui_describe_widget(const struct xz_ui *u,const struct xz_ui_model *m,cons
   out->state=order;break;}
  case XZ_UI_FOUR_WAVE_ORDER:out->state=m->four_wave_mixer?"3 1 2 4 / MIXER":"1 2 3 4 / NUMERIC";break;
  case XZ_UI_STEMS_OVERLAY:case XZ_UI_PAD_FEEDBACK:out->state=a.index?(l.selected?"SELECTED":""):l.selected?"ON":"OFF";break;
+ case XZ_UI_PRO_DJ_LINK:out->state=l.selected?"ON":"OFF";break;
+ case XZ_UI_ABLETON_LINK:out->state=l.selected?"ENABLED":"DISABLED";break;
  case XZ_UI_ENABLE:case XZ_UI_SHIFT_PAGES:case XZ_UI_SHIFT_KEYSYNC:
  case XZ_UI_KEY_FEEDBACK:case XZ_UI_RAM_DEBUG:case XZ_UI_REKORDBOX_KEY:case XZ_UI_JUMP_SHIFT:
  case XZ_UI_TAKEOVER_TOGGLE:case XZ_UI_CONNECTION_ENABLE:case XZ_UI_DISCOVERY:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_METRICS_TOGGLE:

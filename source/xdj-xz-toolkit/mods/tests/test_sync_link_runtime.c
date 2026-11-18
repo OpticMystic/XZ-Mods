@@ -3,6 +3,7 @@
 #error Sync link runtime tests require assertions
 #endif
 #include "../sync_link_runtime.h"
+#include "stock_link_beat_gate.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -188,6 +189,9 @@ int main(void){
  int32_t cur_master=-1;memcpy(&cur_master,fake_sync_master+0x08,4);
  assert(cur_master==2&&synced_status_rc==0&&synced_beat_rc==0);
  assert(get_le32(synced_status)==3&&synced_status[4]==0xa4&&get_le32(synced_status+0x1c)==12000);
+ /* A stock deck synced to DECK 3 must be able to snap to its beat, not only take its tempo (owner, 2026-11-17:
+    SYNC off and on again did not line the tracks up). */
+ assert(stock_link_beat_sync_allowed(synced_status,cur_master));
  assert(get_le32(synced_beat+0x1c)==12000&&synced_beat[0x20]==2&&synced_beat[0x22]==3);
  assert(native_use_calls==0);
  /* Next publisher step observes master_id==2 and marks Deck 3 master committed. */

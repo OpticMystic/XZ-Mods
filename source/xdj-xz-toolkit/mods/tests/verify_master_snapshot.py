@@ -15,7 +15,8 @@ for arch,cc in [('host','gcc'),('arm','arm-linux-gnueabi-gcc')]:
     binary=out/('snapshot-'+arch)
     flags=['-std=c11','-O1','-g','-UNDEBUG','-ffunction-sections','-fdata-sections','-I'+linux(mods)]
     flags+=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-pie','-no-pie'] if arch=='host' else ['-mcpu=cortex-a9','-mfpu=vfpv3','-mfloat-abi=softfp']
-    commands=[('compile',[cc,*flags,linux(inputs[-1]),linux(mods/'shell_runtime_core.c'),'-pthread','-Wl,--gc-sections','-o',linux(binary)]),
+    # -lm: shell_runtime_core.c projects loop wraps through extra_timeline_projection.h, which uses fmod.
+    commands=[('compile',[cc,*flags,linux(inputs[-1]),linux(mods/'shell_runtime_core.c'),'-pthread','-lm','-Wl,--gc-sections','-o',linux(binary)]),
               ('run',(['qemu-arm','-cpu','cortex-a9','-L','/usr/arm-linux-gnueabi'] if arch=='arm' else [])+[linux(binary)])]
     for kind,cmd in commands:
         r=subprocess.run(['wsl','-d','Ubuntu','--exec',*cmd],capture_output=True,timeout=120)

@@ -10,6 +10,7 @@ extern int xz_ram_retained_source(unsigned,struct xz126_deck_source *) __attribu
 #include "../pc_control/stems.h"
 #include "../pc_control/wave.h"
 #include <pthread.h>
+#include "../xz_thread.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,6 +41,11 @@ static struct {struct prepared *p;long at;} retired[RETIRE_SLOTS];
 static struct {long last_valid,retry_at;char failed[XZ126_READER_PATH_MAX];} track[2];
 static struct {unsigned slot;uint32_t epoch,serial,count;int mode;long retry_at;} pc_track[2];
 static int started,mode;
+extern int xz_shell_runtime_owns(void) __attribute__((weak));
+extern int xz_ui_runtime_native_wave_visible(void) __attribute__((weak));
+static int native_visible(void){
+ return xz_ui_runtime_native_wave_visible?xz_ui_runtime_native_wave_visible():!(xz_shell_runtime_owns&&xz_shell_runtime_owns());
+}
 static uint16_t colors[3]={0x2cbf,0xf9c6,0x368b};
 static _Thread_local struct {int active;uint16_t *pixels;const struct prepared *deck[2];uint32_t flags[2];int direct[2];} frame;
 /* What this thread drew in the current frame; it outlives the lock for the theme pass. */
@@ -171,19 +177,21 @@ static void deck_tick(unsigned i,int wanted,long now){
  if(!current_source(i,&after)&&(after.file_frames!=s.file_frames||strcmp(after.path,s.path))){prepared_free(next);return;}
  track[i].retry_at=0;publish(i,next);
 }
+static void worker_step(long now){
+ int wanted=__atomic_load_n(&mode,__ATOMIC_ACQUIRE);
+ sweep(now);xz_pc_wave_state();
+ if(native_visible())for(unsigned i=0;i<2;i++)deck_tick(i,wanted,now);
+}
 static void *worker(void *unused){
  (void)unused;
  for(;;){
-  int wanted=__atomic_load_n(&mode,__ATOMIC_ACQUIRE);long now=now_ms();
-  sweep(now);
-  xz_pc_wave_state();
-  for(unsigned i=0;i<2;i++)deck_tick(i,wanted,now);
+  worker_step(now_ms());
   struct timespec delay={0,250000000};nanosleep(&delay,NULL);
  }
  return NULL;
 }
 int xz_layered_wave_enabled(void){return __atomic_load_n(&started,__ATOMIC_ACQUIRE);}
-int xz_layered_wave_active(void){return xz_layered_wave_enabled()&&__atomic_load_n(&mode,__ATOMIC_ACQUIRE)!=XZ_WAVE_STOCK;}
+int xz_layered_wave_active(void){return xz_layered_wave_enabled()&&native_visible()&&__atomic_load_n(&mode,__ATOMIC_ACQUIRE)!=XZ_WAVE_STOCK;}
 static uint16_t rgb565(uint32_t rgb){return (uint16_t)(((rgb>>19)&31)<<11|((rgb>>10)&63)<<5|((rgb>>3)&31));}
 void xz_layered_wave_configure(int requested,const uint32_t stem_rgb[3]){
  if(requested<0||requested>=XZ_WAVE_MODE_COUNT)requested=XZ_WAVE_STOCK;
@@ -330,6 +338,6 @@ int xz_layered_wave_start(void){
  /* wave_mode is the sole user choice; old launch overrides are ignored. */
  static const unsigned char guard[8]={0xf0,0x4f,0x2d,0xe9,0x80,0x52,0xa0,0xe1};
  if(xz_hook_arm(0x1fab28,guard,(void*)column,(void**)&stock_column))return -1;
- pthread_t thread;if(pthread_create(&thread,NULL,worker,NULL))return -1;
+ pthread_t thread;if(XZ_WORKER_CREATE(&thread,worker,NULL))return -1;
  pthread_detach(thread);__atomic_store_n(&started,1,__ATOMIC_RELEASE);return 0;
 }

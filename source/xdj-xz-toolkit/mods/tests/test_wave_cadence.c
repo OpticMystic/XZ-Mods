@@ -13,10 +13,21 @@ static int fixture_mono(clockid_t c,struct timespec *v){(void)c;mono_calls++;v->
 #define XZ_CLOCK_COMPAT_H
 #define xz_clock_gettime_compat fixture_mono
 #define xz_shell_render fixture_render
+/* The runtime draws a frame through xz_shell_render_frame (shell/shell.c, which then calls the real renderer and
+   publishes the header and key frames); the frame-level hook counts and checks it there. */
+#define xz_shell_render_frame fixture_render_frame
+#define xz_deck_layout_get fixture_layout_get
 #include "shell_runtime.c"
+#undef xz_deck_layout_get
+#undef xz_shell_render_frame
+int xz_shell_render_frame(struct xz_shell *,const struct xz_shell_model *,uint16_t *,size_t);
+int fixture_layout_get(void){return XZ_LAYOUT_FOUR;}
+int xz_extra_decks_snapshot_held(struct xz_extra_decks *out,struct xz_extra_analysis_hold *h){memset(h,0,sizeof *h);return xz_extra_decks_snapshot(out);}
+void xz_extra_decks_release_analysis(struct xz_extra_decks *out,struct xz_extra_analysis_hold *h){(void)out;(void)h;}
 #undef xz_shell_render
 #include "shell/shell_axis.h"
 #include <assert.h>
+void xz_extra_order_release(struct xz_extra_order *o){assert(!o);}
 int xz_shell_render(const struct xz_shell *,const struct xz_shell_model *,uint16_t *,size_t);
 enum {STRIDE=804,BEATS=129,COLS=32000};
 static uint16_t frame[STRIDE*480],reference[STRIDE*480];
@@ -63,10 +74,17 @@ int xz_native_skin_on_owner_thread(void){return 0;}
 void xz_native_skin_request_repaint(void){}
 void xz_log(const char *s){(void)s;}
 int xz_read_memory(uint32_t a,void *p,size_t n){(void)a;(void)p;(void)n;return -1;}
-int xz_arcade_native_clock_read(xz_arcade_memory_read r,void *p,unsigned d,struct xz_arcade_track_clock *c){
+/* The shell reads stock positions through the timed position clock, which brackets the source read with the
+   caller's observation clock. Here the read takes its cost, then the position is sampled at one instant that is
+   both ends of the bracket, stamped by the runtime's own clock (which reads fake_us). */
+int xz_native_position_clock_read_timed(xz_arcade_memory_read r,void *p,unsigned d,struct xz_arcade_track_clock *c,xz_arcade_observation_clock stamp,void *clock_ctx){
  (void)r;(void)p;fake_us+=(unsigned)read_cost[d]*1000u;memset(c,0,sizeof *c);
  uint32_t at=(uint32_t)(fake_us/1000u);if(coarse_native)at=1000+(at-1000)/66*66;
- c->position_ms=(uint32_t)source_at((int)d,at);c->speed=(float)rate_at((int)d)/1e6f;c->playing=native_moving;c->track=d+1;return native_ok;
+ c->position_ms=(uint32_t)source_at((int)d,at);c->speed=(float)rate_at((int)d)/1e6f;c->playing=native_moving;c->track=d+1;
+ /* As the stock engine reports it: 44.1 kHz frames (the shell steps its position from these). */
+ c->position_frames=(uint32_t)((uint64_t)c->position_ms*441u/10u);
+ if(native_ok&&stamp)c->position_observed_begin_us=c->position_observed_end_us=stamp(clock_ctx);
+ return native_ok;
 }
 /* Producer seams only. The complete refresh, clock conversion, smoother,
    scheduling, frame-time selection, and renderer are unchanged own C. */
@@ -89,6 +107,11 @@ static uint64_t fake_present(void){present_calls++;return fake_us+8000;}
 int fixture_render(const struct xz_shell *u,const struct xz_shell_model *m,uint16_t *pixels,size_t stride){
  unsigned before=wall_calls+mono_calls;render_calls++;
  int result=xz_shell_render(u,m,pixels,stride);
+ check(wall_calls+mono_calls==before,"no clock syscall from any lane/pixel render");return result;
+}
+int fixture_render_frame(struct xz_shell *u,const struct xz_shell_model *m,uint16_t *pixels,size_t stride){
+ unsigned before=wall_calls+mono_calls;render_calls++;
+ int result=xz_shell_render_frame(u,m,pixels,stride);
  check(wall_calls+mono_calls==before,"no clock syscall from any lane/pixel render");return result;
 }
 static void reset(void){
@@ -175,6 +198,12 @@ static void boundaries(void){
  reset();route_up=0;paint();check(sh_deck_count(&model)==2,"route off retains native-only view");
  reset();native_moving=0;paint();int native=xz_shell_elapsed_now(&model,0);model.clock_ms+=30;check(xz_shell_elapsed_now(&model,0)==native,"paused native does not extrapolate");
  reset();extra_moving=0;paint();int extra_pos=xz_shell_elapsed_now(&model,2);model.clock_ms+=30;check(xz_shell_elapsed_now(&model,2)==extra_pos,"paused PCM does not extrapolate");
+ reset();wave_job[0].request.track_id=1164;wave_job[0].request.device_kind=3;
+ wave_job[0].request.media.generation=usb[1].generation;paint();
+ check((model.deck[0].known&K(WAVE))&&model.deck[0].wave.columns,"transient loaded-record read keeps a confirmed waveform");
+ reset();wave_job[0].request.track_id=1164;wave_job[0].request.device_kind=3;
+ wave_job[0].request.media.generation=usb[1].generation-1;paint();
+ check(!(model.deck[0].known&K(WAVE)),"USB generation change invalidates waveform even during unknown loaded read");
  reset();unloaded=1;paint();check(!model.deck[0].loaded&&!model.deck[2].loaded,"LOAD/unloaded never projects old displayed audio");
  reset();native_ok=0;paint();check(!engine[0].ok&&model.deck[0].elapsed_ms>=0,"native-reader failure retains honest model fallback");
  reset();native_moving=0;paint();check((xz_shrt_moving_decks(&model)&12)==12,"extra-only motion keeps live cadence");
@@ -184,9 +213,14 @@ static void boundaries(void){
  reset();snapshot_fresh=0;publish_extra(1000);fake_us=1300000;extra_refresh_locked(1200);
  check(!model.deck[2].elapsed_at_ms&&!sh_has(&model.deck[2],XZ_SHELL_F_PLAYBACK_RATE),"stale producer anchor holds without nominal-rate fallback");
  reset();snapshot_fresh=0;publish_extra(0xfffffff0u);fake_us=((uint64_t)UINT32_MAX+17)*1000;extra_refresh_locked(0xfffffff0u);model.clock_ms=32;
- check(model.deck[2].elapsed_at_ms==0xfffffff0u,"clock-domain conversion preserves a valid wrapped observation");
- /* Renderer boundary behavior is unchanged by the runtime-only fix. */
- struct xz_shell_deck *k=&model.deck[2];k->elapsed_ms=1990;k->elapsed_at_ms=1000;k->playback_rate_ppm=1000000;k->moving=1;k->known|=K(MOTION)|K(PLAYBACK_RATE)|K(LOOP);k->loop=(struct xz_shell_loop){1,1,1,1000,2000};model.clock_ms=1040;
+ /* A DECK 3/4 timeline is projected to the model's monotonic now and anchored at the model clock (map_deck), so a
+    valid observation keeps its rate, an anchor and its true age: 0xfffffff0 seen at 16 after the wrap is 32 ms old,
+    not a future or stale anchor (the two holds above). */
+ {double expect=source_at(2,0xfffffff0u)+32.*rate_at(2)/1e6,got=model.deck[2].elapsed_ms+model.deck[2].elapsed_fraction_ms;
+  check(sh_has(&model.deck[2],XZ_SHELL_F_PLAYBACK_RATE)&&model.deck[2].elapsed_at_ms&&model.deck[2].playback_projection_age_ms==32&&
+        got>expect-1&&got<expect+1,"clock-domain conversion preserves a valid wrapped observation");}
+ /* Renderer boundary behavior is unchanged by the runtime-only fix: a fresh anchor (no projection age, no fraction). */
+ struct xz_shell_deck *k=&model.deck[2];k->elapsed_ms=1990;k->elapsed_fraction_ms=0;k->playback_projection_age_ms=0;k->elapsed_at_ms=1000;k->playback_rate_ppm=1000000;k->moving=1;k->known|=K(MOTION)|K(PLAYBACK_RATE)|K(LOOP);k->loop=(struct xz_shell_loop){1,1,1,1000,2000};model.clock_ms=1040;
  check(xz_shell_elapsed_now(&model,2)==1030,"real source loop wraps without phase snapping");
  k->elapsed_at_ms=1050;check(xz_shell_elapsed_now(&model,2)==1990,"future render clock holds");
  k->elapsed_at_ms=1000;model.clock_ms=9000;check(xz_shell_elapsed_now(&model,2)==1040,"stale render anchor stops at existing50ms bound");
@@ -203,6 +237,18 @@ static void coarse_attribution(void){
  printf("ATTRIBUTION coarse66ms true_anchor_follow=%u poll_stamp_follow=%u native_producer_anchor_unavailable=1\n",good_follow,bad_follow);
 }
 int main(int argc,char **argv){
+ if(argc>2&&!strcmp(argv[2],"retention")){
+  struct xz_shell_runtime_frame_input in={0};
+  reset();wave_job[0].request.track_id=1164;wave_job[0].request.device_kind=3;
+  wave_job[0].request.media.generation=usb[1].generation;refresh_locked(1000,&in);
+  check((model.deck[0].known&K(WAVE))&&model.deck[0].wave.columns,"transient loaded-record read keeps a confirmed waveform");
+  check(wave_job[0].request.track_id==1164,"transient read retains confirmed identity");
+  reset();wave_job[0].request.track_id=1164;wave_job[0].request.device_kind=3;
+  wave_job[0].request.media.generation=usb[1].generation-1;refresh_locked(1000,&in);
+  check(!(model.deck[0].known&K(WAVE)),"USB replacement invalidates cached waveform immediately");
+  printf("%s waveform retention checks=%u failures=%u\n",failures?"RED":"PASS",checks,failures);return !!failures;
+ }
+
  if(argc>1)output=argv[1];temporal_frames();boundaries();coarse_attribution();
  printf("%s cadence checks=%u failures=%u frames=%u exact_lane_frames=%u max_source_error_ms=%d max_impulse_offset_px=%d max_motion_delta_error_ms=%d\n",failures?"RED":"PASS",checks,failures,frames,exact_frames,max_source_error,max_lane_offset,max_delta_error);
  return !!failures;

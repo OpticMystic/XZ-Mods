@@ -2,6 +2,7 @@
 #define _FILE_OFFSET_BITS 64
 #define _POSIX_C_SOURCE 200809L
 #include "stem_media.h"
+#include "../xz_cloexec.h"
 #include <limits.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -39,6 +40,7 @@ struct xz_stem_media {
     FILE *file;
     uint32_t rate;
     uint64_t frames, position;
+    uint64_t source_at; /* file offset after the decoder's last read, plus one; 0 before the first */
     /* Approximately 100 ms between seek points, at most 192 KiB per decoder. */
     drmp3_seek_point *seek_points;
     /* Fixed source-PCM tiles, at most 512 KiB, allocated on first read. */
@@ -88,6 +90,16 @@ int xz_stem_media_source_snapshot(struct xz_stem_media *m, struct xz_media_ident
 #endif
     return *fd >= 0;
 }
+int xz_stem_media_source_dup(struct xz_stem_media *m) {
+#ifndef _WIN32
+    if (!m) return -1;
+    int fd = dup(fileno(m->file));
+    if (fd >= 0 && fcntl(fd, F_SETFD, FD_CLOEXEC)) { close(fd); fd = -1; }
+    return fd;
+#else
+    (void)m; return -1;
+#endif
+}
 int xz_stem_media_replace_file(struct xz_stem_media *m, const struct xz_media_identity *expected,
                                int prepared, int *old_fd) {
     *old_fd = -1;
@@ -97,14 +109,27 @@ int xz_stem_media_replace_file(struct xz_stem_media *m, const struct xz_media_id
     struct xz_media_identity current;
     int target = fileno(m->file), flags = fcntl(target, F_GETFD);
     off_t physical = lseek(target, 0, SEEK_CUR);
-    if (flags < 0 || physical < 0 || !xz_media_identify(target, &current) ||
-        !xz_media_same(expected, &current) || lseek(prepared, physical, SEEK_SET) < 0) return 0;
+    if (flags < 0 || physical < 0 || lseek(prepared, physical, SEEK_SET) < 0) return 0;
+    if (expected && (!xz_media_identify(target, &current) || !xz_media_same(expected, &current))) return 0;
+#ifdef __GLIBC__
+    /* The stream moves to a new descriptor and gives the old one back, unclosed. dup2 over the old one would
+     * close it on the caller's thread, the deck's real-time worker, and a close of a file on the stick's FUSE
+     * mount is a FLUSH request that waits behind every read queued at the stick (tens of milliseconds while
+     * other decks load). The caller's background worker closes *old_fd. glibc's stream reads and seeks
+     * through _fileno only; its buffer and offset stay valid because the new descriptor is at the same file
+     * offset (above). */
+    int moved = fcntl(prepared, flags & FD_CLOEXEC ? F_DUPFD_CLOEXEC : F_DUPFD, 0);
+    if (moved < 0) return 0;
+    m->file->_fileno = moved; *old_fd = target;
+    return 1;
+#else
     *old_fd = dup(target);
     if (*old_fd < 0 || fcntl(*old_fd, F_SETFD, FD_CLOEXEC)) return 0;
     if (dup2(prepared, target) < 0) return 0;
     if (!fcntl(target, F_SETFD, flags)) return 1;
     if (dup2(*old_fd, target) < 0 || fcntl(target, F_SETFD, flags)) return -1;
     return 0;
+#endif
 #endif
 }
 
@@ -125,7 +150,7 @@ void xz_stem_media_close(struct xz_stem_media *m) {
 
 struct xz_stem_media *xz_stem_media_open(const char *path, int untrimmed) {
     unsigned char magic[4];
-    FILE *f = fopen(path, "rb");
+    FILE *f = fopen(path, XZ_FOPEN_READ_CLOEXEC); /* a helper the player starts must not hold the stick */
     if (!f) return NULL;
     size_t n = fread(magic, 1, sizeof(magic), f);
     if (n != sizeof(magic) || fseeko(f, 0, SEEK_SET)) { fclose(f); return NULL; }
@@ -177,6 +202,7 @@ struct xz_stem_media *xz_stem_media_open(const char *path, int untrimmed) {
 
 uint32_t xz_stem_media_rate(const struct xz_stem_media *m) { return m ? m->rate : 0; }
 uint64_t xz_stem_media_frames(const struct xz_stem_media *m) { return m ? m->frames : 0; }
+uint64_t xz_stem_media_source_offset(const struct xz_stem_media *m) { return m ? m->source_at : 0; }
 
 static int media_read_uncached(struct xz_stem_media *m, int64_t first, size_t frames, float *out) {
     if (!m || !out || frames > 262144) return -1;
@@ -229,6 +255,8 @@ static int media_read_uncached(struct xz_stem_media *m, int64_t first, size_t fr
     case MEDIA_AIFF: got = xz_aiff_read(&m->decoder.aiff, frames, out); break;
     }
     m->position = (uint64_t)first + got;
+    /* The stream's own position: no system call once the stream has read (the C library keeps the offset). */
+    { off_t at = m->file ? ftello(m->file) : (off_t)-1; m->source_at = at < 0 ? 0 : (uint64_t)at + 1u; }
     if (got != frames) { m->position = UINT64_MAX; return -1; }
     for (size_t i = 0; i < frames * 2; ++i) if (!isfinite(out[i])) {
         m->position = UINT64_MAX; return -1;

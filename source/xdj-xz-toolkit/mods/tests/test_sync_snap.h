@@ -34,10 +34,10 @@ static double snap_delta(double beats,unsigned den){
 static double snap_expected(int d,int master,unsigned den){
  double heard=(double)f.position.deck[d].source_after_completed;
  double target;
- if(master<2)target=sim_native_phase_at_us((uint64_t)clock_ms*1000u+(uint64_t)wire_horizon*1000000u/XZ_USB_RATE);
+ if(master<2)target=sim_native_phase_at_us((uint64_t)clock_ms*1000u+(uint64_t)(wire_horizon+pump_turn_frames)*1000000u/XZ_USB_RATE);
  else{
   const xz_usb_deck_position *m=&f.position.deck[1-d];
-  double at=(double)m->source_after_completed+(f.wire[d]+wire_horizon-(double)m->source_completed_wire_frame);
+  double at=(double)m->source_after_completed+(f.wire[d]+wire_horizon+pump_turn_frames-(double)m->source_completed_wire_frame);
   target=(at/44100.-.1)*2.;
  }
  double phase=(heard/44100.-.1)*2.;

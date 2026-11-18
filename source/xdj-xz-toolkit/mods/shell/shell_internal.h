@@ -5,13 +5,20 @@
 void sh_play_key_publish(struct xz_shell *,const struct xz_shell_model *);
 #include "../ui/ui_skin.h"
 #include "../ui/theme_flagship.h"
+#include "../ui/deck_layout.h"
 
+/* MODERN's blue (the cursor row, the deck in focus, lit controls) is the palette's deeper blue. White lettering on
+   the brighter 0x007de1 measured about 4.2:1, under what small text needs, and the owner found it hard to read on
+   the unit; on 0x095694 it is about 7.5:1 with every glyph unchanged. (An outlined-lettering option exists on
+   the ui-load-ink branch for a later build.) */
 enum {
  SH_BLACK=0x000000, SH_WHITE=0xffffff, SH_CHROME=XZ_FLAGSHIP_CHROME, SH_RAIL=XZ_FLAGSHIP_RAIL,
- SH_ROW_ALT=XZ_FLAGSHIP_ROW_ALT, SH_DIM=XZ_FLAGSHIP_DIM, SH_BLUE=XZ_FLAGSHIP_BLUE, SH_RED=XZ_FLAGSHIP_RED,
+ SH_ROW_ALT=XZ_FLAGSHIP_ROW_ALT, SH_DIM=XZ_FLAGSHIP_DIM, SH_BLUE=XZ_FLAGSHIP_DEEP_BLUE, SH_RED=XZ_FLAGSHIP_RED,
  SH_GREEN=XZ_FLAGSHIP_GREEN, SH_LOOP=XZ_FLAGSHIP_LOOP_ORANGE, SH_WAVE_LOW=XZ_FLAGSHIP_WAVE_LOW,
  SH_WAVE_LOW_DEEP=XZ_FLAGSHIP_WAVE_LOW_DEEP, SH_WAVE_MID=XZ_FLAGSHIP_WAVE_MID, SH_WAVE_HIGH=XZ_FLAGSHIP_WAVE_HIGH,
- SH_PLAYHEAD=0xff2020, SH_MEMORY=0xff3c3c, SH_SEPARATOR=0x303030
+ SH_PLAYHEAD=0xff2020, SH_MEMORY=0xff3c3c, SH_SEPARATOR=0x303030,
+ SH_ADJUST=0xffe600, /* LOOP IN / OUT ADJUST, as CLASSIC's DECK 3 / 4 lanes and detail draw it */
+ SH_UNIT_EDGE=0x8c8c8c /* the edge of the side mark's black unit box */
 };
 /* Atlas faces: 0 = 12 px (cap 9), 1 = 20 px (cap 14). Numeral faces are shell_font.h. */
 enum sh_face { SH_SMALL=1, SH_TEXT=2 };
@@ -29,6 +36,9 @@ extern const struct sh_screen xz_shell_browse_screen, xz_shell_playlist_screen, 
 extern const struct sh_screen xz_shell_shortcut_screen, xz_shell_utility_screen, xz_shell_info_screen, xz_shell_source_screen;
 /* The navigation table applied to one key (shell.c); screens use it for on-screen buttons. */
 size_t sh_key(struct xz_shell *, const struct xz_shell_model *, enum xz_shell_key, int deck, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
+/* A key a screen presses for itself (a source picked, an INFO jump): as sh_key, but without a library it
+   hands the browser to stock instead of showing the SOURCE picker. */
+size_t sh_screen_key(struct xz_shell *, const struct xz_shell_model *, enum xz_shell_key, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
 /* BACK, for the key and every on-screen back control alike (shell.c). */
 size_t sh_back(struct xz_shell *, const struct xz_shell_model *, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
 /* A screen's own step up for BACK: sets *taken when it used the key (closed a panel, climbed a level). */
@@ -56,6 +66,24 @@ static inline int sh_play_placeholder(const struct xz_shell_model *m, int deck) 
 }
 /* The four-deck look: four decks play, or the PLAY view shows four slots. */
 static inline int sh_four_view(const struct xz_shell_model *m) { return sh_deck_count(m)==4||sh_play_deck_count(m)==4; }
+/* LOAD LOCK (UTILITY, stock default UNLOCK; XDJ-XZ manual: no new track while playing): stock refuses its own decks
+   itself, DECK 3/4 had no guard. The shell refuses a playing deck under LOCK on all four alike. */
+static inline int sh_deck_load_locked(const struct xz_shell_model *m, int deck) {
+ return m&&m->settings.load_lock&&(unsigned)deck<4u&&m->deck[deck].playing;
+}
+static inline const char *sh_load_lock_notice(int deck) {
+ static const char *const text[4]={"LOAD LOCK: DECK 1 IS PLAYING","LOAD LOCK: DECK 2 IS PLAYING","LOAD LOCK: DECK 3 IS PLAYING","LOAD LOCK: DECK 4 IS PLAYING"};
+ return text[deck&3];
+}
+/* Lists that offer the decks (the LOAD menu, the row LOAD chips, CUE/LOOP LIST's deck) read in the lanes' order:
+   four decks in MIXER ORDER are 3, 1, 2, 4 (ui/deck_layout.h), otherwise 1, 2, 3, 4. Position to deck and back. */
+static inline int sh_deck_at(int mixer, int count, int position) {
+ return (unsigned)position>=(unsigned)count?-1:count==4&&mixer?xz_deck_layout_order(XZ_LAYOUT_MIXER)[position]:position;
+}
+static inline int sh_deck_position(int mixer, int count, int deck) {
+ for(int i=0;i<count;i++)if(sh_deck_at(mixer,count,i)==deck)return i;
+ return -1;
+}
 /* Logical deck to horizontal mixer column: DECK 3, 1, 2, 4. */
 static inline int sh_strip_column(int count, int deck) {
  static const unsigned char columns[4]={1,2,0,3};
@@ -65,6 +93,9 @@ void sh_browse_remember_return(struct xz_shell *, const struct xz_shell_model *,
 int sh_browse_restore_return(struct xz_shell *, const struct xz_shell_model *);
 int sh_browse_load_pending(const struct xz_shell *);
 size_t sh_browse_load_input(struct xz_shell *, const struct xz_shell_model *, const struct xz_shell_event *, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
+/* The open LOAD menu: the deck its screen row names (-1 for a row that names none) and the row's touch area. */
+int sh_browse_load_choice_deck(const struct xz_shell *, int row);
+struct xz_shell_rect sh_browse_load_choice_rect(int row);
 /* The active deck, or deck 1 when the shell's choice is past the decks the model plays now. */
 static inline int sh_active_deck(const struct xz_shell *u, const struct xz_shell_model *m) {
  return u->deck>=0&&u->deck<sh_deck_count(m)?u->deck:0;
@@ -79,16 +110,19 @@ static inline int sh_control_active(const struct xz_shell_model *m, int deck) {
  if(sh_deck_count(m)!=4||!(m->capabilities&XZ_SHELL_CAP_DECK_SELECT)||(unsigned)deck>=4)return 0;
  return deck==(deck&1)+2*((m->sides_extra>>(deck&1))&1);
 }
-/* Point toward the assigned physical controls: left for 1/3, right for 2/4. */
-static inline void sh_control_arrow(struct xz_canvas c,int x,int y,int right) {
- for(int row=0;row<9;row++){
-  int distance=row<4?4-row:row-4,from=2*distance,to=row>=2&&row<=6?25:8;
-  xz_rect(c,x+(right?26-to:from),y+row,to-from+1,1,SH_BLACK);
- }
- for(int row=2;row<=6;row++){
-  int distance=row<4?4-row:row-4,from=2+2*distance,to=distance==2?8:24;
-  xz_rect(c,x+(right?26-to:from),y+row,to-from+1,1,SH_WHITE);
- }
+/* The side mark's three states. A deck belongs to one physical side, left for 1 and 3, right for 2 and 4.
+   DRIVES: that side's jog and buttons play this deck now; OTHER: the side is on its other deck; NONE: nothing
+   to tell (a NOT CONNECTED placeholder, or decks 3 and 4 up without the deck select seam, so the sides are
+   unknown). Without decks 3 and 4 the sides can only drive decks 1 and 2. */
+enum sh_side { SH_SIDE_NONE, SH_SIDE_DRIVES, SH_SIDE_OTHER };
+/* The own wheel of a deck whose side is on its other deck: a mid grey, halfway in lightness between the black
+   box and the white wheel of a driven deck, and apart from the box's 0x8c8c8c edge (sh_side_mark). */
+enum { SH_WHEEL_DIM=0x707070 };
+static inline enum sh_side sh_side_of(const struct xz_shell_model *m, int deck) {
+ if((unsigned)deck>=4u||sh_play_placeholder(m,deck))return SH_SIDE_NONE;
+ if(sh_deck_count(m)!=4)return deck<2?SH_SIDE_DRIVES:SH_SIDE_NONE;
+ if(!(m->capabilities&XZ_SHELL_CAP_DECK_SELECT))return SH_SIDE_NONE;
+ return sh_control_active(m,deck)?SH_SIDE_DRIVES:SH_SIDE_OTHER;
 }
 static inline int sh_has(const struct xz_shell_deck *d, enum xz_shell_field f) { return (d->known>>f)&1; }
 /* The model's capabilities this deck takes (xz_shell_deck.caps_off). */
@@ -124,6 +158,13 @@ void sh_triangle(struct xz_canvas c, int cx, int y, int size, int down, uint32_t
 void sh_note(struct xz_canvas c, int x, int y, uint32_t color);
 void sh_usb_icon(struct xz_canvas c, int x, int y, uint32_t color);
 void sh_info_icon(struct xz_canvas c, int cx, int cy, uint32_t color);
+/* The side mark, as the owner drew it: a black w x h box centred on cx, cy stands for the unit, with its two
+   jog wheels as circles of radius r. The wheel on this deck's side (left for decks 1 and 3, right for 2 and 4)
+   is a white disc with a black stroke; the other side's wheel is a dotted white circle. A 1 px grey edge keeps
+   the box apart from dark tiles. Whether the side drives the deck now stays the tile's colour (blue or the
+   stick's colour: driven; grey: the side is on its other deck). NONE draws nothing. Drawn only where a deck on
+   screen can be one no side drives. */
+void sh_side_mark(struct xz_canvas c, int cx, int cy, int w, int h, int r, int deck, enum sh_side side);
 /* Caption chip: 1 px outline, caps text, height 16. Returns its width. */
 int sh_chip(struct xz_canvas c, int x, int y, const char *s, uint32_t outline, uint32_t ink, int filled);
 /* Shell-wide placeholder page for screens later units draw. */
@@ -241,4 +282,11 @@ enum xz_shell_action_kind sh_header_hit(int x, int y);
 int sh_notice_shown(const struct xz_shell_model *m);
 struct xz_shell_rect sh_notice_rect(const char *text, int *lines);
 void sh_notice(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c);
+/* On PLAY the notice sits in the top bar's BEAT FX strip, never over a lane (shell_draw.c): its box there, and
+   where the notice draws on the screen u shows (the centred box elsewhere; zero size for NEEDLE LOCK on PLAY,
+   whose deck mark lights instead). lines: 1 or 2. sh_notice_live: the sentence shown now, or NULL. */
+struct xz_shell_rect sh_notice_bar_rect(const struct xz_shell_model *m, const char *text, int *lines);
+struct xz_shell_rect sh_notice_place(const struct xz_shell *u, const struct xz_shell_model *m, const char *text, int *lines);
+const char *sh_notice_live(const struct xz_shell *u, const struct xz_shell_model *m);
+#define SH_NEEDLE_NOTICE "NEEDLE LOCK: PAUSE THE DECK TO SEARCH"
 #endif

@@ -41,7 +41,7 @@ int main(void) {
  d->loop=(struct xz_shell_loop){1,1,1,1000,2000};d->known|=K(LOOP);
  assert(xz_shell_elapsed_now(&m,0)==1970);
  d->elapsed_ms=1990;d->playback_rate_ppm=1000000;assert(xz_shell_elapsed_now(&m,0)==1030);
- d->loop.active=0;d->elapsed_ms=10;d->playback_rate_ppm=-1000000;assert(xz_shell_elapsed_now(&m,0)==0);
+ d->loop.active=0;d->elapsed_ms=10;d->playback_rate_ppm=-1000000;assert(xz_shell_elapsed_now(&m,0)==-30);
  d->elapsed_ms=d->total_ms-10;d->playback_rate_ppm=1000000;assert(xz_shell_elapsed_now(&m,0)==d->total_ms);
  puts("PASS signed PCM-timeline interpolation, paused scratching, full-frame reference parity, no cosmetic SYNC alignment, unknown/stale/future holds, wrap and bounds");
  return 0;

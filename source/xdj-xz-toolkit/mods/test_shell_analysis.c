@@ -109,7 +109,7 @@ int main(void){
   {"/Contents/One.mp3","P001/0000AAAA",10},{"/Contents/Two.flac","P001/0000BBBB",20},{"/Contents/Folder/Three.wav","P07F/0001CCCC",30}};
  for(int i=0;i<3;i++){
   assert(!xz_shana_find(a,cases[i].track,dir,sizeof dir)&&strstr(dir,cases[i].folder));
-  assert(!xz_shana_three_band(dir,&w)&&w.count==100&&w.bands[0]==cases[i].level&&w.bands[299]==cases[i].level+2);
+  assert(!xz_shana_three_band(dir,&w)&&w.count==100&&w.bands[0]==cases[i].level+2&&w.bands[1]==cases[i].level&&w.bands[299]==cases[i].level+1);
   xz_wave_load_free(&w);
  }
  /* Unknown tracks and missing waves fail. */
@@ -121,6 +121,18 @@ int main(void){
         !strcmp(split_root,"/media/usb2/sda2")&&!strcmp(rel,"/Contents/Folder/Three.wav"));
  assert(xz_shana_split("/media/usb2/sda2/Music/x.mp3",split_root,sizeof split_root,&rel));
  xz_shana_free(a);
+ /* Catalog construction opens no directory or analysis file, even on a missing root. */
+ const struct xz_shana_path declared[]={
+  {"/Contents/One.mp3","/PIONEER/USBANLZ/P001/0000AAAA/ANLZ0000.DAT"},
+  {"/Contents/Wrong.mp3","/PIONEER/USBANLZ/P001/0000AAAA/ANLZ0000.DAT"},
+  {"/Contents/Escape.mp3","/PIONEER/USBANLZ/../outside/ANLZ0000.DAT"},
+  {"/Contents/Escape2.mp3","/PIONEER/USBANLZ/P001/../../ANLZ0000.DAT"},
+  {"/Contents/Empty.mp3",""}};
+ assert(!xz_shana_build_paths("not-mounted",declared,5,&a)&&xz_shana_count(a)==2);xz_shana_free(a);
+ assert(!xz_shana_build_paths(root,declared,5,&a)&&xz_shana_count(a)==2);
+ assert(!xz_shana_find(a,"/Contents/One.mp3",dir,sizeof dir));
+ assert(xz_shana_find(a,"/Contents/Wrong.mp3",dir,sizeof dir)); /* PPTH identity still required */
+ assert(xz_shana_find(a,"/Contents/Escape.mp3",dir,sizeof dir));xz_shana_free(a);
  /* Stems: one parse of the stick's stem index, then only the PWV7 sections of the three files. */
  stems_fixture();
  struct xz_shana_stems *st=NULL;
@@ -163,7 +175,7 @@ int main(void){
   for(int i=0;i<1200*3;i++)o[n++]=(uint8_t)(i%3==0?i/3%200:i%3==1?7:9);
   be(o+8,(uint32_t)n);put(pv_file,o,n);
   uint8_t *bands=NULL;uint32_t count=0;
-  assert(!xz_shana_preview(pv_dir,&bands,&count)&&bands&&count==1200&&bands[0]==0&&bands[1]==7&&bands[2]==9&&bands[3*199]==199);
+  assert(!xz_shana_preview(pv_dir,&bands,&count)&&bands&&count==1200&&bands[0]==9&&bands[1]==0&&bands[2]==7&&bands[3*199+1]==199);
   free(bands);
   snprintf(pv_dir,sizeof pv_dir,"%s/PIONEER/USBANLZ/P001/0000AAAA",root);
   assert(xz_shana_preview(pv_dir,&bands,&count)&&!bands&&!count);

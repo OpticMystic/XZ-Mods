@@ -67,6 +67,7 @@ int main(int argc, char **argv) {
     WAIT(dj.count == 2);
     pthread_mutex_lock(&ui_lock);
     assert(dj.usb_present == 1 && named(0, "DJ Kai") && named(1, "Lena B"));
+    assert(dj.usb_logo[0] && dj.usb_logo_revision[0] && !dj.usb_logo[1]);
     assert(!dj.entry[0].stick_active && dj.entry[1].stick_active && dj.entry[0].usb == 0);
     assert(dj.entry[0].thumb && dj.entry[0].has_accent && dj.entry[0].accent == 0xff2a6d);
     assert(!strcmp(dj.entry[0].tagline, "Deep tech, Berlin") && !dj.entry[0].damaged && !dj.entry[0].locked);
@@ -126,6 +127,7 @@ int main(int argc, char **argv) {
     WAIT(dj.count == 2 && dj.usb_present == 2);
     pthread_mutex_lock(&ui_lock);
     assert(dj.entry[0].usb == 1);
+    assert(!dj.usb_logo[0] && dj.usb_logo[1]);
     xz_dj_runtime_current(0, -1, -1); assert(dj.current >= 0 && dj.entry[dj.current].usb == 1);
     pthread_mutex_unlock(&ui_lock);
 

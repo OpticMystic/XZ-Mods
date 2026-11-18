@@ -9,7 +9,9 @@ fixtures(a.out)
 def linux(p):
     s=p.resolve().as_posix();return '/mnt/'+s[0].lower()+s[2:]
 sources=['tests/test_jog_content_epoch.c','anlz_extra.c','shell_analysis.c','ui/layered_wave_source.c',
-         'ui/layered_wave.c','audio/stem_media.c','audio/stem_mp3.c','audio/stem_decode.c']
+         'ui/layered_wave.c','audio/stem_media.c','audio/stem_mp3.c','audio/stem_decode.c',
+         # The player's KEY SYNC and key display (extra_player.c) call the key shifter and the key reader.
+         'key/keyshift.c','key/music.c']
 test=root/sources[0]
 if a.red_old_edge:
     mutant=a.out/'mutant';(mutant/'tests').mkdir(parents=True)

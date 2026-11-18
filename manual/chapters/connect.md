@@ -1,6 +1,6 @@
 ---
 interface: both
-settings: fb_takeover
+settings: fb_takeover, network_dhcp, pro_dj_link_decks, ableton_link
 ---
 
 CONNECT is the MODS section for people and computers: your DJ profile, the VJ.Tools link, the player's network and updates over the network. Everything here is optional. The player plays the same with all of it switched off.
@@ -130,8 +130,6 @@ VJ.Tools connected and sending frames. The player still shows its own play scree
 11 @ 545,320 vj.tools | Where to get VJ.Tools.
 ```
 
-| Control | Choices | What it does |
-|---|---|---|
 ```gallery {classic}
 classic:theme-0-connection Waiting for VJ.Tools. The link controls are read only on this player
 ```
@@ -140,6 +138,8 @@ classic:theme-0-connection Waiting for VJ.Tools. The link controls are read only
 classic:theme-24-connection Waiting for VJ.Tools. The link controls are read only on this player
 ```
 
+| Control | Choices | What it does |
+|---|---|---|
 | VJ.TOOLS VIEW | ON, OFF | ON shows the computer's VJ.Tools screen on the player while VJ.Tools is connected. OFF shows the play screen |
 | SCREEN SWITCH KEY | LINK, ONSCREEN | LINK makes the **LINK** key switch the view. ONSCREEN puts a button for it on the screen. See [Controls on the player](hardware) |
 | VJ.TOOLS CONNECTION | ON, OFF | Lets VJ.Tools connect |
@@ -155,18 +155,20 @@ With VJ.TOOLS VIEW on and no computer connected, the player shows the interface 
 
 ## Network {experimental}
 
-NETWORK sets up the player's network adapters for VJ.Tools and network updates. You do not need it to play.
+NETWORK sets up the player's network adapters for VJ.Tools, network updates, Pro DJ Link for decks 3 and 4, and Ableton Link. You do not need it to play.
 
 ```nav network Network
 ```
 
 ```figure classic:theme-{look}-network MODS · NETWORK
-The NETWORK page before the adapters have been read.
-1 @ 440,86 Status line | What the page knows now. CHANGES LAST UNTIL REBOOT reminds you that nothing here is permanent.
-2 @ 450,285 What is known | Which parts the player reports, and that nothing changes until you apply.
+The NETWORK page before the adapters have been read, with PRO DJ LINK DECKS 3/4 highlighted.
+1 @ 440,86 Status line | What the page knows now. CHANGES LAST UNTIL REBOOT reminds you that the adapter setup is not permanent.
+2 @ 450,212 What is known | Which parts the player reports, and that nothing changes until you apply.
 3 @ 300,337 SET UP NETWORK | Starts the setup: read the adapters, choose, review, apply.
 4 @ 650,337 DETECT ADAPTERS AGAIN | Reads the adapters again, for example after you plug in a cable.
 5 @ 300,385 NETWORK UPDATES | Opens UPDATES.
+6 @ 458,252 PRO DJ LINK DECKS 3/4 | Puts decks 3 and 4 on the Pro DJ Link network. Its state is on the right. See [Pro DJ Link and Ableton Link](#pro-dj-link-and-ableton-link).
+7 @ 458,294 ABLETON LINK | Joins an Ableton Link session. Its state is on the right.
 ```
 
 ```gallery {classic}
@@ -183,6 +185,8 @@ Setup runs in four steps. Every change lasts until the player is switched off.
 2. **Choose.** Pick an adapter and how it gets an address: **KEEP CURRENT**, **DHCP ON** or **STATIC IP**. With STATIC IP, use **EDIT IP**, **EDIT MASK / PREFIX** and **EDIT GATEWAY**. **PRIORITY UP** and **PRIORITY DOWN** set which adapter XZ Mods prefers.
 3. **Review.** Push **REVIEW CHANGES** and read the summary.
 4. **Apply.** Push **APPLY FOR THIS BOOT**. The page then checks the result. **REVERT TRIAL / MODS DHCP OFF** undoes what this setup added.
+
+Addresses you set here last until the player is switched off. One choice is remembered: whether XZ Mods asks the network for an address when the player starts (`network_dhcp`, on by default). Applying a setup with **DHCP ON** keeps it on for the next start. Applying one without DHCP ON, or **REVERT TRIAL / MODS DHCP OFF**, turns it off, so the next start leaves the network to the player alone.
 
 ```figure classic:theme-{look}-network-edit EDIT IPV4
 The keypad for an address, mask or gateway.
@@ -202,7 +206,44 @@ The keypad for an address, mask or gateway.
 | NETWORK CHANGED / DETECT AND CHOOSE AGAIN | A cable or adapter changed. Start the setup again |
 | RELOAD A PRIVATE USB IMAGE WITH NETWORK SUPPORT | This USB loader has no network support. Update the loader with the XZ Mods app, then push **VERIFY RELOADED LOADER** |
 
-> **Experimental.** The NETWORK pages still use technical wording and may change. Your changes never outlive a power cycle, so switching the player off and on always brings back its own network setup.
+> **Experimental.** The NETWORK pages still use technical wording and may change. Addresses you set never outlive a power cycle, so switching the player off and on always brings back its own addresses.
+
+### Pro DJ Link and Ableton Link {experimental}
+
+Two switches on the NETWORK page share the XZ's tempo with other gear on the network. Both are off by default. Each takes effect at once and is saved to the USB. The player's own decks 1 and 2 are on Pro DJ Link as always; these switches add to that.
+
+| Switch | What it does |
+|---|---|
+| **PRO DJ LINK DECKS 3/4** (`pro_dj_link_decks`) | Shows decks 3 and 4 on the Pro DJ Link network as players 3 and 4, beside the player's own players 1 and 2, with their track, tempo, beats, SYNC and MASTER. OFF keeps the network as the player makes it: players 1 and 2 only. |
+| **ABLETON LINK** (`ableton_link`) | Joins the Ableton Link session on the network through the LAN port. The session follows the XZ's tempo master: its tempo and its place in the bar. It only sends: Ableton Link never moves a deck, and the XZ does not follow the session. |
+
+The state beside each switch says what it is doing:
+
+| PRO DJ LINK DECKS 3/4 | What it means |
+|---|---|
+| OFF / DECKS 3 AND 4 NOT ON THE NETWORK | The switch is off. |
+| DECKS 3 AND 4 ON THE NETWORK / 2 PEERS | Both decks are on the network, and two other devices see them. |
+| READY / NO DECK 3/4 ROUTE OR TRACK | On, but decks 3 and 4 are not running or have no track yet. |
+| NO LINK / STOCK PLAYER NOT ANNOUNCING | The player itself is not on a Pro DJ Link network. Check the LAN cable. |
+| PLAYERS 3 AND 4 IN USE BY ANOTHER DEVICE | Another device on the network already uses that player number. |
+| HELPER MISSING FROM THIS BUILD | This USB loader cannot do it. Update the loader with the XZ Mods app. |
+| COULD NOT START / SEE MODS LOG | The start failed. [Report it](extras) with the USB diary. |
+
+| ABLETON LINK | What it means |
+|---|---|
+| DISABLED / NOT IN ANY SESSION | The switch is off. |
+| ENABLED / STARTING | Joining the session. |
+| ENABLED / 2 PEERS / 128.00 BPM | In a session with two other peers, at the XZ master's tempo. |
+| ENABLED / NO TEMPO MASTER ON THIS UNIT | No deck is tempo master, so the XZ has no tempo to send. |
+| HELPER MISSING FROM THIS BUILD | This USB loader cannot do it. Update the loader with the XZ Mods app. |
+
+You can also switch Ableton Link on the MODERN play screen with **LINK** in the top bar. It shows how many other apps are in the session. See [Top bar](play-screen#top-bar).
+
+- Handing the tempo master to or from another player on the network is not supported yet. Keep the master on the XZ.
+- Neither switch has been measured yet with four decks and stems playing.
+- Ableton Link has not been tested on the XZ since its last fix. Try it at home before a gig.
+
+Ableton Link support uses the official Ableton Link library, under the GNU General Public License version 2 or later. It runs as a separate helper program. Its license texts are in the app (**About** > **Open license notices**) and on the USB stick in `licenses/xz-link-peer/`.
 
 ## Updates over the network {experimental}
 

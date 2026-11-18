@@ -136,7 +136,7 @@ static void test_back_chain(void) {
  press(&u,&m,XZ_SHELL_KEY_SHORTCUT);press(&u,&m,XZ_SHELL_KEY_MENU_HOLD);
  assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY);
  send(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,0);                 /* rail -> items */
- assert(press(&u,&m,XZ_SHELL_KEY_BACK)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY);   /* pane left */
+ /* From the items one BACK closes UTILITY (test_settings.c: values, then close). */
  assert(press(&u,&m,XZ_SHELL_KEY_BACK)==0&&xz_shell_screen(&u)==XZ_SHELL_SHORTCUT);
  assert(press(&u,&m,XZ_SHELL_KEY_BACK)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAY);
  static const enum xz_shell_key flat[]={XZ_SHELL_KEY_TAG_LIST,XZ_SHELL_KEY_SEARCH};
@@ -145,6 +145,8 @@ static void test_back_chain(void) {
   press(&u,&m,flat[i]);press(&u,&m,XZ_SHELL_KEY_MENU);
   assert(u.panel.kind==XZ_SHELL_PANEL_MENU);
   assert(press(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.panel.kind==XZ_SHELL_PANEL_NONE&&u.depth==2);
+  /* SEARCH opens on its keyboard: one BACK puts it away first (test_browse_workflows.c). */
+  if(i)assert(press(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==2&&xz_shell_screen(&u)==XZ_SHELL_SEARCH);
   assert(press(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1);
  }
  puts("PASS universal BACK: panel sub-page, panel, list levels, source picker, PLAY; same on every screen");
@@ -158,7 +160,7 @@ static void test_stick_keys(void) {
  assert(press(&u,&m,XZ_SHELL_KEY_SOURCE_USB2)==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE&&u.stack[1].cursor==XZ_SHELL_SRC_USB2);
  render_checked(&u,&m,buffer_a);
  struct xz_shell_rect tile=xz_shell_source_rect(1);
- assert(count(frame(buffer_a),(struct xz_shell_rect){tile.x,tile.y+136,tile.w,44},SH_BLUE)>500);   /* its name bar is the highlighted one */
+ assert(count(frame(buffer_a),(struct xz_shell_rect){tile.x,tile.y+96,tile.w,40},SH_BLUE)>500);   /* its name bar (shell_source.c ICON_H, NAME_H) is the highlighted one */
  assert(press(&u,&m,XZ_SHELL_KEY_BACK)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAY);
  /* A ready stick: straight into its browser. */
  assert(press(&u,&m,XZ_SHELL_KEY_SOURCE_USB1)==2&&out[0].id==XZ_SHELL_SRC_USB1&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);
@@ -174,7 +176,22 @@ static void test_stick_keys(void) {
  assert(count(frame(buffer_a),row0,SH_BLUE)==0);                 /* no highlighted stale row */
  assert(turn(&u,&m,3)==0&&push(&u,&m)==0);                        /* nothing to move or load */
  assert(tap(&u,&m,(struct xz_shell_rect){row0.x+row0.w/2-100,80+38*3,200,44})==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE);
- puts("PASS USB buttons: ready stick opens its browser, missing stick pins the picker slot, absent list shows no rows");
+ /* LINK and REKORDBOX open in the deck's own screen: the key shows its tile first; the same key with that tile
+    shown hands the screen to stock. */
+ two_sticks(1);
+ for(int s=XZ_SHELL_SRC_LINK;s<=XZ_SHELL_SRC_COMPUTER;s++){sources.device[s-1].known=1u<<XZ_SHELL_D_STATUS;sources.device[s-1].status=XZ_SHELL_DEVICE_STOCK;}
+ static const enum xz_shell_key stock_keys[2]={XZ_SHELL_KEY_SOURCE_LINK,XZ_SHELL_KEY_SOURCE_COMPUTER};
+ for(int i=0;i<2;i++){
+  int slot=XZ_SHELL_SRC_LINK+i;
+  xz_shell_init(&u);xz_shell_browse_reset();press(&u,&m,XZ_SHELL_KEY_BROWSE);
+  assert(press(&u,&m,stock_keys[i])==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE&&u.depth==2&&u.stack[1].cursor==slot);
+  render_checked(&u,&m,buffer_a);
+  assert(press(&u,&m,stock_keys[i])==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_SOURCE&&xz_shell_screen(&u)==XZ_SHELL_SOURCE);
+  xz_shell_init(&u);press(&u,&m,XZ_SHELL_KEY_SOURCE_USB1);         /* the other key's tile, then this key */
+  assert(press(&u,&m,stock_keys[i])==0&&u.stack[u.depth-1].cursor==slot);
+ }
+ puts("PASS USB buttons: ready stick opens its browser, missing stick pins the picker slot, absent list shows no rows; "
+      "LINK and REKORDBOX show their tile, then the deck's own screen");
 }
 
 /* INFO and MENU are keys the runtime probes on a copy of the shell struct: the state they change must
@@ -429,10 +446,11 @@ static void test_keys_never_dead(void) {
  /* A notice the shell raises itself (TRACK FILTER without the capability) shows like the runtime's. */
  press(&u,&nofilter,XZ_SHELL_KEY_TRACK_FILTER);
  render_checked(&u,&m,buffer_a);
- struct xz_shell_rect toast=sh_notice_rect(u.notice,NULL);
- assert(count(frame(buffer_a),toast,SH_ROW_ALT)>toast.w*toast.h/3);
+ struct xz_shell_rect toast=sh_notice_place(&u,&m,u.notice,NULL);
+ uint32_t fill=xz_shell_screen(&u)==XZ_SHELL_PLAY?0x2b1d00:SH_ROW_ALT; /* PLAY: in the top bar, off the lanes */
+ assert(count(frame(buffer_a),toast,fill)>toast.w*toast.h/3);
  m.clock_ms+=XZ_SHELL_NOTICE_MS;render_checked(&u,&m,buffer_b);
- assert(count(frame(buffer_b),toast,SH_ROW_ALT)<toast.w*toast.h/3);
+ assert(count(frame(buffer_b),toast,fill)<toast.w*toast.h/3);
  m.capabilities|=XZ_SHELL_CAP_TAG_TRACK;
  assert(press(&u,&m,XZ_SHELL_KEY_TAG_TRACK)==1&&out[0].kind==XZ_SHELL_ACT_TAG_TRACK);
  puts("PASS no dead keys: TRACK FILTER, LINK and computer buttons act or say why; TAG TRACK left to the runtime's probe");
@@ -460,9 +478,9 @@ static void test_shortcut_jumps(void) {
  b.category_available&=~(1u<<XZ_SHELL_CAT_MATCHING);
  xz_shell_init(&u);press(&u,&m,XZ_SHELL_KEY_SHORTCUT);
  assert(tap(&u,&m,xz_shell_shortcut_jump(XZ_SHELL_JUMP_MATCHING))==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&u.notice);
- /* A read-only item hands off at that item: value = 1 + its id. */
+ /* A push on a read-only item is inert (test_settings.c); SHORTCUT stays up. */
  xz_shell_init(&u);press(&u,&m,XZ_SHELL_KEY_SHORTCUT);
- assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_SHORTCUT&&out[0].value==XZ_SHELL_ITEM_QUANTIZE_BEAT+1);
+ assert(push(&u,&m)==0&&xz_shell_screen(&u)==XZ_SHELL_SHORTCUT);
  /* MENU on a list offers SEARCH too. */
  xz_shell_init(&u);xz_shell_browse_reset();press(&u,&m,XZ_SHELL_KEY_BROWSE);press(&u,&m,XZ_SHELL_KEY_MENU);
  int found=0;
@@ -500,10 +518,13 @@ static void test_two_line_rows(void) {
  xz_shell_init(&u);xz_shell_browse_reset();press(&u,&m,XZ_SHELL_KEY_BROWSE);
  render_checked(&u,&m,buffer_a);
  struct xz_shell_rect row=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_ROW,3);
- struct xz_shell_rect below={row.x,row.y+24,row.w,10};
+ /* Under the TITLE column only: the ARTIST column draws its own text in the same strip of the row. */
+ struct xz_shell_rect title=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_COLUMN,1);
+ struct xz_shell_rect below={title.x,row.y+24,title.w,10};
  int artist=count(frame(buffer_a),below,SH_DIM);
  b.columns[4]=XZ_SHELL_COL_ARTIST;b.column_count=5;
  render_checked(&u,&m,buffer_b);
+ assert(xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_COLUMN,4).w>0);   /* the ARTIST column shows */
  assert(artist>8&&count(frame(buffer_b),below,SH_DIM)<artist);
  puts("PASS browse rows: artist under the title unless the ARTIST column shows");
 }

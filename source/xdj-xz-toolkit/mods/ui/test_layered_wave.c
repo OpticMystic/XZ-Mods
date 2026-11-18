@@ -50,7 +50,8 @@ int main(void){
  struct xz_wave_load w;
  xz_wave_index_reset();
  assert(!xz_wave_load_three_band(source,&w));
- assert(w.kind==XZ_LAYERED_THREE_BAND&&w.count==COUNT&&!memcmp(w.bands,bands,sizeof(bands)));
+ assert(w.kind==XZ_LAYERED_THREE_BAND&&w.count==COUNT);
+ for(unsigned i=0;i<COUNT;i++){assert(w.bands[i*3]==bands[i*3+2]);assert(w.bands[i*3+1]==bands[i*3]);assert(w.bands[i*3+2]==bands[i*3+1]);}
  assert(w.normalization==xz_wave_normalization(bands,COUNT,XZ_LAYERED_THREE_BAND)&&w.normalization>=190);
  xz_wave_load_free(&w);
  /* Case-insensitive like FAT; unknown tracks fail cleanly. */

@@ -13,6 +13,8 @@ struct xz_wave_load {uint8_t *bands;uint32_t count,normalization;unsigned kind;}
 int xz_wave_load_three_band(const char *source,struct xz_wave_load *out);
 int xz_wave_load_stems(const char *source,struct xz_wave_load *out);
 void xz_wave_load_free(struct xz_wave_load *);
+/* PWV6/PWV7 store mid, high, low. Runtime arrays use low, mid, high. */
+void xz_wave_decode_bands(uint8_t *bands,uint32_t count);
 
 /* Exposed for tests. */
 int xz_anlz_section(const uint8_t *file,size_t n,const char tag[4],uint32_t entry_size,size_t *entries,uint32_t *count);

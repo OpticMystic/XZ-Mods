@@ -25,7 +25,7 @@ FIELDS = ('version size sequence enabled load_enabled owns handed_off caution_yi
           'last_command last_command_result guards model_guard_r3 model_guard_r4 model_guard_r5 model_guard_r6 '
           'wave_loads wave_failures grid_loads library_tracks_usb1 library_tracks_usb2 library_errors list_builds '
           'list_errors list_build_ms second_refreshes second_gap_max_us second_late second_tick_busy '
-          'second_clock_reads second_moving model_holds fx_guard_failures caution_filtered ui_requests menu_passes').split()
+          'second_clock_reads second_moving model_holds fx_guard_failures caution_filtered ui_requests menu_passes timed_holds').split()
 SIZE = 4 * len(FIELDS)
 STABLE_FIELDS = ('enabled load_enabled owns handed_off caution_yield caution screen capabilities '
                  'commands_run commands_refused commands_dropped last_command last_command_result guards').split()

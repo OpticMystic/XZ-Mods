@@ -5,6 +5,7 @@
    screen (player, time, mini overview, tempo, BPM). Header-only and static so
    each screen file carries its own copy. */
 #include "shell_internal.h"
+#include "../ui/tempo_text.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -27,7 +28,7 @@ static inline size_t si_emit(struct xz_shell_action out[XZ_SHELL_ACTIONS], size_
 /* Appends the navigation a key produces (sh_key writes from out[0]). */
 static inline size_t si_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_key k, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
  struct xz_shell_action nav[XZ_SHELL_ACTIONS];
- size_t count=sh_key(u,m,k,-1,nav);
+ size_t count=sh_screen_key(u,m,k,nav);
  for(size_t i=0;i<count;i++)n=si_emit(out,n,nav[i]);
  return n;
 }
@@ -117,13 +118,14 @@ static inline void si_strip_deck(const struct xz_shell *u, const struct xz_shell
  else tm_known=0;
  sh_text(c,tx,y+5,mode==XZ_SHELL_TIME_REMAIN?"REMAIN":"TIME",SH_SMALL,tm_known?SH_WHITE:SH_DIM);
  int32_t elapsed=loaded?xz_shell_elapsed_now(m,deck):-1;
- int have_elapsed=elapsed>=0,have_total=loaded&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0;
+ int have_elapsed=loaded&&sh_has(d,XZ_SHELL_F_ELAPSED),have_total=loaded&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0;
  int32_t shown=-1;
- if(mode==XZ_SHELL_TIME_REMAIN&&have_elapsed&&have_total)shown=sh_max(0,d->total_ms-elapsed);
+ if(mode==XZ_SHELL_TIME_REMAIN&&have_elapsed&&have_total)shown=(int64_t)d->total_ms-elapsed>INT32_MAX?INT32_MAX:d->total_ms-elapsed;
  else if(mode==XZ_SHELL_TIME_ELAPSED&&have_elapsed)shown=elapsed;
- if(shown>=0){int32_t sec=shown/1000,min=sec/60;if(min>99){min=99;sec=99*60+59;}snprintf(text,sizeof text,"%02d:%02d",(int)min,(int)(sec%60));}
+ int time_known=have_elapsed&&(mode==XZ_SHELL_TIME_ELAPSED||have_total);
+ if(time_known){int32_t sec=(shown<0?-shown:shown)/1000,min=sec/60;if(min>99){min=99;sec=99*60+59;}snprintf(text,sizeof text,"%s%02d:%02d",shown<0?"-":"",(int)min,(int)(sec%60));}
  else snprintf(text,sizeof text,"--:--");
- sh_num(c,tx,y+19,text,SH_NUM_MID,shown>=0?SH_WHITE:SH_DIM);
+ sh_num(c,tx,y+19,text,SH_NUM_MID,time_known?SH_WHITE:SH_DIM);
  /* BPM box at the right edge, tempo left of it, overview filling the rest */
  int boxw=76,boxx=right-boxw;
  int master=sh_has(d,XZ_SHELL_F_MASTER)&&d->master;
@@ -139,14 +141,13 @@ static inline void si_strip_deck(const struct xz_shell *u, const struct xz_shell
  }else sh_num_right(c,boxx+boxw-4,y+20,"---.-",SH_NUM_MID,SH_DIM);
  int tempo_right=boxx-8;
  sh_text_right(c,tempo_right,y+5,"TEMPO",SH_SMALL,SH_DIM);
- if(sh_has(d,XZ_SHELL_F_TEMPO)){
-  int32_t t=sh_max(-99999,sh_min(d->tempo_x100,99999)),a=t<0?-t:t;
-  snprintf(text,sizeof text,"%s%d.%02d",t>0?"+":t<0?"-":"",(int)(a/100),(int)(a%100));
- }else snprintf(text,sizeof text,"--.--");
+ if(sh_has(d,XZ_SHELL_F_TEMPO))xz_tempo_text(text,sizeof text,d->tempo_x100,sh_has(d,XZ_SHELL_F_TEMPO_RANGE),d->tempo_range);
+ else snprintf(text,sizeof text,"--.--");
  int pw=sh_text_width(c,"%",SH_SMALL);
  sh_text_right(c,tempo_right-pw-1,y+21,text,SH_TEXT,sh_has(d,XZ_SHELL_F_TEMPO)?SH_WHITE:SH_DIM);
  sh_text_right(c,tempo_right,y+26,"%",SH_SMALL,SH_DIM);
- int ox=tx+sh_num_width(SH_NUM_MID,"00:00")+10,ow=tempo_right-62-ox;
+ /* The mini overview ends 66 px left of the % sign: the widest tempo ("+16.00") and its % take 61. */
+ int ox=tx+sh_num_width(SH_NUM_MID,"00:00")+10,ow=tempo_right-66-ox;
  if(ow>8)si_mini_overview(u,m,c,d,(struct xz_shell_rect){ox,y+8,ow,33},have_elapsed&&have_total?elapsed:-1);
 }
 static inline void si_strip(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {

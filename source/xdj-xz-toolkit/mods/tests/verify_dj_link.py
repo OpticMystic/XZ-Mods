@@ -20,8 +20,13 @@ import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[2]
-CG = REPO / 'packages' / 'creative-graph'
-FIXTURES = CG / 'fixtures' / 'dj-profile'
+# The TypeScript codec lives in the creative-graph package of the VJ.Tools library repository (packages/creative-graph
+# beside this tree in the monorepo); XZ_CREATIVE_GRAPH=<dir> points at it elsewhere. The C and Python checks only need
+# the fixtures, which this repository also carries under builder/tests/fixtures (as verify_dj_profile.py uses them).
+CG = Path(os.environ['XZ_CREATIVE_GRAPH']) if os.environ.get('XZ_CREATIVE_GRAPH') else REPO / 'packages' / 'creative-graph'
+FIXTURES = next((f for f in (CG / 'fixtures' / 'dj-profile', ROOT.parent / 'builder' / 'tests' / 'fixtures' / 'dj-profile')
+                 if (f / 'cases.json').exists()), CG / 'fixtures' / 'dj-profile')
+SKIP_EXIT = 77
 PREFIX = 'https://vj.tools/dj#p1.'
 QR_VERSION = 12
 V12_M_BYTES = 287  # byte-mode capacity of version 12, ECC M
@@ -287,7 +292,10 @@ def main():
         # 3. The TypeScript codec, from dist (when it exports the codec) and from source (Node type stripping).
         node, convert = node_command()
         ts_ran, ts_chars = [], {}
-        modules = [CG / 'src' / 'dj-profile.ts']
+        ts_absent = not (CG / 'src' / 'dj-profile.ts').exists()
+        if ts_absent:
+            print(f'TS cross-check not run: no creative-graph package at {CG} (set XZ_CREATIVE_GRAPH)')
+        modules = [] if ts_absent else [CG / 'src' / 'dj-profile.ts']
         dist = CG / 'dist' / 'index.js'
         if dist.exists() and 'decodeProfileFragment' in (CG / 'dist' / 'dj-profile.js').read_text(encoding='utf-8'):
             modules.insert(0, dist)
@@ -354,7 +362,15 @@ def main():
             print(f'  {length:4d} chars  v{version or "-":<2}  dropped {dropped}{ts}  {name}')
 
     print('verify_dj_link:', 'FAIL' if failures else 'ok', f'({len(failures)} failures)')
-    return 1 if failures else 0
+    if failures:
+        return 1
+    if ts_absent or ts_pending:
+        # Everything else ran and passed; only the cross-check against the other repository's codec did not run.
+        print('SKIPPED: needs ' + ('the creative-graph package of the VJ.Tools library repository (XZ_CREATIVE_GRAPH)'
+                                   if ts_absent else 'a node that runs here (NODE=<path>)') +
+              ' for the TypeScript cross-check; the C, Python-mirror and QR checks passed')
+        return SKIP_EXIT
+    return 0
 
 
 def capacity(version):

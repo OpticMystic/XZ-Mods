@@ -52,10 +52,21 @@ def c_list(source, name):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--zig', required=True)
-    parser.add_argument('--mbedtls', type=Path, required=True)
+    parser.add_argument('--mbedtls', type=Path, help='mbedtls 3.6.7 source tree (required to run)')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--wsl-distro', default='Ubuntu')
     args = parser.parse_args()
+    # Inputs from outside this repository: say which are missing and exit 77 ("skipped" for run_all_host.py).
+    needs = [] if args.mbedtls else ['--mbedtls, an mbedtls 3.6.7 source tree']
+    spec = ['spec/fixtures/loader-identity.json', 'spec/support-contract.json',
+            'spec/generated/controller-pending.schema.json', 'spec/generated/loader-identity.schema.json',
+            'spec/fixtures/controller-pending-report.json']
+    absent = [name for name in spec if not (REPO / name).is_file()]
+    if absent:
+        needs.append(f'the main XZ-Mods repository\'s spec/ files beside source/ ({", ".join(absent)}), looked for under {REPO}')
+    if needs:
+        print('SKIPPED: needs ' + '; and '.join(needs))
+        raise SystemExit(77)
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     wsl = os.name == 'nt'

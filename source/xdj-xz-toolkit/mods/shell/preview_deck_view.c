@@ -55,6 +55,16 @@ int main(int argc, char **argv) {
  m.layout_preference=XZ_LAYOUT_TWO+1;m.sides_extra=1;shot(&u,&m,"deckview-05-two-decks-pair-3-2");
  m.layout_preference=XZ_LAYOUT_TWO+1;m.sides_extra=0;m.notice=XZ_DECK_VIEW_READY_NOTICE;m.notice_at_ms=m.clock_ms-200;
  shot(&u,&m,"deckview-06-two-decks-ready-notice");
+ /* The loopback cable (shell_runtime.c cable_tick_locked): in on 2 DECKS, the view goes to 4 DECKS in mixer order
+    and the picker opens with its line; it closes by itself 8 s later; out for 1.5 s, back to 2 DECKS. */
+ xz_shell_init(&u);fx_model_full(&m,&track);m.layout_preference=XZ_LAYOUT_TWO+1;m.route_state=XZ_EXTRA_ROUTE_NOT_DETECTED;
+ shot(&u,&m,"cable-01-before-two-decks");
+ fx_model_four(&m,&track);m.layout_preference=XZ_LAYOUT_MIXER+1;m.wave_order=1;m.route_state=XZ_EXTRA_ROUTE_READY;
+ xz_shell_deck_view_cable_open(&u,&m,XZ_LAYOUT_MIXER);
+ shot(&u,&m,"cable-02-connected-picker-3124");
+ m.clock_ms+=XZ_DECK_VIEW_CABLE_TIMEOUT_MS;shot(&u,&m,"cable-03-picker-closed-after-8s");
+ xz_shell_init(&u);fx_model_full(&m,&track);m.layout_preference=XZ_LAYOUT_TWO+1;m.route_state=XZ_EXTRA_ROUTE_LOST;
+ shot(&u,&m,"cable-04-pulled-two-decks");
  m.clock_ms=123456+450;
  route_down(&m,XZ_LAYOUT_FOUR,XZ_EXTRA_ROUTE_NOT_DETECTED,XZ_EXTRA_ROUTE_PART_CABLE,"The loopback audio route has not been detected.");
  m.clock_ms+=650;shot(&u,&m,"card-01-not-detected");

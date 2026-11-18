@@ -11,6 +11,16 @@ void xz_ram_deck_status(unsigned deck, struct xz_ram_status *s) {
     if (!s->supported) { s->reason = XZ_RAM_NO_ENGINE;
         snprintf(s->message, sizeof(s->message), "This loader does not include the RAM engine."); }
 }
+/* For the drawing path: 0 and *s untouched when the native RAM lock is busy. */
+int xz_ram_deck_status_try(unsigned deck, struct xz_ram_status *s) {
+    if (deck >= 2) { xz_ram_deck_status(deck, s); return 1; }
+    struct xz_ram_status now;
+    if (!xz_ram_status_try((int)deck, &now)) return 0;
+    *s = now;
+    if (!s->supported) { s->reason = XZ_RAM_NO_ENGINE;
+        snprintf(s->message, sizeof(s->message), "This loader does not include the RAM engine."); }
+    return 1;
+}
 enum xz_ram_result xz_ram_deck_command(unsigned deck, enum xz_ram_command command, const struct xz_ram_track_key *expected) {
     if (deck >= 4) return XZ_RAM_REFUSED;
     if (deck >= 2) return (enum xz_ram_result)xz_extra_decks_ram_command(deck - 2, command, expected);

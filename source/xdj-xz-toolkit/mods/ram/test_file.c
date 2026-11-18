@@ -45,7 +45,7 @@ static void progress(void *ctx,uint32_t n){(void)ctx;copied=n;}
 int main(int argc,char **argv){
  assert(argc==2);source=open(argv[1],O_RDWR|O_CREAT|O_TRUNC,0600);assert(source>=0);
  unsigned char bytes[73729];for(unsigned i=0;i<sizeof bytes;i++)bytes[i]=(unsigned char)(i*43+7);
- struct xz_ram_copy copy={NULL,read_bytes,cancel,progress};
+ struct xz_ram_copy copy={NULL,read_bytes,cancel,progress,NULL,NULL};
  for(fault=0;fault<=8;fault++){
   assert(pwrite(source,bytes,sizeof bytes,0)==sizeof bytes);
   struct xz_media_identity id;assert(xz_media_identify(source,&id));

@@ -23,7 +23,7 @@ static void original(struct xz_oc_assets *a,int64_t at,float pcm[4096]){
     }
 }
 int main(int argc,char **argv){
-    const float choices[]={0,0.25f,0.7f,1};
+    setenv("XZ_MODS_STEMS_FLAT","0",0); /* this file covers the windowed stream; test_overcue_flat.c covers the whole-track store */ const float choices[]={0,0.25f,0.7f,1};
     for(unsigned a=0;a<4;a++)for(unsigned b=0;b<4;b++)for(unsigned c=0;c<4;c++){
         float levels[3]={choices[a],choices[b],choices[c]},parts[3]={0.2f,0.3f,0.4f};struct xz_oc_plan plan;
         assert(!xz_oc_plan_levels(levels,&plan));float actual=0.9f*plan.source,expected=0;
@@ -76,9 +76,11 @@ int main(int argc,char **argv){
         for(int64_t position=60000;position<=260000;position+=40000){
             for(unsigned warm=0;warm<100;warm++){
                 original(&assets,position,pcm);xz_oc_stream_mix(s,pcm,2048,position,no_vocals);
-                pause_worker();xz_oc_stream_status(s,&status);if(status.state==XZ_OC_READY)break;
+                /* Until this position plays from the stems: a block that was still starved would make the loop
+                   return below fade out of starvation over STARVE_RAMP_FRAMES, as it should, and not be seamless. */
+                pause_worker();xz_oc_stream_status(s,&status);if(status.state==XZ_OC_READY&&status.starvation==XZ_OC_STARVE_NONE)break;
             }
-            assert(status.state==XZ_OC_READY);
+            assert(status.state==XZ_OC_READY&&status.starvation==XZ_OC_STARVE_NONE);
         }
         xz_oc_stream_status(s,&status);uint32_t misses=status.misses;
         original(&assets,15000,pcm);assert(xz_oc_stream_mix(s,pcm,2048,15000,no_vocals)==2048);

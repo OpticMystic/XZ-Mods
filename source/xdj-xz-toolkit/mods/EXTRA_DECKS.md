@@ -44,7 +44,12 @@ Existing native routing remains in use when that side selects deck 1 or 2.
 | VINYL | On at start, as the stock decks. Enables touch hold and bidirectional scratching. In CDJ mode, jog touch is ignored and the existing jog bend remains. |
 
 Loop adjustment uses half a CD frame per jog tick. IN adjustment is bounded to
-thirty CD frames around the entry point. Loop wrapping does not flush the USB
+thirty CD frames around the entry point. While an edge moves the loop plays on: the
+audio already queued for the wire is kept, and only an edge that cuts it (OUT pulled
+before what is heard, or before queued audio with no wrap ahead of it) restarts play
+from what is heard, inside the loop. A loop under adjustment stays at least half a
+frame long, the stock engine's minimum (LoopAdjust::MIN_LOOP_WIDTH, 294 samples at
+44.1 kHz); `tests/verify_loop_adjust_jog.py` measures what the turn sounds like. Loop wrapping does not flush the USB
 queue on every wrap. Cue jumps cancel the active loop but retain its boundaries
 for RELOOP.
 

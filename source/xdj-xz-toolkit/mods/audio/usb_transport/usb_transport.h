@@ -38,6 +38,10 @@ typedef struct {
     uint64_t wire_submitted_frames, wire_completed_frames, input_frames;
     uint64_t input_urbs, output_urbs, fallback_packets, feedback_replaced;
     uint64_t maximum_completion_gap_us;
+    /* Runtime-owned CLOCK_MONOTONIC observation of wire_completed_frames, in microseconds.
+     * Cached reads retain this stamp. Zero means unavailable, never current read time.
+     * This is a userspace completion observation, not a kernel/DAC timestamp. */
+    uint64_t wire_observed_at_us;
 } xz_usb_position;
 
 /* Control worker only. Validates an existing tmpfs character node and device,
@@ -89,6 +93,14 @@ xz_usb_result xz_usb_transport_position(xz_usb_transport *, xz_usb_position *out
  * On other results resources are freed and *io becomes NULL. NULL is harmless.
  * Returns IO if final rollback failed. No forced thread cancellation. */
 xz_usb_result xz_usb_transport_close(xz_usb_transport **io);
+
+/* Diagnostic only. The USB worker copies the next capacity_frames frames the device sends to the host
+ * (XZ_USB_CAPTURE_BYTES per frame: 8 channels of 24-bit little-endian PCM) into buffer, then stops by itself.
+ * One capture at a time: BUSY while the previous one is still filling. The buffer must stay valid until
+ * xz_usb_transport_capture_filled reports done, or the transport is closed. No effect on audio. */
+#define XZ_USB_CAPTURE_BYTES 24u
+xz_usb_result xz_usb_transport_capture(xz_usb_transport *, uint8_t *buffer, uint32_t capacity_frames);
+uint32_t xz_usb_transport_capture_filled(xz_usb_transport *, int *done);
 
 #ifdef __cplusplus
 }

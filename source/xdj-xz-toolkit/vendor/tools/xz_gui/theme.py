@@ -82,10 +82,13 @@ def build_theme(
     preview_dir: pathlib.Path,
     preferred_font: pathlib.Path | None = None,
     logo_path: pathlib.Path | None = None,
+    splash: Image.Image | None = None,
+    logo: Image.Image | None = None,
 ) -> None:
+    """splash and logo, when given, are finished 800 x 480 and 560 x 92 images used as they are."""
     pack = ImagePack.read(stock_pack_path)
-    splash = make_splash(preferred_font, logo_path)
-    logo = make_unloaded_logo(preferred_font, logo_path)
+    splash = splash or make_splash(preferred_font, logo_path)
+    logo = logo or make_unloaded_logo(preferred_font, logo_path)
     pack.replace(SPLASH_IMAGE_ID, splash)
     pack.replace(UNLOADED_LOGO_IMAGE_ID, logo)
     output_pack_path.parent.mkdir(parents=True, exist_ok=True)

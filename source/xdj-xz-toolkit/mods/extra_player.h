@@ -130,6 +130,16 @@ void xz_xp_set_native_sync_clock(struct xz_xp_players *,int (*)(struct xz_sync_n
 void xz_xp_set_ram_service(struct xz_xp_players *, const struct xz_ram_player_service *);
 void xz_xp_set_source_generation(struct xz_xp_players *, uint64_t (*)(unsigned));
 void xz_xp_set_cue_store(struct xz_xp_players *,xz_cue_read_fn,xz_cue_write_fn);
+/* USB STOP, or a pull, of the stick in USB slot 1 or 2 (usb_release.h). Each deck gets the request through its
+   control queue, after the controls queued before it, whatever the route; its worker then lets go of that stick:
+   a deck playing its track from a complete, attached RAM copy plays on and the RAM service closes whatever of the
+   stick it still holds (KEPT); any other deck with a track from that stick is unloaded as the stock decks are, and
+   its files are closed (UNLOADED). Each deck answers once per request, from its worker, through the callback set
+   before the workers start. Returns the number of answers that will follow. Never waits for a worker. */
+enum xz_xp_release { XZ_XP_RELEASE_NOTHING, XZ_XP_RELEASE_KEPT, XZ_XP_RELEASE_UNLOADED };
+typedef void (*xz_xp_release_answer)(void *ctx, int deck, int slot, uint32_t stop, enum xz_xp_release what);
+void xz_xp_set_release_answer(struct xz_xp_players *, xz_xp_release_answer, void *ctx);
+unsigned xz_xp_release_source(struct xz_xp_players *, int slot, uint32_t stop);
 int xz_xp_needs_native_sync(const struct xz_xp_players *);
 int xz_xp_use_native_master(struct xz_xp_players *); /* 1 changed, 0 already native-reference mode */
 void xz_xp_notice(struct xz_xp_players *, const char *text);

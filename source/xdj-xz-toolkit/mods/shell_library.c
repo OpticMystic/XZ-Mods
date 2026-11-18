@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 #include "shell_library.h"
+#include "xz_cloexec.h"
 #include "pdb/pdb.h"
 #include <limits.h>
 #include <stdio.h>
@@ -8,8 +9,8 @@
 
 struct node { uint32_t id, parent, sort, name; int folder; };
 struct xz_shlib {
- FILE *file; uint64_t size;
- void *arena; pdb *db; size_t mark;
+ FILE *file; uint64_t size; unsigned char *image;
+ void *arena, *lookup_cache; pdb *db; size_t mark;
  struct xz_shlib_track *tracks; uint32_t count, cap;
  char *text; size_t text_used, text_cap;
  struct node *playlists, *history; uint32_t playlist_count, playlist_cap, history_count, history_cap;
@@ -22,7 +23,10 @@ struct xz_shlib {
 };
 
 static int read_file(void *user, uint64_t offset, void *bytes, size_t length) {
- FILE *f=user;
+ struct xz_shlib *L=user;
+ if(offset>L->size||length>L->size-offset)return -1;
+ if(L->image){memcpy(bytes,L->image+(size_t)offset,length);return 0;}
+ FILE *f=L->file;
  if(offset>(uint64_t)LONG_MAX||fseek(f,(long)offset,SEEK_SET))return -1;
  return fread(bytes,1,length,f)==length?0:-1;
 }
@@ -57,7 +61,7 @@ static int on_track(void *user, const pdb_track *t) {
  r->rating=t->rating>5?5:t->rating;r->color_id=t->color_id<=8?t->color_id:0;
  r->title=text_of(L,t->title);r->artist=text_of(L,t->artist);r->album=text_of(L,t->album);
  r->genre=text_of(L,t->genre);r->label=text_of(L,t->label);r->key=text_of(L,t->key);
- r->date_added=text_of(L,t->date_added);
+ r->date_added=text_of(L,t->date_added);r->analysis_path=text_of(L,t->analysis_path);
  const char *path=t->file_path.data;size_t n=path?t->file_path.len:0,base=0;
  for(size_t i=0;i<n;i++)if(path[i]=='/')base=i+1;
  r->file_name=text_add(L,path?path+base:NULL,n-base);
@@ -80,13 +84,25 @@ int xz_shlib_open(const char *path, size_t arena_size, struct xz_shlib **out) {
  *out=NULL;
  struct xz_shlib *L=calloc(1,sizeof *L);
  if(!L)return -1;
- L->file=fopen(path,"rb");
+ L->file=fopen(path,XZ_FOPEN_READ_CLOEXEC); /* no helper the player starts inherits the stick */
  long size=-1;
  if(L->file&&!fseek(L->file,0,SEEK_END))size=ftell(L->file);
+ L->size=size>0?(uint64_t)size:0;
+ /* Small exports are repeatedly scanned for metadata joins. Bound the snapshot
+  * and retain the file-backed path for larger exports. */
+ if(size>0&&size<=16*1024*1024){
+  L->image=malloc((size_t)size);
+  if(L->image&&(fseek(L->file,0,SEEK_SET)||fread(L->image,1,(size_t)size,L->file)!=(size_t)size)){xz_shlib_free(L);return -1;}
+ }
+ /* read_file serves a held image from memory: the stick's file is not kept open (USB STOP must unmount it). */
+ if(L->image){fclose(L->file);L->file=NULL;}
  L->arena=malloc(arena_size);
  if(size<=0||!L->arena||text_add(L,"",0)!=0||
-    pdb_open(&L->db,read_file,L->file,(uint64_t)size,L->arena,arena_size)!=PDB_OK){xz_shlib_free(L);return -1;}
+    pdb_open(&L->db,read_file,L,(uint64_t)size,L->arena,arena_size)!=PDB_OK){xz_shlib_free(L);return -1;}
  L->size=(uint64_t)size;
+ /* Metadata joins otherwise rescan name tables for each track and list build. */
+ L->lookup_cache=malloc(256u*1024u);
+ if(L->lookup_cache&&pdb_set_lookup_cache(L->db,L->lookup_cache,256u*1024u)!=PDB_OK){free(L->lookup_cache);L->lookup_cache=NULL;}
  /* Missing playlist or history tables are empty lists, not failures. */
  int rc=pdb_each_track(L->db,on_track,L);
  if(rc==PDB_OK)rc=pdb_each_playlist(L->db,on_playlist,L);
@@ -99,7 +115,7 @@ int xz_shlib_open(const char *path, size_t arena_size, struct xz_shlib **out) {
 void xz_shlib_free(struct xz_shlib *L) {
  if(!L)return;
  if(L->file)fclose(L->file);
- free(L->arena);free(L->tracks);free(L->text);free(L->playlists);free(L->history);
+ free(L->image);free(L->lookup_cache);free(L->arena);free(L->tracks);free(L->text);free(L->playlists);free(L->history);
  free(L->dirs);free(L->track_dir);free(L->dir_names);free(L);
 }
 uint32_t xz_shlib_track_count(const struct xz_shlib *L) { return L?L->count:0; }
@@ -113,6 +129,7 @@ const struct xz_shlib_track *xz_shlib_track(const struct xz_shlib *L, uint32_t i
  }
  return NULL;
 }
+const struct xz_shlib_track *xz_shlib_track_at(const struct xz_shlib *L,uint32_t index){return L&&index<L->count?&L->tracks[index]:NULL;}
 const char *xz_shlib_text(const struct xz_shlib *L, uint32_t offset) { return L&&offset<L->text_used?L->text+offset:""; }
 
 /* ---- lists ---- */

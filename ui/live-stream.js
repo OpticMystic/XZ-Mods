@@ -2,9 +2,9 @@
 // checked without a window. reason comes from live_stream_status: 'loader',
 // 'network', 'protocol', 'stream', or '' while live.
 const LIVE_REASONS={
-  loader:{title:'Update the USB loader',text:'The XZ is on the network, but its USB loader has no screen service. Update the loader in Set up USB, then power cycle the XZ with both decks stopped.',fix:true},
+  loader:{title:'Update the USB loader',text:'The XZ is on the network, but its USB loader has no screen service. Update the loader on the USB page, then power cycle the XZ with both decks stopped.',fix:true},
   network:{title:'Cannot reach the XZ',text:'Check that this computer and the XZ are on the same network and that the address is right. XZ Mods keeps trying.'},
-  protocol:{title:'The XZ answered unexpectedly',text:'Its USB loader may be from another XZ Mods version. Update the loader in Set up USB if this continues.',fix:true},
+  protocol:{title:'The XZ answered unexpectedly',text:'Its USB loader may be from another XZ Mods version. Update the loader on the USB page if this continues.',fix:true},
   stream:{title:'Screen stream interrupted',text:'Reconnecting automatically…'},
 };
 // The rate the picture actually arrives at. fps is the backend's rolling count

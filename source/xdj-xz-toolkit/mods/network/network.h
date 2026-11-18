@@ -81,7 +81,7 @@ struct xz_net_preference {
     struct xz_net_static static_ip;
 };
 struct xz_net_policy {
-    uint32_t schema; /* 1. Separate policy, never appended to settings CSV. */
+    uint32_t schema; /* 1. Adapter trial policy; startup enable is stored in USB settings. */
     uint8_t count;
     uint8_t request_route; /* Explicit additive MODS default-route request. */
     struct xz_net_preference order[XZ_NET_ADAPTERS];
@@ -163,8 +163,9 @@ struct xz_net_service;
 /* start owns one worker. submit copies one immutable command; never performs I/O.
  * try_read copies a completed view without blocking render or input.
  * stop must not abandon a mutation: cancel/restore with its separate reserved budget.
- * No save or boot-auto-apply entry point exists in the trial service. */
+ * USB settings supply the startup preference through set_dhcp. */
 enum xz_net_result xz_net_service_start(struct xz_net_service **, const struct xz_net_backend *);
+void xz_net_service_set_dhcp(struct xz_net_service *, int enabled);
 enum xz_net_result xz_net_service_submit(struct xz_net_service *, const struct xz_net_command *);
 enum xz_net_result xz_net_service_try_read(struct xz_net_service *, struct xz_net_view *);
 enum xz_net_result xz_net_service_stop(struct xz_net_service *, uint64_t deadline_ms);

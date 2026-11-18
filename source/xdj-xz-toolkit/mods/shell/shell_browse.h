@@ -69,6 +69,7 @@ enum xz_shell_browse_row_field {
  XZ_SHELL_RF_ALBUM, XZ_SHELL_RF_GENRE, XZ_SHELL_RF_DATE_ADDED,
  XZ_SHELL_RF_EDITED,                    /* the playlist (folder row) or its order comes from the shell's sidecar edits */
  XZ_SHELL_RF_TAGGED,                    /* tagged: the track is on this device's TAG LIST */
+ XZ_SHELL_RF_STEMS,                     /* the USB catalog maps this track to a stem bundle */
  XZ_SHELL_RF_COUNT
 };
 struct xz_shell_browse_row {
@@ -88,6 +89,7 @@ struct xz_shell_browse_row {
  const char *album, *genre;
  int32_t date_added;                    /* yyyymmdd */
  int tagged;                            /* RF_TAGGED */
+ int stems_available;
 };
 /* One memory point of the highlighted track for the CUE/LOOP LIST (XZ manual pp.81-82). */
 struct xz_shell_cue_entry {
@@ -167,7 +169,7 @@ enum xz_shell_browse_region {
  XZ_SHELL_BR_COLUMN,    /* index = column slot, left to right */
  XZ_SHELL_BR_LIST,
  XZ_SHELL_BR_ROW,       /* index = visible row */
- XZ_SHELL_BR_LOAD,      /* in the touched row; index 0 = LOAD (active deck), 1.. = deck 1 to the model's deck count */
+ XZ_SHELL_BR_LOAD,      /* in the touched row; index 0 = LOAD (active deck), 1.. = the decks in the lanes' order (sh_deck_at) */
  XZ_SHELL_BR_INFO_PANE,
  XZ_SHELL_BR_KEY,       /* index = keyboard key */
  XZ_SHELL_BR_STRIP,     /* index = deck: its half of the status strip, or its quarter in the four-deck view */

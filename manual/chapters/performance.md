@@ -22,6 +22,7 @@ The PLAY page with the default settings: gate cue and smart cue off, the default
 6 @ 350,260 BUTTON ABOVE LINK | What the button above LINK does, alone and with SHIFT. See Controls on the player.
 7 @ 200,425 Dock | Explains the highlighted row in plain words.
 8 @ 718,425 Works on | The decks the highlighted feature works on, in mixer order 3 1 2 4. A dim number is a deck it does not work on, with the reason below.
+9 @ 478,324 RECORDING TRACKLIST | Writes a list of the tracks you played beside each recording. Off by default. See [Recording](extras#recording).
 ```
 
 If the cue engine has not reported on this USB loader, GATE CUE and SMART CUE show as SET UP GATE CUE and SET UP SMART CUE instead of switches. See [Feature setup](#feature-setup).
@@ -165,7 +166,7 @@ physical-key-sync | KEY SYNC on the deck
 
 1. Load tracks with analysed keys, and make the deck you want to match to the tempo master.
 2. Hold [[SHIFT]] and press [[SYNC]] on the deck you want to move. On a side that drives deck 3 or 4, this moves that deck.
-3. The deck shifts to a key that fits the master deck and MASTER TEMPO turns on. A notice shows the new key and the master deck, with RELATIVE KEY when it matches the relative major or minor.
+3. The deck shifts to a key that fits the master deck and MASTER TEMPO turns on. The deck's key display shows the new key.
 
 To end KEY SYNC, press [[SHIFT]] + [[SYNC]] again, or press [[MASTER TEMPO]]. Both return the deck to its own key and put MASTER TEMPO back the way it was. After that, [[MASTER TEMPO]] does its normal job.
 
@@ -227,7 +228,7 @@ In MODERN each deck's panel beside its waveform shows its key. With PLAYING KEY 
 Deck 2 holds KEY SYNC: it plays Bb minor, moved up from its own A minor, 12 cents sharp.
 1 @ 112,200 Key panel | KEY SYNC, the key the deck plays in now, the cents left over and the track's own key.
 2 @ 112,95 Deck in its own key | Deck 1 plays in its own key, so the panel shows only KEY and the key.
-3 @ 612,378 MT | MASTER TEMPO. It blinks while KEY SYNC holds on that deck.
+3 @ 600,380 MT | MASTER TEMPO. It blinks while KEY SYNC holds on that deck.
 ```
 
 | Part of the key panel | Meaning |
@@ -297,7 +298,7 @@ Deck 1 on a USB loader without the RAM engine.
 3. Press LOAD TRACK INTO RAM. Keep the USB connected while it copies.
 4. Wait for ORIGINAL AUDIO IN RAM.
 
-A track that plays is also copied on its own when there is room. CANCEL COPY or RELEASE RAM COPY stops that for the loaded track.
+A track that plays on deck 1 or 2 is also copied on its own when there is room. On decks 3 and 4 the copy starts as soon as the track is loaded, beginning where the deck plays, so a track you cue and then start plays from memory from its first beat. CANCEL COPY or RELEASE RAM COPY stops that for the loaded track.
 
 | State | Button | What it means |
 |---|---|---|

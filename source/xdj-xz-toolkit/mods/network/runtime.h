@@ -2,6 +2,7 @@
 #ifndef XZ_NETWORK_RUNTIME_H
 #define XZ_NETWORK_RUNTIME_H
 #include "linux.h"
+void xz_net_runtime_set_dhcp(int enabled) __attribute__((weak));
 enum xz_net_result xz_net_runtime_start(const struct xz_net_linux_config *);
 enum xz_net_result xz_net_runtime_stop(unsigned budget_ms);
 enum xz_net_result xz_net_runtime_submit(const struct xz_net_command *) __attribute__((weak));

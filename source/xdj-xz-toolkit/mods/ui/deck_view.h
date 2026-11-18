@@ -15,6 +15,7 @@ struct xz_dv_rect { int x, y, w, h; };
 /* One interface's look. Every colour is 0xRRGGBB. */
 struct xz_deck_view_style {
  int classic;                         /* rounded CLASSIC shapes; MODERN is square */
+ int compact;                         /* the button shows the deck numbers and the triangle only */
  int theme;                           /* text face theme: atlas text in both interfaces */
  struct xz_dv_rect button;            /* the top-bar button as drawn */
  int button_touch_h;                  /* its touch target runs from y 0 down to this */
@@ -37,8 +38,13 @@ int xz_deck_view_lanes(int view, unsigned char out[4]);
 /* An invalid stored value reads as 2 DECKS. */
 static inline int xz_deck_view_valid(int view) { return (unsigned)view<XZ_LAYOUT_COUNT?view:XZ_LAYOUT_TWO; }
 
+/* MODERN's button, just left of INFO: compact, so the top bar keeps room for the REC mark between it and the
+   BEAT FX strip (shell_play.c, ui/rec_mark.h). */
+enum { XZ_DECK_VIEW_MODERN_X=576, XZ_DECK_VIEW_MODERN_W=54 };
 /* The top-bar button: lane glyph, DECKS, the deck numbers in screen order (3 and 4 grey while not ready),
-   a down triangle, and an amber dot while a four-deck view waits for decks 3 and 4. pair names the decks a
+   a down triangle, and an amber dot while a four-deck view waits for decks 3 and 4. A compact style (MODERN)
+   draws only the numbers, the triangle and the dot: the numbers in their badges already say decks, the
+   picker it opens names the views in words, and every lane names its deck. pair names the decks a
    2 DECKS view shows when the sides drive decks 3 or 4 (bit 0: left on 3, bit 1: right on 4; both interfaces
    show that pair, DECK 3 and 4 in their badges). open draws it lit (the picker is showing); focused draws
    the encoder ring. Writes only the button rectangle. */
@@ -54,6 +60,14 @@ enum { XZ_DECK_VIEW_HIT_OUTSIDE = -2, XZ_DECK_VIEW_HIT_PANEL = -1 }; /* tiles ar
 struct xz_dv_rect xz_deck_view_tile(const struct xz_deck_view_style *s, int tile);
 int xz_deck_view_picker_hit(const struct xz_deck_view_style *s, int x, int y);
 void xz_deck_view_picker_draw(struct xz_canvas c, const struct xz_deck_view_style *s, int view, int ready, int focus);
+/* The same picker with line in GREEN where the header's grey caption stands (NULL: the caption). MODERN opens it
+   with XZ_DECK_VIEW_CABLE_LINE when the loopback cable came up and the play screen switched to 4 DECKS in mixer
+   order by itself (shell_runtime.c, cable_tick_locked). That picker closes after XZ_DECK_VIEW_CABLE_TIMEOUT_MS
+   untouched; any input makes it an ordinary picker (XZ_DECK_VIEW_PICKER_TIMEOUT_MS from that input). It opens
+   only after the play screen has had no input for XZ_DECK_VIEW_CABLE_QUIET_MS. */
+#define XZ_DECK_VIEW_CABLE_LINE "DECKS 3 AND 4 CONNECTED: 4 DECKS SHOWN"
+enum { XZ_DECK_VIEW_CABLE_TIMEOUT_MS = 8000, XZ_DECK_VIEW_CABLE_QUIET_MS = 1000 };
+void xz_deck_view_picker_draw_line(struct xz_canvas c, const struct xz_deck_view_style *s, int view, int ready, int focus, const char *line);
 /* The encoder in the picker: turn moves the focus one tile per detent, stopping at the ends. */
 int xz_deck_view_focus_step(int focus, int delta);
 /* A miniature play screen of a view (the picker's tile pictures), for other pages to reuse. */

@@ -2,12 +2,16 @@
 #define _GNU_SOURCE
 #define _FILE_OFFSET_BITS 64
 #include "diary/diary.h"
+/* begin 1: remember this thread's scheduling in saved and drop to normal priority; 0: put it back. Absent in
+   host tests. */
+extern void xz_extra_thread_load_priority(int begin,int saved[2]) __attribute__((weak));
 #pragma weak xz_diary_busy_begin
 #pragma weak xz_diary_busy_end
 #pragma weak xz_diary_audio
 #pragma weak xz_diary_notice
 #pragma weak xz_diary_notice_code
 #include "extra_player.h"
+#include "extra_timeline_projection.h"
 #include "anlz_extra.h"
 #include "shell_analysis.h"
 #include "audio/stem_media.h"
@@ -19,8 +23,15 @@
 #else
 #include "clock_compat.h"
 #endif
+/* Outside the platform branch: late_trail.h has empty stand-ins off Linux, and the Windows-host test builds
+   (tests/verify_sync_engine.py, tests/verify_user_bugs36.py) compile the step that uses them. */
+#include "late_trail.h"
+extern struct xz_late_trail xz_extra_late_trail[];
+/* One timed part of the worker's step, for the stall line (late_trail.h). */
+#define XP_PART(n) do{uint64_t part_now=xz_late_us();xz_extra_late_trail[index].part_us[n]=(uint32_t)(part_now-part_at);part_at=part_now;}while(0)
 #include "sync_native.h"
 #include <pthread.h>
+#include "xz_mutex.h"
 #include <math.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -98,6 +109,10 @@ struct memory_point { uint64_t at, end; int loop; uint32_t rgb; int32_t saved_ms
 struct key_output { uint32_t revision; int cents; double pitch_rate; enum xz_key_audio_state state; };
 /* tempo_step: the part of step set by the tempo (fader or SYNC rate), without a jog bend or the SYNC trim. */
 struct output_span { uint64_t begin,end,source,step,loop_in,loop_out,tempo_step; struct key_output key; };
+struct motion_span {
+ uint64_t begin,end,source,after,loop_in,loop_out;
+ double step;uint32_t generation;
+};
 struct output_history {
  struct output_span span[OUTPUT_SPANS],pending;
  unsigned head,count;
@@ -172,9 +187,13 @@ struct sync_clock {
    Ordinary traffic cannot consume these slots. All entries still use one FIFO. */
 #define RELEASE_SLOTS (8u + XZ_EXTRA_HOT_CUES) /* CUE, TOUCH, LOOP_IN, REV, pads, SEARCH, 4/8BEAT, MT. */
 #define MODE_SLOTS 3u
-#define QUEUE_SLOTS (XZ_XP_QUEUE + RELEASE_SLOTS + MODE_SLOTS)
+/* One more for a stick that goes (xz_xp_release_source): it never takes a slot the others count on. */
+#define SOURCE_SLOTS 1u
+#define QUEUE_SLOTS (XZ_XP_QUEUE + RELEASE_SLOTS + MODE_SLOTS + SOURCE_SLOTS)
 #define CONTROL_BUDGET (XZ_XP_QUEUE + 3u) /* Preserve the existing per-pass bound. */
-struct queued_control { struct xz_extra_deck_event event; uint32_t epoch, at, master_choice, operator_epoch; struct xz_performance_settings settings; int jump_beats; };
+/* gone: bit 0 USB 1, bit 1 USB 2, the stop numbers in gone_stop. Such an entry carries no deck event. */
+struct queued_control { struct xz_extra_deck_event event; uint32_t epoch, at, master_choice, operator_epoch; struct xz_performance_settings settings; int jump_beats;
+ unsigned gone; uint32_t gone_stop[2]; };
 static unsigned release_bit(const struct xz_extra_deck_event *e) {
  if(e->kind==XZ_EXTRA_IN_HOT_CUE)
   return e->hot_cue>=0&&e->hot_cue<XZ_EXTRA_HOT_CUES?1u<<(4u+(unsigned)e->hot_cue):0u;
@@ -197,6 +216,7 @@ struct deck {
  pthread_mutex_t queue_lock;
  struct queued_control queue[QUEUE_SLOTS];
  unsigned head, count, release_owed;
+ unsigned source_queued, source_at; /* queue_lock: a stick-gone entry waits at ring index source_at */
  unsigned mode_pending[MODE_SLOTS];
  int mode_target[MODE_SLOTS];
  uint32_t queue_epoch;
@@ -273,7 +293,11 @@ struct deck {
  uint32_t epoch, generation; int need_flush;
  uint64_t submitted;                /* output frames accepted in this generation */
  uint64_t completed;
+ struct motion_span motion[OUTPUT_SPANS];unsigned motion_head,motion_count;
+ double pending_motion_step; /* signed Q32-derived source frames per output frame */
  uint32_t pending; uint64_t pending_after, block_start; float pcm[XZ_USB_BLOCK_FRAMES * 2];
+ uint32_t trace_flags, trace_lead; /* this turn, for the turn trail (late_trail.h) */
+ int trace_render, trace_submit; double trace_rate;
  double pending_phase,pending_beat_step,pending_nominal_bps;
  struct output_history output;
  unsigned render_limit;int sync_capture;
@@ -290,6 +314,7 @@ struct deck {
  enum { SYNC_INITIAL_NONE, SYNC_INITIAL_NOW, SYNC_INITIAL_AFTER_COOLDOWN, SYNC_INITIAL_EXPLICIT } sync_initial;
  int sync_hold,sync_rate_active,sync_have_master,sync_lock_count;
  int sync_native_gap_hold, sync_stationary;
+ uint32_t sync_measured_at;             /* when the beat error was last measured against the master (0: never) */
  uint32_t master_playing_choice;int master_playing_seen;
  uint32_t handoff_intent_epoch;
  struct xz_master_observation master_actual,tempo_authority;
@@ -305,7 +330,7 @@ struct deck {
  uint32_t sync_native_identity,sync_native_source_revision;
  int sync_native_deck;
  unsigned sync_grid_seen,sync_grid_den;
- struct { int have,ready; uint64_t at; double phase,bpm; } native_phase;
+ struct { int have,ready,jump; uint64_t at; double phase,bpm; uint32_t position; } native_phase;   /* jump: the phase did not run on */
  uint64_t sync_native_captured_us;
  double sync_native_bar_phase,sync_native_bpm;
  int sync_native_discontinuous;
@@ -334,12 +359,15 @@ struct xz_xp_players {
  struct xz_xp_env env;
  struct xz_ram_player_service ram;
  uint64_t (*source_generation)(unsigned);
+ xz_xp_release_answer release_answer; void *release_context; /* set before the workers start */
  struct deck deck[XZ_EXTRA_DECKS];
  pthread_mutex_t publish_lock;
  struct xz_extra_deck view[XZ_EXTRA_DECKS];
  struct xz_master_observation tempo_view[XZ_EXTRA_DECKS];
  struct analysis *view_analysis[XZ_EXTRA_DECKS]; /* exact view owner, publish_lock */
  struct xz_extra_deck_event duplicate_source[XZ_EXTRA_DECKS]; /* guarded by publish_lock */
+ double duplicate_rate[XZ_EXTRA_DECKS]; /* nominal only; same publication lock */
+ uint64_t duplicate_loop_in[XZ_EXTRA_DECKS],duplicate_loop_out[XZ_EXTRA_DECKS];
  char notice[64]; uint32_t notice_at, notice_seq;
  pthread_t thread[XZ_EXTRA_DECKS];
  struct worker { struct xz_xp_players *p; int index; } worker[XZ_EXTRA_DECKS];
@@ -410,6 +438,26 @@ void xz_xp_set_ram_service(struct xz_xp_players *p,const struct xz_ram_player_se
 }
 void xz_xp_set_source_generation(struct xz_xp_players *p,uint64_t (*generation)(unsigned)){
  if(p&&!p->threads)p->source_generation=generation;
+}
+void xz_xp_set_release_answer(struct xz_xp_players *p,xz_xp_release_answer answer,void *context){
+ if(p&&!p->threads){p->release_answer=answer;p->release_context=context;}
+}
+unsigned xz_xp_release_source(struct xz_xp_players *p,int slot,uint32_t stop){
+ if(!p||(slot!=1&&slot!=2))return 0;
+ unsigned asked=0;
+ for(int i=0;i<XZ_EXTRA_DECKS;i++){
+  struct deck *d=&p->deck[i];
+  pthread_mutex_lock(&d->queue_lock);
+  /* One entry per deck at most: a second stick joins the entry still waiting, so both are answered from it. */
+  struct queued_control *q=d->source_queued?&d->queue[d->source_at]:NULL;
+  if(!q&&d->count<QUEUE_SLOTS){
+   d->source_at=(d->head+d->count)%QUEUE_SLOTS;q=&d->queue[d->source_at];
+   *q=(struct queued_control){.at=p->env.now_ms()};d->count++;d->source_queued=1;
+  }
+  if(q){q->gone|=1u<<(slot-1);q->gone_stop[slot-1]=stop;asked++;}
+  pthread_mutex_unlock(&d->queue_lock);
+ }
+ return asked;
 }
 static void retire_reader(struct xz_xp_players *p,struct deck *d){
  struct xz_stem_media *media=d->r->media;d->r->media=NULL;d->r->cached=0;
@@ -739,6 +787,13 @@ static void scratch_advance(struct deck *d,unsigned available,unsigned *retired,
  }
 }
 static void accepted_segment(struct deck *d){
+ if(d->pending&&d->pending_motion_step){
+  if(d->motion_count==OUTPUT_SPANS){d->motion_head=(d->motion_head+1)%OUTPUT_SPANS;d->motion_count--;}
+  struct motion_span *m=&d->motion[(d->motion_head+d->motion_count++)%OUTPUT_SPANS];
+  *m=(struct motion_span){.begin=d->submitted,.end=d->submitted+d->pending,
+   .source=d->block_start,.after=d->pos,.step=d->pending_motion_step,.generation=d->generation};
+  if(d->loop.active){m->loop_in=d->loop.in;m->loop_out=d->loop.out;}
+ }
  output_accept(&d->output,d->submitted,d->pending);
  if(!d->emergency.active){
   if(d->state!=XZ_XP_PLAYING||reversed(d)||d->search||d->ramp.active){d->emergency.count=0;}
@@ -771,7 +826,7 @@ static int render_source(struct deck *d, double rate) {
  xz_xp_test_render_hook();
 #endif
  struct reader *r = d->r;
- memset(&d->output.pending,0,sizeof d->output.pending);
+ memset(&d->output.pending,0,sizeof d->output.pending);d->pending_motion_step=0;
  if(d->emergency.active){
   for(unsigned i=0;i<XZ_USB_BLOCK_FRAMES;i++){
    unsigned at=(d->emergency.start+d->emergency.read)%EMERGENCY_FRAMES;
@@ -831,6 +886,8 @@ static int render_source(struct deck *d, double rate) {
   return 1;
  }
  uint64_t step = (uint64_t)((double)r->rate / XZ_USB_RATE * rate * (double)ONE);
+ if(d->state==XZ_XP_PLAYING&&!d->search&&!d->ramp.active)
+  d->pending_motion_step=(reversed(d)?-1.:1.)*(double)step/(double)ONE;
  if(d->state==XZ_XP_PLAYING&&!reversed(d)&&!d->search&&!d->ramp.active){
   d->output.pending.source=d->block_start;d->output.pending.step=step;
   /* S8: a follower tracks the tempo setting, not a side nudge or the SYNC trim on top of it. */
@@ -958,6 +1015,23 @@ static int key_admit(struct xz_xp_players *p,struct deck *d) {
 }
 
 /* ---- the deck machine ---- */
+static int motion_position(const struct deck *d,double output,double *source){
+ for(unsigned i=0;i<d->motion_count;i++){
+  const struct motion_span *m=&d->motion[(d->motion_head+i)%OUTPUT_SPANS];
+  if(m->generation!=d->generation||output<(double)m->begin||output>(double)m->end)continue;
+  double at=output==(double)m->end?(double)m->after/ONE:
+   (double)m->source/ONE+(output-(double)m->begin)*m->step;
+  if(m->loop_out>m->loop_in){
+   double span=(double)(m->loop_out-m->loop_in);
+   at=m->loop_in+fmod(at-m->loop_in,span);if(at<m->loop_in)at+=span;
+  }
+  if(at<0)at=0;
+  if(at>d->r->frames)at=(double)d->r->frames;
+  *source=at;return 1;
+ }
+ return 0;
+}
+
 static uint64_t heard_now(const struct deck *d, uint32_t now) {
  uint64_t head = d->pos >> 32;
  if (!streaming(d->state)) return head;
@@ -965,7 +1039,15 @@ static uint64_t heard_now(const struct deck *d, uint32_t now) {
  uint32_t age=now-d->heard_at;
  if(age>150)return d->heard; /* stale or future/wrapped observation: hold its verified tag */
  double rate=d->heard_rate;
- double at=(double)d->heard+(double)age*rate*d->r->rate/1000.;
+ double anchor,precise;
+ if(d->timeline_sink_frame&&d->timeline_wire_completed>=d->timeline_sink_frame&&
+    motion_position(d,(double)d->timeline_output_frames,&anchor)&&(uint64_t)anchor==d->heard){
+  double output=(double)d->timeline_output_frames+
+   (double)(d->timeline_wire_completed-d->timeline_sink_frame)+(double)age*XZ_USB_RATE/1000.;
+  if(motion_position(d,output,&precise))return (uint64_t)precise;
+ }
+ double at=xz_extra_project_frames((double)d->heard,d->r->rate,rate,age,
+  d->timeline_sink_frame,d->timeline_wire_completed,d->timeline_anchor_valid);
  if(at<0)at=0;
  if(d->state!=XZ_XP_SCRATCHING&&d->loop.active)return loop_frame(d,(uint64_t)at);
  if(rate<0&&at<head)at=(double)head;
@@ -978,7 +1060,7 @@ static void jump(struct deck *d, uint64_t frame, uint32_t now) {
  if (frame > d->r->frames) frame = d->r->frames;
  d->scratch.releasing=0;d->ramp.active=0;
  d->pos = frame << 32; d->need_flush = 1; d->pending = 0; d->submitted = d->completed = 0;
- d->segment_count=0;output_reset(&d->output);key_history_reset(d);
+ d->segment_count=0;d->motion_head=d->motion_count=0;output_reset(&d->output);key_history_reset(d);
  d->heard = frame; d->heard_at = now;
  d->heard_rate=0;d->timeline_valid=d->timeline_anchor_valid=0;d->timeline_revision++;
  d->timeline_output_frames=d->timeline_sink_frame=d->timeline_wire_completed=0;
@@ -1086,7 +1168,7 @@ static void flush(struct xz_xp_players *p, struct deck *d) {
  SP_ONLY(if(available)sp_service(&d->sp,first?XP_SP_TRANSITION:XP_SP_FLUSH,r,sp_begin,p->env.now_ms()));
  if (r == XZ_USB_OK) {
   d->generation = next; d->submitted = d->completed = 0; d->underrun=0;
-  d->segment_count=0;output_reset(&d->output);
+  d->segment_count=0;d->motion_head=d->motion_count=0;output_reset(&d->output);
   if (first) { accepted_segment(d);accepted_scratch(d);d->submitted = d->pending; d->pending = 0; }
  }
  /* Busy/full retries keep the prepared target private. A newer command can replace it. */
@@ -1220,6 +1302,7 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   snprintf(v.artist, sizeof v.artist, "%s", d->track.artist);
   snprintf(v.key, sizeof v.key, "%s", d->track.key);
   v.source = d->track.source;
+  v.track_id = d->track.track_id;
   v.tempo_x100 = d->tempo_x100;
   v.tempo_range = d->tempo_range;
   v.tempo_reset = d->tempo_reset;
@@ -1254,6 +1337,7 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
  v.reverse = d->reverse; v.slip = d->slip; v.pad_mode = d->pad_mode; v.active_pad = d->active_pad;
  if (loaded(s)) {
   v.playing = streaming(s) && s != XZ_XP_SCRATCHING;
+  v.cue_play = s == XZ_XP_SAMPLING;
   v.held_playing = s == XZ_XP_SCRATCHING && streaming(d->scratch.resume);
   v.platter_contact = s == XZ_XP_SCRATCHING && d->scratch.contact;
   v.slip_active = d->slip_bg.active;
@@ -1313,6 +1397,8 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   }
  }
  pthread_mutex_lock(&p->publish_lock);
+ p->duplicate_rate[d->index]=nominal(d);
+ p->duplicate_loop_in[d->index]=d->loop.in;p->duplicate_loop_out[d->index]=d->loop.out;
  p->duplicate_source[d->index]=(struct xz_extra_deck_event){.kind=XZ_EXTRA_IN_LOAD,.pressed=1};
  if(loaded(s)){
   p->duplicate_source[d->index].load.source=d->track.source;
@@ -1489,6 +1575,12 @@ static int load_inner(struct xz_xp_players *p, struct deck *d, const struct xz_e
  }
  memcpy(d->saved_hot,d->hot,sizeof d->hot);
  jump(d, d->cue, now);
+ /* The deck starts at its cue point, often far from the head of the file. Read the first buffer there now, at
+    load priority: otherwise PLAY's first read asks the stick on the real-time thread (cold tracks started
+    30-55 ms late on the unit, warm ones 1-4 ms), and the RAM service leads from where the reader last read
+    (ram/extra.c, "Leading"), the head of the file, until after that read. A failure here is met again, and
+    reported, by the first render. */
+ (void)fill_cache(d->r, d->cue);
  d->state = XZ_XP_CUED;
  d->load_revision++;d->media_generation=e->load.media_generation;
  if(p->ram.bind){
@@ -1509,7 +1601,14 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
  unsigned mask=e->load.source==1?1u:e->load.source==2?2u:3u;
  if(xz_diary_busy_begin)xz_diary_busy_begin(mask);
  int was_master=current_master(p,d);
+ /* A load is not audio. It opens the file, scans it for seek points and reads its analysis: 100 to 170 ms of
+    processor time, measured on the unit. At this worker's real-time priority that outranked the stock decks'
+    file reader on the same core, and the first loads after start held the core for 600 ms. The loading deck
+    plays nothing meanwhile, so the load runs at normal priority. */
+ int scheduling[2]={0,0};
+ if(xz_extra_thread_load_priority)xz_extra_thread_load_priority(1,scheduling);
  int result=load_inner(p,d,e,now,next);
+ if(xz_extra_thread_load_priority)xz_extra_thread_load_priority(0,scheduling);
  if(result&&was_master)d->master_load_handoff=1; /* M5: master_handoff passes master on */
  if(xz_diary_busy_end)xz_diary_busy_end(mask);
  return result;
@@ -1598,27 +1697,48 @@ static uint64_t jog_target(const struct deck *d,uint64_t from,int32_t delta) {
  if(target>=(double)d->r->frames)return d->r->frames<<32;
  return (uint64_t)(target*(double)ONE);
 }
+/* While a loop edge moves (LOOP IN / OUT ADJUST), the audio already queued for the wire plays on, so the loop
+   keeps playing under the jog. Only an edge that cuts that audio restarts it from what is heard: the listener
+   is already past the new OUT, or audio past the new OUT waits in the queue with no wrap before it. Any other
+   move changes only where the next wrap lands. Outside forward play (reverse, search, scratch, a paused deck,
+   the emergency loop) every move restarts from what is heard, as before. */
+static int loop_edge_cuts_queue(const struct deck *d, uint64_t heard) {
+ if (d->state != XZ_XP_PLAYING || reversed(d) || d->search || d->emergency.active) return 1;
+ uint64_t head = d->pos >> 32;
+ if (heard >= d->loop.out) return 1;
+ return d->loop.edit == 2 && head >= heard && head > d->loop.out;
+}
+/* LOOP IN / OUT ADJUST (manual pp.47-48): move the edge under edit by frames (the jog and SEARCH step half a
+   frame), IN within 30 frames of where it was, OUT never before IN. The stock engine keeps a loop under
+   adjustment at least half a frame long (playengine::LoopAdjust::MIN_LOOP_WIDTH, 294 samples at 44.1 kHz); a
+   loop already shorter than that only grows. */
+static void loop_adjust_move(struct deck *d, int64_t frames, uint32_t now) {
+ int64_t width = (int64_t)d->r->rate / 150, in = (int64_t)d->loop.in, out = (int64_t)d->loop.out;
+ int64_t value = (d->loop.edit == 1 ? in : out) + frames, low, high;
+ if (d->loop.edit == 1) {
+  int64_t limit = (int64_t)d->r->rate * 30 / 75;
+  low = (int64_t)d->loop.anchor - limit; if (low < 0) low = 0;
+  high = (int64_t)d->loop.anchor + limit; if (high > out - width) high = out - width;
+  if (high < in) high = in;
+  if (low > high) low = high;
+ } else {
+  low = in + width; if (low > out) low = out;
+  high = (int64_t)d->r->frames;
+ }
+ if (value < low) value = low;
+ if (value > high) value = high;
+ uint64_t heard = heard_now(d, now);
+ if (d->loop.edit == 1) d->loop.in = (uint64_t)value;
+ else d->loop.out = (uint64_t)value;
+ d->loop.edit_at = now;
+ if (loop_edge_cuts_queue(d, heard)) jump(d, loop_frame(d, heard), now);
+}
 static void jog(struct xz_xp_players *p,struct deck *d,int32_t delta,float platter_speed,
                 int speed_known,uint32_t now,uint32_t arrived) {
  int qualified_speed=speed_known&&isfinite(platter_speed);
  if (d->loop.edit && d->loop.active) {
   if(!delta)return;
-  int64_t value = (int64_t)(d->loop.edit == 1 ? d->loop.in : d->loop.out);
-  value += (int64_t)delta * d->r->rate / 150;
-  int64_t low = d->loop.edit == 1 ? 0 : (int64_t)d->loop.in + 1;
-  int64_t high = d->loop.edit == 1 ? (int64_t)d->loop.out - 1 : (int64_t)d->r->frames;
-  if (d->loop.edit == 1) {
-   int64_t limit = (int64_t)d->r->rate * 30 / 75;
-   if (low < (int64_t)d->loop.anchor - limit) low = (int64_t)d->loop.anchor - limit;
-   if (high > (int64_t)d->loop.anchor + limit) high = (int64_t)d->loop.anchor + limit;
-  }
-  if (value < low) value = low;
-  if (value > high) value = high;
-  uint64_t heard = heard_now(d, now);
-  if (d->loop.edit == 1) d->loop.in = (uint64_t)value;
-  else d->loop.out = (uint64_t)value;
-  d->loop.edit_at = now;
-  jump(d, loop_frame(d, heard), now);
+  loop_adjust_move(d, (int64_t)delta * d->r->rate / 150, now);
   return;
  }
  if(d->state==XZ_XP_SCRATCHING){
@@ -1646,7 +1766,8 @@ static void jog(struct xz_xp_players *p,struct deck *d,int32_t delta,float platt
   d->scratch.group_ticks+=fabs((double)delta);
   double rate=d->scratch.group_ticks*XZ_XP_SEARCH_MS_PER_REV/
               ((double)XZ_XP_JOG_TICKS_PER_REV*d->scratch.interval);
-  if(rate>XZ_XP_SCRATCH_RATE_MAX)rate=XZ_XP_SCRATCH_RATE_MAX;d->scratch.rate=delta>0?rate:-rate;
+  if(rate>XZ_XP_SCRATCH_RATE_MAX)rate=XZ_XP_SCRATCH_RATE_MAX;
+  d->scratch.rate=delta>0?rate:-rate;
   unsigned tail=(d->scratch.head+d->scratch.count)%SCRATCH_SEGMENTS;
   struct scratch_segment *last=d->scratch.group_count?
     &d->scratch.segment[(tail+SCRATCH_SEGMENTS-1)%SCRATCH_SEGMENTS]:NULL;
@@ -1826,19 +1947,23 @@ static int native_phase_ready(struct deck *d,const struct xz_sync_native_snapsho
  uint64_t at=n->captured_us?n->captured_us:(uint64_t)n->captured_ms*1000u;
  if(!n->phase_available||!n->playing||n->manual||!isfinite(n->bar_phase)||n->bar_phase<0||
     n->bar_phase>=4||n->uncertainty_us>XZ_SYNC_NATIVE_MAX_PHASE_UNCERTAINTY_US){
-  d->native_phase.have=d->native_phase.ready=0;return 0;
+  d->native_phase.have=d->native_phase.ready=d->native_phase.jump=0;return 0;
  }
  if(d->native_phase.have&&at==d->native_phase.at)return d->native_phase.ready;
- int coherent=0;
+ int coherent=0,jumped=0;
  if(d->native_phase.have&&at>d->native_phase.at&&at-d->native_phase.at<=150000u){
   double dt=(double)(at-d->native_phase.at)/1000000.;
   double low=dt*fmin(d->native_phase.bpm,(double)n->bpm)/60.;
   double high=dt*fmax(d->native_phase.bpm,(double)n->bpm)/60.;
   double error=wrapped_beat(n->bar_phase-d->native_phase.phase-.5*(low+high)+.5)-.5;
-  coherent=fabs(error)<=.06+.5*(high-low);
+  coherent=n->position_frames!=d->native_phase.position&&fabs(error)<=.06+.5*(high-low);
+  /* Two samples close together whose phase does not run on: the master's beat really moved (a seek, a
+     jump). A late sample, or one that has not advanced, proves nothing either way. */
+  jumped=n->position_frames!=d->native_phase.position&&!coherent;
  }
- d->native_phase.have=1;d->native_phase.ready=coherent;
+ d->native_phase.have=1;d->native_phase.ready=coherent;d->native_phase.jump=jumped;
  d->native_phase.at=at;d->native_phase.phase=n->bar_phase;d->native_phase.bpm=n->bpm;
+ d->native_phase.position=n->position_frames;
  return coherent;
 }
 static double native_tempo_rate(const struct deck *d,double bpm){
@@ -1883,6 +2008,39 @@ static unsigned sync_grid_refresh(struct xz_xp_players *p,struct deck *d){
  return denominator;
 }
 static int wire_time_ms(struct xz_xp_players *,uint32_t,uint64_t,double *);
+/* The master's samples are missing for a moment while this deck was beat-locked and nothing else changed. The
+   tempo is matched, so the beat does not move in that time: the deck is still locked and is shown as locked.
+   After XZ_XP_SYNC_COAST_MS without a measurement the real reason shows. No trim is applied while coasting. */
+/* Where a jump lands on the wire. The audio after a jump starts in the first packet group the USB pump prepares
+   once it has seen the flush, at the pump's submitted frame count of that moment. The count the worker holds
+   was published up to 10 ms earlier and the pump has gone on submitting at the wire rate since, so a jump aimed
+   at the published count landed late by that age: 5 to 13 ms measured on the unit, closed afterwards by a
+   second or more of 1 % trim. Add the age of the published count and one pump turn. */
+static double sync_landing_delay(const xz_usb_position *position,uint32_t now){
+ if(!position||!position->wire_observed_at_us)return 0.;
+ uint32_t age=now-(uint32_t)(position->wire_observed_at_us/1000u);
+ if(age>50u)return 0.;                 /* not a current publication: no better estimate than before */
+ return ((double)age+1.5)/1000.;
+}
+/* The speed trim that closes a beat error. The error is measured from whole-millisecond beat times and
+   whole-millisecond timestamps, so it scatters by about 0.5 ms (standard deviation measured on the unit) around
+   a deck that is not moving at all: both decks run from the same audio clock once the tempo is matched. The
+   old rule (error / 0.25 s, dead band 45 us) answered that scatter with speed changes of up to 0.8 %, several
+   times a second, which is a pitch wobble when MASTER TEMPO is off. Errors inside the dead band are left
+   alone; beyond it the excess is closed with a 0.5 s time constant, still limited to 1 % by the caller. */
+#define XZ_XP_SYNC_DEADBAND_S .0006
+#define XZ_XP_SYNC_TRIM_TAU_S .5
+static double sync_trim_for(double error_seconds,double rate){
+ double excess=fabs(error_seconds)-XZ_XP_SYNC_DEADBAND_S;
+ if(excess<=0)return 0;
+ return (error_seconds>0?-excess:excess)*rate/XZ_XP_SYNC_TRIM_TAU_S;
+}
+#define XZ_XP_SYNC_COAST_MS 500u
+#define XZ_XP_SYNC_CREEP_LIMIT_S .025   /* beyond this beat error, jump to the beat instead of trimming */
+static void sync_coast(struct deck *d,uint32_t now){
+ if(d->sync_lock_count>=3&&d->sync_measured_at&&(uint32_t)(now-d->sync_measured_at)<=XZ_XP_SYNC_COAST_MS&&
+    d->state==XZ_XP_PLAYING){d->sync.locked=1;d->sync.reason=XZ_EXTRA_SYNC_LOCKED;}
+}
 static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_position *position,uint32_t now){
  d->sync_trim=0;d->sync.correction_ppm=0;d->sync.locked=0;
  if(!d->sync.requested)return;
@@ -1960,13 +2118,18 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    if(scratch||platter)d->sync_offset_adopt=0;else if(d->sync_have_master)d->sync_offset_adopt=1;
    d->sync_hold=1;
    d->sync_native_gap_hold=d->sync_have_master&&!platter?SYNC_NATIVE_GAP_WAIT_PHASE:SYNC_NATIVE_GAP_NONE;
+   /* After a platter hold the master's first samples do not pair yet. With the master still held as
+      measured, the late-sample check below took that for a capture gap and released the hold without
+      finding the beat: with a kept nudge offset the deck then crept at 1 % for seconds. Dropping the
+      measured master sends the release through sync_reacquire instead. */
+   if(platter)d->sync_have_master=0;
    d->sync_hold_reason=XZ_EXTRA_SYNC_DISCONTINUITY;d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;
   }
   if(p->native_sync_clock&&(!native.playing||d->state==XZ_XP_CUED||d->state==XZ_XP_ENDED)){
    int phase_known=native.phase_available&&isfinite(native.bar_phase)&&native.bar_phase>=0&&
     native.bar_phase<4&&native.uncertainty_us<=XZ_SYNC_NATIVE_MAX_PHASE_UNCERTAINTY_US;
    double phase=native.bar_phase;
-   if(native.playing)phase+=((double)(uint32_t)(now-native.captured_ms)/1000.-native.output_latency_us/1000000.)*native.bpm/60.;
+   if(native.playing)phase+=((double)(uint32_t)(now-native.captured_ms)/1000.-(native.captured_us%1000u)/1000000.-native.output_latency_us/1000000.)*native.bpm/60.;
    sync_stationary(p,d,selected,choice,native.bpm,wrapped_beat(phase),phase_known,now);return;
   }
   if(d->sync_stationary){d->sync_stationary=0;sync_reacquire(d,now);
@@ -1974,12 +2137,22 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   if(d->quantize&&!grid){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
   if(!position){d->sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;return;}
   if(p->native_sync_clock&&native.phase_available&&d->quantize&&!native_phase_ready(d,&native)){
-   if(d->sync_have_master){d->sync_hold=1;d->sync_hold_reason=XZ_EXTRA_SYNC_DISCONTINUITY;}
-   d->sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;return;
+   /* The stock master's samples come from the stock interface thread, which is often late or preempted
+      mid-read. A sample that is late or does not yet pair with the one before it says nothing about the
+      master's beat: its clock ran on. Measured on the unit: this happened every few seconds, and as a plain
+      hold it made the deck find the beat again with a jump that landed about 10 ms late and took a second
+      or two of trimming to close, so a locked deck was audibly in and out of place. A capture gap keeps
+      the tempo, checks that the phase still runs on as expected, and resumes the trim without a jump. */
+   if(d->sync_have_master){
+    d->sync_hold=1;d->sync_hold_reason=XZ_EXTRA_SYNC_DISCONTINUITY;
+    if(d->native_phase.jump)d->sync_native_gap_hold=SYNC_NATIVE_GAP_NONE;   /* the beat moved: find it again */
+    else if(!d->sync_native_gap_hold)d->sync_native_gap_hold=SYNC_NATIVE_GAP_WAIT_PHASE;
+   }
+   d->sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;if(!d->native_phase.jump)sync_coast(d,now);return;
   }
   if(d->sync_hold){
    int recovered=sync_native_gap_tempo(p,d,&native,selected,choice,now);
-   if(recovered==SYNC_NATIVE_GAP_STAY)return;
+   if(recovered==SYNC_NATIVE_GAP_STAY){sync_coast(d,now);return;}
    if(recovered!=SYNC_NATIVE_GAP_RELEASE){
     sync_reacquire(d,now);
     d->sync_native_identity=native.track_identity;d->sync_native_source_revision=native.source_revision;
@@ -1988,7 +2161,9 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   if(!native.phase_available||!d->quantize){
    d->native_phase.have=d->native_phase.ready=0;d->sync_have_master=0;
    d->sync_native_bpm=native.bpm;
-   d->sync.reason=d->quantize?XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE:XZ_EXTRA_SYNC_TEMPO_FOLLOW;return;
+   d->sync.reason=d->quantize?XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE:XZ_EXTRA_SYNC_TEMPO_FOLLOW;
+   if(d->quantize)sync_coast(d,now);
+   return;
   }
   struct sync_clock slave=sync_clock(d,now);
   if(!native.playing){
@@ -2058,7 +2233,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   d->sync_have_master=1;d->sync_master_id=native.native_deck;d->sync_slave_underrun=d->underrun;d->sync_choice_seen=choice;
   if(sync_snap_ready(d,now)){
    uint64_t wire=position->wire_submitted_frames>slave.wire_frame?position->wire_submitted_frames:slave.wire_frame;
-   double horizon_sec=(double)(wire-slave.wire_frame)/(double)XZ_USB_RATE;
+   double horizon_sec=(double)(wire-slave.wire_frame)/(double)XZ_USB_RATE+sync_landing_delay(position,now);
    double desired=wrapped_beat(target_phase+horizon_sec*master_bps);
    double delta=quantized_delta(slave.phase-desired,grid);
    double to=(double)d->heard-delta*slave.period_frames;
@@ -2082,7 +2257,14 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    if(!current){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
    d->sync.reason=XZ_EXTRA_SYNC_ACQUIRING;return;
   }
-  double trim=fabs(error_seconds)<=2./XZ_USB_RATE?0:-error_seconds*d->sync_rate/.25;
+  /* The trim moves the deck 10 ms a second at most. An error far beyond that is not drift: a break got past
+     the checks above (the master moved during a capture gap, a silent gap on the USB bus). Find the beat
+     with one jump, as after any other break, not with many seconds of audible creep. */
+  if(fabs(error_seconds)>XZ_XP_SYNC_CREEP_LIMIT_S&&!d->sync_offset&&
+     (!d->sync_snap_at||(uint32_t)(now-d->sync_snap_at)>=XZ_XP_SYNC_RESNAP_MS)){
+   d->sync_initial=SYNC_INITIAL_NOW;d->sync_lock_count=0;d->sync.reason=XZ_EXTRA_SYNC_ACQUIRING;return;
+  }
+  double trim=sync_trim_for(error_seconds,d->sync_rate);
   double limit=.01*d->sync_rate;
   if(trim>limit)trim=limit;
   if(trim< -limit)trim=-limit;
@@ -2093,8 +2275,13 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   pthread_mutex_unlock(&p->publish_lock);
   if(!current){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
   if(slave.wire_frame!=d->sync_last_wire){
-   d->sync_lock_count=fabs(error_seconds)<=.001?(d->sync_lock_count<3?d->sync_lock_count+1:3):0;d->sync_last_wire=slave.wire_frame;
+   /* Lock is proved by three completions within 1 ms and lost only beyond 3 ms: the measurement itself
+      scatters by about 1 ms, and at one threshold the lamp and the state flickered while the deck held. */
+   d->sync_lock_count=fabs(error_seconds)<=.001?(d->sync_lock_count<3?d->sync_lock_count+1:3):
+    d->sync_lock_count>=3&&fabs(error_seconds)<=.003?3:0;
+   d->sync_last_wire=slave.wire_frame;
   }
+  d->sync_measured_at=now?now:1u;
   d->sync.locked=d->sync_lock_count>=3;
   d->sync.reason=d->sync.locked?XZ_EXTRA_SYNC_LOCKED:XZ_EXTRA_SYNC_ACQUIRING;
   return;
@@ -2161,6 +2348,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  d->sync_master_clock=master;d->sync_have_master=1;d->sync_master_id=selected;d->sync_slave_underrun=d->underrun;d->sync_choice_seen=choice;
  if(sync_snap_ready(d,now)){
   uint64_t wire=position->wire_submitted_frames?position->wire_submitted_frames:slave.wire_frame;
+  wire+=(uint64_t)llround(sync_landing_delay(position,now)*(double)XZ_USB_RATE);   /* where the jump really lands */
   double desired,forecast_step;
   if(!segment_at_wire(&master,wire,&desired,&forecast_step,NULL,NULL)){
    d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;
@@ -2188,7 +2376,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   d->sync.reason=XZ_EXTRA_SYNC_ACQUIRING;return;
  }
  /* Bounded 250 ms phase trim; delayed/noisy completion acceptance measures its settling. */
- double trim=fabs(error_seconds)<=2./XZ_USB_RATE?0:-error_seconds*d->sync_rate/.25;
+ double trim=sync_trim_for(error_seconds,d->sync_rate);
  double limit=.01*d->sync_rate;
  if(trim>limit)trim=limit;
  if(trim< -limit)trim=-limit;
@@ -2199,7 +2387,9 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  pthread_mutex_unlock(&p->publish_lock);
  if(!current){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
  if(slave.wire_frame!=d->sync_last_wire){
-  d->sync_lock_count=fabs(error_seconds)<=.001?(d->sync_lock_count<3?d->sync_lock_count+1:3):0;d->sync_last_wire=slave.wire_frame;
+  d->sync_lock_count=fabs(error_seconds)<=.001?(d->sync_lock_count<3?d->sync_lock_count+1:3):
+   d->sync_lock_count>=3&&fabs(error_seconds)<=.003?3:0;   /* proved within 1 ms, lost beyond 3 ms */
+  d->sync_last_wire=slave.wire_frame;
  }
  d->sync.locked=d->sync_lock_count>=3;
  d->sync.reason=d->sync.locked?XZ_EXTRA_SYNC_LOCKED:XZ_EXTRA_SYNC_ACQUIRING;
@@ -2237,7 +2427,8 @@ static void memory_call(struct xz_xp_players *p, struct deck *d, int forward, ui
  }
  if (pick < 0) { xz_xp_notice(p, forward ? "NO LATER POINT" : "NO EARLIER POINT"); return; }
  const struct memory_point *m = &d->memory[pick];
- if(d->slip_reverse)d->reverse=0;d->slip_reverse=0;d->slip_bg.active=0;d->slip_pad=-1;d->pad_hold=PAD_HOLD_NONE;d->search=0;
+ if(d->slip_reverse)d->reverse=0;
+  d->slip_reverse=0;d->slip_bg.active=0;d->slip_pad=-1;d->pad_hold=PAD_HOLD_NONE;d->search=0;
  d->loop.edit = 0; d->active_pad = d->loop_pad = -1;
  if (m->loop) { d->loop.in = m->at; d->loop.out = m->end; d->loop.valid = d->loop.active = d->loop.has_in = 1; }
  else d->loop.active = 0;
@@ -2751,6 +2942,13 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
   }
   return;
  }
+ if(e->kind==XZ_EXTRA_IN_BEAT_LOOP||e->kind==XZ_EXTRA_IN_BEAT_JUMP){
+  /* Private bench: the BEAT LOOP / BEAT JUMP pad actions themselves, independent of the pad mode. */
+  if(!e->pressed||e->held||!loaded(d->state))return;
+  if(e->kind==XZ_EXTRA_IN_BEAT_LOOP){if(e->hot_cue>=0&&e->hot_cue<XZ_EXTRA_HOT_CUES)pad_loop(p,d,e->hot_cue,1,0,now);}
+  else if(e->beats&&e->beats>=-256&&e->beats<=256)pad_jump_beats(p,d,e->beats,now);
+  return;
+ }
  if(e->kind==XZ_EXTRA_IN_LOOP_4_8){
   if(!e->pressed){d->auto_button.down=0;return;}
   if(!loaded(d->state))return;
@@ -2782,27 +2980,28 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
   int peer=1-d->index;struct xz_extra_deck_event source;struct xz_extra_deck source_view;
   pthread_mutex_lock(&p->publish_lock);source=p->duplicate_source[peer];source_view=p->view[peer];pthread_mutex_unlock(&p->publish_lock);
   if(!source.load.track_id||!source_view.loaded){xz_xp_notice(p,"LOAD OTHER SOFTWARE DECK FIRST");return;}
+  uint32_t source_revision=source_view.timeline.load_revision;
   source.deck=d->index;
   if(!load(p,d,&source,now,source.load.media_generation!=0))return;
   pthread_mutex_lock(&p->publish_lock);
   struct xz_extra_deck_event current=p->duplicate_source[peer];source_view=p->view[peer];
-  int same=current.load.source==source.load.source&&current.load.track_id==source.load.track_id&&
+  double source_rate=p->duplicate_rate[peer];
+  uint64_t loop_in=p->duplicate_loop_in[peer],loop_out=p->duplicate_loop_out[peer];
+  int same=source_view.loaded&&source_view.timeline.load_revision==source_revision&&
+   current.load.source==source.load.source&&current.load.track_id==source.load.track_id&&
    current.load.media_generation==source.load.media_generation&&current.load.route_epoch==source.load.route_epoch;
   pthread_mutex_unlock(&p->publish_lock);
   if(!same){xz_xp_notice(p,"DOUBLES SOURCE CHANGED");return;}
-  int32_t at=source_view.elapsed_ms;uint32_t age=p->env.now_ms()-source_view.timeline.at_ms;
-  if(source_view.playing&&(source_view.timeline.flags&XZ_EXTRA_TIMELINE_RATE)&&age<=150u)
-   at+=(int32_t)((int64_t)age*source_view.timeline.rate_ppm/1000000);
+  double at=source_view.elapsed_ms;
+  if((uint32_t)(p->env.now_ms()-source_view.timeline.at_ms)<=150u)
+   xz_extra_project_ms_limit(&source_view,p->env.now_ms(),150u,&at);
   d->tempo_range=source_view.tempo_range;d->tempo_x100=source_view.tempo_x100;d->tempo_revision++;
   d->tempo_position=(int32_t)((int64_t)d->tempo_x100*XZ_EXTRA_TEMPO_SPAN/(d->tempo_range*100));d->tempo_reset=0;
-  d->reverse=source_view.reverse;d->sync_rate_active=0;
-  if(source_view.loop.active){
-   uint64_t end;
-   if(stored_loop_end(d,source_view.loop.in_ms,source_view.loop.out_ms,&end)){
-    d->loop.in=to_frames(d,source_view.loop.in_ms);d->loop.out=end;d->loop.has_in=d->loop.valid=d->loop.active=1;
-   }
+  d->reverse=source_view.reverse;d->sync_rate=source_rate;d->sync_rate_active=1;
+  if(source_view.loop.active&&loop_out>loop_in&&loop_out<=d->r->frames){
+   d->loop.in=loop_in;d->loop.out=loop_out;d->loop.has_in=d->loop.valid=d->loop.active=1;
   }
-  jump(d,to_frames(d,at),now);if(source_view.playing||source_view.held_playing)start(d,now);
+  jump(d,at>0?(uint64_t)(at*d->r->rate/1000.):0,now);if(source_view.playing||source_view.held_playing)start(d,now);
   return;
  }
  if(e->kind==XZ_EXTRA_IN_HOT_CUE&&d->pad_mode==XZ_EXTRA_PAD_CALL){
@@ -2932,7 +3131,8 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
    }
   }
   /* p.40: the beginning of the current track, the point it cued to at load. */
-  if(d->slip_reverse)d->reverse=0;d->slip_reverse=0;d->slip_bg.active=0;d->slip_pad=-1;d->pad_hold=PAD_HOLD_NONE;d->search=0;
+  if(d->slip_reverse)d->reverse=0;
+  d->slip_reverse=0;d->slip_bg.active=0;d->slip_pad=-1;d->pad_hold=PAD_HOLD_NONE;d->search=0;
   if(d->state==XZ_XP_SCRATCHING)scratch_release(d,now);
   d->loop.active=0;d->loop.edit=0;d->active_pad=d->loop_pad=-1;
   d->cue=d->auto_cue_at;jump(d,d->cue,now);
@@ -3078,18 +3278,7 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
   if (!e->pressed) break;
   uint64_t half = d->r->rate / 150u;
   if (d->loop.edit && d->loop.active) {
-   if (d->loop.edit == 1) {
-    uint64_t lo = d->loop.anchor > d->r->rate * 30u / 75u ? d->loop.anchor - d->r->rate * 30u / 75u : 0;
-    uint64_t hi = d->loop.anchor + d->r->rate * 30u / 75u;
-    uint64_t to = dir > 0 ? d->loop.in + half : d->loop.in > half ? d->loop.in - half : 0;
-    if (to < lo) to = lo;
-    if (to > hi) to = hi;
-    if (to < d->loop.out) d->loop.in = to;
-   } else {
-    uint64_t to = dir > 0 ? d->loop.out + half : d->loop.out > half ? d->loop.out - half : 0;
-    if (to > d->loop.in && to <= d->r->frames) d->loop.out = to;
-   }
-   d->loop.edit_at = now;
+   loop_adjust_move(d, dir > 0 ? (int64_t)half : -(int64_t)half, now);
    break;
   }
   if (d->state == XZ_XP_CUED || d->state == XZ_XP_ENDED) {
@@ -3103,7 +3292,11 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
  }
  case XZ_EXTRA_IN_JOG_TURN: jog(p,d,e->jog.delta,e->jog.speed,e->jog.speed_known,now,arrived); break;
  case XZ_EXTRA_IN_JOG_TOUCH: if(e->pressed&&d->vinyl)d->search=0;scratch_touch(d,e->pressed,now); break;
- case XZ_EXTRA_IN_SYNC: if (e->pressed) sync_request(p,d,!d->sync.requested,now); break;
+ case XZ_EXTRA_IN_SYNC: {
+  int on=e->hot_cue==XZ_EXTRA_SYNC_SET_ON?1:e->hot_cue==XZ_EXTRA_SYNC_SET_OFF?0:!d->sync.requested;
+  if (e->pressed&&on!=d->sync.requested) sync_request(p,d,on,now);
+  break;
+ }
  case XZ_EXTRA_IN_LOOP_IN: case XZ_EXTRA_IN_LOOP_OUT: case XZ_EXTRA_IN_RELOOP:
  case XZ_EXTRA_IN_LOOP_HALF: case XZ_EXTRA_IN_LOOP_DOUBLE: loop_button(p, d, e, now); break;
  case XZ_EXTRA_IN_SEEK: {
@@ -3126,12 +3319,13 @@ static int take(struct xz_xp_players *p,struct deck *d, struct queued_control *q
   *q = d->queue[d->head];
   /* A producer can observe recovery after this worker sampled the old route.
      Leave that fresh command queued until the next step reconciles the route. */
-  if(q->epoch!=d->epoch && q->epoch==p->env.sink.link(p->env.sink.ctx))got=0;
+  if(!q->gone && q->epoch!=d->epoch && q->epoch==p->env.sink.link(p->env.sink.ctx))got=0;
   /* Stale loads must release their references even while current loads wait for retire slots. */
   else if (q->epoch==d->epoch && q->event.kind == XZ_EXTRA_IN_LOAD &&
       d->retired_count >= XZ_XP_RETIRE_SLOTS) got = 0;
   else { d->head = (d->head + 1) % QUEUE_SLOTS; d->count--;
-   if(q->event.kind==XZ_EXTRA_IN_MODE_SET)d->mode_pending[q->event.hot_cue/2]--;
+   if(q->gone)d->source_queued=0;
+   else if(q->event.kind==XZ_EXTRA_IN_MODE_SET)d->mode_pending[q->event.hot_cue/2]--;
    SP_ONLY(d->sp.controls++;d->sp.last_arrival=q->at;d->sp.arrival_seen=1); }
  }
  pthread_mutex_unlock(&d->queue_lock);
@@ -3272,21 +3466,35 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
  xz_usb_position position={0};
  uint64_t staged = 0;
  int applied = 0;
+ d->trace_flags=128u;d->trace_lead=0xffffu;
  uint32_t observation_at=now;
  int observed=SP_POSITION(p,d,&position)==XZ_USB_OK;
- if(atomic_load(&p->sync_requests))observed=shared_position(p,d->epoch,&position,&observation_at,observed);
+ int observation_valid=observed&&position.wire_observed_at_us&&
+  (uint32_t)(now-(uint32_t)(position.wire_observed_at_us/1000u))<=150u;
+ if(observation_valid)observation_at=(uint32_t)(position.wire_observed_at_us/1000u);
+ if(atomic_load(&p->sync_requests)){
+  int shared=shared_position(p,d->epoch,&position,&observation_at,observation_valid);
+  if(shared){observed=1;observation_valid=position.wire_observed_at_us&&
+   (uint32_t)(now-(uint32_t)(position.wire_observed_at_us/1000u))<=150u;}
+ }
  SP_ONLY(if(observed)sp_position_result(d,&position,observation_at));
  if (observed) {
   const xz_usb_deck_position *q = &position.deck[d->index];
   d->sync_wire_submitted=position.wire_submitted_frames;
   applied = q->applied_generation == d->generation;
-  if(!applied)d->output.key_valid=0;
+  if(!applied){d->output.key_valid=0;d->timeline_valid=d->timeline_anchor_valid=0;d->heard_rate=0;}
   if (applied) {
-   if(d->underrun!=q->underrun_frames){output_reset(&d->output);key_history_reset(d);}
+   int underrun_changed=d->underrun!=q->underrun_frames;
+   if(underrun_changed){output_reset(&d->output);key_history_reset(d);}
    d->underrun=q->underrun_frames;
    staged = q->staged_frames;
-   if ((q->source_valid & 2) && q->completed_frames != d->completed) {
+   if (observation_valid&&(q->source_valid & 2) && q->completed_frames != d->completed) {
     completed_timeline(d,q,position.wire_completed_frames,observation_at);
+   }
+   if(underrun_changed||!observation_valid){d->timeline_valid=0;d->heard_rate=0;}
+   if(!observation_valid){
+    d->timeline_anchor_valid=0;
+    if(q->completed_frames>d->completed)d->completed=q->completed_frames;
    }
    if (d->state!=XZ_XP_SCRATCHING && !d->loop.active && !d->pending && d->pos >> 32 >= d->r->frames && q->completed_frames >= d->submitted) {
     d->state = XZ_XP_ENDED; d->pos = d->r->frames << 32; d->heard = d->r->frames;
@@ -3294,7 +3502,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
    }
   }
  }
- if(applied)sync_update(p,d,&position,now);
+ if(applied&&observation_valid)sync_update(p,d,&position,now);
  else if(d->sync.requested){
   uint64_t queued=d->submitted>d->completed?d->submitted-d->completed:0;
   uint32_t age=now-d->heard_at;
@@ -3310,6 +3518,8 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
      silence/phase lag after a tail whose last block has already completed. */
   prepare_flush(p,d,now,d->epoch);applied=0;staged=0;
  }
+ d->trace_flags=(observed?1u:0u)|(applied?2u:0u)|(observation_valid?4u:0u)|(d->need_flush?8u:0u)|(streaming(d->state)?16u:0u);
+ d->trace_lead=applied&&d->submitted>=staged?(uint32_t)(d->submitted-staged):0xffffu;
  if(d->need_flush||!streaming(d->state))return;
  for (int blocks = 0; blocks < 16; ++blocks) {
   if (!d->pending) {
@@ -3337,9 +3547,9 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
        still refers only to the independently checked completed anchors. */
     if(!segment_at_wire(&master,wire,&phase,&beat_step,&remaining,&nominal_bps)){
      if(d->submitted-d->completed>2*XZ_USB_BLOCK_FRAMES)return;
-     /* A prolonged absent forecast must not starve ordinary playback. Keep
-        the last rate, suspend phase correction, and publish no lock. */
-     d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;
+     /* Future PCM is unavailable, but the completed-position measurement above
+        remains valid. Retain that verdict while rendering at the held tempo;
+        never infer a future phase or extend accepted history. */
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
     }
     uint32_t choice;int selected=sync_selection(p,d,&choice);
@@ -3373,11 +3583,13 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
    }
 render_ready:
    d->render_tempo_rate=nominal(d);
-   if (!render(d, speed(d, now) * ramp_factor(d, now))) {
+   d->trace_rate=speed(d, now) * ramp_factor(d, now);d->trace_render=1;
+   if (!render(d, d->trace_rate)) {
     if(emergency_loop(p,d,now))return;
     pause_at_heard(d, now); xz_xp_notice(p, "TRACK CANNOT BE READ");
     return;
    }
+   d->trace_render=d->pending?3:2;
    if (!d->pending) return;
   }
 #ifdef XZ_XP_SERVICE_PROOF
@@ -3385,6 +3597,7 @@ render_ready:
 #endif
   SP_ONLY(sp_capture(d,sp_begin));
   xz_usb_result r = s->submit(s->ctx, d->epoch, d->index, d->generation, d->pcm, d->pending, d->pending_after);
+  d->trace_submit=(int)r;
   SP_ONLY(sp_service(&d->sp,XP_SP_SUBMIT,r,sp_begin,p->env.now_ms()));
   if (r == XZ_USB_OK) { accepted_segment(d);accepted_scratch(d);d->submitted += d->pending; d->pending = 0; continue; }
   if (r == XZ_USB_STALE) {
@@ -3396,8 +3609,61 @@ render_ready:
  }
 }
 
+/* ---- a stick that goes (USB STOP or pulled, usb_release.h) ---- */
+static int path_on_slot(const char *path,int slot){
+ static const char media[]="/media/usb";
+ return !strncmp(path,media,sizeof media-1)&&path[sizeof media-1]=='0'+slot&&path[sizeof media]=='/';
+}
+static int track_on_slot(const struct deck *d,int slot){return d->track.source==slot||path_on_slot(d->track.path,slot);}
+/* The deck's track is on the stick and no complete RAM copy plays it: unload, as the stock decks are unloaded at
+   USB STOP. Audio stops at once (the queued output is flushed), the deck shows empty, and the file goes to the RAM
+   service (or is closed) like the reader a LOAD replaces. Settings of the deck (modes, tempo, SYNC) stay. */
+static void unload_track(struct xz_xp_players *p,struct deck *d,uint32_t now){
+ int was_master=current_master(p,d);
+ if(p->ram.invalidate)p->ram.invalidate(p->ram.context,(unsigned)d->index);
+ jump(d,0,now);flush(p,d);
+ if(d->key.engaged)d->master_tempo=d->key.mt_before;
+ atomic_fetch_and(&p->key_active,~(1u<<d->index));
+ memset(&d->render_load,0,sizeof d->render_load);
+ memset(&d->key,0,sizeof d->key);d->key.target=-1;key_history_reset(d);
+ d->state=XZ_XP_EMPTY;
+ d->emergency.active=0;d->emergency.count=0;
+ memset(&d->gate,0,sizeof d->gate);
+ memset(&d->loop,0,sizeof d->loop);
+ memset(d->hot,0,sizeof d->hot);memset(d->saved_hot,0,sizeof d->saved_hot);
+ d->memory_count=0;d->active_loop.armed=0;d->called_hot=0;
+ if(d->slip_reverse)d->reverse=0;
+ d->pad_hold=PAD_HOLD_NONE;
+ d->active_pad=d->slip_pad=d->loop_pad=-1;d->slip_bg.active=d->slip_reverse=0;d->ramp.active=0;
+ d->track_prev_known=0;d->slip=0;d->slip_pause=0;d->search=0;
+ xz_extra_order_release(d->order);d->order=NULL;
+ d->load_revision++;
+ if(was_master)d->master_load_handoff=1; /* master passes on as at a stop */
+ publish(p,d,now); /* unpublishes the analysis before it is retired */
+ retire_reader(p,d);
+ retire(d,now);
+ memset(&d->track,0,sizeof d->track);d->media_generation=0;
+}
+/* On the deck's worker, in queue order. Answers once per stick named in the entry. Like a load, this is not audio
+   (an unload, a file handed over, a log line): it runs at normal priority. */
+static void source_gone(struct xz_xp_players *p,struct deck *d,const struct queued_control *q,uint32_t now){
+ int scheduling[2]={0,0};
+ if(xz_extra_thread_load_priority)xz_extra_thread_load_priority(1,scheduling);
+ for(int slot=1;slot<=2;slot++){
+  if(!(q->gone&(1u<<(slot-1))))continue;
+  enum xz_xp_release what=XZ_XP_RELEASE_NOTHING;
+  if(d->r->media&&track_on_slot(d,slot)){
+   if(p->ram.release&&p->ram.release(p->ram.context,(unsigned)d->index,d->r->media)>0)what=XZ_XP_RELEASE_KEPT;
+   else{unload_track(p,d,now);what=XZ_XP_RELEASE_UNLOADED;}
+  }
+  if(p->release_answer)p->release_answer(p->release_context,d->index,slot,q->gone_stop[slot-1],what);
+ }
+ if(xz_extra_thread_load_priority)xz_extra_thread_load_priority(0,scheduling);
+}
+
 void xz_xp_step(struct xz_xp_players *p, int index) {
  if (!p || index < 0 || index >= XZ_EXTRA_DECKS) return;
+ uint64_t part_at=xz_late_us();
  struct deck *d = &p->deck[index];
  const struct xz_xp_sink *s = &p->env.sink;
  uint32_t now = p->env.now_ms();
@@ -3411,7 +3677,13 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
  if (d->loop.edit && now - d->loop.edit_at >= 10000u) { d->loop.edit = 0; loop_pad_store(p,d); }
  collect(d, now);
  uint32_t link = s->link(s->ctx);
- if(p->ram.step&&d->r->media&&p->ram.step(p->ram.context,(unsigned)index,d->r->media,d->state==XZ_XP_PLAYING)<0){
+ if(p->ram.reading&&d->r->media){
+  /* Where this deck's reader is in its file, for the track that still plays from the stick (ram/extra.h). */
+  uint64_t at=xz_stem_media_source_offset(d->r->media);
+  p->ram.reading(p->ram.context,(unsigned)index,at?(uint32_t)((at-1u)>>12)+1u:0u);
+ }
+ if(p->ram.step&&d->r->media&&p->ram.step(p->ram.context,(unsigned)index,d->r->media,
+    XZ_RAM_STEP_LOADED|(streaming(d->state)?XZ_RAM_STEP_PLAYING:0))<0){
   pause_at_heard(d,now);d->state=XZ_XP_ERROR;xz_xp_notice(p,"RAM HANDOFF FAILED / LOAD ANOTHER TRACK");
  }
  if (link != d->epoch) {
@@ -3420,6 +3692,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   SP_ONLY(d->sp.contact=0;d->sp.history_dirty=1);
   d->epoch = link; d->generation = XZ_USB_INITIAL_GENERATION;d->key.mt_owned=0;
   d->timeline_revision++;d->timeline_valid=d->timeline_anchor_valid=0;d->heard_rate=0;
+  d->motion_head=d->motion_count=0;
   output_reset(&d->output);key_history_reset(d);
   d->need_flush = 0; d->pending = 0; d->submitted = d->completed = 0;
   d->loop.in_down=d->loop.held=0;
@@ -3428,12 +3701,14 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   memset(&d->gate,0,sizeof d->gate);
   d->auto_button.down=0;d->track_prev_known=0;d->search=0;d->control_down=0;d->pad_hold=PAD_HOLD_NONE;d->slip_pad=-1;d->slip_bg.active=d->slip_reverse=0;
  }
+ XP_PART(0);
  (void)sync_grid_refresh(p,d);
  uint32_t operator_epoch=observe_operator(p);
  if(operator_epoch){pthread_mutex_lock(&p->publish_lock);consume_operator_locked(p,operator_epoch);pthread_mutex_unlock(&p->publish_lock);}
  struct queued_control q;
  /* Fixed queue-capacity budget: producers cannot prolong a worker drain indefinitely. */
  for(unsigned controls=0;controls<CONTROL_BUDGET&&take(p,d,&q);controls++) {
+  if(q.gone){source_gone(p,d,&q,now);continue;} /* any route: the stick goes whether or not audio flows */
   /* Keep the captured route gate across LOAD's potentially blocking resolver. */
   if(q.event.kind==XZ_EXTRA_IN_LOAD&&!q.event.load.route_epoch)q.event.load.route_epoch=q.epoch;
   if(q.epoch && q.epoch==d->epoch && q.epoch==s->link(s->ctx)){
@@ -3449,6 +3724,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   }
   if(q.event.kind==XZ_EXTRA_IN_LOAD)xz_extra_order_release(q.event.load.order);
  }
+ XP_PART(1);
  if(d->state==XZ_XP_SCRATCHING&&d->scratch.group_open&&(int32_t)(now-d->scratch.at)>0)scratch_seal(d);
  coast_step(d,now);
  d->sync_capture=atomic_load(&p->sync_requests)!=0;
@@ -3462,10 +3738,13 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
     Submitted tails first observe completion in stream before deciding expiry. */
  if(d->need_flush)(void)scratch_tail_done(p,d,now);
  prepare_flush(p,d,now,link);
+ XP_PART(2);
  if (streaming(d->state) && link && !d->need_flush) stream(p, d, now);
  if(scratch_tail_done(p,d,now))flush(p,d);
  if(!d->key.desired&&fabsf(d->key.shift.ratio-1.f)<=.0001f)atomic_fetch_and(&p->key_active,~(1u<<d->index));
+ XP_PART(3);
  publish(p, d, now);
+ XP_PART(4);
  SP_ONLY(struct xp_sp_private *v=&d->sp;uint32_t end=p->env.now_ms();
   uint32_t cost=sp_elapsed(end,v->step_begin,&v->clock_future);
   v->current[XP_SP_CURRENT_WORKER_COST]=cost;
@@ -3497,8 +3776,8 @@ static int mode_input(struct xz_xp_players *p,const struct xz_extra_deck_event *
  int ok=epoch==p->env.sink.link(p->env.sink.ctx);
  if(ok){queue_epoch(p,&p->deck[0],epoch);queue_epoch(p,&p->deck[1],epoch);}
  for(int i=first;i<=last;i++){
-  struct deck *d=&p->deck[i];
-  ok=ok&&(d->count<XZ_XP_QUEUE||!d->mode_pending[mode])&&d->count+1+release_count(d->release_owed)<=QUEUE_SLOTS;
+  struct deck *d=&p->deck[i];unsigned count=d->count-d->source_queued;
+  ok=ok&&(count<XZ_XP_QUEUE||!d->mode_pending[mode])&&count+1+release_count(d->release_owed)<=QUEUE_SLOTS-SOURCE_SLOTS;
  }
  if(ok){
   int on=e->kind==XZ_EXTRA_IN_MODE_SET?e->hot_cue%2:!p->deck[e->deck].mode_target[mode];
@@ -3550,7 +3829,8 @@ int xz_xp_input(struct xz_xp_players *p, const struct xz_extra_deck_event *e) {
   if(!e->pressed)owed&=~bit;
   else if(!e->held||(e->kind!=XZ_EXTRA_IN_HOT_CUE&&e->kind!=XZ_EXTRA_IN_REVERSE))owed|=bit;
  }
- int taken=(d->count<XZ_XP_QUEUE || completing) && d->count+1+release_count(owed)<=QUEUE_SLOTS;
+ unsigned others=d->count-d->source_queued;
+ int taken=(others<XZ_XP_QUEUE || completing) && others+1+release_count(owed)<=QUEUE_SLOTS-SOURCE_SLOTS;
  if(taken&&master_input){
   pthread_mutex_lock(&p->publish_lock);consume_operator_locked(p,operator_epoch);
   if(operator_epoch>=p->operator_floor)master_choice=reserve_master_locked(p,operator_epoch);
@@ -3688,7 +3968,7 @@ struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env) {
  if(!sp_id)sp_id=atomic_fetch_add(&sp_instance,1)+1;
 #endif
  int mutexes = 0;
- if (pthread_mutex_init(&p->publish_lock, NULL)) { free(p); return NULL; }
+ if (xz_mutex_init(&p->publish_lock)) { free(p); return NULL; }
  for (; mutexes < XZ_EXTRA_DECKS; ++mutexes) {
   struct deck *d = &p->deck[mutexes];
   d->settings=(struct xz_performance_settings){.revision=1,.jump=xz_jump_defaults()};
@@ -3702,7 +3982,7 @@ struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env) {
   xz_stretch_reset(&d->stretch);key_history_reset(d);
   atomic_init(&d->published_state, XZ_XP_EMPTY);
   atomic_init(&d->vinyl_level,0);
-  if (!(d->r = calloc(1, sizeof *d->r)) || pthread_mutex_init(&d->queue_lock, NULL)) { free(d->r); break; }
+  if (!(d->r = calloc(1, sizeof *d->r)) || xz_mutex_init(&d->queue_lock)) { free(d->r); break; }
  }
  if (mutexes < XZ_EXTRA_DECKS) {
   while (mutexes--) { pthread_mutex_destroy(&p->deck[mutexes].queue_lock); free(p->deck[mutexes].r); }
@@ -3735,13 +4015,33 @@ struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env) {
 }
 
 static void pause_ms(unsigned ms) { struct timespec t = {0, (long)ms * 1000000L}; nanosleep(&t, NULL); }
+/* Each deck worker's late turns, quoted by the dropout line (late_trail.h). */
+struct xz_late_trail xz_extra_late_trail[XZ_EXTRA_DECKS];
+struct xz_turn_trail xz_extra_turn_trail[XZ_EXTRA_DECKS];
 static void *worker(void *arg) {
  const struct worker *w = arg;
+ struct xz_late_trail *late = &xz_extra_late_trail[w->index];
  if (w->p->env.worker_enter) w->p->env.worker_enter(w->index);
  while (!atomic_load(&w->p->quit)) {
+  struct deck *turn_deck = &w->p->deck[w->index];
+  uint64_t turn_from = turn_deck->submitted;
+  turn_deck->trace_flags = 64u; turn_deck->trace_lead = 0xffffu;
+  turn_deck->trace_render = 0; turn_deck->trace_submit = -1; turn_deck->trace_rate = 0;
+  unsigned turn_bits = turn_deck->pending ? 1u : 0u;
   xz_xp_step(w->p, w->index);
+  turn_bits |= (turn_deck->ramp.active ? 2u : 0u) | (turn_deck->search ? 4u : 0u) | (turn_deck->scratch.count ? 8u : 0u) |
+               (turn_deck->emergency.active ? 16u : 0u) |
+               (turn_deck->state != XZ_XP_SCRATCHING && turn_deck->r && turn_deck->pos >> 32 >= turn_deck->r->frames ? 32u : 0u) |
+               (turn_deck->loop.active ? 64u : 0u) |
+               (turn_deck->need_flush ? 128u : 0u);
+  xz_turn_note(&xz_extra_turn_trail[w->index], turn_deck->submitted >= turn_from ? (uint32_t)(turn_deck->submitted - turn_from) : 0xffffu,
+               turn_deck->trace_lead, turn_deck->trace_flags, (unsigned)turn_deck->state, (unsigned)turn_deck->trace_render,
+               turn_deck->trace_submit, turn_deck->trace_rate, turn_bits);
   /* Without the route a deck only waits for it; a cable-less XZ should not pay for the players. */
-  pause_ms(streaming(w->p->deck[w->index].state) ? 2 : w->p->env.sink.link(w->p->env.sink.ctx) ? 5 : 20);
+  unsigned ms = streaming(w->p->deck[w->index].state) ? 2 : w->p->env.sink.link(w->p->env.sink.ctx) ? 5 : 20;
+  if (ms == 2) xz_late_worked(late, 3000u, 3000u); else late->primed = 0;
+  pause_ms(ms);
+  if (ms == 2) xz_late_woke(late, 2000u);
  }
  return NULL;
 }

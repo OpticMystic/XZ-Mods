@@ -15,7 +15,8 @@ for arch,cc in [('host','gcc'),('arm','arm-linux-gnueabi-gcc')]:
  binary=a.out/arch;flags=['-O1','-g','-std=c11','-UNDEBUG','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-pthread','-ffunction-sections','-fdata-sections','-Wl,--gc-sections','-I'+linux(root)]
  flags+=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-pie','-no-pie'] if arch=='host' else ['-march=armv7-a']
  cmd=[cc,*flags,*[linux(root/x) for x in units],'-lm','-o',linux(binary)]
- r=subprocess.run(['wsl','-d','Ubuntu','--exec',*cmd],capture_output=True,text=True,timeout=120)
+ # One gcc call for 16 units with ASan takes 60-130 s on this PC when it is quiet; the limit only catches a hang.
+ r=subprocess.run(['wsl','-d','Ubuntu','--exec',*cmd],capture_output=True,text=True,timeout=900)
  (a.out/(arch+'-build.log')).write_text(r.stdout+r.stderr);assert not r.returncode,r.stdout+r.stderr
  for mode in ['shell','classic','anchor']+([] if a.expect_red else ['destroy']):
   cmd=(['qemu-arm','-L','/usr/arm-linux-gnueabi'] if arch=='arm' else [])+[linux(binary),linux(a.out),mode]

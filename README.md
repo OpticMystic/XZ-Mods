@@ -77,16 +77,26 @@ USB. In **Stems**, choose **Check OverCue track**, then select the original
 track inside `Contents`. The builder checks source identity and every compressed
 audio page using the same decoder as the player. It does not change the USB.
 
-Supported prepared format: the open OverCue format (`overcue-index/1` and
-`overcue-stems/4`). Both the four-file stems from OverCue Desktop 2.2.26 and later
-and older seven-file stems play: the player mixes every pair from the vocal, drums
-and harmonics files, as OverCue firmware 0.13.1 does. The source track must match
-the one the stems were made from. Other formats are refused.
+Supported prepared format: the open OverCue format (`overcue-index/1` with
+`overcue-stems/4` 96 kHz stems or `overcue-stems/5` 44.1 kHz stems). Both the four-file
+stems from OverCue Desktop 2.2.26 and later and older seven-file stems play: the player
+mixes every pair from the vocal, drums and harmonics files, as OverCue firmware 0.13.1
+does. The source track must match the one the stems were made from. Other formats are
+refused.
+
+**Prepare 44.1 kHz stems in OverCue for the XZ.** In OverCue Desktop's Settings, choose
+the 44.1 kHz FLAC stems (labelled **CDJ-2000NXS2** since OverCue Desktop 2.2.34). The XZ
+plays at 44.1 kHz, so they need no conversion on the player, are ready in memory sooner
+and take less space. OverCue's default 96 kHz stems still play, more slowly to prepare
+on the player. The XZ does not read OverCue's 44.1 kHz WAV stems. Keep 96 kHz for a USB
+you also play on players running OverCue: they play 44.1 kHz stem tracks without stems.
 
 [OverCue](https://overcue.gg/) is the recommended way to prepare stems.
 XZ Mods also includes a beta stem builder. Its separation and aligned-stem import
 workflows write the [open OverCue format](https://github.com/OverCue-gg/overcue-stems-format)
-under `CDJMODS` and never replace stems OverCue made. The source must be a
+under `CDJMODS` and never replace stems OverCue made. They write 44.1 kHz stems, the
+XDJ-XZ's own rate; choose **XDJ-XZ and OverCue players** for a USB you also play on
+players running OverCue, and they write 96 kHz stems instead. The source must be a
 44.1 kHz stereo WAV or FLAC track that your DJ software already exported to the USB's
 `Contents` folder. Separation runs on the CPU. The beta is not hardware-qualified,
 so check playback alignment on the player.

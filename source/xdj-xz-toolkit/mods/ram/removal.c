@@ -2,7 +2,12 @@
 #include "removal.h"
 #include "abi.h"
 #include "../runtime.h"
+#include "../recorder_state.h"
 #include <stdint.h>
+#pragma weak xz_recorder_note_result
+/* USB STOP: the mods let go of the stick before stock unmounts it (usb_release.h). */
+void xz_usb_release_begin(int slot) __attribute__((weak));
+static void usb_stop_begins(const void *manager);
 #include <string.h>
 
 struct removal_scope { void *manager; unsigned pending; struct removal_scope *previous; int early_stop; };
@@ -90,13 +95,19 @@ static void finish(struct removal_scope *current)
 }
 static void remove_hook(void *manager, const void *dataset)
 {
+    usb_stop_begins(manager); /* pulled without USB STOP: the mods stop touching the stick at once */
     struct removal_scope current = {manager, 0, scope, 0};
     scope = &current;
     stock_remove(manager, dataset);
     finish(&current);
 }
+static void usb_stop_begins(const void *manager)
+{
+    if (xz_usb_release_begin) xz_usb_release_begin((int)word(manager, 0x84)); /* the manager's slot, 1 or 2 */
+}
 static void stop_hook(void *manager, const void *dataset)
 {
+    usb_stop_begins(manager);
     struct removal_scope current = {manager, 0, scope, 0};
     scope = &current;
     stock_stop(manager, dataset);
@@ -104,6 +115,7 @@ static void stop_hook(void *manager, const void *dataset)
 }
 static void stop_no_args_hook(void *manager)
 {
+    usb_stop_begins(manager);
     struct removal_scope current = {manager, 0, scope, 0};
     scope = &current;
     stock_stop_no_args(manager);
@@ -111,6 +123,8 @@ static void stop_no_args_hook(void *manager)
 }
 static void rec_complete_hook(void *manager, unsigned message, const char *path)
 {
+    /* Stock result of the MASTER REC writer (UI thread): 3 stopped, 4 split, negative = error (SEAM.md). */
+    if (xz_recorder_note_result) xz_recorder_note_result((int)message);
     struct removal_scope current = {manager, 0, scope, 0};
     scope = &current;
     stock_rec_complete(manager, message, path);

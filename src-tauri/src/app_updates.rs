@@ -33,6 +33,13 @@ fn write_marker(app:&tauri::AppHandle,version:&str)->Result<(),String>{
     std::fs::create_dir_all(parent).map_err(|e|e.to_string())?;
     std::fs::write(target,serde_json::to_vec(&json!({"version":version})).map_err(|e|e.to_string())?).map_err(|e|e.to_string())
 }
+/* The marker holds the version the updater installed. A beta takes a full release from the beta feed only under a
+   pre-release tag of the same version (0.6.0-release for 0.6.0: beta builds refuse a plain one), so a full release also
+   shows its notes after such an update. */
+fn notes_due(marker:&str,installed:&str)->bool{
+    marker==installed||(!beta_build(installed)&&semver::Version::parse(marker).is_ok_and(|m|!m.pre.is_empty()
+        &&semver::Version::parse(installed).is_ok_and(|v|(m.major,m.minor,m.patch)==(v.major,v.minor,v.patch))))
+}
 pub fn bundled_notes()->Value{serde_json::from_str(include_str!("../../release-notes.json")).expect("Validated release notes")}
 
 pub fn parse_notes(text:&str)->Value{
@@ -69,7 +76,7 @@ fn test_url(key:&str)->Option<reqwest::Url>{
 #[tauri::command]
 pub fn app_information(app:tauri::AppHandle)->Result<Value,String>{
     let version=app.package_info().version.to_string();
-    let show_notes=marker(&app).ok().and_then(|p|std::fs::read(p).ok()).and_then(|b|serde_json::from_slice::<Value>(&b).ok()).is_some_and(|v|v["version"]==version);
+    let show_notes=marker(&app).ok().and_then(|p|std::fs::read(p).ok()).and_then(|b|serde_json::from_slice::<Value>(&b).ok()).is_some_and(|v|v["version"].as_str().is_some_and(|m|notes_due(m,&version)));
     #[cfg(not(target_os="macos"))]
     let installed=std::env::current_exe().ok().and_then(|p|p.parent().map(|d|d.join("uninstall.exe").is_file())).unwrap_or(false);
     #[cfg(target_os="macos")]
@@ -219,10 +226,20 @@ mod tests{
         /* 0.5.1-Beta follows every 0.5.0 preview on the beta channel. */
         assert!(beta_build("0.5.1-Beta"));assert_eq!(beta_comparison("0.5.0-preview.22.13.4","0.5.1-Beta").unwrap(),std::cmp::Ordering::Greater);
         assert_eq!(beta_comparison("0.5.1-Beta","0.5.0-preview.22.13.4").unwrap(),std::cmp::Ordering::Less);
-        /* The 0.5.1-Beta.1 hotfix is offered to 0.5.1-Beta, and 0.5.1-Beta.2 to both. */
+        /* The 0.5.1-Beta.1 hotfix is offered to 0.5.1-Beta, and 0.5.1-Beta.2 to both. 0.6.0 is a full release on the stable channel: betas get it only from its 0.6.0-release bridge entry on the beta feed. */
         assert!(beta_build("0.5.1-Beta.1"));assert_eq!(beta_comparison("0.5.1-Beta","0.5.1-Beta.1").unwrap(),std::cmp::Ordering::Greater);
         assert!(beta_build("0.5.1-Beta.2"));assert_eq!(beta_comparison("0.5.1-Beta.1","0.5.1-Beta.2").unwrap(),std::cmp::Ordering::Greater);assert_eq!(beta_comparison("0.5.1-Beta","0.5.1-Beta.2").unwrap(),std::cmp::Ordering::Greater);
+        assert!(!beta_build("0.6.0"));assert_eq!(newer("0.5.1-Beta.2","0.6.0").unwrap(),std::cmp::Ordering::Greater);assert!(beta_comparison("0.5.1-Beta.2","0.6.0").is_err());assert_eq!(beta_comparison("0.5.1-Beta.2","0.6.0-release").unwrap(),std::cmp::Ordering::Greater);
         assert!(BETA_FEED.starts_with(BETA_PAGE));assert!(!BETA_FEED.contains("releases/latest"));
+    }
+    #[test]fn full_release_notes_show_after_a_bridged_beta_update(){
+        assert!(notes_due("0.6.0","0.6.0"));assert!(notes_due("0.6.0-release","0.6.0"));
+        assert!(!notes_due("0.5.1-Beta.2","0.6.0"));assert!(!notes_due("0.6.0-release","0.6.1"));assert!(!notes_due("garbage","0.6.0"));
+        assert!(notes_due("0.6.1-Beta.1","0.6.1-Beta.1"));assert!(!notes_due("0.6.1-Beta","0.6.1-Beta.1"));
+        /* What a beta build does with the beta feed: a plain full release is refused, its pre-release-tagged bridge entry is newer. */
+        assert!(beta_comparison("0.5.1-Beta.2","0.6.0").is_err());
+        assert_eq!(beta_comparison("0.5.1-Beta.2","0.6.0-release").unwrap(),std::cmp::Ordering::Greater);
+        assert_eq!(beta_comparison("0.3.0-preview.13","0.6.0-release").unwrap(),std::cmp::Ordering::Greater);
     }
     #[test]fn versions_do_not_downgrade(){assert_eq!(newer("0.1.7","v0.1.5").unwrap(),std::cmp::Ordering::Less);assert_eq!(newer("0.1.7","0.1.8").unwrap(),std::cmp::Ordering::Greater);assert!(newer("0.1.7","garbage").is_err());}
     #[test]fn download_origin_is_restricted(){

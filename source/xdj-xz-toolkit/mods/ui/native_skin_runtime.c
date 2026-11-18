@@ -14,6 +14,9 @@
 #include "native_window_keys.h"
 #include "../runtime.h"
 #include <pthread.h>
+#include "../xz_thread.h"
+#include "../xz_mutex.h"
+#include "../xz_wake.h"
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,8 +32,10 @@ struct skin_proof {
 };
 __attribute__((visibility("default"))) struct skin_proof xz_mods_native_skin_v1={.version=1};
 #define INC(field) __atomic_fetch_add(&xz_mods_native_skin_v1.field,1,__ATOMIC_RELAXED)
-static pthread_mutex_t cache_mutex=PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t changed=PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t cache_mutex=XZ_MUTEX_INITIALIZER;
+/* Wakes the skin worker (nice 10). The stock interface thread (RR 24) signals it from its event hook while it
+   holds cache_mutex, which its draw hooks also take: never a condition variable, see xz_wake.h. */
+static struct xz_wake changed;
 static pthread_t worker_thread,owner_thread;
 static atomic_int running,owner_ready,active_theme,status_code;
 static atomic_int repaint_pending;
@@ -299,7 +304,7 @@ static int consume_pending(void){
  pthread_mutex_lock(&cache_mutex);
  if(pending_snapshot&&pending_snapshot->generation!=request_generation){
   struct skin_snapshot *stale=pending_snapshot;pending_snapshot=NULL;
-  stale->next=retired;retired=stale;pthread_cond_signal(&changed);
+  stale->next=retired;retired=stale;xz_wake_set(&changed);
  }
  if(pending_snapshot){
   int initial_stock=!active_snapshot&&pending_snapshot->theme==0;
@@ -308,7 +313,7 @@ static int consume_pending(void){
   atomic_store_explicit(&active_theme,active_snapshot->theme,memory_order_release);
   __atomic_store_n(&xz_mods_native_skin_v1.active,(uint32_t)active_snapshot->theme,__ATOMIC_RELAXED);
   if(old){old->next=retired;retired=old;}
-  INC(epochs);repaint=!initial_stock;pthread_cond_signal(&changed);
+  INC(epochs);repaint=!initial_stock;xz_wake_set(&changed);
  }
  pthread_mutex_unlock(&cache_mutex);
  return repaint;
@@ -327,6 +332,9 @@ static void owner_epoch(void (*repaint)(void)){
 extern void xz_ui_runtime_profile_usb(unsigned slot) __attribute__((weak));
 /* The FLAGSHIP shell runs its native-UI-thread commands from this owner (shell_runtime.c). */
 extern void xz_shell_runtime_owner_tick(void) __attribute__((weak));
+/* Display bridge: a short rest for the stock interface thread when it has not slept recently. */
+extern void xz_stock_breath(void) __attribute__((weak));
+extern void xz_ui_runtime_owner_tick(void) __attribute__((weak));
 static void list_text_hook(unsigned column,unsigned row){
  /* Remote Link/PC libraries have their own key metadata. A local USB index
     must never label their same-named tracks. These getters are stock 1.26. */
@@ -354,8 +362,10 @@ static int event_hook(void *self){
   owner_thread=pthread_self();atomic_store_explicit(&owner_ready,1,memory_order_release);
  }
  if(!owner())return stock_event(self);
+ if(xz_stock_breath)xz_stock_breath();
  event_depth++;INC(eventcalls);
  if(xz_shell_runtime_owner_tick)xz_shell_runtime_owner_tick();
+ if(xz_ui_runtime_owner_tick)xz_ui_runtime_owner_tick();
  owner_epoch(native_repaint);
  if(xz_key_browser_repaint())native_repaint();
  int result=stock_event(self);event_depth--;return result;
@@ -445,7 +455,7 @@ static void *worker(void *unused){
  while(atomic_load(&running)){
   pthread_mutex_lock(&cache_mutex);
   unsigned gen=request_generation;int theme=requested_theme;
-  if(gen==built&&!retired){pthread_cond_wait(&changed,&cache_mutex);pthread_mutex_unlock(&cache_mutex);continue;}
+  if(gen==built&&!retired){xz_wake_wait_locked(&changed,&cache_mutex,1000);pthread_mutex_unlock(&cache_mutex);continue;}
   pthread_mutex_unlock(&cache_mutex);
   release_retired(take_retired());
   if(gen==built)continue;
@@ -460,14 +470,14 @@ void xz_native_skin_band_colors(const uint32_t rgb[3]){
  pthread_mutex_lock(&cache_mutex);
  if(memcmp(requested_band_rgb,rgb,sizeof requested_band_rgb)){
   memcpy(requested_band_rgb,rgb,sizeof requested_band_rgb);request_generation++;
-  pthread_cond_signal(&changed);
+  xz_wake_set(&changed);
  }
  pthread_mutex_unlock(&cache_mutex);
 }
 void xz_native_skin_request(int theme){
  theme=xz_theme_id(theme);pthread_mutex_lock(&cache_mutex);
  requested_theme=theme;request_generation++;__atomic_store_n(&xz_mods_native_skin_v1.requested,(uint32_t)theme,__ATOMIC_RELAXED);
- pthread_cond_signal(&changed);pthread_mutex_unlock(&cache_mutex);
+ xz_wake_set(&changed);pthread_mutex_unlock(&cache_mutex);
 }
 const char *xz_native_skin_status(void){
  int state=atomic_load(&status_code);
@@ -502,13 +512,13 @@ int xz_native_skin_start(int theme){
     xz_hook_slot(0x3ea45c,0x18194c,(void*)event_hook,(void**)&stock_event))goto fail;
  if(xz_hook_arm(0x236270,list_guard,(void*)list_text_hook,(void**)&stock_list_text))xz_log("Key browser text hook unavailable");
  started=1;atomic_store(&running,1);atomic_store(&status_code,1);xz_native_skin_request(theme);
- if(pthread_create(&worker_thread,NULL,worker,NULL)){atomic_store(&running,0);goto fail;}worker_started=1;
+ if(XZ_WORKER_CREATE(&worker_thread,worker,NULL)){atomic_store(&running,0);goto fail;}worker_started=1;
  return 0;
 fail:INC(errors);atomic_store(&status_code,3);return -1;
 }
 void xz_native_skin_stop(void){
  if(!started)return;
- atomic_store(&running,0);pthread_mutex_lock(&cache_mutex);pthread_cond_broadcast(&changed);pthread_mutex_unlock(&cache_mutex);
+ atomic_store(&running,0);pthread_mutex_lock(&cache_mutex);xz_wake_set(&changed);pthread_mutex_unlock(&cache_mutex);
  if(worker_started){pthread_join(worker_thread,NULL);worker_started=0;}atomic_store(&status_code,0);
  struct skin_snapshot *stock=calloc(1,sizeof(*stock));
  if(stock){

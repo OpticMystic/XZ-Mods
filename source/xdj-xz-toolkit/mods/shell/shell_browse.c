@@ -9,6 +9,7 @@
 #include "shell_browse.h"
 #include "shell_source.h"
 #include "shell_settings.h"
+#include "../ui/tempo_text.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -54,6 +55,7 @@ static void sync(const struct xz_shell *u) {
 }
 static int naming(const struct xz_shell *u);
 static void render_load_choice(const struct xz_shell *,const struct xz_shell_model *,struct xz_canvas);
+static int load_choice_row(const struct xz_shell *,int deck);
 static int panel_open(const struct xz_shell *u);
 static int different_media(const struct xz_shell *u,const struct xz_shell_browse_model *b);
 static int32_t grab_source_row(const struct xz_shell *u, int32_t shown);
@@ -587,9 +589,11 @@ static void render_load_chip(const struct xz_shell *u, const struct xz_shell_mod
  uint32_t fill=live?SH_WHITE:SH_RAIL,ink=live?SH_BLUE:SH_DIM;
  xz_rect(c,l.x,y,LOAD_W+sh_deck_count(m)*LOAD_DECK_W,h,fill);
  sh_text_center(c,l.x+LOAD_W/2,y+(h-SH_CAP_SMALL)/2,live?"LOAD":"LOAD OFF",SH_SMALL,ink);
- for(int d=0;d<sh_deck_count(m);d++){
-  struct xz_shell_rect r=xz_shell_browse_rect(u,m,XZ_SHELL_BR_LOAD,d+1);
-  int takes=live&&(sh_deck_caps(m,d)&XZ_SHELL_CAP_LOAD),target=takes&&u->deck==d;
+ /* One chip per deck, in the lanes' order (sh_deck_at), each labelled with its deck. */
+ for(int i=0;i<sh_deck_count(m);i++){
+  int d=sh_deck_at(m->wave_order==1,sh_deck_count(m),i);
+  struct xz_shell_rect r=xz_shell_browse_rect(u,m,XZ_SHELL_BR_LOAD,i+1);
+  int takes=live&&(sh_deck_caps(m,d)&XZ_SHELL_CAP_LOAD)&&!sh_deck_load_locked(m,d),target=takes&&u->deck==d;
   xz_rect(c,r.x,y+2,1,h-4,live?SH_BLUE:0x5a5a5a);
   if(target)xz_rect(c,r.x+3,y+3,r.w-6,h-6,SH_BLUE);
   char text[4];snprintf(text,sizeof text,"%d",d+1);
@@ -630,6 +634,10 @@ static void render_row(const struct xz_shell *u, const struct xz_shell_model *m,
    if(touched)right=k->x+k->w-6-LOAD_W-sh_deck_count(m)*LOAD_DECK_W-8;
    else if(rknown(r,XZ_SHELL_RF_ON_DECK))for(int d=sh_deck_count(m)-1;d>=0;d--)if((r->on_deck>>d)&1){
     right-=14;deck_badge(c,right,y+12,d,selected?SH_WHITE:SH_BLUE,selected?SH_BLUE:SH_WHITE);right-=4;
+   }
+   if(!touched&&r->kind==XZ_SHELL_ROW_TRACK&&rknown(r,XZ_SHELL_RF_STEMS)&&r->stems_available){
+    right-=44;xz_border(c,right,y+11,44,16,selected?SH_WHITE:SH_GREEN);
+    sh_text_center(c,right+22,y+15,"STEMS",SH_SMALL,selected?SH_WHITE:SH_GREEN);right-=6;
    }
    /* On the TAG LIST: a check after the title, as the TAG LIST rows carry one before theirs. */
    if(!touched&&s!=XZ_SHELL_TAG_LIST&&r->kind==XZ_SHELL_ROW_TRACK&&rknown(r,XZ_SHELL_RF_TAGGED)&&r->tagged){
@@ -1470,7 +1478,8 @@ static size_t activate_item(struct xz_shell *u, const struct xz_shell_model *m, 
  case PK_CUES_OPEN:
   u->panel.page=PAGE_CUES+sh_active_deck(u,m);u->panel.cursor=u->panel.scroll=0;return n;
  case PK_CUE_DECK:
-  u->panel.page=PAGE_CUES+(it->value+1)%sh_deck_count(m);return n;
+  {int count=sh_deck_count(m),mixer=m->wave_order==1;
+   u->panel.page=PAGE_CUES+sh_deck_at(mixer,count,(sh_deck_position(mixer,count,it->value)+1)%count);}return n;
  case PK_CUE:
   if(!r||!bknown(b,XZ_SHELL_BF_CUES)||b->cue_track!=r->id||it->value>=b->cue_count)return n;
   if(!(sh_deck_caps(m,u->panel.page-PAGE_CUES)&XZ_SHELL_CAP_CUE_LIST)){u->notice="DECK 3 AND 4 CANNOT LOAD AT A MEMORY POINT";u->notice_at_ms=m->clock_ms;return n;}
@@ -1593,6 +1602,7 @@ static void strip_overview(const struct xz_shell *u, const struct xz_shell_model
  int32_t e=xz_shell_elapsed_now(m,deck);
  int timed=e>=0&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0;
  int ph=timed?x+(int)((int64_t)e*(w-1)/d->total_ms):-1;
+ if(timed&&deck<2){int64_t us=(int64_t)(xz_shell_elapsed_precise(m,deck)*1000+.5);ph=x+(int)(us*(w-1)/((int64_t)d->total_ms*1000));}
  xz_rect(c,x,y,w,h,SH_BLACK);
  xz_rect(c,x,y+h-1,w,1,SH_RAIL);
  sh_deck_overview(c,(struct xz_shell_rect){x,y,w,h},u,m,d,ph);
@@ -1644,8 +1654,8 @@ static void render_strip(const struct xz_shell *u, const struct xz_shell_model *
    xz_rect(c,px,y+5,tw,13,SH_RED);sh_text(c,px+4,y+7,text,SH_SMALL,SH_WHITE);
   }else sh_text(c,px,y+7,"\xb1--",SH_SMALL,SH_DIM);
   if(sh_has(d,XZ_SHELL_F_TEMPO)){
-   int32_t t=d->tempo_x100,a=t<0?-t:t;
-   snprintf(text,sizeof text,"%s%d.%02d%%",t>0?"+":t<0?"-":"",(int)(a/100%1000),(int)(a%100));
+   xz_tempo_text(text,sizeof text,d->tempo_x100,sh_has(d,XZ_SHELL_F_TEMPO_RANGE),d->tempo_range);
+   strcat(text,"%");
    sh_text(c,px,y+23,text,SH_SMALL,SH_WHITE);
   }else sh_text(c,px,y+23,"--.--%",SH_SMALL,SH_DIM);
   char key[8];
@@ -1776,6 +1786,7 @@ static size_t load(struct xz_shell *u, const struct xz_shell_model *m, const str
  enum xz_shell_screen s=xz_shell_screen(u);
  if(!r||r->kind!=XZ_SHELL_ROW_TRACK)return n;
  if(!(sh_deck_caps(m,deck)&XZ_SHELL_CAP_LOAD))return hand_off(out,n,s);
+ if(sh_deck_load_locked(m,deck)){u->notice=sh_load_lock_notice(deck);u->notice_at_ms=m->clock_ms;return n;}
  struct sess selected=session(u,m->browse);
  u->stack[u->depth-1].cursor=selected.cursor;u->stack[u->depth-1].scroll=selected.scroll;
  remember(m->browse,s,top_view(u));
@@ -1797,38 +1808,44 @@ static int load_choice_valid(const struct xz_shell *u,const struct xz_shell_mode
  return r&&r->kind==XZ_SHELL_ROW_TRACK&&r->id==p->track;
 }
 static size_t choose_load(struct xz_shell *u,const struct xz_shell_model *m,
-                         const struct xz_shell_browse_row *r,int pair,struct xz_shell_action out[XZ_SHELL_ACTIONS],size_t n) {
- /* A LOAD key names its deck. The rotary selector opens the track menu with every deck, as stock does with two
-    (XDJ-XZ manual p.81: LOAD TO DECK1, LOAD TO DECK2, CUE/LOOP LIST, CANCEL). */
- if(sh_deck_count(m)!=4&&pair>=0)return load(u,m,r,pair,out,n);
+                         const struct xz_shell_browse_row *r,struct xz_shell_action out[XZ_SHELL_ACTIONS],size_t n) {
+ /* The rotary selector opens the track menu with every deck, as stock does with two (XDJ-XZ manual p.81:
+    LOAD TO DECK1, LOAD TO DECK2, CUE/LOOP LIST, CANCEL). Its deck rows read in the lanes' order. */
  if(!r||r->kind!=XZ_SHELL_ROW_TRACK)return n;
  if(!(m->capabilities&XZ_SHELL_CAP_LOAD))return hand_off(out,n,xz_shell_screen(u));
  if(!bknown(m->browse,XZ_SHELL_BF_LIST))return n;
  struct xz_shell_load_choice *p=&u->load_choice;memset(p,0,sizeof *p);
- p->mode=pair>=0?1:2;p->first=pair>=0?pair:sh_active_deck(u,m);p->deck_count=sh_deck_count(m);p->screen=xz_shell_screen(u);
+ p->mode=2;p->first=sh_active_deck(u,m);p->deck_count=sh_deck_count(m);p->screen=xz_shell_screen(u);
+ /* DECK VIEW as it is now: kept while the menu is open, so a row never changes the deck it names under the cursor. */
+ p->mixer=p->deck_count==4&&m->wave_order==1;
  /* The cursor starts on the deck in focus, so two pushes load where the DJ is working. */
- if(p->mode==2)p->cursor=p->first;
+ p->cursor=load_choice_row(u,p->first);
  p->row=top_view(u)->cursor;p->track=r->id;p->list=m->browse->list_id;
  p->media_generation=m->browse->media_generation;
- p->has_cues=pair<0&&(sh_deck_caps(m,sh_active_deck(u,m))&XZ_SHELL_CAP_CUE_LIST)&&
+ p->has_cues=(sh_deck_caps(m,p->first)&XZ_SHELL_CAP_CUE_LIST)&&
   bknown(m->browse,XZ_SHELL_BF_CUES)&&m->browse->cues&&m->browse->cue_count>0&&m->browse->cue_track==r->id;
  snprintf(p->source,sizeof p->source,"%s",m->browse->source_name?m->browse->source_name:"");
  snprintf(p->title,sizeof p->title,"%s",r->title?r->title:"SELECTED TRACK");
  return n;
 }
-static int load_choice_decks(const struct xz_shell_load_choice *p) { return p->mode==1?2:p->deck_count; }
-static struct xz_shell_rect load_choice_rect(int row) { return (struct xz_shell_rect){190,150+row*44,420,40}; }
+struct xz_shell_rect sh_browse_load_choice_rect(int row) { return (struct xz_shell_rect){190,150+row*44,420,40}; }
+/* The one row-to-deck map of the menu: drawing, touch, the cursor's first row, LOAD keys and the load all use it.
+   Four decks in MIXER ORDER read DECK 3, 1, 2, 4 like the lanes (ui/deck_layout.h); otherwise number order. */
+int sh_browse_load_choice_deck(const struct xz_shell *u,int row) {
+ const struct xz_shell_load_choice *p=&u->load_choice;
+ return sh_deck_at(p->mixer,p->deck_count,row);
+}
+static int load_choice_row(const struct xz_shell *u,int deck) { return sh_deck_position(u->load_choice.mixer,u->load_choice.deck_count,deck); }
 static void render_load_choice(const struct xz_shell *u,const struct xz_shell_model *m,struct xz_canvas c) {
  if(!load_choice_valid(u,m))return;
- const struct xz_shell_load_choice *p=&u->load_choice;int decks=load_choice_decks(p),count=decks+p->has_cues+1;
+ const struct xz_shell_load_choice *p=&u->load_choice;int decks=p->deck_count,count=decks+p->has_cues+1;
  xz_rect(c,180,88,440,64+count*44,SH_CHROME);xz_border(c,180,88,440,64+count*44,SH_BLUE);
  sh_text_center(c,400,101,"LOAD TRACK",SH_TEXT,SH_WHITE);sh_text_fit(c,194,126,412,p->title,SH_SMALL,SH_DIM);
  for(int i=0;i<count;i++){
-  struct xz_shell_rect r=load_choice_rect(i);char label[48];int enabled=1;
-  if(i<decks){int deck=p->mode==1?p->first+2*i:i;
-   if(p->mode==1)snprintf(label,sizeof label,"%d  LOAD TO DECK %d",i+1,deck+1);
-   else snprintf(label,sizeof label,"LOAD TO DECK %d",deck+1);
-   enabled=!!(sh_deck_caps(m,deck)&XZ_SHELL_CAP_LOAD);}
+  struct xz_shell_rect r=sh_browse_load_choice_rect(i);char label[48];int enabled=1;
+  if(i<decks){int deck=sh_browse_load_choice_deck(u,i);
+   snprintf(label,sizeof label,"LOAD TO DECK %d",deck+1);
+   enabled=(sh_deck_caps(m,deck)&XZ_SHELL_CAP_LOAD)&&!sh_deck_load_locked(m,deck);}
   else snprintf(label,sizeof label,"%s",p->has_cues&&i==decks?"CUE / LOOP LIST":"CANCEL");
   if(i==p->cursor)xz_rect(c,r.x,r.y,r.w,r.h,SH_BLUE);
   sh_text_center(c,400,r.y+13,label,SH_TEXT,enabled?SH_WHITE:SH_DIM);
@@ -1837,28 +1854,31 @@ static void render_load_choice(const struct xz_shell *u,const struct xz_shell_mo
 size_t sh_browse_load_input(struct xz_shell *u,const struct xz_shell_model *m,const struct xz_shell_event *e,struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  struct xz_shell_load_choice *p=&u->load_choice;
  if(!load_choice_valid(u,m)){p->mode=0;u->notice="LOAD CHOICE EXPIRED: SELECT TRACK AGAIN";u->notice_at_ms=m->clock_ms;return 0;}
- int decks=load_choice_decks(p),count=decks+p->has_cues+1,selected=-1;
+ int decks=p->deck_count,count=decks+p->has_cues+1,selected=-1;
  if(e->kind==XZ_SHELL_KEY){
-  if(e->key==XZ_SHELL_KEY_LOAD&&e->deck>=0&&e->deck<4){
-   int deck=e->deck;struct xz_shell_load_choice chosen=*p;
-   p->mode=0;u->down=0;
-   if(!(sh_deck_caps(m,deck)&XZ_SHELL_CAP_LOAD)){u->notice="THAT DECK CANNOT LOAD THIS TRACK";u->notice_at_ms=m->clock_ms;return 0;}
-   struct xz_shell_browse_row track={0};track.kind=XZ_SHELL_ROW_TRACK;track.id=chosen.track;
-   u->stack[u->depth-1].cursor=chosen.row;
-   return load(u,m,&track,deck,out,0);
-  }else{p->mode=0;return 0;}
+  if(e->key!=XZ_SHELL_KEY_LOAD||e->deck<0||e->deck>=4){p->mode=0;return 0;}
+  /* A LOAD key names its own deck. With the menu open it loads only when the highlighted row names that deck;
+     otherwise it moves the highlight there and loads nothing (a second press loads). The menu on DECK 3 and
+     the DECK 2 side's LOAD loaded DECK 2 over its playing track: a press never loads a deck the highlight did
+     not name. */
+  int row=load_choice_row(u,e->deck);
+  if(row<0||!(sh_deck_caps(m,e->deck)&XZ_SHELL_CAP_LOAD)){p->mode=0;u->notice="THAT DECK CANNOT LOAD THIS TRACK";u->notice_at_ms=m->clock_ms;return 0;}
+  if(sh_deck_load_locked(m,e->deck)){p->mode=0;u->notice=sh_load_lock_notice(e->deck);u->notice_at_ms=m->clock_ms;return 0;}
+  if(row!=p->cursor){p->cursor=row;return 0;}
+  selected=row;
  }else if(e->kind==XZ_SHELL_ENCODER_TURN){
   int64_t at=(int64_t)p->cursor+e->delta;p->cursor=at<0?0:at>=count?count-1:(int)at;return 0;
  }else if(e->kind==XZ_SHELL_ENCODER_PUSH)selected=p->cursor;
  else if(e->kind==XZ_SHELL_TOUCH_DOWN){
-  for(int i=0;i<count;i++)if(sh_inside(load_choice_rect(i),e->x,e->y))selected=i;
+  for(int i=0;i<count;i++)if(sh_inside(sh_browse_load_choice_rect(i),e->x,e->y))selected=i;
   if(selected<0){p->mode=0;return 0;}
  }else return 0;
  if(selected<0||selected>=count)return 0;
+ int deck=sh_browse_load_choice_deck(u,selected);
  struct xz_shell_load_choice chosen=*p;p->mode=0;u->down=0;
- if(selected<decks){
-  int deck=chosen.mode==1?chosen.first+2*selected:selected;
+ if(deck>=0){
   if(!(sh_deck_caps(m,deck)&XZ_SHELL_CAP_LOAD)){u->notice="THAT DECK CANNOT LOAD THIS TRACK";u->notice_at_ms=m->clock_ms;return 0;}
+  if(sh_deck_load_locked(m,deck)){u->notice=sh_load_lock_notice(deck);u->notice_at_ms=m->clock_ms;return 0;}
   struct xz_shell_browse_row track={0};track.kind=XZ_SHELL_ROW_TRACK;track.id=chosen.track;
   u->stack[u->depth-1].cursor=chosen.row;
   return load(u,m,&track,deck,out,0);
@@ -1920,7 +1940,7 @@ static size_t push(struct xz_shell *u, const struct xz_shell_model *m, struct xz
  const struct xz_shell_browse_row *r=row_at(m->browse,s,v->cursor);
  if(!r)return n;
  if(r->kind==XZ_SHELL_ROW_FOLDER)return enter(v,s,r,out,n);
- return choose_load(u,m,r,-1,out,n);
+ return choose_load(u,m,r,out,n);
 }
 static size_t type_key(struct xz_shell_view *v, int i, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
  size_t len=strlen(st.query);
@@ -2027,7 +2047,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
  }
  for(int i=0;i<=sh_deck_count(m);i++)if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_LOAD,i),x,y)){
   const struct xz_shell_browse_row *r=row_at(b,s,st.touched);
-  return load(u,m,r,i==0?u->deck:i-1,out,n);
+  return load(u,m,r,i==0?u->deck:sh_deck_at(m->wave_order==1,sh_deck_count(m),i-1),out,n);
  }
  if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_LIST,0),x,y)){
   v->focus=FOCUS_LIST;

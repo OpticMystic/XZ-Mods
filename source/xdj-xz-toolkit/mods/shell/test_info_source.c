@@ -395,7 +395,9 @@ static void test_source_unknown_and_bounds(void) {
  for(int i=0;i<=XZ_SHELL_SOURCE_TILES;i++){
   int gap=i==0?0:xz_shell_source_rect(i-1).x+xz_shell_source_rect(i-1).w;
   int end=i==XZ_SHELL_SOURCE_TILES?XZ_SHELL_WIDTH:xz_shell_source_rect(i).x;
-  for(int y=SI_HEAD_H;y<SI_STRIP_Y;y++)for(int x=gap;x<end;x++)assert(at(f,x,y)==rgb565(SH_BLACK));
+  /* Between tiles the rear USB bar runs across below them; the outer margins stay black to the strip. */
+  int bottom=i==0||i==XZ_SHELL_SOURCE_TILES?SI_STRIP_Y:xz_shell_source_rect(XZ_SHELL_SOURCE_BAR).y;
+  for(int y=SI_HEAD_H;y<bottom;y++)for(int x=gap;x<end;x++)assert(at(f,x,y)==rgb565(SH_BLACK));
  }
  for(int i=0;i<XZ_SHELL_SOURCE_TILES;i++){
   struct xz_shell_rect r=xz_shell_source_rect(i);

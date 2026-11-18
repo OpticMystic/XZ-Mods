@@ -11,6 +11,7 @@
 #include <net/if.h>
 #include <linux/fb.h>
 #include <pthread.h>
+#include "../../../mods/xz_mutex.h"
 #include <sched.h>
 #include <stdarg.h>
 #include <sys/ioctl.h>
@@ -23,6 +24,9 @@
 #include <string.h>
 #include <unistd.h>
 #include "mods_bridge.h"
+#include "xz_present_timing.h"
+#include "xz_display_reports.h"
+#include "xz_frame_copy.h"
 #include "../../../mods/network/receiver_address.h"
 #include "../../../mods/ui/pixel_font.h"
 
@@ -114,15 +118,80 @@ static volatile uint32_t present_late_count;     /* present intervals over 20 ms
 static volatile uint32_t present_timer_ticks;    /* presenter ticks paced by the timer, not a blank */
 static volatile uint32_t present_missed_vsync;   /* blanks that passed between two presents beyond the first */
 static volatile uint32_t present_skipped;        /* ticks with the overlay up but no new frame prepared */
+/* A frame that finishes shortly after its blank is still copied for that refresh instead of waiting a whole
+ * period for the next one. The copy moves down the panel six times faster than the beam, so it overtakes the
+ * beam within a few dozen rows and every row below shows the frame on time. 0 restores the old wait. */
+#ifndef XZ_PRESENT_LATE_DEFAULT_US
+#define XZ_PRESENT_LATE_DEFAULT_US 6000u
+#endif
+static uint32_t present_late_limit_us = XZ_PRESENT_LATE_DEFAULT_US;
+static volatile uint32_t present_late_admitted;  /* frames copied after their blank in the window */
+static volatile uint32_t present_late_admit_max_us;
+/* With the presenter owning the screen the stock flip below returns at once. That removed the only point where
+ * the stock interface thread used to wait, so it ran flat out at real-time priority on core 1. Normal-priority
+ * kernel work for that core then woke 16 ms late on average and up to 91 ms late while idle, and jobs that need
+ * every core (page-cache drains on USB removal, mlock) waited behind it. Spacing stock frames restores the wait.
+ * 0 restores the old behaviour. */
+#ifndef XZ_STOCK_FRAME_FLOOR_US
+#define XZ_STOCK_FRAME_FLOOR_US 40000u
+#endif
+static uint32_t stock_frame_floor_us = XZ_STOCK_FRAME_FLOOR_US;
+static uint64_t monotonic_us(void);
+static uint64_t stock_rested_us;          /* stock interface thread only: when it last slept here */
+static volatile uint32_t stock_breaths;   /* rests taken from the event loop in the stats window */
+static void stock_frame_pace(void) {
+    static uint64_t previous; /* stock interface thread only */
+    uint32_t floor = __atomic_load_n(&stock_frame_floor_us, __ATOMIC_ACQUIRE);
+    if (!floor) return;
+    uint64_t now = monotonic_us(), wait = 4000u; /* the display threads share this core; leave kernel work a gap */
+    if (previous && now >= previous && now - previous < floor && floor - (now - previous) > wait) wait = floor - (now - previous);
+    usleep((useconds_t)wait);
+    previous = stock_rested_us = monotonic_us();
+}
+/* Pacing above only runs when the stock thread draws a frame. If it loops through its event dispatch without
+ * drawing (for example while it waits on a device removal), this gives the core 1 ms in every 20 ms so kernel
+ * work for that core still runs. The runtime calls it from the stock event hook. */
+void xz_stock_breath(void) {
+    if (!__atomic_load_n(&stock_frame_floor_us, __ATOMIC_ACQUIRE)) return;
+    uint64_t now = monotonic_us();
+    if (now >= stock_rested_us && now - stock_rested_us < 20000u) return;
+    usleep(1000);
+    stock_rested_us = monotonic_us();
+    stock_breaths += 1;
+}
+static void stock_frame_control_tick(void) {
+    int fd = open("/dev/shm/xz-stock-frame-us", O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) return;
+    char value[8] = {0}; ssize_t length = read(fd, value, sizeof(value) - 1); close(fd);
+    if (length <= 0) return;
+    unsigned long floor = strtoul(value, NULL, 10);
+    if (floor <= 100000ul) __atomic_store_n(&stock_frame_floor_us, (uint32_t)floor, __ATOMIC_RELEASE);
+}
+static void present_late_control_tick(void) {
+    int fd = open("/dev/shm/xz-present-late-us", O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) return;
+    char value[8] = {0}; ssize_t length = read(fd, value, sizeof(value) - 1); close(fd);
+    if (length <= 0) return;
+    unsigned long limit = strtoul(value, NULL, 10);
+    if (limit <= 12000ul) __atomic_store_n(&present_late_limit_us, (uint32_t)limit, __ATOMIC_RELEASE);
+}
 static volatile uint32_t present_hist[5];        /* present intervals: <14, 14-18, 18-26, 26-34, 34+ ms */
 static struct timeval stats_window_started;
 static int framebuffer_presenter_started;
 static int primary_60hz_presenter_started;
-static pthread_mutex_t primary_present_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t primary_present_mutex = XZ_MUTEX_INITIALIZER;
 static pthread_once_t mods_bridge_once = PTHREAD_ONCE_INIT;
 static xz_mods_visible_fn_v1 mods_visible;
 static xz_mods_native_touch_fn_v1 mods_native_touch;
 static xz_mods_render_fn_v1 mods_render;
+static xz_mods_pipeline_eligible_fn_v1 mods_pipeline_eligible;
+static xz_mods_pipeline_epoch_fn_v1 mods_pipeline_epoch;
+static xz_mods_pipeline_prepare_fn_v1 mods_pipeline_prepare;
+static xz_mods_pipeline_accept_fn_v1 mods_pipeline_accept;
+static uint32_t dp_render_owned,dp_requested=1,dp_waiter_requested=2,dp_waiter_applied=2;
+static __thread struct xz_pipeline_request_v1 dp_render_request;
+static struct {uint32_t tick,period;uint64_t wall,mono;int valid;} dp_blank;
+static int dp_set_cpu(unsigned cpu);
 static xz_mods_takeover_fn_v1 mods_takeover;
 static xz_mods_native_color_fn_v1 mods_native_color;
 static xz_mods_native_surface_color_fn_v1 mods_native_surface_color;
@@ -135,7 +204,7 @@ static int (*mods_game_active)(void);
 static uint32_t vj_listener_ready;
 static uint32_t vj_discovery_ready;
 static uint32_t vj_received_image_count;
-static pthread_mutex_t mods_status_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mods_status_mutex = XZ_MUTEX_INITIALIZER;
 
 #define VJFS_PORT 50005
 #define VJFS_MAX_WIDTH 800
@@ -179,7 +248,7 @@ struct __attribute__((packed)) vjte_event {
     int32_t value;
 };
 
-static pthread_mutex_t frame_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t frame_mutex = XZ_MUTEX_INITIALIZER;
 static uint8_t latest_frame[VJFS_MAX_BYTES];
 static uint8_t incoming_frame[VJFS_MAX_BYTES];
 static uint8_t filmstrip_asset[VJFS_MAX_ASSET_BYTES];
@@ -189,8 +258,15 @@ static uint8_t previous_preview_frame[VJFS_MAX_PREVIEW_BYTES];
 static uint8_t incoming_preview[VJFS_MAX_PREVIEW_BYTES];
 static uint16_t blended_preview[VJFS_MAX_PREVIEW_WIDTH * VJFS_MAX_PREVIEW_HEIGHT];
 static uint8_t composite_frame[VJFS_MAX_BYTES];
-/* Never draw mod controls into composite_frame: it persists between packets. */
-static uint16_t mods_present_frame[VJFS_MAX_WIDTH * VJFS_MAX_HEIGHT];
+/* Persistent RAW base patches only: transient overlays never become base history. */
+static uint16_t mods_present_storage[VJFS_MAX_WIDTH * VJFS_MAX_HEIGHT + 32] __attribute__((aligned(64)));
+static uint16_t *mods_present_frame = mods_present_storage;
+/* Protected VJ output: a declining native renderer may still modify its buffer. */
+static uint16_t vj_composite_frame[VJFS_MAX_WIDTH * VJFS_MAX_HEIGHT];
+/* Published only after complete validated pixels. Independent of mods_takeover:
+ * connection.active calls back into that UI and cannot bootstrap content ownership. */
+static uint32_t content_main_ms, content_preview_ms, content_filmstrip_ms;
+static unsigned content_exclusive;
 static uint32_t composite_base_sequence = UINT32_MAX;
 static uint32_t latest_frame_length;
 static uint16_t latest_width;
@@ -242,6 +318,8 @@ static volatile int touch_x = -1;
 static volatile int touch_y = -1;
 static volatile int touch_down;
 static volatile int raw_touch_fd = -1;
+/* Observational only: raw reports remain unchanged for the native calibration path. */
+__attribute__((visibility("default"))) uint32_t xz_touch_ingress_proof_v1[8]={1,8*4};
 /* The jog-wheel displays are not framebuffers: rbp drives them over SPI links
  * to sub-microcontrollers. Nothing documents that framing, so the first step to
  * drawing on them is a bounded capture of what rbp already sends. */
@@ -294,6 +372,10 @@ static void resolve_mods_bridge(void) {
     mods_visible = (xz_mods_visible_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_visible_v1");
     mods_native_touch = (xz_mods_native_touch_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_native_touch_v1");
     mods_render = (xz_mods_render_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_render_v1");
+    mods_pipeline_eligible=(xz_mods_pipeline_eligible_fn_v1)dlsym(RTLD_DEFAULT,"xz_mods_pipeline_eligible_v1");
+    mods_pipeline_epoch=(xz_mods_pipeline_epoch_fn_v1)dlsym(RTLD_DEFAULT,"xz_mods_pipeline_epoch_v1");
+    mods_pipeline_prepare=(xz_mods_pipeline_prepare_fn_v1)dlsym(RTLD_DEFAULT,"xz_mods_pipeline_prepare_v1");
+    mods_pipeline_accept=(xz_mods_pipeline_accept_fn_v1)dlsym(RTLD_DEFAULT,"xz_mods_pipeline_accept_v1");
     mods_takeover = (xz_mods_takeover_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_takeover_v1");
     mods_native_color = (xz_mods_native_color_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_native_color_v1");
     mods_native_surface_color = (xz_mods_native_surface_color_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_native_surface_color_v1");
@@ -323,6 +405,20 @@ static void log_line(const char *line) {
     write(fd, line, strlen(line));
     write(fd, "\n", 1);
     close(fd);
+}
+
+static void display_report_tick(void) {
+    __atomic_store_n(&dp_requested,access("/dev/shm/xz-display-force-serial",F_OK)!=0,__ATOMIC_RELEASE);
+    xz_frame_copy_control_tick();
+    present_late_control_tick();
+    stock_frame_control_tick();
+    xz_receiver_present_trace_enable_v1(access("/dev/shm/xz-present-trace-off", F_OK) != 0);
+}
+
+static void write_display_report(unsigned kind, const char *text, size_t length) {
+    if (kind == 0u) { log_line(text); return; }
+    int fd = open("/tmp/xz_directfb_stats", O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+    if (fd >= 0) { write(fd, text, length); close(fd); }
 }
 
 static void capture_touch_fd(const char *path, int fd) {
@@ -410,6 +506,14 @@ ssize_t read(int fd, void *buffer, size_t count) {
         log_line(line);
     }
     if (fd == raw_touch_fd && result >= 6) {
+        const uint8_t *report=(const uint8_t *)buffer;
+        uint32_t flags=(uint32_t)report[0]|(uint32_t)report[1]<<8;
+        __atomic_add_fetch(&xz_touch_ingress_proof_v1[2],1,__ATOMIC_RELAXED);
+        __atomic_or_fetch(&xz_touch_ingress_proof_v1[3],flags,__ATOMIC_RELAXED);
+        __atomic_store_n(&xz_touch_ingress_proof_v1[4],flags,__ATOMIC_RELAXED);
+        __atomic_store_n(&xz_touch_ingress_proof_v1[5],(uint32_t)report[2]|(uint32_t)report[3]<<8,__ATOMIC_RELAXED);
+        __atomic_store_n(&xz_touch_ingress_proof_v1[6],(uint32_t)report[4]|(uint32_t)report[5]<<8,__ATOMIC_RELAXED);
+        __atomic_store_n(&xz_touch_ingress_proof_v1[7],(uint32_t)result,__ATOMIC_RELAXED);
 #ifdef XZ_MODS_BRIDGE_V1
         /* The native solver supplies calibrated edges through xz_vj_touch_v1.
          * Do not also emit the guessed raw coordinates below. */
@@ -515,7 +619,7 @@ static void write_runtime_stats_if_due(void) {
     length = snprintf(
         line,
         sizeof(line),
-        "window_ms=%ld flip_hz=%.1f framebuffer_present_hz=%.1f present_interval_min_ms=%.2f present_interval_max_ms=%.2f preview_draw_hz=%.1f preview_frame_hz=%.1f filmstrip_draw_hz=%.1f tick_hz=%.1f preview=%ux%u asset=%ux%u scroll=%.2f vsync=%s vsync_hz=%.1f present_late=%u timer_ticks=%u missed_vsync=%u present_skipped=%u present_hist=%u/%u/%u/%u/%u\n",
+        "window_ms=%ld flip_hz=%.1f framebuffer_present_hz=%.1f present_interval_min_ms=%.2f present_interval_max_ms=%.2f preview_draw_hz=%.1f preview_frame_hz=%.1f filmstrip_draw_hz=%.1f tick_hz=%.1f preview=%ux%u asset=%ux%u scroll=%.2f vsync=%s vsync_hz=%.1f present_late=%u timer_ticks=%u missed_vsync=%u present_skipped=%u present_hist=%u/%u/%u/%u/%u late_admitted=%u late_admit_max_us=%u late_limit_us=%u stock_floor_us=%u stock_breaths=%u\n",
         elapsed_ms,
         (double)flip_count * 1000.0 / (double)elapsed_ms,
         (double)framebuffer_present_count * 1000.0 / (double)elapsed_ms,
@@ -536,14 +640,15 @@ static void write_runtime_stats_if_due(void) {
         present_timer_ticks,
         present_missed_vsync,
         present_skipped,
-        present_hist[0], present_hist[1], present_hist[2], present_hist[3], present_hist[4]
+        present_hist[0], present_hist[1], present_hist[2], present_hist[3], present_hist[4],
+        present_late_admitted, present_late_admit_max_us, __atomic_load_n(&present_late_limit_us, __ATOMIC_ACQUIRE),
+        __atomic_load_n(&stock_frame_floor_us, __ATOMIC_ACQUIRE), stock_breaths
     );
     if (length < 0) return;
     if ((size_t)length >= sizeof(line)) length = (int)sizeof(line) - 1;
-    fd = open("/tmp/xz_directfb_stats", O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
-    if (fd >= 0) {
-        write(fd, line, (size_t)length);
-        close(fd);
+    if (!xz_display_report_submit(1u, line, (size_t)length)) {
+        fd = open("/tmp/xz_directfb_stats", O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+        if (fd >= 0) { write(fd, line, (size_t)length); close(fd); }
     }
     flip_count = 0;
     filmstrip_draw_count = 0;
@@ -556,6 +661,9 @@ static void write_runtime_stats_if_due(void) {
     present_timer_ticks = 0;
     present_missed_vsync = 0;
     present_skipped = 0;
+    present_late_admitted = 0;
+    present_late_admit_max_us = 0;
+    stock_breaths = 0;
     memset((void *)present_hist, 0, sizeof(present_hist));
     present_interval_min_ms = 0.0f;
     present_interval_max_ms = 0.0f;
@@ -584,6 +692,29 @@ static uint32_t wallclock_ms(void) {
     struct timeval now;
     gettimeofday(&now, NULL);
     return (uint32_t)((uint32_t)now.tv_sec * 1000u + (uint32_t)(now.tv_usec / 1000));
+}
+
+static int content_stamp_fresh(uint32_t stamp, uint32_t now, uint32_t grace) {
+    int32_t age = (int32_t)(now - stamp);
+    return stamp != 0u && age >= 0 && (uint32_t)age <= grace;
+}
+
+/* Optional additive ABI: no locks, rendering, UI callbacks, or connection requirement.
+ * Existing content remains eligible through the same brief reconnect picture grace. */
+__attribute__((visibility("default"))) int xz_receiver_vj_content_v1(void) {
+    uint32_t now = wallclock_ms();
+    if (content_stamp_fresh(__atomic_load_n(&content_main_ms, __ATOMIC_ACQUIRE), now, 2500u)) return 1;
+    if (__atomic_load_n(&content_exclusive, __ATOMIC_ACQUIRE)) return 0;
+    return content_stamp_fresh(__atomic_load_n(&content_preview_ms, __ATOMIC_ACQUIRE), now, 1000u) ||
+           content_stamp_fresh(__atomic_load_n(&content_filmstrip_ms, __ATOMIC_ACQUIRE), now, 2500u);
+}
+
+/* frame_mutex held: asset alone has no presentation clock; ticks alone have no pixels. */
+static void publish_filmstrip_content(void) {
+    uint32_t stamp = (uint32_t)((uint32_t)latest_tick_received_at.tv_sec * 1000u +
+                               (uint32_t)(latest_tick_received_at.tv_usec / 1000));
+    int eligible = asset_valid && tick_valid && asset_width && asset_height && asset_top < 480;
+    __atomic_store_n(&content_filmstrip_ms, eligible ? (stamp ? stamp : 1u) : 0u, __ATOMIC_RELEASE);
 }
 
 static void mark_overlay_activity(void) {
@@ -644,28 +775,64 @@ static void connection_snapshot(struct xz_vj_connection_v1 *out) {
     if (!out->connected) { out->stats_valid = 0; out->frame_hz_milli = 0; }
 }
 
+static int xz_dp_bridge_owned(void){return __atomic_load_n(&dp_render_owned,__ATOMIC_ACQUIRE)!=0;}
 static int render_mods(uint16_t *pixels, uint32_t width, uint32_t height, uint32_t stride) {
     struct xz_vj_connection_v1 connection;
-    if (!mods_render) return 0;
+    if (!mods_render || (xz_dp_bridge_owned() && !dp_render_request.token)) return 0;
     connection_snapshot(&connection);
+    if(dp_render_request.token)return mods_pipeline_prepare(pixels,width,height,stride,&connection,&dp_render_request)==1;
     return mods_render(pixels, width, height, stride, &connection) == 1;
 }
 
-static const uint8_t *composite_for_present(void) {
+struct preparation_budget {
+    uint64_t raw_us, compose_us;
+    unsigned raw_patches, compose_calls, render_calls;
+};
+static unsigned update_composite_base(void);
+static void draw_composite_frame(uint8_t *output);
+static uint64_t monotonic_us(void);
+static void compose_base_for_present(uint8_t *output, struct preparation_budget *budget) {
+    uint64_t started = budget ? monotonic_us() : 0;
+    draw_composite_frame(output);
+    if (budget) {
+        budget->compose_us += monotonic_us() - started;
+        budget->compose_calls++;
+    }
+}
+static const uint8_t *composite_for_present(struct preparation_budget *budget, uint16_t *destination) {
+    /* Keep the original latest-packet/trylock sampling even while MODERN hides VJ.
+     * Only cheap RAW patches persist; preview/filmstrip work is demand-driven. */
+    uint64_t started = budget ? monotonic_us() : 0;
+    unsigned patches = update_composite_base();
+    if (budget) {
+        budget->raw_us += monotonic_us() - started;
+        budget->raw_patches += patches;
+    }
+    /* An async slot is a complete-frame destination, never a VJ/partial canvas. */
+    if (destination) {
+        if (!dp_render_request.token || !mods_pipeline_prepare || !mods_full_frame || !mods_full_frame()) return NULL;
+        if (budget) budget->render_calls++;
+        return render_mods(destination, 800, 480, 800) ? (const uint8_t *)destination : NULL;
+    }
+    if (dp_render_request.token) return NULL;
+    mods_present_frame = mods_present_storage + xz_frame_copy_render_offset();
+    if (mods_render && mods_full_frame && mods_full_frame()) {
+        if (budget) budget->render_calls++;
+        if (render_mods(mods_present_frame, 800, 480, 800)) return (const uint8_t *)mods_present_frame;
+        if (dp_render_request.token || mods_panel_visible()) return NULL;
+    }
+    if(dp_render_request.token)return NULL;
+    /* Restore from RAW before current overlays, clearing moved/expired pixels.
+     * Keep this output protected: even a declining native renderer can write. */
+    compose_base_for_present((uint8_t *)vj_composite_frame, budget);
     if (mods_render) {
-        /* A full-frame renderer (the FLAGSHIP shell) overwrites every pixel: skip the 768 KB base copy. */
-        if (mods_full_frame && mods_full_frame()) {
-            if (render_mods(mods_present_frame, 800, 480, 800)) return (const uint8_t *)mods_present_frame;
-            if (mods_panel_visible()) return NULL;
-        }
-        memcpy(mods_present_frame, composite_frame, sizeof(composite_frame));
+        memcpy(mods_present_frame, vj_composite_frame, XZ_FRAME_BYTES);
+        if (budget) budget->render_calls++;
         if (render_mods(mods_present_frame, 800, 480, 800))
             return (const uint8_t *)mods_present_frame;
-        /* A visible panel may be busy publishing its next model. Retain the
-         * already-presented panel instead of flashing the desktop base. */
-        if (mods_panel_visible()) return NULL;
+        if (dp_render_request.token || mods_panel_visible()) return NULL;
     }
-    return composite_frame;
+    return (const uint8_t *)vj_composite_frame;
 }
 
 __attribute__((visibility("default"))) uint32_t xz_kart_primary_display_proof_v1[14] = {1};
@@ -846,7 +1013,8 @@ static void draw_cached_preview(uint8_t *pixels, int pitch, int surface_width, i
     pthread_mutex_unlock(&frame_mutex);
 }
 
-static void draw_composite_frame(void) {
+static unsigned update_composite_base(void) {
+    unsigned patches = 0;
     if (pthread_mutex_trylock(&frame_mutex) == 0) {
         if (frame_is_fresh() && latest_sequence != composite_base_sequence) {
             int width = latest_width;
@@ -864,13 +1032,19 @@ static void draw_composite_frame(void) {
                     );
                 }
                 composite_base_sequence = latest_sequence;
+                patches = 1;
             }
         }
         pthread_mutex_unlock(&frame_mutex);
     }
+    return patches;
+}
+
+static void draw_composite_frame(uint8_t *output) {
+    memcpy(output, composite_frame, sizeof(composite_frame));
     if (!latest_exclusive) {
-        draw_cached_preview(composite_frame, 1600, 800, 480);
-        draw_cached_filmstrip(composite_frame, 1600, 800, 480);
+        draw_cached_preview(output, 1600, 800, 480);
+        draw_cached_filmstrip(output, 1600, 800, 480);
     }
 }
 
@@ -881,9 +1055,10 @@ static void draw_composite_frame(void) {
  * presenter trusts it (30 intervals of 12-22 ms in a row), gives up on errors or on a call that returns
  * without waiting, and the presenter falls back to a drift-free 16.667 ms timer whenever no blank
  * arrives within 40 ms. XZ_PRESENT_VSYNC=0 keeps the timer only. */
-static pthread_mutex_t vsync_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t vsync_mutex = XZ_MUTEX_INITIALIZER;
 static pthread_cond_t vsync_cond = PTHREAD_COND_INITIALIZER;
 static volatile uint32_t vsync_sequence;
+static uint64_t vsync_last_mono_us; /* diagnostic event observation, not hardware scanout time */
 static uint64_t vsync_last_us, vsync_period_us = 16240u; /* under vsync_mutex; period: moving average */
 static uint64_t timer_next_us;                           /* presenter thread: the timer's next tick */
 
@@ -893,22 +1068,66 @@ static uint64_t monotonic_us(void) {
     return (uint64_t)now.tv_sec * 1000000u + (uint64_t)now.tv_usec;
 }
 
+/* The presenter and its vsync waiter start on the I/O core at FIFO 20/21. Beside the stock interface thread
+ * (XZ_DISPLAY_CPU=1 XZ_DISPLAY_PRIORITY=26) they missed a third as many refreshes in live tests, but as the
+ * boot default that placement starved the helpers they create and the unit froze within fifteen minutes, so
+ * it stays an explicit experiment. The opt-in pipeline keeps its own placement. Core 3 belongs to audio. */
+static void display_home(int *cpu, int *priority) {
+    const char *pipeline = getenv("XZ_DISPLAY_PIPELINE");
+    /* Core 1, above the stock interface thread (RR 24), whose hidden frames are paced below. Core 2 belongs to
+     * the stock file reader and the DECK 3/4 audio threads, which outrank the display and preempted it about
+     * 100 times a second: 3 to 17 missed refreshes per 30 s there against 0 here with two decks. */
+    *cpu = 1; *priority = 26;
+    if (pipeline && !strcmp(pipeline, "1")) { *cpu = 2; *priority = 20; return; }
+    const char *core = getenv("XZ_DISPLAY_CPU"), *level = getenv("XZ_DISPLAY_PRIORITY");
+    if (core && core[0] >= '0' && core[0] <= '2' && !core[1]) *cpu = core[0] - '0';
+    if (level) { long value = strtol(level, NULL, 10); if (value >= 1 && value <= 40) *priority = (int)value; }
+}
+/* How long before the expected blank the waiter enters the ioctl (and takes the framebuffer lock). */
+#define XZ_VSYNC_LOCK_WINDOW_US 4000u
 static void *vsync_waiter(void *argument) {
     int fd = (int)(intptr_t)argument;
+    syscall(SYS_prctl, PR_SET_NAME, "xz-vsync", 0, 0, 0);
     int good = 0, failures = 0, instant = 0;
     uint64_t last = 0;
     {
-        struct sched_param scheduling = { .sched_priority = 21 };
+        int home_cpu, home_priority;
+        display_home(&home_cpu, &home_priority);
+        struct sched_param scheduling = { .sched_priority = home_priority + 1 };
         cpu_set_t affinity;
         CPU_ZERO(&affinity);
-        CPU_SET(3, &affinity);
+        CPU_SET(home_cpu, &affinity);
         pthread_setschedparam(pthread_self(), SCHED_FIFO, &scheduling);
         pthread_setaffinity_np(pthread_self(), sizeof(affinity), &affinity);
     }
     for (;;) {
+        uint32_t requested=__atomic_load_n(&dp_waiter_requested,__ATOMIC_ACQUIRE);
+        if(requested!=__atomic_load_n(&dp_waiter_applied,__ATOMIC_ACQUIRE)){
+            __atomic_store_n(&dp_waiter_applied,dp_set_cpu(requested)?requested:UINT32_MAX,__ATOMIC_RELEASE);
+        }
+        /* The kernel holds the framebuffer's lock for the whole of this ioctl. Sitting in it back to back kept
+         * the lock about 97% of the time, and this thread took it again before a waiter could run: a stock
+         * flip from the interface thread (same core, lower priority) then never got it. Seen on the unit: one
+         * real flip during start-up and the stock interface thread stayed in lock_fb_info for good (no
+         * interface, no owner tick), and the screen server's open of /dev/fb0 never returned. So stay out of
+         * the ioctl until shortly before the next blank is due: the lock is free for most of every frame, and
+         * the blank is still observed by the ioctl itself, so its timing is unchanged. A late wake-up only
+         * costs one observation; the presenter's timer covers it. */
+        if (last) {
+            pthread_mutex_lock(&vsync_mutex);
+            uint64_t period = vsync_period_us;
+            pthread_mutex_unlock(&vsync_mutex);
+            uint64_t due = last + period, at_us = monotonic_us();
+            if (period >= 12000u && period <= 22000u && at_us >= last && at_us + XZ_VSYNC_LOCK_WINDOW_US < due) {
+                uint64_t rest = due - XZ_VSYNC_LOCK_WINDOW_US - at_us;
+                struct timespec pause = { 0, (long)rest * 1000L };
+                nanosleep(&pause, NULL);
+            }
+        }
         uint32_t zero = 0;
         int result = ioctl(fd, MXCFB_WAIT_FOR_VSYNC, &zero);
         uint64_t now = monotonic_us();
+        uint64_t observed_mono = (__atomic_load_n(&dp_render_owned,__ATOMIC_ACQUIRE)||__atomic_load_n(&xz_present_timing_control_v1[2], __ATOMIC_ACQUIRE)) ? xz_pt_mono() : 0;
         if (result < 0) {
             if (errno == EINTR) continue;
             if (++failures >= 5) break;
@@ -936,8 +1155,9 @@ static void *vsync_waiter(void *argument) {
         if (last && now - last >= 12000u && now - last <= 22000u)
             vsync_period_us = (vsync_period_us * 15u + (now - last)) / 16u;
         vsync_last_us = now;
+        vsync_last_mono_us = observed_mono;
         last = now;
-        vsync_sequence += 1;
+        __atomic_add_fetch(&vsync_sequence, 1u, __ATOMIC_RELEASE);
         vsync_count += 1;
         pthread_cond_broadcast(&vsync_cond);
         pthread_mutex_unlock(&vsync_mutex);
@@ -955,29 +1175,38 @@ static void vsync_start(int fd) {
         return;
     }
     __atomic_store_n(&vsync_state, VSYNC_PROBING, __ATOMIC_RELEASE);
-    if (pthread_create(&thread, NULL, vsync_waiter, (void *)(intptr_t)fd) == 0) pthread_detach(thread);
+    if (xz_display_thread_create(&thread, vsync_waiter, (void *)(intptr_t)fd) == 0) pthread_detach(thread);
     else __atomic_store_n(&vsync_state, VSYNC_UNAVAILABLE, __ATOMIC_RELEASE);
 }
 
 /* Export for the mods: when the frame being rendered now will be shown (the presenter copies it at the
  * next blank), in gettimeofday microseconds. 0 while the presenter has no timeline yet. */
 __attribute__((visibility("default"))) uint64_t xz_receiver_next_present_us_v1(void) {
+    if(dp_render_request.token)return dp_render_request.target_wall_us;
+    uint64_t query_begin = xz_pt_capture ? xz_pt_mono() : 0;
+    uint32_t target_sequence = 0, target_period = 0;
     uint64_t now = monotonic_us(), at = 0;
     if (__atomic_load_n(&vsync_state, __ATOMIC_ACQUIRE) == VSYNC_LOCKED) {
         pthread_mutex_lock(&vsync_mutex);
         uint64_t period = vsync_period_us ? vsync_period_us : 16240u;
         at = vsync_last_us;
+        target_sequence = vsync_sequence; target_period = (uint32_t)period;
         pthread_mutex_unlock(&vsync_mutex);
-        if (at) while (at <= now) at += period;
+        if (at) while (at <= now) { at += period; target_sequence++; }
     } else {
         at = timer_next_us;
         if (at && at < now) at = now;
     }
+    xz_pt_target_query(at, now, query_begin, target_sequence, target_period);
     return at;
 }
 /* Returns at the next vertical blank when the blank is proven, else on a fixed 60 Hz timeline that
  * does not drift with the work done in each tick. */
+static uint32_t presenter_admitted_sequence; /* the blank this thread last returned for; presenter only */
+static int dp_state;
 static void presenter_wait(uint64_t *deadline_us) {
+    dp_blank.valid=0;
+    xz_pt_wait_entry();
     if (__atomic_load_n(&vsync_state, __ATOMIC_ACQUIRE) == VSYNC_LOCKED) {
         uint32_t seen;
         struct timeval now;
@@ -985,6 +1214,24 @@ static void presenter_wait(uint64_t *deadline_us) {
         int woke = 0;
         pthread_mutex_lock(&vsync_mutex);
         seen = vsync_sequence;
+        uint32_t late_limit = dp_state ? 0u : __atomic_load_n(&present_late_limit_us, __ATOMIC_ACQUIRE);
+        /* Both readings come from monotonic_us(), which is gettimeofday here. vsync_last_mono_us is another
+         * clock and is zero unless tracing, so it cannot date the blank. A wall-clock step only skips one admission. */
+        uint64_t blank_age = monotonic_us() - vsync_last_us;
+        if (late_limit && seen != presenter_admitted_sequence && vsync_last_us && blank_age <= late_limit) {
+            /* This blank has not been presented and the beam is still near the top of the panel. */
+            xz_pt_wait_register(seen - 1u, vsync_last_us, vsync_last_mono_us, (uint32_t)vsync_period_us);
+            presenter_admitted_sequence = seen;
+            dp_blank.tick=seen;dp_blank.period=(uint32_t)vsync_period_us;dp_blank.wall=vsync_last_us;dp_blank.mono=vsync_last_mono_us;dp_blank.valid=1;
+            xz_pt_wait_observed(seen, vsync_last_us, vsync_last_mono_us, 1);
+            pthread_mutex_unlock(&vsync_mutex);
+            present_late_admitted += 1;
+            if (blank_age > present_late_admit_max_us) present_late_admit_max_us = (uint32_t)blank_age;
+            *deadline_us = monotonic_us() + 16667u;
+            xz_pt_wait_exit(0);
+            return;
+        }
+        xz_pt_wait_register(seen, vsync_last_us, vsync_last_mono_us, (uint32_t)vsync_period_us);
         gettimeofday(&now, NULL);
         long ns = now.tv_usec * 1000L + 40000000L;
         until.tv_sec = now.tv_sec + ns / 1000000000L;
@@ -993,9 +1240,13 @@ static void presenter_wait(uint64_t *deadline_us) {
             if (pthread_cond_timedwait(&vsync_cond, &vsync_mutex, &until) != 0) break;
         }
         woke = vsync_sequence != seen;
+        if (woke) presenter_admitted_sequence = vsync_sequence;
+        if(woke){dp_blank.tick=vsync_sequence;dp_blank.period=(uint32_t)vsync_period_us;dp_blank.wall=vsync_last_us;dp_blank.mono=vsync_last_mono_us;dp_blank.valid=1;}
+        xz_pt_wait_observed(vsync_sequence, vsync_last_us, vsync_last_mono_us, woke);
         pthread_mutex_unlock(&vsync_mutex);
         if (woke) {
             *deadline_us = monotonic_us() + 16667u;
+            xz_pt_wait_exit(0);
             return;
         }
     }
@@ -1006,7 +1257,12 @@ static void presenter_wait(uint64_t *deadline_us) {
     *deadline_us += 16667u;
     timer_next_us = *deadline_us;
     if (*deadline_us > now) usleep((useconds_t)(*deadline_us - now));
+    xz_pt_wait_exit(1);
 }
+
+#include "xz_display_pipeline_worker.h"
+#include "xz_pipeline_timing.h"
+#include "xz_display_pipeline_consumer.h"
 
 static void *framebuffer_presenter(void *unused) {
     int fd;
@@ -1015,14 +1271,19 @@ static void *framebuffer_presenter(void *unused) {
     uint8_t *mapping;
     size_t mapping_length;
     (void)unused;
+    syscall(SYS_prctl, PR_SET_NAME, "xz-present", 0, 0, 0);
     {
-        struct sched_param scheduling = { .sched_priority = 20 };
+        int home_cpu, home_priority;
+        display_home(&home_cpu, &home_priority);
+        struct sched_param scheduling = { .sched_priority = home_priority };
         cpu_set_t affinity;
         int priority_ok = pthread_setschedparam(pthread_self(), SCHED_FIFO, &scheduling) == 0;
         CPU_ZERO(&affinity);
-        CPU_SET(3, &affinity);
+        CPU_SET(home_cpu, &affinity);
         int affinity_ok = pthread_setaffinity_np(pthread_self(), sizeof(affinity), &affinity) == 0;
-        if (priority_ok && affinity_ok) log_line("FRAMEBUFFER_PRESENTER_RT priority=20 cpu=3");
+        char placed[80];
+        snprintf(placed, sizeof placed, "FRAMEBUFFER_PRESENTER_RT priority=%d cpu=%d", home_priority, home_cpu);
+        if (priority_ok && affinity_ok) log_line(placed);
         else log_line("FRAMEBUFFER_PRESENTER_RT unavailable");
     }
     fd = open("/dev/fb0", O_RDWR | O_CLOEXEC);
@@ -1046,6 +1307,9 @@ static void *framebuffer_presenter(void *unused) {
         return NULL;
     }
     log_line("FRAMEBUFFER_BG_SCANOUT_PRESENTER_STARTED target_hz=60 mode=800x480x1");
+    if (xz_frame_copy_initialize()) log_line("FRAME_COPY_LIBC_READY aligned RGB565 buffer");
+    if (!xz_display_reports_start(write_display_report, display_report_tick)) log_line("DISPLAY_REPORT_WORKER_UNAVAILABLE reports will be dropped");
+    dp_start();
     vsync_start(fd);
     /* Present, then prepare. Each tick copies the frame prepared on the previous tick into scanout right
      * after the vertical blank (the copy outruns the beam, so it never tears), then composes and renders
@@ -1054,13 +1318,28 @@ static void *framebuffer_presenter(void *unused) {
     const uint8_t *prepared = NULL;
     uint64_t deadline_us = 0;
     uint32_t presented_sequence = 0;
+    uint64_t copy_total = 0, compose_total = 0, render_total = 0;
+    uint64_t copy_max = 0, compose_max = 0, render_max = 0;
+    uint64_t prepare_total = 0, prepare_max = 0, raw_total = 0, raw_max = 0;
+    unsigned budget_samples = 0, copy_samples = 0, compose_samples = 0, render_attempts = 0, raw_patches = 0;
     for (;;) {
+        if(dp_state){xz_pt_enabled=0;xz_pt_capture=0;xz_pt_cancel();__atomic_store_n(&xz_present_timing_control_v1[2],0u,__ATOMIC_RELEASE);}
+        else xz_pt_begin();
         presenter_wait(&deadline_us);
         int overlay_enabled = overlay_is_active();
+        if(dp_state){
+            prepared=NULL;
+            if(dp_state==1)dp_consume(mapping,fix.line_length,overlay_enabled,&presented_sequence);
+            if(dp_state==2)dp_drain();
+            write_runtime_stats_if_due();
+            continue;
+        }
+        if (xz_pt_enabled && overlay_enabled) xz_pt_row[4] |= PT_OVERLAY;
         if (overlay_enabled && diagnostic_background_begin(overlay_enabled)) {
+            if (xz_pt_enabled) xz_pt_row[4] |= PT_BACKGROUND;
             if (!prepared) present_skipped += 1;
             if (prepared) {
-                uint32_t sequence = vsync_sequence;
+                uint32_t sequence = __atomic_load_n(&vsync_sequence, __ATOMIC_ACQUIRE);
                 if (presented_sequence && __atomic_load_n(&vsync_state, __ATOMIC_ACQUIRE) == VSYNC_LOCKED &&
                     sequence - presented_sequence > 1u && sequence - presented_sequence < 120u)
                     present_missed_vsync += sequence - presented_sequence - 1u;
@@ -1078,22 +1357,62 @@ static void *framebuffer_presenter(void *unused) {
                     }
                 }
                 last_present_started = started;
-                for (int row = 0; row < 480; ++row) {
-                    memcpy(
-                        mapping + (size_t)row * fix.line_length,
-                        prepared + (size_t)row * 1600u,
-                        1600u
-                    );
-                }
+                xz_pt_copy_begin(sequence, fix.line_length == 1600u);
+                uint64_t copy_start = monotonic_us();
+                xz_frame_copy_present(mapping, fix.line_length, prepared);
+                uint64_t copy_us = monotonic_us() - copy_start;
+                xz_pt_copy_end();
+                copy_total += copy_us; copy_samples++;
+                if (copy_us > copy_max) copy_max = copy_us;
                 framebuffer_present_count += 1;
+                if(dp_blank.valid&&__atomic_load_n(&vsync_state,__ATOMIC_ACQUIRE)==VSYNC_LOCKED&&dp_activate()){
+                    prepared=NULL;dp_notify(dp_blank.tick,dp_blank.wall+dp_blank.period);
+                    diagnostic_background_end();xz_pt_publish(__atomic_load_n(&vsync_sequence,__ATOMIC_ACQUIRE));continue;
+                }
+                if(dp_state){prepared=NULL;diagnostic_background_end();xz_pt_publish(__atomic_load_n(&vsync_sequence,__ATOMIC_ACQUIRE));continue;}
             }
-            draw_composite_frame();
-            prepared = composite_for_present();
+            struct preparation_budget preparation = {0};
+            xz_pt_prepare_begin();
+            uint64_t stage_start = monotonic_us();
+            prepared = composite_for_present(&preparation, NULL);
+            uint64_t prepare_us = monotonic_us() - stage_start;
+            xz_pt_prepare_end(prepared != NULL, __atomic_load_n(&vsync_sequence, __ATOMIC_ACQUIRE));
+            /* render_* remains wrapper-inclusive, excluding measured raw update and output composition.
+             * samples counts preparations; compose_samples and render_attempts count work. */
+            uint64_t compose_us = preparation.raw_us + preparation.compose_us;
+            uint64_t render_us = prepare_us >= compose_us ? prepare_us - compose_us : 0;
+            raw_total += preparation.raw_us;
+            raw_patches += preparation.raw_patches;
+            if (preparation.raw_us > raw_max) raw_max = preparation.raw_us;
+            compose_total += preparation.compose_us;
+            compose_samples += preparation.compose_calls;
+            render_attempts += preparation.render_calls;
+            render_total += render_us;
+            prepare_total += prepare_us;
+            if (preparation.compose_us > compose_max) compose_max = preparation.compose_us;
+            if (render_us > render_max) render_max = render_us;
+            if (prepare_us > prepare_max) prepare_max = prepare_us;
+            if (++budget_samples == 120u) {
+                char budget_line[768];
+                snprintf(budget_line,sizeof budget_line,"PRESENT_BUDGET samples=120 copy_samples=%u copy_total_us=%llu copy_max_us=%llu compose_total_us=%llu compose_max_us=%llu render_total_us=%llu render_max_us=%llu compose_samples=%u render_attempts=%u prepare_total_us=%llu prepare_max_us=%llu raw_total_us=%llu raw_max_us=%llu raw_patches=%u",
+                         copy_samples, (unsigned long long)copy_total, (unsigned long long)copy_max,
+                         (unsigned long long)compose_total, (unsigned long long)compose_max,
+                         (unsigned long long)render_total, (unsigned long long)render_max,
+                         compose_samples, render_attempts, (unsigned long long)prepare_total, (unsigned long long)prepare_max,
+                         (unsigned long long)raw_total, (unsigned long long)raw_max, raw_patches);
+                if (!xz_display_report_submit(0u, budget_line, strlen(budget_line))) log_line(budget_line);
+                budget_samples = copy_samples = compose_samples = render_attempts = raw_patches = 0;
+                copy_total = compose_total = render_total = 0;
+                copy_max = compose_max = render_max = 0;
+                prepare_total = prepare_max = raw_total = raw_max = 0;
+            }
             write_runtime_stats_if_due();
             diagnostic_background_end();
         } else {
             prepared = NULL;
+            xz_pt_cancel();
         }
+        xz_pt_publish(__atomic_load_n(&vsync_sequence, __ATOMIC_ACQUIRE));
     }
     munmap(mapping, mapping_length);
     close(fd);
@@ -1198,12 +1517,14 @@ static DFBResult hooked_primary_flip(
     }
     if (framebuffer_presenter_started && overlay_enabled && !native_primary) {
         flip_count += 1;
+        stock_frame_pace();
         return DFB_OK;
     }
     if (primary_60hz_presenter_started && overlay_enabled && !native_primary) {
         /* The dedicated presenter owns full-surface flips while VJ output is
          * active. Stock rendering may continue updating the backbuffer. */
         flip_count += 1;
+        stock_frame_pace();
         return DFB_OK;
     }
     if (directfb_interface && overlay_enabled) directfb_interface->WaitIdle(directfb_interface);
@@ -1266,8 +1587,7 @@ static void *primary_60hz_presenter(void *unused) {
                 }
             }
             if (locked && pitch >= 1600) {
-                draw_composite_frame();
-                const uint8_t *present_frame = composite_for_present();
+                const uint8_t *present_frame = composite_for_present(NULL, NULL);
                 if (present_frame) {
                     for (int row = 0; row < 480; ++row) {
                         memcpy((uint8_t *)pixels + (size_t)row * pitch,
@@ -1377,6 +1697,8 @@ static void handle_vjfs_client(int client) {
             }
             preview_valid = 1;
             latest_preview_received_at = now;
+            uint32_t content_stamp = (uint32_t)((uint32_t)now.tv_sec * 1000u + (uint32_t)(now.tv_usec / 1000));
+            __atomic_store_n(&content_preview_ms, content_stamp ? content_stamp : 1u, __ATOMIC_RELEASE);
             preview_frame_count += 1;
             __atomic_fetch_add(&vj_received_image_count, 1u, __ATOMIC_RELAXED);
             pthread_mutex_unlock(&frame_mutex);
@@ -1417,6 +1739,7 @@ static void handle_vjfs_client(int client) {
             asset_height = header.height;
             asset_top = header.y;
             asset_valid = 1;
+            publish_filmstrip_content();
             pthread_mutex_unlock(&frame_mutex);
             mark_overlay_activity();
             continue;
@@ -1448,6 +1771,7 @@ static void handle_vjfs_client(int client) {
             latest_scroll_px_f = next_scroll;
             latest_tick_received_at = now;
             tick_valid = 1;
+            publish_filmstrip_content();
             tick_count += 1;
             pthread_mutex_unlock(&frame_mutex);
             mark_overlay_activity();
@@ -1496,13 +1820,26 @@ static void handle_vjfs_client(int client) {
         latest_visible = (header.flags & 1u) != 0;
         latest_exclusive = (header.flags & VJFS_FLAG_EXCLUSIVE) != 0;
         gettimeofday(&latest_received_at, NULL);
+        uint32_t content_stamp = (uint32_t)((uint32_t)latest_received_at.tv_sec * 1000u +
+                                             (uint32_t)(latest_received_at.tv_usec / 1000));
+        __atomic_store_n(&content_exclusive, latest_exclusive, __ATOMIC_RELEASE);
+        __atomic_store_n(&content_main_ms, latest_visible ? (content_stamp ? content_stamp : 1u) : 0u, __ATOMIC_RELEASE);
         __atomic_fetch_add(&vj_received_image_count, 1u, __ATOMIC_RELAXED);
         pthread_mutex_unlock(&frame_mutex);
         if (latest_visible) mark_overlay_activity();
     }
 }
 
+/* Helper workers of this bridge are created from stock threads and inherit their single core. */
+static void helper_roam(void) {
+    /* Cores 0 and 2: never the display core (1), never the audio core (3). */
+    cpu_set_t cores;
+    CPU_ZERO(&cores);
+    CPU_SET(0, &cores); CPU_SET(2, &cores);
+    pthread_setaffinity_np(pthread_self(), sizeof(cores), &cores);
+}
 static void *vjfs_client_thread(void *argument) {
+    helper_roam();
     int client = (int)(intptr_t)argument;
     log_line("VJFS_CLIENT_CONNECTED");
     handle_vjfs_client(client);
@@ -1542,6 +1879,7 @@ static int vjfs_client_has_header(int client) {
 #include "xz_screen_server.h"
 
 static void *vjfs_listener(void *unused) {
+    helper_roam();
     int server;
     int one = 1;
     struct sockaddr_in address;
@@ -1604,6 +1942,7 @@ static void *vjfs_listener(void *unused) {
 }
 
 static void *vj_discovery_listener(void *unused) {
+    helper_roam();
     int fd;
     int one = 1;
     struct sockaddr_in address;
@@ -1876,6 +2215,7 @@ static void hook_primary_surface(IDirectFBSurface *surface, const char *source) 
 }
 
 static void *poll_rbp_primary_surface(void *unused) {
+    helper_roam();
     int attempt = 0;
     (void)unused;
     /* rbp can publish s_primary later than any fixed deadline, especially on a
@@ -1953,7 +2293,10 @@ DFBResult DirectFBCreate(IDirectFB **ret_interface) {
                 log_line("ERROR primary surface poll thread failed");
             }
         }
-        if (!listener_started) {
+        const char *vj_network = getenv("XZ_VJ_NETWORK");
+        int network_enabled = !(vj_network && strcmp(vj_network, "0") == 0);
+        if (!network_enabled) log_line("VJ_NETWORK_DISABLED: local display and diagnostics remain active");
+        if (network_enabled && !listener_started) {
             pthread_t listener;
             listener_started = 1;
             if (pthread_create(&listener, NULL, vjfs_listener, NULL) == 0) {
@@ -1962,7 +2305,7 @@ DFBResult DirectFBCreate(IDirectFB **ret_interface) {
                 log_line("ERROR VJFS listener thread failed");
             }
         }
-        if (!discovery_started) {
+        if (network_enabled && !discovery_started) {
             pthread_t discovery;
             discovery_started = 1;
             if (pthread_create(&discovery, NULL, vj_discovery_listener, NULL) == 0) {
@@ -1982,7 +2325,7 @@ DFBResult DirectFBCreate(IDirectFB **ret_interface) {
         if (!framebuffer_presenter_started) {
             pthread_t framebuffer_thread;
             framebuffer_presenter_started = 1;
-            if (pthread_create(&framebuffer_thread, NULL, framebuffer_presenter, NULL) == 0) {
+            if (xz_display_thread_create(&framebuffer_thread, framebuffer_presenter, NULL) == 0) {
                 pthread_detach(framebuffer_thread);
             } else {
                 framebuffer_presenter_started = 0;

@@ -1,11 +1,12 @@
 #include "l10n.h"
 /* SPDX-License-Identifier: MIT. One draft/control path for classic touch, encoder and MODERN menu. */
 #include "ui_network.h"
+#include "../djlink/djl.h"
 #include <stdio.h>
 #include <string.h>
 
 int xz_ui_network_page(int page){return page>=XZ_UI_NETWORK&&page<=XZ_UI_NETWORK_EDIT;}
-int xz_ui_network_kind(int kind){return kind>=XZ_UI_NETWORK_SETUP_OPEN&&kind<=XZ_UI_NETWORK_CANCEL;}
+int xz_ui_network_kind(int kind){return (kind>=XZ_UI_NETWORK_SETUP_OPEN&&kind<=XZ_UI_NETWORK_CANCEL)||kind==XZ_UI_PRO_DJ_LINK||kind==XZ_UI_ABLETON_LINK;}
 const char *xz_ui_network_title(int page){return page==XZ_UI_NETWORK_EDIT?"EDIT IPV4":page==XZ_UI_NETWORK_SETUP?"NETWORK SETUP":"NETWORK";}
 static int busy(const struct xz_ui_model *m){return m->network.phase>=XZ_NET_DETECTING&&m->network.phase<=XZ_NET_RESTORING;}
 static const struct xz_net_adapter *actual(const struct xz_ui *u,const struct xz_ui_model *m){
@@ -14,7 +15,7 @@ static const struct xz_net_adapter *actual(const struct xz_ui *u,const struct xz
     for(unsigned i=0;i<m->network.actual.count;i++)if(xz_net_identity_equal(id,&m->network.actual.adapter[i].id))return &m->network.actual.adapter[i];return NULL;
 }
 static void add(struct xz_ui_widget *w,size_t *n,int kind,int index,const char *label){if(*n<XZ_UI_WIDGETS)w[(*n)++]=(struct xz_ui_widget){.kind=(enum xz_ui_action_kind)kind,.index=index,.deck=-1,.label=label};}
-size_t xz_ui_network_controls(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget *w,size_t n){
+static size_t controls(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget *w,size_t n){
     if(busy(m)){add(w,&n,XZ_UI_NETWORK_CANCEL,0,xz_l10n_authored("CANCEL / RESTORE"));return n;}
     if(u->page!=XZ_UI_NETWORK_EDIT&&(m->network.phase==XZ_NET_FAILED||m->network.phase==XZ_NET_NEEDS_SETUP)){
         add(w,&n,XZ_UI_NETWORK_SETUP_OPEN,0,xz_l10n_authored("SET UP NETWORK / INSPECT ACTUAL"));
@@ -49,6 +50,41 @@ size_t xz_ui_network_controls(const struct xz_ui *u,const struct xz_ui_model *m,
         add(w,&n,XZ_UI_NETWORK_SETUP_OPEN,0,xz_l10n_authored("SET UP NETWORK AGAIN"));
     }return n;
 }
+size_t xz_ui_network_controls(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget *w,size_t n){
+    n=controls(u,m,w,n);
+    if(u->page==XZ_UI_NETWORK&&!busy(m)){
+        add(w,&n,XZ_UI_PRO_DJ_LINK,0,m->pro_dj_link_decks?xz_l10n_authored("PRO DJ LINK DECKS 3/4: ON"):xz_l10n_authored("PRO DJ LINK DECKS 3/4: OFF"));
+        /* Ableton Link Guidelines p. 8: the full name, and the state as Enabled or Disabled; upper case is this
+           interface's established style. */
+        add(w,&n,XZ_UI_ABLETON_LINK,0,m->ableton_link?xz_l10n_authored("ABLETON LINK: ENABLED"):xz_l10n_authored("ABLETON LINK: DISABLED"));
+    }
+    return n;
+}
+const char *xz_ui_djlink_line(const struct xz_djlink_status *s,char *out,size_t size){
+    int on3=s->phase[0]==DJL_RUNNING,on4=s->phase[1]==DJL_RUNNING,taken3=s->phase[0]==DJL_EVICTED,taken4=s->phase[1]==DJL_EVICTED;
+    switch(s->state){
+    case XZ_DJLINK_OFF:snprintf(out,size,"OFF / DECKS 3 AND 4 NOT ON THE NETWORK");break;
+    case XZ_DJLINK_STARTING:snprintf(out,size,"STARTING");break;
+    case XZ_DJLINK_ONLINE:snprintf(out,size,"%s ON THE NETWORK / %u PEER%s",on3&&on4?"DECKS 3 AND 4":on3?"DECK 3":"DECK 4",s->peers,s->peers==1?"":"S");break;
+    case XZ_DJLINK_IDLE:snprintf(out,size,"READY / NO DECK 3/4 ROUTE OR TRACK");break;
+    case XZ_DJLINK_NO_HELPER:snprintf(out,size,"HELPER MISSING FROM THIS BUILD");break;
+    case XZ_DJLINK_NO_LINK:snprintf(out,size,"NO LINK / STOCK PLAYER NOT ANNOUNCING");break;
+    case XZ_DJLINK_NUMBER_IN_USE:snprintf(out,size,"%s IN USE BY ANOTHER DEVICE",taken3&&taken4?"PLAYERS 3 AND 4":taken3?"PLAYER 3":"PLAYER 4");break;
+    default:snprintf(out,size,"COULD NOT START / SEE MODS LOG");break;
+    }
+    return out;
+}
+const char *xz_ui_ablink_line(const struct xz_link_status *s,char *out,size_t size){
+    switch(s->state){
+    case XZ_LINK_RUN_OFF:snprintf(out,size,"DISABLED / NOT IN ANY SESSION");break;
+    case XZ_LINK_RUN_STARTING:snprintf(out,size,"ENABLED / STARTING");break;
+    case XZ_LINK_RUN_ENABLED:snprintf(out,size,"ENABLED / %u PEER%s / %.2f BPM",s->peers,s->peers==1?"":"S",s->session_bpm>0&&s->session_bpm<1000?s->session_bpm:0.0);break;
+    case XZ_LINK_RUN_NO_MASTER:snprintf(out,size,"ENABLED / NO TEMPO MASTER ON THIS UNIT");break;
+    case XZ_LINK_RUN_NO_HELPER:snprintf(out,size,"HELPER MISSING FROM THIS BUILD");break;
+    default:snprintf(out,size,"COULD NOT START / SEE MODS LOG");break;
+    }
+    return out;
+}
 static void put(struct xz_ui_widget *w,int x,int y,int width,int height){w->x=x;w->y=y;w->w=width;w->h=height;}
 void xz_ui_network_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget *w,size_t n){
     (void)m;int secondary=0;
@@ -56,6 +92,8 @@ void xz_ui_network_place(const struct xz_ui *u,const struct xz_ui_model *m,struc
         struct xz_ui_widget *a=&w[i];
 
         if(u->page==XZ_UI_CONNECTION&&a->kind==XZ_UI_PANEL&&a->index==XZ_UI_NETWORK)put(a,468,300,324,40);
+        if(a->kind==XZ_UI_PRO_DJ_LINK){put(a,XZ_UI_NET_ROW_X,XZ_UI_NET_DJLINK_Y,XZ_UI_NET_ROW_W,XZ_UI_NET_ROW_H);continue;}
+        if(a->kind==XZ_UI_ABLETON_LINK){put(a,XZ_UI_NET_ROW_X,XZ_UI_NET_ABLETON_Y,XZ_UI_NET_ROW_W,XZ_UI_NET_ROW_H);continue;}
         int updates=a->kind==XZ_UI_PANEL&&a->index==XZ_UI_UPDATES;
         if(u->page==XZ_UI_NETWORK&&(xz_ui_network_kind(a->kind)||updates)){
             put(a,136+(secondary%2)*336,320+(secondary/2)*48,320,36);secondary++;continue;
@@ -150,6 +188,14 @@ static int parse_draft(struct xz_ui *u,const struct xz_ui_model *m){
 }
 size_t xz_ui_network_action(struct xz_ui *u,const struct xz_ui_model *m,int kind,int index,struct xz_ui_action *out){
     struct xz_network_ui_draft *d=&u->network;
+    if(kind==XZ_UI_PRO_DJ_LINK){
+        out[0]=(struct xz_ui_action){.kind=XZ_UI_PRO_DJ_LINK,.phase=XZ_UI_PRESS,.deck=-1,.index=index,.value=m->pro_dj_link_decks?0.f:1.f,.pc_target=-1};
+        return 1;
+    }
+    if(kind==XZ_UI_ABLETON_LINK){
+        out[0]=(struct xz_ui_action){.kind=XZ_UI_ABLETON_LINK,.phase=XZ_UI_PRESS,.deck=-1,.index=index,.value=m->ableton_link?0.f:1.f,.pc_target=-1};
+        return 1;
+    }
     if(kind!=XZ_UI_NETWORK_APPLY)xz_ui_network_invalidate(u);
     if(kind==XZ_UI_NETWORK_SETUP_OPEN){xz_ui_navigate(u,XZ_UI_NETWORK_SETUP);d->step=XZ_NETWORK_DETECT;d->initialized=0;return emit(u,XZ_UI_NETWORK_DETECT,0,out);}
     if(kind==XZ_UI_NETWORK_DETECT){d->step=XZ_NETWORK_DETECT;d->initialized=0;return emit(u,kind,index,out);}
@@ -188,6 +234,8 @@ const char *xz_ui_network_help(int kind){
     case XZ_UI_NETWORK_REVERT:return "Stops only the MODS DHCP child and removes only this trial's unchanged additions. Native clients and addresses stay under native control.";
     case XZ_UI_NETWORK_PRIORITY:return "Sets the preferred order for the MODS advertised address. Native private binding is unchanged. Apply is required.";
     case XZ_UI_NETWORK_MODE:return "Edits the request only. DHCP OFF refers to the MODS client. Embedded native DHCP remains unknown. A compatible client is detected at runtime.";
+    case XZ_UI_PRO_DJ_LINK:return "Shows DECK 3 and DECK 4 on the Pro DJ Link network as players 3 and 4, with track, tempo, beats, SYNC and MASTER. Takes effect at once and is saved. OFF keeps the network stock: players 1 and 2 only.";
+    case XZ_UI_ABLETON_LINK:return "Joins the Ableton Link session on the network. The session follows this unit's tempo master: tempo and position in the bar. Decks are never moved by Ableton Link in this version. Takes effect at once and is saved.";
     default:return "Detect actual adapters, choose an order and address mode, explicitly Apply, then verify local readback. Choices last until reboot.";}
 }
 static void text(const struct xz_ui_scene *s,int y,const char *line,uint32_t ink){xz_text(s->c,136,y,line,1,108,ink);}
@@ -208,11 +256,15 @@ void xz_ui_network_render(const struct xz_ui_scene *s){
     }else{
         for(unsigned i=0;i<m->network.actual.count&&i<4;i++){
             const struct xz_net_adapter *a=&m->network.actual.adapter[i];char ip[16]="NO ADDRESS";if(a->address_count)xz_net_ipv4_text(a->address[0].ip,ip);
-            snprintf(line,sizeof line,"%u %s  LINK %s  %s/%u  +%u MORE",i+1,a->id.name,a->link_up==XZ_NET_YES?"UP":a->link_up==XZ_NET_NO?"DOWN":"UNKNOWN",ip,a->address_count?a->address[0].prefix:0,a->address_count?a->address_count-1:0);text(s,110+(int)i*34,line,ink);
-        }text(s,270,"DHCP ORIGIN / NATIVE OWNER: UNKNOWN UNLESS REPORTED",ink);text(s,292,"SETUP SHOWS ALL ADAPTERS. NOTHING CHANGES UNTIL APPLY.",ink);
+            snprintf(line,sizeof line,"%u %s  LINK %s  %s/%u  +%u MORE",i+1,a->id.name,a->link_up==XZ_NET_YES?"UP":a->link_up==XZ_NET_NO?"DOWN":"UNKNOWN",ip,a->address_count?a->address[0].prefix:0,a->address_count?a->address_count-1:0);text(s,XZ_UI_NET_ADAPTER_Y+(int)i*XZ_UI_NET_ADAPTER_STEP,line,ink);
+        }text(s,XZ_UI_NET_NOTE_Y,"DHCP ORIGIN / NATIVE OWNER: UNKNOWN UNLESS REPORTED",ink);text(s,XZ_UI_NET_NOTE_Y+XZ_UI_NET_NOTE_STEP,"SETUP SHOWS ALL ADAPTERS. NOTHING CHANGES UNTIL APPLY.",ink);
+    }
+    if(u->page==XZ_UI_NETWORK&&!busy(m)){
+        xz_ui_djlink_line(&m->djlink,line,sizeof line);xz_text(s->c,XZ_UI_NET_STATUS_X,XZ_UI_NET_DJLINK_Y+13,line,1,XZ_UI_NET_STATUS_CHARS,m->djlink.enabled?accent:ink);
+        xz_ui_ablink_line(&m->ablink,line,sizeof line);xz_text(s->c,XZ_UI_NET_STATUS_X,XZ_UI_NET_ABLETON_Y+13,line,1,XZ_UI_NET_STATUS_CHARS,m->ablink.enabled?accent:ink);
     }
     for(size_t i=0;i<s->n;i++)if(xz_ui_network_kind(s->w[i].kind)||(s->w[i].kind==XZ_UI_PANEL&&s->w[i].index==XZ_UI_UPDATES)){
-        const struct xz_ui_widget *a=&s->w[i];int selected=xz_ui_network_selected(u,a);uint32_t fill=xz_blend(bg,accent,selected?130:40);
+        const struct xz_ui_widget *a=&s->w[i];int selected=a->kind==XZ_UI_PRO_DJ_LINK?m->pro_dj_link_decks:a->kind==XZ_UI_ABLETON_LINK?m->ableton_link:xz_ui_network_selected(u,a);uint32_t fill=xz_blend(bg,accent,selected?130:40);
         xz_round_rect(s->c,a->x,a->y,a->w,a->h,6,15,selected?accent:xz_blend(bg,ink,80));xz_round_rect(s->c,a->x+1,a->y+1,a->w-2,a->h-2,5,15,fill);
         xz_ui_chrome_fit(s->c,a->x+8,a->y+(a->h<24?4:13),a->w-16,a->label,1,ink);
     }

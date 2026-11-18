@@ -82,7 +82,7 @@ static void test_views(void){
    assert(strip.x==(count==2?(d&1)*400:columns[d]*200)+2);
    uint32_t fill=selected?SH_BLUE:SH_RAIL;
    char text[8];snprintf(text,sizeof text,"%d",d+1);
-   int width=count==2?64:56,pad=count==2?8:6,by=count==2?5:2;
+   int width=count==2?44:56,pad=count==2?8:6,by=count==2?5:2;
    if(count==4){
     /* Four lanes: the number in its badge (deck_colour.h), the same on its strip; the side's fill beside it says
        who drives the deck. */
@@ -104,7 +104,8 @@ static void test_views(void){
    }
    number_at(6,tag.y+1,d,fill,SH_WHITE);title_at(tag.y,m.deck[d].title);
    assert(frame(a)[(tag.y+1)*STRIDE+1]==rgb565(fill));
-   int nx=selected?5:(width-sh_num_width(SH_NUM_MID,text))/2;
+   /* 2 DECKS: the number alone, centred; the side mark is for four decks (test_side_mark.c). */
+   assert(selected);int nx=(width-sh_num_width(SH_NUM_MID,text))/2;
    number_at(strip.x+pad+nx,strip.y+by+1,d,fill,SH_WHITE);
   }
   for(int slot=0;slot<count;slot++){

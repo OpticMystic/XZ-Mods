@@ -13,6 +13,8 @@
 #include "clock_compat.h"
 #include <dirent.h>
 #include <pthread.h>
+#include "xz_mutex.h"
+#include "xz_wake.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,6 +29,7 @@
 #endif
 
 #pragma weak xz_extra_source_generation
+#pragma weak xz_core_use_report
 #pragma weak xz_ram_extra_create
 #pragma weak xz_ram_extra_destroy
 #pragma weak xz_ram_extra_player_service
@@ -34,6 +37,11 @@
 #pragma weak xz_ram_extra_command
 #pragma weak xz_xp_set_ram_service
 #pragma weak xz_xp_set_source_generation
+#pragma weak xz_xp_set_release_answer
+#pragma weak xz_xp_release_source
+#pragma weak xz_ram_extra_source_gone
+extern int xz_usb_release_holder(const char *,unsigned (*)(void *,int,uint32_t),void *) __attribute__((weak));
+extern void xz_usb_release_answer(int,int,uint32_t) __attribute__((weak));
 #pragma weak xz_extra_resolve_track_checked
 #pragma weak xz_extra_resolve_track
 #pragma weak xz_extra_native_master_bpm
@@ -45,6 +53,8 @@ extern void xz_jog_display_runtime_publish(const struct xz_extra_decks *decks,ui
 extern void xz_jog_display_runtime_service_assets(void) __attribute__((weak));
 extern void xz_native_led_service_feedback(void) __attribute__((weak));
 extern void xz_sync_link_runtime_poll(const struct xz_extra_decks *decks) __attribute__((weak));
+extern void xz_djlink_runtime_publish(const struct xz_extra_decks *decks) __attribute__((weak));
+extern void xz_link_runtime_publish(const struct xz_extra_decks *decks) __attribute__((weak));
 extern int xz_sync_link_runtime_master_committed(int deck_index) __attribute__((weak));
 extern int xz_sync_link_runtime_master_observe(struct xz_master_observation *) __attribute__((weak));
 
@@ -83,7 +93,7 @@ uint32_t xz_extra_decks_control_revision(void){return __atomic_load_n(&control_s
 static uint32_t link_epoch;                /* nonzero while the transport runs */
 static struct xz_xp_players *players;
 static struct xz_ram_extra *ram;
-static pthread_mutex_t ram_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t ram_lock = XZ_MUTEX_INITIALIZER;
 static uint64_t ram_generation(void *unused,unsigned source){
  (void)unused;return xz_extra_source_generation?xz_extra_source_generation((int)source):0;
 }
@@ -213,6 +223,8 @@ int xz_extra_decks_snapshot_held(struct xz_extra_decks *out,struct xz_extra_anal
    }
   }
  }
+ if(xz_djlink_runtime_publish)xz_djlink_runtime_publish(out);
+ if(xz_link_runtime_publish)xz_link_runtime_publish(out);
  if(xz_jog_display_runtime_publish)xz_jog_display_runtime_publish(out,now_ms());
  if(xz_key_project_extra)xz_key_project_extra(out);
  SYO_SOFTWARE(out);
@@ -385,8 +397,10 @@ static int close_route(void) {
    Only the connector writes the three-slot mailbox. Readers pin an immutable
    slot with atomics; the connector skips occupied slots instead of waiting. */
 #include "extra_route_status.h"
-static pthread_mutex_t route_wake_lock=PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t route_wake_cond=PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t route_wake_lock=XZ_MUTEX_INITIALIZER;
+/* Wakes the connector (RR 60) from interface threads at lower priority: never a condition variable, whose
+   internal lock a preempted signaller would keep, see xz_wake.h. */
+static struct xz_wake route_wake;
 static void route_signal_locked(void);
 static unsigned route_scan; /* 0 idle, 1 requested, 2 attempt done / minimum display */
 static uint32_t route_scan_at;
@@ -485,8 +499,11 @@ static void route_bridge_retry(void) {
  if(!route_root_file(detach)||!route_root_file(script))return;
  char *const argv[]={(char *)detach,(char *)script,NULL};
  char *const envp[]={(char *)"PATH=/sbin:/usr/sbin:/bin:/usr/bin",NULL};
+ /* detach does not close descriptors and the helper lives for the whole power-on: give it none of the
+    player's (a track or export.pdb on a stick would stay open and USB STOP could not unmount it). */
+ long open_max=sysconf(_SC_OPEN_MAX);int last=open_max>3&&open_max<65536?(int)open_max:1024;
  pid_t child=vfork();
- if(!child){execve(detach,argv,envp);_exit(127);}
+ if(!child){for(int fd=3;fd<last;fd++)close(fd);execve(detach,argv,envp);_exit(127);}
  int status=0;
  if(child>0)while(waitpid(child,&status,0)<0&&errno==EINTR){}
  xz_log(child>0&&WIFEXITED(status)&&!WEXITSTATUS(status)?"DECK 3/4 route: RETRY started the four-deck helper again":
@@ -499,16 +516,263 @@ static void rest(unsigned ms) {
   uint32_t elapsed=(uint32_t)(now_ms()-route_scan_at);
   if(elapsed<600u&&ms>600u-elapsed)ms=600u-elapsed;
  }
- struct timespec deadline;
- if(!xz_clock_gettime_compat(CLOCK_REALTIME,&deadline)) {
-  deadline.tv_sec+=ms/1000u;deadline.tv_nsec+=(long)(ms%1000u)*1000000L;
-  if(deadline.tv_nsec>=1000000000L){deadline.tv_sec++;deadline.tv_nsec-=1000000000L;}
-  if(!__atomic_load_n(&route.quit,__ATOMIC_ACQUIRE)&&scanning!=1)
-   pthread_cond_timedwait(&route_wake_cond,&route_wake_lock,&deadline);
- }
+ if(!__atomic_load_n(&route.quit,__ATOMIC_ACQUIRE)&&scanning!=1)
+  xz_wake_wait_locked(&route_wake,&route_wake_lock,ms);
  pthread_mutex_unlock(&route_wake_lock);
 }
 #include "extra_route_events.h"
+int xz_extra_decks_usb_capture(int action,uint32_t ms,uint32_t out[3]) {
+ static uint8_t *buffer;static uint32_t wanted;   /* allocated on first use, kept: the USB worker may hold it */
+ enum { MOST_FRAMES=4u*XZ_USB_RATE };
+ out[0]=out[1]=out[2]=0;
+ if(pthread_rwlock_tryrdlock(&route.lock))return -EAGAIN;
+ int result=-ENODEV;
+ if(route.usb&&!route.closing){
+  int done=0;uint32_t filled=xz_usb_transport_capture_filled(route.usb,&done);
+  if(action==1){
+   if(ms<50||ms>4000)result=-EINVAL;
+   else{
+    if(!buffer)buffer=malloc((size_t)MOST_FRAMES*XZ_USB_CAPTURE_BYTES);
+    wanted=(uint32_t)((uint64_t)ms*XZ_USB_RATE/1000u);
+    xz_usb_result r=buffer?xz_usb_transport_capture(route.usb,buffer,wanted):XZ_USB_IO;
+    result=r==XZ_USB_OK?0:r==XZ_USB_BUSY?-EBUSY:-EIO;filled=0;done=0;
+   }
+  }else if(action==2)result=buffer&&wanted?0:-ENOENT;
+  else if(action==3){
+   if(!buffer||!wanted||!done||!filled)result=-EAGAIN;
+   else{
+    int fd=open(XZ_EXTRA_SHM_DIR "/xz-usb-capture.bin",O_WRONLY|O_CREAT|O_TRUNC|O_NOFOLLOW|O_CLOEXEC,0600);
+    uint32_t header[4]={0x43555a58u,1u,filled,XZ_USB_CAPTURE_BYTES};   /* 'XZUC' */
+    size_t bytes=(size_t)filled*XZ_USB_CAPTURE_BYTES;
+    result=fd>=0&&write(fd,header,sizeof header)==(ssize_t)sizeof header&&write(fd,buffer,bytes)==(ssize_t)bytes?0:-EIO;
+    if(fd>=0)close(fd);
+   }
+  }else result=-EINVAL;
+  out[0]=filled;out[1]=wanted;out[2]=(uint32_t)done;
+ }
+ pthread_rwlock_unlock(&route.lock);
+ return result;
+}
+/* The players call this around a track load (extra_player.c load()). */
+extern void xz_ram_track_load_begin(void) __attribute__((weak));
+void xz_extra_thread_load_priority(int begin,int saved[2]) {
+ /* A DECK 3/4 track is loading: background stem copies leave the USB alone for a moment (ram/budget.h). */
+ if(begin&&xz_ram_track_load_begin)xz_ram_track_load_begin();
+#if defined(__linux__) && defined(__arm__) && !defined(XZ_PLACEMENT_CONNECTOR_TEST)
+ if(begin){
+  struct sched_param now={0};
+  saved[0]=sched_getscheduler(0);saved[1]=sched_getparam(0,&now)?0:now.sched_priority;
+  if(saved[0]==SCHED_RR||saved[0]==SCHED_FIFO)sched_setscheduler(0,SCHED_OTHER,&(struct sched_param){0});
+ }else if((saved[0]==SCHED_RR||saved[0]==SCHED_FIFO)&&saved[1]>0){
+  struct sched_param back={.sched_priority=saved[1]};
+  sched_setscheduler(0,saved[0],&back);
+ }
+#else
+ (void)begin;(void)saved;
+#endif
+}
+/* SYNC trail. One log line whenever SYNC on DECK 3 or 4 changes state, so a session nobody watched can be read
+   afterwards: why a deck was not beat-locked, and what broke a lock. Connector thread, about 20 looks a second;
+   at most 40 lines a minute. */
+static void sync_trail(const struct xz_extra_decks *s,const uint32_t beats[XZ_EXTRA_DECKS]) {
+ static const char *const why[]={"OFF","WAIT_MASTER","WAIT_ANCHOR","NO_BEAT_GRID","MANUAL","DISCONTINUITY","LOOP_UNALIGNED",
+  "OUT_OF_RANGE","ACQUIRING","LOCKED","STOCK_PHASE_UNAVAILABLE","MASTER_CLOCK","STOCK_MASTER_UNSUPPORTED","NO_SOURCE_BPM","TEMPO_ONLY"};
+ static struct { int valid,requested,reason,master,quantize;unsigned den;uint32_t load,beats;uint64_t underrun; } seen[XZ_EXTRA_DECKS];
+ static uint32_t window_at,lines;
+ uint32_t now=now_ms();
+ if((uint32_t)(now-window_at)>=60000u){window_at=now;lines=0;}
+ for(int i=0;i<XZ_EXTRA_DECKS;i++){
+  const struct xz_extra_deck *d=&s->deck[i];
+  int reason=d->sync.requested?(int)d->sync.reason:0;
+  if(seen[i].valid&&seen[i].requested==d->sync.requested&&seen[i].reason==reason&&seen[i].master==d->sync.master_deck&&
+     seen[i].quantize==d->quantize&&seen[i].den==d->quantize_den&&seen[i].load==d->timeline.load_revision&&seen[i].beats==beats[i])continue;
+  int was_off=seen[i].valid&&!seen[i].requested&&!d->sync.requested&&seen[i].load==d->timeline.load_revision&&seen[i].beats==beats[i];
+  seen[i].valid=1;seen[i].requested=d->sync.requested;seen[i].reason=reason;seen[i].master=d->sync.master_deck;
+  seen[i].quantize=d->quantize;seen[i].den=d->quantize_den;seen[i].load=d->timeline.load_revision;seen[i].beats=beats[i];
+  if(was_off||!d->loaded)continue;      /* SYNC off and nothing new about the track: nothing to say */
+  if(lines>=40u){if(lines==40u){lines++;xz_log("SYNC trail: more changes this minute are not listed");}continue;}
+  lines++;
+  char line[220];
+  snprintf(line,sizeof line,"DECK %d SYNC %s %s master=%d phase=%+.1fms trim=%+dppm tempo=%+.2f%% bpm=%.2f grid=%u beats quantize=%s 1/%u load=%u",
+   i+XZ_EXTRA_FIRST_DECK+1,d->sync.requested?"on":"off",reason>=0&&reason<(int)(sizeof why/sizeof *why)?why[reason]:"?",
+   d->sync.master_deck<0?0:d->sync.master_deck+1,d->sync.phase_error_us/1000.,(int)d->sync.correction_ppm,d->tempo_x100/100.,
+   d->bpm_x100/100.,(unsigned)beats[i],d->quantize?"on":"off",d->quantize_den,(unsigned)d->timeline.load_revision);
+  xz_log(line);
+ }
+}
+/* Private diagnostic. The transport counts, per deck, the frames of each USB packet the deck did not fill.
+   Within one output generation of a playing deck that is audio the mixer did not get. */
+#include "late_trail.h"
+#include "core_use.h"
+extern struct xz_late_trail xz_extra_late_trail[XZ_EXTRA_DECKS];
+extern struct xz_late_trail xz_usb_late_trail;
+extern struct xz_turn_trail xz_extra_turn_trail[XZ_EXTRA_DECKS];
+extern struct xz_underrun_note xz_usb_underrun_note[2];
+#pragma weak xz_extra_late_trail
+#pragma weak xz_usb_late_trail
+#pragma weak xz_extra_turn_trail
+#pragma weak xz_usb_underrun_note
+/* The deck worker's last 36 turns, oldest first: blocks submitted, the queue's lead in blocks (x unknown),
+   flags in hex (late_trail.h); a turn that submitted nothing below a full lead adds the deck state (s), how far
+   the render got (r), the transport's answer (u), the rate in hundredths (v) and the state bits (b).
+   And the transport's note of its latest unfilled packet group for this deck. */
+static void gap_turns(int deck,const struct xz_turn_trail *trail,const struct xz_underrun_note *note){
+ char line[720];int at;
+ if(note){
+  struct xz_underrun_note copy=*note;
+  snprintf(line,sizeof line,"DECK %d GAP TRANSPORT: %u frames missing in the last unfilled group, %u blocks queued, %u.%u ms since a completion, "
+           "longest pause between completions %u.%u ms, unfilled groups so far %u",deck,(unsigned)copy.missing_frames,(unsigned)copy.queued_blocks,
+           (unsigned)(copy.since_completion_us/1000u),(unsigned)(copy.since_completion_us%1000u/100u),
+           (unsigned)(copy.pause_us/1000u),(unsigned)(copy.pause_us%1000u/100u),(unsigned)copy.count);
+  xz_log(line);
+ }
+ if(!trail)return;
+ uint32_t count=__atomic_load_n(&trail->count,__ATOMIC_ACQUIRE),held=count<36u?count:36u;
+ at=snprintf(line,sizeof line,"DECK %d GAP TURNS:",deck);
+ for(uint32_t k=0;k<held&&at>0&&at<(int)sizeof line-40;k++){
+  struct xz_turn turn=trail->turn[(count-held+k)%XZ_TURN_SLOTS];
+  unsigned blocks=(turn.frames+255u)/256u,lead=turn.lead==0xffffu?99u:turn.lead/256u;
+  at+=snprintf(line+at,sizeof line-(size_t)at," %u%c%02x",blocks>9u?9u:blocks,lead==99u?'x':(char)('0'+(lead>9u?9u:lead)),(unsigned)turn.flags);
+  if(!blocks&&lead<8u&&at>0&&at<(int)sizeof line-32)
+   at+=snprintf(line+at,sizeof line-(size_t)at,"s%ur%uu%dv%db%02x",(unsigned)turn.state,(unsigned)turn.render,(int)turn.submit,(int)turn.rate_x100,(unsigned)turn.bits);
+ }
+ xz_log(line);
+}
+/* The worst late turn a loop kept in the last 400 ms, as one log line under the dropout line. */
+static void gap_cause(int deck,const char *who,const struct xz_late_trail *trail){
+ struct xz_late_turn turn[XZ_LATE_SLOTS];char line[224];
+ unsigned count=trail?xz_late_recent(trail,400000u,turn):0,worst=0;uint32_t most=0;
+ if(!count){snprintf(line,sizeof line,"DECK %d GAP CAUSE: %s kept no late turn in the last 400 ms",deck,who);xz_log(line);return;}
+ for(unsigned k=0;k<count;k++){
+  uint32_t over=turn[k].waited_us>turn[k].asked_us?turn[k].waited_us-turn[k].asked_us:0;
+  if(turn[k].worked_us>over)over=turn[k].worked_us;
+  if(over>=most){most=over;worst=k;}
+ }
+ const struct xz_late_turn *t=&turn[worst];
+ snprintf(line,sizeof line,"DECK %d GAP CAUSE: %s waited %u.%u ms (asked %u.%u), worked %u.%u ms, kernel %u.%u ms, faults %u minor %u major, "
+          "switches %u yielded %u preempted, late turns %u",deck,who,
+          (unsigned)(t->waited_us/1000u),(unsigned)(t->waited_us%1000u/100u),(unsigned)(t->asked_us/1000u),(unsigned)(t->asked_us%1000u/100u),
+          (unsigned)(t->worked_us/1000u),(unsigned)(t->worked_us%1000u/100u),(unsigned)(t->system_us/1000u),(unsigned)(t->system_us%1000u/100u),
+          (unsigned)t->minor_faults,(unsigned)t->major_faults,(unsigned)t->yielded,(unsigned)t->preempted,count);
+ xz_log(line);
+}
+/* The deck's playhead is at the end of its track (turn bit 32): its queue runs out because the track is over. */
+static int deck_at_end(int i){
+ if(!xz_extra_turn_trail)return 0;
+ const struct xz_turn_trail *t=&xz_extra_turn_trail[i];
+ uint32_t count=__atomic_load_n(&t->count,__ATOMIC_ACQUIRE);
+ return count&&(t->turn[(count-1u)%XZ_TURN_SLOTS].bits&32u)!=0;
+}
+/* The connector's own turns (late_trail.h): its loop outranked the DECK 3/4 players until r58 and shares a core
+   with them, so a long turn of its housekeeping is a stall of theirs. Parts: route state, snapshot and sync
+   trail, dropout and stall trails, Jog LCD waveform service, lamps. */
+static struct xz_late_trail connector_late_trail;
+#define CONNECTOR_PART(n) do{uint64_t part_now=xz_late_us();connector_late_trail.part_us[n]=(uint32_t)(part_now-part_at);part_at=part_now;}while(0)
+/* The connector's rank. It needs RR 60 only while it creates the USB pump, which inherits it. Its loop runs
+   below the stock track readers (RR 58): status, log lines and lamps can wait a few milliseconds, audio cannot.
+   XZ_EXTRA_SHM_DIR "/xz-connector-priority" holds another rank (1 to 60) for a test; it is read once a second. */
+#define XZ_CONNECTOR_RANK 57
+#define XZ_CONNECTOR_PUMP_RANK 60
+#if defined(__linux__)
+#include <sched.h>
+static void connector_priority(int priority){
+ struct sched_param now;
+ if(sched_getscheduler(0)!=SCHED_RR||sched_getparam(0,&now)||now.sched_priority==priority)return;
+ struct sched_param wanted={.sched_priority=priority};
+ (void)sched_setscheduler(0,SCHED_RR,&wanted);
+}
+static int connector_rank_read(void){
+ char text[8];int fd=open(XZ_EXTRA_SHM_DIR "/xz-connector-priority",O_RDONLY|O_CLOEXEC);
+ if(fd<0)return XZ_CONNECTOR_RANK;
+ ssize_t n=read(fd,text,sizeof text-1);close(fd);
+ if(n<=0)return XZ_CONNECTOR_RANK;
+ text[n]=0;int rank=atoi(text);
+ return rank>=1&&rank<=XZ_CONNECTOR_PUMP_RANK?rank:XZ_CONNECTOR_RANK;
+}
+#else
+static void connector_priority(int priority){(void)priority;}
+static int connector_rank_read(void){return XZ_CONNECTOR_RANK;}
+#endif
+/* A loop on the DECK 3/4 core that was held up for 15 ms or more, logged whether or not audio was lost, with
+   the time since boot so it can be set beside the kernel log. A second line follows once the core use trail
+   (core_use.h) has a sample from after the stall: who used the core meanwhile. */
+static void stall_trail(void){
+ static uint64_t reported[4];static uint32_t window_at,lines;
+ static struct{uint64_t from_us,to_us;uint32_t asked_ms;}owed[8];static unsigned owing;
+ for(unsigned k=0;k<owing;){
+  char line[520];
+  int at=snprintf(line,sizeof line,"DECK 3/4 CORE USE for the stall at %u.%03u s: ",(unsigned)(owed[k].from_us/1000000u),(unsigned)(owed[k].from_us%1000000u/1000u));
+  int found=xz_core_use_report?xz_core_use_report(owed[k].from_us,owed[k].to_us,line+at,sizeof line-(size_t)at):-1;
+  if(!found&&(uint32_t)(now_ms()-owed[k].asked_ms)<1000u){k++;continue;}
+  if(found>0)xz_log(line);
+  owed[k]=owed[--owing];
+ }
+ static const char *const who[4]={"deck 3 worker","deck 4 worker","USB transport","connector"};
+ const struct xz_late_trail *trail[4]={xz_extra_late_trail?&xz_extra_late_trail[0]:NULL,xz_extra_late_trail?&xz_extra_late_trail[1]:NULL,&xz_usb_late_trail,&connector_late_trail};
+ uint32_t now=now_ms();
+ if((uint32_t)(now-window_at)>=60000u){window_at=now;lines=0;}
+ for(unsigned n=0;n<4;n++){
+  struct xz_late_turn turn[XZ_LATE_SLOTS];
+  unsigned count=trail[n]?xz_late_recent(trail[n],2000000u,turn):0;
+  /* The connector rests 50 ms by its own choice and, below the audio threads, is preempted at will: only its
+     own processor time in one turn says it did something long (a system call that had to find memory). */
+  uint32_t limit=n==3u?8000u:15000u;
+  for(unsigned k=0;k<count;k++){
+   const struct xz_late_turn *t=&turn[k];
+   uint32_t over=n==3u?0u:t->waited_us>t->asked_us?t->waited_us-t->asked_us:0;
+   uint32_t busy=n==3u?t->user_us+t->system_us:t->worked_us;
+   if(t->at_us<=reported[n])continue;
+   reported[n]=t->at_us;
+   if((over<15000u&&busy<limit)||lines>=20u)continue;
+   char line[440];
+   int at=snprintf(line,sizeof line,"DECK 3/4 CORE STALL: %s waited %u.%u ms (asked %u.%u), worked %u.%u ms, user %u.%u ms, kernel %u.%u ms, "
+            "switches %u yielded %u preempted, page faults %u (%u from disk), at %u.%03u s since boot",who[n],
+            (unsigned)(t->waited_us/1000u),(unsigned)(t->waited_us%1000u/100u),(unsigned)(t->asked_us/1000u),(unsigned)(t->asked_us%1000u/100u),
+            (unsigned)(t->worked_us/1000u),(unsigned)(t->worked_us%1000u/100u),(unsigned)(t->user_us/1000u),(unsigned)(t->user_us%1000u/100u),
+            (unsigned)(t->system_us/1000u),(unsigned)(t->system_us%1000u/100u),
+            (unsigned)t->yielded,(unsigned)t->preempted,(unsigned)(t->minor_faults+t->major_faults),(unsigned)t->major_faults,
+            (unsigned)(t->at_us/1000000u),(unsigned)(t->at_us%1000000u/1000u));
+   if(n!=2u&&at>0&&at<(int)sizeof line-130)
+    snprintf(line+at,sizeof line-(size_t)at,n==3u?"; loop parts ms: route %u.%u, snapshot+sync %u.%u, trails %u.%u, jog waveform %u.%u, lamps %u.%u"
+             :"; step parts ms: intake+RAM %u.%u, controls %u.%u, handoff %u.%u, stream %u.%u, publish %u.%u",
+             (unsigned)(t->part_us[0]/1000u),(unsigned)(t->part_us[0]%1000u/100u),(unsigned)(t->part_us[1]/1000u),(unsigned)(t->part_us[1]%1000u/100u),
+             (unsigned)(t->part_us[2]/1000u),(unsigned)(t->part_us[2]%1000u/100u),(unsigned)(t->part_us[3]/1000u),(unsigned)(t->part_us[3]%1000u/100u),
+             (unsigned)(t->part_us[4]/1000u),(unsigned)(t->part_us[4]%1000u/100u));
+   xz_log(line);lines++;
+   /* The stalled span: from when the loop should have woken to the end of its work. */
+   if(owing<8u){owed[owing].from_us=t->at_us-over;owed[owing].to_us=t->at_us+t->worked_us;owed[owing].asked_ms=now;owing++;}
+  }
+ }
+}
+static void output_gap_trail(const xz_usb_position *p,const struct xz_extra_decks *s) {
+ static struct { int valid,playing;uint32_t generation,steady_at;uint64_t missing; } seen[XZ_EXTRA_DECKS];
+ static uint32_t window_at,lines;
+ uint32_t now=now_ms();
+ if((uint32_t)(now-window_at)>=60000u){window_at=now;lines=0;}
+ for(int i=0;i<XZ_EXTRA_DECKS;i++){
+  const xz_usb_deck_position *q=&p->deck[i];
+  int playing=s->deck[i].playing!=0;
+  /* A deck that has just started or jumped fills its first packets late. That is a start, not a dropout in
+     running audio: it gets its own line, and OUTPUT GAP means the deck had played on for half a second. */
+  if(!seen[i].valid||seen[i].generation!=q->applied_generation||playing!=seen[i].playing)seen[i].steady_at=now;
+  int steady=(uint32_t)(now-seen[i].steady_at)>=500u;
+  if(seen[i].valid&&seen[i].generation==q->applied_generation&&q->underrun_frames>seen[i].missing&&playing&&lines<30u){
+   unsigned frames=(unsigned)(q->underrun_frames-seen[i].missing);
+   char line[96];
+   int ended=steady&&deck_at_end(i);
+   snprintf(line,sizeof line,ended?"DECK %d END OF TRACK: queue ran out, %u ms (%u frames)":
+            steady?"DECK %d OUTPUT GAP %u ms (%u frames) while playing":"DECK %d START GAP %u ms (%u frames)",
+            i+XZ_EXTRA_FIRST_DECK+1,(unsigned)((uint64_t)frames*1000u/XZ_USB_RATE),frames);
+   xz_log(line);lines++;
+   if(steady&&!ended){
+    gap_cause(i+XZ_EXTRA_FIRST_DECK+1,"deck worker",xz_extra_late_trail?&xz_extra_late_trail[i]:NULL);
+    gap_cause(i+XZ_EXTRA_FIRST_DECK+1,"USB transport",&xz_usb_late_trail);
+    gap_turns(i+XZ_EXTRA_FIRST_DECK+1,xz_extra_turn_trail?&xz_extra_turn_trail[i]:NULL,xz_usb_underrun_note?&xz_usb_underrun_note[i]:NULL);
+   }
+  }
+  seen[i].valid=1;seen[i].playing=playing;seen[i].generation=q->applied_generation;seen[i].missing=q->underrun_frames;
+ }
+}
 static void *connector(void *unused) {
  (void)unused;
  xz_extra_thread_place("connector");
@@ -519,7 +783,9 @@ static void *connector(void *unused) {
  route_ever_up=route_last_up=0;route_faults=0;
  uint32_t epoch = 0;
  xz_usb_result refused = XZ_USB_OK;
+ unsigned rank_tick=0;int rank=XZ_CONNECTOR_RANK;
  while (!__atomic_load_n(&route.quit, __ATOMIC_ACQUIRE)) {
+  xz_late_woke(&connector_late_trail,0);uint64_t part_at=xz_late_us();
   /* Arm before discovery, so a publication during the attempt stays queued. */
   if(!route.usb)route_events_refresh();
   unsigned attempted=__atomic_load_n(&route_scan,__ATOMIC_ACQUIRE);
@@ -530,6 +796,7 @@ static void *connector(void *unused) {
    int node_found=find_node(node, sizeof node);
    if (node_found) {
     xz_usb_transport *usb = NULL;
+    connector_priority(XZ_CONNECTOR_PUMP_RANK); /* the pump is created here and inherits this rank */
     xz_usb_result r = xz_usb_transport_open(node, &usb);
     if (r == XZ_USB_OK) {
      pthread_rwlock_wrlock(&route.lock);
@@ -565,15 +832,30 @@ static void *connector(void *unused) {
    if (!++epoch) epoch = 1;
    set_link(epoch);
    xz_log("DECK 3/4 route up");
+   route_events_unwatch();
   }
   if(p.state==XZ_USB_RUNNING)route_faults=0;
   route_check_status(1,XZ_USB_OK,attempted);
   if (p.state == XZ_USB_RUNNING) {
-   struct xz_extra_decks snap;
-   (void)xz_extra_decks_snapshot(&snap);
+   if(rank_tick++%20u==0u)rank=connector_rank_read();
+   connector_priority(rank);
+   CONNECTOR_PART(0);
+   struct xz_extra_decks snap;struct xz_extra_analysis_hold hold={0};
+   (void)xz_extra_decks_snapshot_held(&snap,&hold);
+   uint32_t beats[XZ_EXTRA_DECKS];
+   for(int i=0;i<XZ_EXTRA_DECKS;i++)beats[i]=snap.deck[i].grid_count;
+   xz_extra_decks_release_analysis(&snap,&hold);
+   sync_trail(&snap,beats);
+   CONNECTOR_PART(1);
+   output_gap_trail(&p,&snap);
+   stall_trail();
+   CONNECTOR_PART(2);
    if(xz_jog_display_runtime_service_assets)xz_jog_display_runtime_service_assets();
+   CONNECTOR_PART(3);
    if(xz_native_led_service_feedback)xz_native_led_service_feedback();
+   CONNECTOR_PART(4);
   }
+  xz_late_worked(&connector_late_trail,0x40000000u,4000u);
   rest(POLL_UP_MS);
  }
  set_link(0);
@@ -581,6 +863,26 @@ static void *connector(void *unused) {
  return NULL;
 }
 
+/* USB STOP or a pulled stick (usb_release.h): DECK 3 and DECK 4 let go of it on their own workers. */
+static int release_holder=-1;
+static unsigned decks_let_go(void *unused,int slot,uint32_t stop){
+ (void)unused;
+ struct xz_xp_players *p=__atomic_load_n(&players,__ATOMIC_ACQUIRE);
+ if(!p||!route.started||!xz_xp_release_source)return 0;
+ /* First the copies: one being handed back to the stick right now must stay in RAM. */
+ pthread_mutex_lock(&ram_lock);if(ram&&xz_ram_extra_source_gone)xz_ram_extra_source_gone(ram,(unsigned)slot);pthread_mutex_unlock(&ram_lock);
+ return xz_xp_release_source(p,slot,stop);
+}
+static void deck_let_go(void *unused,int deck,int slot,uint32_t stop,enum xz_xp_release what){
+ (void)unused;
+ char line[200];
+ snprintf(line,sizeof line,"USB_RELEASE: DECK %d, USB %d: %s",deck+3,slot,
+          what==XZ_XP_RELEASE_KEPT?"its track plays on from its RAM copy; every file it had on the stick is closed":
+          what==XZ_XP_RELEASE_UNLOADED?"its track was on the stick and not in RAM: unloaded, its file closed":
+          "nothing loaded from this stick; kept as it is");
+ xz_log(line);
+ if(xz_usb_release_answer)xz_usb_release_answer(release_holder,slot,stop);
+}
 static void deck_worker_enter(int deck) { xz_extra_thread_place(deck ? "deck4" : "deck3"); }
 static void cue_store_notice(const char *message){
  struct xz_xp_players *p=__atomic_load_n(&players,__ATOMIC_ACQUIRE);if(p)xz_xp_notice(p,message);
@@ -609,6 +911,7 @@ int xz_extra_decks_start(void) {
  if(xz_xp_set_key_owner_reader)xz_xp_set_key_owner_reader(p,xz_key_owner_current);
  if(xz_xp_set_master_observer&&xz_sync_link_runtime_master_observe)
   xz_xp_set_master_observer(p,xz_sync_link_runtime_master_observe);
+ if(xz_xp_set_release_answer)xz_xp_set_release_answer(p,deck_let_go,NULL);
  if (xz_xp_start(p)) { xz_cues_worker_stop();xz_xp_destroy(p); ram_stop(); return -1; }
  __atomic_store_n(&route.quit, 0, __ATOMIC_RELEASE);
  __atomic_store_n(&route.published, 0, __ATOMIC_RELEASE);
@@ -621,6 +924,7 @@ int xz_extra_decks_start(void) {
  }
  __atomic_store_n(&players, p, __ATOMIC_RELEASE);
  route.started = 1;
+ if(release_holder<0&&xz_usb_release_holder)release_holder=xz_usb_release_holder("DECK 3/4",decks_let_go,NULL);
  control_update(CONTROL_AVAILABLE,CONTROL_AVAILABLE);
  __atomic_store_n(&route.published, 1, __ATOMIC_RELEASE);
  return 0;

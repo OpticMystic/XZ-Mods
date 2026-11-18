@@ -131,7 +131,7 @@ try {
 
   await open();
   await waitFor(`!!window.XZLocalization`, 'XZ localization loaded');
-  await check(`!!document.getElementById('xz-language-setup')?.closest('.top-version')&&document.querySelector('.topbar').getBoundingClientRect().height<=56`, 'language setup button sits cleanly in topbar .top-version without growing the topbar');
+  await check(`(()=>{const b=document.getElementById('xz-language-setup'),rail=document.querySelector('.topbar'),r=rail.getBoundingClientRect(),k=b?.getBoundingClientRect();return !!b?.closest('.top-version')&&r.width<=213&&k.left>=r.left&&k.right<=r.right&&k.bottom<=r.bottom&&rail.scrollHeight<=rail.clientHeight;})()`, 'language setup button sits cleanly in the rail .top-version without widening or overflowing the rail');
   await evaluate(`document.getElementById('xz-language-setup').click()`);
   await waitFor(`document.getElementById('xz-provider-python').value==='C:/XZ/python/Scripts/python.exe'`, 'independent resources detected');
   await shot('00-language-provider');

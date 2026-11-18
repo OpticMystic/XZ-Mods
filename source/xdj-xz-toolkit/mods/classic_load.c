@@ -54,6 +54,7 @@ enum xz_cl_verdict xz_classic_load_message(struct xz_classic_load *state, const 
 #include "runtime.h"
 #include "doom/native_bridge.h"
 #include <pthread.h>
+#include "xz_mutex.h"
 #if !defined(__arm__) || defined(__aarch64__)
 #error Classic LOAD adapter requires verified 32-bit ARM ABI
 #endif
@@ -73,7 +74,7 @@ typedef int (*send_arg_fn)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uin
                            uint32_t, uint32_t, uint32_t, uint32_t);
 static load_proc_fn stock_proc;
 static int installed;
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mutex = XZ_MUTEX_INITIALIZER;
 static struct xz_classic_load state;
 static struct xz_cp_state popup_requests;
 static struct { uint32_t route_epoch; uint64_t media[2]; } physical_open[2];

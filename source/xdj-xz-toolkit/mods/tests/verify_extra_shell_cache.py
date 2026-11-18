@@ -3,8 +3,19 @@ import argparse,json,re,subprocess
 from pathlib import Path
 p=argparse.ArgumentParser();p.add_argument('--out',type=Path,required=True);p.add_argument('--baseline',action='store_true');a=p.parse_args();a.out.mkdir(parents=True,exist_ok=False)
 root=Path(__file__).resolve().parents[1]
-source=(subprocess.check_output(['git','show','30cd9f7a14daf0327dd92f2d55cf593e884dfd56:source/xdj-xz-toolkit/mods/shell_runtime.c'],cwd=root,text=True) if a.baseline else (root/'shell_runtime.c').read_text())
-section=source[source.index('static struct xz_extra_decks extra;'):source.index('static void extra_refresh_locked')]
+if a.baseline:
+ BASE='30cd9f7a14daf0327dd92f2d55cf593e884dfd56'
+ shown=subprocess.run(['git','show',BASE+':source/xdj-xz-toolkit/mods/shell_runtime.c'],cwd=root,capture_output=True,text=True)
+ if shown.returncode:
+  print('SKIPPED: needs --baseline commit '+BASE[:8]+' of the main XZ-Mods repository (source/ layout); not in this repository');raise SystemExit(77)
+ source=shown.stdout
+else:source=(root/'shell_runtime.c').read_text()
+# The cache block: the converted DECK 3/4 buffers and extra_parts_of, up to that function's closing brace. The MODERN
+# frame pipeline (shell_pipeline.h, which needs the whole shell runtime) is included inside the block since the r33
+# snapshot and is left out here; so are the route-card and RAM ONLY functions that follow extra_parts_of.
+start=source.index('static struct xz_extra_decks extra;');end=source.index('{',source.index('static void extra_parts_of',start))+1;depth=1
+while depth:depth+=(source[end]=='{')-(source[end]=='}');end+=1
+section=source[start:end].replace('#include "shell_pipeline.h"\n','')
 defines='\n'.join(re.findall(r'^#define (?:GRID_CAP|WAVE_SCROLL_CAP|WAVE_OVERVIEW)\b.*$',source,re.M))
 test=a.out/'cache.c';test.write_text('#include "shell_runtime.h"\n#include <assert.h>\n#include <string.h>\n#include <stdio.h>\n'+defines+'\n'+section+'''
 int main(void){

@@ -16,8 +16,11 @@ def main():
  # Every remaining saved boolean belongs to one distinct behavior. Adding a
  # second gate requires updating this audited inventory instead of slipping in.
  switches={f['key'] for f in schema['fields'] if f['kind']=='boolean' and not f['readonly']}
+ # Appended later, each its own behaviour (SETTINGS.md): network_dhcp (field 59, MODS DHCP at startup),
+ # pro_dj_link_decks (field 60, DECK 3/4 announced on Pro DJ Link), recording_tracklist (field 62, 8def72f).
  assert switches=={'stems','gate','smart','pad_feedback',
-   'fb_takeover','jump_enabled','browse_key_prefix','browse_traffic','key_feedback'}
+   'fb_takeover','jump_enabled','browse_key_prefix','browse_traffic','key_feedback',
+   'network_dhcp','pro_dj_link_decks','recording_tracklist'}
  # rekordbox_menu is derived from the REKORDBOX button's press choice, written for older runtimes.
  assert 'rekordbox_menu' in schema['derived_fields']
 

@@ -6,6 +6,7 @@
 #include "layered_wave.h"
 #include "ui_skin.h"
 #include "deck_colour.h"
+#include "tempo_text.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -142,8 +143,7 @@ static void clock(struct xz_canvas c,const struct xz_extra_deck *d,uint32_t now_
  x=6;
  x+=fit(c,x,ROW_TEMPO+2,RIGHT,"TEMPO",1,LABEL)+5;
  if(d->known&K(TEMPO)){
-  int32_t t=d->tempo_x100,a=t<0?-t:t;
-  snprintf(text,sizeof text,"%c%d.%02d%%",t<0?'-':t>0?'+':' ',(int)(a/100),(int)(a%100));
+  xz_tempo_text(text,sizeof text-1,d->tempo_x100,(d->known&K(TEMPO_RANGE))!=0,d->tempo_range);strcat(text,"%");
   x+=fit(c,x,ROW_TEMPO+2,RIGHT,text,1,INK)+6;
  }else x+=fit(c,x,ROW_TEMPO+2,RIGHT,"--.--%",1,BLANK)+6;
  if(d->tempo_reset)x+=chip(c,x,ROW_TEMPO,12,"TEMPO RESET",INK,0,DARK_INK)+4;

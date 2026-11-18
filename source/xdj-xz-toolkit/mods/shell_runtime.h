@@ -57,6 +57,13 @@ void xz_shell_runtime_stop(void);
 int xz_shell_runtime_follow_interface(int modern);
 /* Lock-free: the shell owns the screen now. */
 int xz_shell_runtime_owns(void);
+int xz_shell_pipeline_allowed(void);
+int xz_shell_pipeline_epoch(uint32_t,int,int);
+void xz_shell_pipeline_begin(uint32_t,uint32_t,uint64_t);
+int xz_shell_pipeline_end(void);
+int xz_shell_pipeline_accept(uint32_t,uint32_t,uint64_t);
+/* Caller holds the UI lock; copies a changed active-profile logo without USB I/O. */
+void xz_shell_runtime_dj_logo(int usb,uint64_t revision,const uint16_t *pixels) __attribute__((weak));
 /* Logical deck under a PLAY key readout, -1 on other screens or hidden decks. */
 int xz_shell_runtime_key_hit(int x,int y,uint32_t *projection);
 uint32_t xz_shell_runtime_key_frame(void);
@@ -64,6 +71,7 @@ uint32_t xz_shell_runtime_key_frame(void);
 int xz_shell_runtime_idle(void);
 /* Scheduling hint only; position and motion still come from native observations. */
 void xz_shell_runtime_native_input(int side,uint32_t monotonic_ms);
+void xz_shell_runtime_native_contact(int side,uint32_t monotonic_ms,int pressed);
 /* Lock-free: the next frame refreshes the model (native reads). ui_runtime.c moves its own 10 Hz refresh
    off such frames so the two never land in the same 16 ms. */
 int xz_shell_runtime_will_refresh(void);
@@ -84,6 +92,9 @@ int xz_shell_runtime_extra_load_key(int eligible, int theme, int side);
 int xz_shell_runtime_key_setup_load(int deck);
 int xz_shell_runtime_encoder_turn(int eligible, int theme, int delta);
 /* UiKey_EncoderPush entry words: flags (+0) and state (+8). */
+/* phase: enum xz_push_phase (encoder_push.h), read from stock's browse key entry by the caller. */
+int xz_shell_runtime_selector_push(int eligible, int theme, int phase);
+/* The older entry, kept for older callers: flags and state of stock's entry, read without writing it back. */
 int xz_shell_runtime_encoder_push(int eligible, int theme, uint32_t flags, uint32_t state);
 /* The native event-loop hook (repaint owner thread): runs queued commands and the starvation pump. */
 void xz_shell_runtime_owner_tick(void);
@@ -149,7 +160,7 @@ void xz_shell_runtime_stock_key_ran(int which, int ran);
    release with a separate event for the hold. STOCK entries are listed so the
    table documents every browse-section key the shell leaves alone. */
 /* HAND_OFF: a browse key the shell has no screen for: while the shell owns the screen it goes to stock
-   with a visible hand-off, never to a hidden stock screen (LINK).
+   with a visible hand-off, never to a hidden stock screen (no key has this rule now; LINK opens SOURCE).
    ASSIGNED: the key does what the DJ assigned (REKORDBOX, settings.h enum xz_rekordbox_action); the runtime
    decides its press with xz_shrt_rekordbox_verdict. */
 enum xz_shrt_rule { XZ_SHRT_STOCK, XZ_SHRT_ON_PRESS, XZ_SHRT_ON_RELEASE, XZ_SHRT_HAND_OFF, XZ_SHRT_ASSIGNED };
@@ -157,6 +168,10 @@ struct xz_shrt_key_map { uint16_t code; uint8_t channel; uint8_t rule; int8_t ke
 const struct xz_shrt_key_map *xz_shrt_key_lookup(uint16_t code, unsigned channel);
 enum xz_shrt_phase { XZ_SHRT_PRESS, XZ_SHRT_HOLD, XZ_SHRT_RELEASE };
 enum xz_shrt_phase xz_shrt_phase_of(unsigned op);
+/* 1 for the source keys (USB 1, USB 2, LINK): pressed in MODERN while the shell is handed off to stock, they
+   end the hand-off and act in the shell, so a source key never opens a stock source screen behind the DJ's
+   back (owner 2026-11-17: USB 1, USB 2 and LINK opened CLASSIC screens). */
+int xz_shrt_key_reclaims(const struct xz_shrt_key_map *k);
 
 /* Decided once per key contact, at the press, so all three ops of a key are
    swallowed or none. PASS_HAND_OFF: the shell would hand this screen to stock,
@@ -178,8 +193,9 @@ enum xz_shrt_rb_effect { XZ_SHRT_RB_NONE, XZ_SHRT_RB_SHELL_MODS, XZ_SHRT_RB_STEM
 enum xz_shrt_verdict xz_shrt_rekordbox_verdict(int action, enum xz_shrt_rb_effect *effect);
 
 #define XZ_SHRT_CONTACTS 8
-struct xz_shrt_contacts { struct { uint16_t code; uint8_t channel, used, swallow, held; } c[XZ_SHRT_CONTACTS]; };
-void xz_shrt_contact_press(struct xz_shrt_contacts *, uint16_t code, unsigned channel, int swallow);
+struct xz_shrt_contacts { struct { uint16_t code; uint8_t channel, used, swallow, held; uint32_t at; } c[XZ_SHRT_CONTACTS]; };
+/* now: the press time, for the timed hold below. */
+void xz_shrt_contact_press(struct xz_shrt_contacts *, uint16_t code, unsigned channel, int swallow, uint32_t now);
 /* LOAD-only duplicate PRESS: -1 new/non-LOAD, 0 repeats a passed contact,
  * 1 repeats a swallowed contact. Never changes contact or hold state. */
 int xz_shrt_load_duplicate(const struct xz_shrt_contacts *,const struct xz_shrt_key_map *,enum xz_shrt_phase);
@@ -187,6 +203,15 @@ int xz_shrt_load_duplicate(const struct xz_shrt_contacts *,const struct xz_shrt_
    or -1 when no press was seen; *held says whether a hold came before. A
    release forgets the contact; a hold marks it. */
 int xz_shrt_contact_follow(struct xz_shrt_contacts *, uint16_t code, unsigned channel, enum xz_shrt_phase, int *held);
+/* A held key the shell swallowed. Stock times a hold inside IKeyManager::onKey (0x2eae50): the press starts
+   the key's UiTimer (startTimer, 0x2eb280) and the timer's onLongPress (0x2ea984) sends op 1. A press the
+   mods swallow never reaches that code, so stock sends no hold for it; the runtime times it with stock's
+   times. xz_shrt_hold_ms: KeyInput::getLongPressTime (0x2ee4c0) for the shell keys that have a hold
+   (BROWSE 0x209 and MENU 0x20b 330 ms, BACK 0x4208 500 ms), 0 for the rest. */
+uint32_t xz_shrt_hold_ms(uint16_t code);
+/* The first swallowed, not yet held contact of a key with a hold that has been down hold_ms by now: marked
+   held (so its later hold and release deliver nothing) and its map returned, once. NULL when none is due. */
+const struct xz_shrt_key_map *xz_shrt_contact_due(struct xz_shrt_contacts *, uint32_t now);
 
 /* Touch: a contact belongs to whoever had it at touch-down, until release. */
 enum xz_shrt_touch_owner { XZ_SHRT_T_NONE, XZ_SHRT_T_SHELL, XZ_SHRT_T_STOCK, XZ_SHRT_T_SWALLOW };
@@ -200,9 +225,14 @@ struct xz_shrt_touch_step xz_shrt_touch_route(struct xz_shrt_touch *, int owns, 
    Ui_EventTask), so the shell neither synthesises it nor steps aside. Should a probe ever give
    PASS_HAND_OFF for MENU, the whole key goes to stock and the runtime steps aside only on the hold. */
 
-/* Encoder push from UiKey_EncoderPush entries: press phase = flags 1; hold = state 3. */
+/* The rotary selector's push (encoder_push.h reads the phases from stock's browse key entry). A click acts
+   on its release, as stock's browse lists do (UiKey_EncoderPush does nothing on a list's press, 0xdeee0, and
+   enters on the release; a hold enters jump mode, 0xdf06c). A hold acts once, at 500 ms, while the selector
+   is still down, and the release after it does nothing (stock clears the entry on the hold, so its release
+   starts no pass). xz_shrt_push_event gives the shell event to deliver now (XZ_SHELL_ENCODER_PUSH or _HOLD)
+   or -1. */
 struct xz_shrt_push { int down, held; };
-int xz_shrt_push_event(struct xz_shrt_push *, uint32_t flags, uint32_t state);
+int xz_shrt_push_event(struct xz_shrt_push *, int phase /* enum xz_push_phase */);
 
 /* Hand-off. Resume once stock has been back on its play screen for
    XZ_SHRT_RESUME_STABLE_MS, after it either left the play screen or
@@ -277,6 +307,11 @@ int xz_shrt_quantize_index(int quantize_den);
 #define XZ_SHRT_PRESENT_LEAD_MS 16u
 uint32_t xz_shrt_frame_period_ms(enum xz_shell_screen, int any_moving);
 unsigned xz_shrt_moving_decks(const struct xz_shell_model *);
+/* PLAY's ABLETON LINK control from the Link runtime's glance (link_runtime.h xz_link_runtime_glance, one atomic
+   word): ENABLED and NO_MASTER are ON (in the session), NO_HELPER and FAILED are FAILED. NULL (no Link runtime in
+   this build) is not known: no control. */
+#include "link_status.h"
+struct xz_shell_ableton xz_shrt_ableton(const struct xz_link_glance *);
 
 /* Deck motion from the stat frame's elapsed time: moving while it changed within XZ_SHRT_MOTION_MS.
    Used for PLAYING only when the native clock read gives no answer. */
@@ -301,7 +336,15 @@ int xz_shrt_motion_step(struct xz_shrt_motion *, int32_t elapsed_ms, uint32_t re
 #define XZ_SHRT_RATE_TOLERANCE_PPM 250000 /* of the nominal rate, per million */
 #define XZ_SHRT_REGULAR_RUNS 2
 struct xz_shrt_position { int valid; int64_t base_us; uint32_t base_at, read_at; int32_t read_ms;
- int have_last, following, regular_run; int32_t last_ms; uint32_t last_at; int32_t observed_ppm; };
+ int have_last, following, regular_run; int32_t last_ms; uint32_t last_at; int32_t observed_ppm;
+ struct { uint32_t at; int64_t us; } native_sample[32];
+ unsigned native_count,native_head;
+ uint32_t native_progress_at,native_poll_at;int64_t native_us;int32_t native_rate;int native_seen;
+ struct { int valid;uint32_t at;int32_t rate;int64_t raw_us,shown_us,phase_us; } display; };
+#define XZ_SHRT_NATIVE_PROGRESS_MS 150u
+int xz_shrt_native_position_step_us(struct xz_shrt_position *,int playing,int64_t source_us,uint32_t read_at,
+                                int32_t rate_ppm,int32_t *out_ms,uint32_t *out_at);
+int64_t xz_shrt_native_display_step(struct xz_shrt_position *,uint32_t target_ms);
 void xz_shrt_position_reset(struct xz_shrt_position *);
 int xz_shrt_position_step(struct xz_shrt_position *, int playing, int32_t elapsed_ms, uint32_t read_at,
                           int32_t rate_ppm, int measure, int32_t *out_ms, uint32_t *out_at);
@@ -347,6 +390,21 @@ int xz_shrt_extra_notice(uint32_t *seen, const struct xz_extra_decks *s, uint32_
    shell was not drawing) and any view but 2 DECKS adopt the new pair silently. */
 struct xz_shrt_pair_seen { int valid; unsigned pair; uint32_t at_ms; };
 const char *xz_shrt_pair_notice(struct xz_shrt_pair_seen *, const struct xz_shell_model *, int deck_view, uint32_t now_ms);
+/* DECK VIEW follows the loopback cable on MODERN (shell_runtime.c cable_tick_locked runs one step per owner tick).
+   in: now_ms (monotonic), route_up (the published CH3/CH4 route, xz_extra_decks_route), view (DECK VIEW now,
+   enum xz_deck_layout), layout_revision (xz_deck_layout_revision) and ready (the play screen is at rest and on
+   screen, so the picker may open: xz_shell_deck_view_quiet plus the runtime's own overlays).
+   A connection is the route going up after it was settled down. The first step only takes the route as it is:
+   switching into MODERN with the cable in is no connection. A connection while DECK VIEW shows 2 DECKS waits for
+   ready, then returns SHOW_FOUR once (4 DECKS in mixer order and the picker). It is dropped, without SHOW_FOUR,
+   when DECK VIEW is a four-deck view or changes for any other reason before then.
+   A drop settles after the route has stayed down XZ_SHRT_CABLE_DROP_MS: BACK_TO_TWO, once (2 DECKS and the
+   controller's sides on DECK 1 and 2). A drop shorter than that is the same connection: nothing either way. */
+#define XZ_SHRT_CABLE_DROP_MS 1500u
+enum { XZ_SHRT_CABLE_SHOW_FOUR=1u, XZ_SHRT_CABLE_BACK_TO_TWO=2u };
+struct xz_shrt_cable { int seen, up, pending, dropping; uint32_t dropped_at; unsigned layout_revision; };
+struct xz_shrt_cable_in { uint32_t now_ms; int route_up, view, ready; unsigned layout_revision; };
+unsigned xz_shrt_cable_step(struct xz_shrt_cable *, const struct xz_shrt_cable_in *);
 /* The resolver's answer from a library row: path = root + rel (rel starts "/Contents/"), the text fields
    truncated to their arrays on a character boundary. anlz_dir is left empty. 0, or -1 when rel is empty or
    the path does not fit. */

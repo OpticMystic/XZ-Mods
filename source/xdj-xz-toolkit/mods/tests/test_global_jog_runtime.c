@@ -15,10 +15,15 @@ extern int test_player_input(const struct xz_extra_deck_event *e);
 static int route_live=1,game_owner,game_calls[3],delivered;
 static uint32_t test_clock=1000;
 static unsigned native_master_requests,native_input_calls;
+static int contact_down;static unsigned contact_calls;
+void xz_shell_runtime_native_contact(int side,uint32_t at,int pressed){assert(side>=0&&side<2&&at);contact_down=pressed;contact_calls++;}
 static int native_input_side;
 static uint32_t native_input_at;
 void xz_shell_runtime_native_input(int side,uint32_t at){native_input_calls++;native_input_side=side;native_input_at=at;}
 int xz_extra_decks_use_native_master(void){native_master_requests++;return 1;}
+uint32_t xz_extra_decks_epoch(void){return route_live?1u:0u;}
+uint32_t xz_extra_decks_control_revision(void){return 0;}
+void xz_extra_decks_native_master_selected(unsigned side){assert(side<2);native_master_requests++;}
 struct xz_extra_route xz_extra_decks_route(void){return (struct xz_extra_route){1,route_live};}
 int xz_extra_decks_snapshot(struct xz_extra_decks *out){memset(out,0,sizeof *out);return 0;}
 void xz_extra_decks_publish_sides(int left,int right){(void)left;(void)right;}
@@ -49,6 +54,7 @@ int main(int argc,char **argv){
  if(argc>3)delta=atoi(argv[3]);
  memcpy(input+8,&code,2);input[10]=(unsigned char)(side+1);input[11]=4;
  memcpy(input+12,&delta,4);memcpy(input+16,&speed,4);memcpy(input+20,&absolute,4);
+ xz_deck_input_trace_init(&xz_mods_native_contact_trace_v1,1);
  installed=1;observer=0;xz_deck_select_init(&deck_select);xz_deck_select_route(&deck_select,1);test_player_init();
  xz_deck_input_trace_init(&xz_mods_deck_input_trace_v1,1);
  if(selected){
@@ -124,11 +130,14 @@ int main(int argc,char **argv){
  assert(!xz_runtime_deck_global_input(innards,input));assert(test_player_count(side)==before+2);
  /* Native press is recorded only in the fallback, then releases to stock after a side switch. */
  input[11]=0;assert(!xz_runtime_deck_global_input(innards,input));assert(!deck_select.side[side].owner[XZ_DS_NATIVE]);
+ assert(xz_mods_native_contact_trace_v1.next>0);
+ for(unsigned i=0;i<xz_mods_native_contact_trace_v1.next;i++)assert(xz_mods_native_contact_trace_v1.record[i].code==0x4306);
+ assert(contact_calls&&contact_down); /* native top contact keeps display attached while stationary */
  assert(!deck_route(innards,input));assert(deck_select.side[side].owner[XZ_DS_NATIVE]);
  assert(xz_runtime_deck_select_toggle(side)==1);input[11]=2;
  game_owner=1;assert(!xz_runtime_deck_global_input(innards,input));assert(deck_select.side[side].owner[XZ_DS_NATIVE]);
  stock_key=stock_fixture;assert(physical_key(innards,input)==7);assert(stock_contacts==1);
- assert(!deck_select.side[side].owner[XZ_DS_NATIVE]);game_owner=0;
+ assert(!deck_select.side[side].owner[XZ_DS_NATIVE]);assert(!contact_down);game_owner=0;
  input[11]=0;assert(xz_runtime_deck_global_input(innards,input));before=test_player_count(side);
  route_live=0;input[11]=3;assert(xz_runtime_deck_global_input(innards,input));assert(test_player_count(side)==before+1);
  assert(!xz_runtime_deck_global_input(innards,input));
@@ -149,7 +158,7 @@ int main(int argc,char **argv){
   assert(!xz_runtime_deck_global_input(NULL,input));assert(xz_runtime_deck_select_toggle(side)==1);
  }
  test_player_clear(side);code=0x4313;memcpy(input+8,&code,2);input[11]=0;
- assert(xz_runtime_deck_global_input(NULL,input));assert(!test_player_count(side));
+ assert(xz_runtime_deck_global_input(NULL,input));assert(test_player_count(side)==1&&test_player_kind(side,0)==XZ_EXTRA_IN_SYNC&&test_player_pressed(side,0));
  assert(xz_runtime_deck_select_toggle(side)==1);game_owner=1;input[11]=2;
  assert(xz_runtime_deck_global_input(NULL,input));assert(test_player_count(side)==1&&test_player_kind(side,0)==XZ_EXTRA_IN_SYNC&&test_player_pressed(side,0));
  game_owner=0;assert(xz_runtime_deck_select_toggle(side)==1);

@@ -11,6 +11,7 @@ import sys
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--arch',choices=['host','arm'],required=True)
 parser.add_argument('--out',type=Path,required=True,help='New output directory; never overwritten')
+parser.add_argument('--retention-only',action='store_true')
 args=parser.parse_args()
 root=Path(__file__).resolve().parents[1]
 out=args.out.resolve();out.mkdir(parents=True,exist_ok=False)
@@ -37,7 +38,12 @@ else:
 units=['shell/shell.c','shell/shell_draw.c','shell/shell_play.c','shell/shell_wave.c','shell/shell_browse.c',
        'shell/shell_settings.c','shell/shell_info.c','shell/shell_source.c','ui/ui_draw.c','ui/pictures.c','ui/cable_anim.c','ui/ram_notice.c',
        'shell_runtime_core.c','shell_library.c','shell_playlists.c','shell_mysettings.c','my_settings.c',
-       'shell_utility.c','pdb/pdb.c','ui/ui.c','key/native_browse.c','extra_player.c']
+       'shell_utility.c','pdb/pdb.c','ui/ui.c','key/native_browse.c',
+       # The shell's MASTER REC mark reads the recorder through the shared poller (on the host, its stand-in state).
+       'recorder_poll.c','recorder_state_stub.c']
+sys.path.insert(0,str(root/'shell'))
+from shell_sources import SHELL_SOURCES
+units=list(dict.fromkeys((root/u).resolve().relative_to(root).as_posix() for u in units+['shell/'+x for x in SHELL_SOURCES]+['shell_analysis.c','ui/layered_wave.c']))
 fixture=root/'tests/test_wave_cadence.c'
 deps=invoke([cc,*flags,'-MM',platform_path(fixture),*[platform_path(root/u) for u in units]])
 inputs={}
@@ -50,8 +56,8 @@ binary=out/'test-wave-cadence'
 invoke([cc,*flags,'-Wl,--gc-sections',platform_path(out/'fixture.o'),*[platform_path(root/u) for u in units],
         '-pthread','-ldl','-lm','-o',platform_path(binary)])
 runner=['env','ASAN_OPTIONS=detect_leaks=0:abort_on_error=1','UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1'] if args.arch=='host' else ['qemu-arm','-L','/usr/arm-linux-gnueabi']
-result=subprocess.run(prefix+runner+[platform_path(binary),platform_path(out)],cwd=out,capture_output=True,text=True)
-entries.append({'command':prefix+runner+[platform_path(binary),platform_path(out)],'exit':result.returncode,'stdout':result.stdout,'stderr':result.stderr})
+result=subprocess.run(prefix+runner+[platform_path(binary),platform_path(out)]+(['retention'] if args.retention_only else []),cwd=out,capture_output=True,text=True)
+entries.append({'command':prefix+runner+[platform_path(binary),platform_path(out)]+(['retention'] if args.retention_only else []),'exit':result.returncode,'stdout':result.stdout,'stderr':result.stderr})
 unchanged=all(hashlib.sha256(Path(p).read_bytes()).hexdigest()==h for p,h in inputs.items())
 (out/'commands.json').write_text(json.dumps(entries,indent=2)+'\n')
 (out/'receipt.json').write_text(json.dumps({'arch':args.arch,'test_exit':result.returncode,'source_unchanged':unchanged,

@@ -6,6 +6,8 @@
 #error Shell runtime acceptance requires active assertions
 #endif
 #include "shell_runtime.h"
+#include "encoder_push.h"
+#include "shell/shell_source.h"
 #include "ui/deck_layout.h"
 #include "settings.h"
 #include "shell_library.h"
@@ -43,13 +45,19 @@ static void key_table(void) {
   const struct xz_shrt_key_map *k=xz_shrt_key_lookup(codes[i],0);
   assert(k&&k->rule==XZ_SHRT_ON_PRESS&&xz_shrt_key_for_phase(k,XZ_SHRT_PRESS,0)==expect[i]);
  }
- /* LINK hands the screen to stock's media and connection screen (CONTROL MODE); REKORDBOX does what it is
-    assigned. Neither delivers a table key in any phase. */
- for(unsigned i=0;i<2;i++){
-  const struct xz_shrt_key_map *k=xz_shrt_key_lookup(i?0x202:0x205,0);
-  assert(k&&k->rule==(i?XZ_SHRT_ASSIGNED:XZ_SHRT_HAND_OFF));
-  for(int p=XZ_SHRT_PRESS;p<=XZ_SHRT_RELEASE;p++)assert(xz_shrt_key_for_phase(k,(enum xz_shrt_phase)p,0)==-1);
+ /* LINK opens SOURCE on its tile (the shell hands off to stock's LINK screen when pressed there again);
+    REKORDBOX does what it is assigned and delivers no table key in any phase. */
+ const struct xz_shrt_key_map *link=xz_shrt_key_lookup(0x205,0),*rekordbox=xz_shrt_key_lookup(0x202,0);
+ assert(link&&link->rule==XZ_SHRT_ON_PRESS&&xz_shrt_key_for_phase(link,XZ_SHRT_PRESS,0)==XZ_SHELL_KEY_SOURCE_LINK);
+ assert(xz_shrt_key_for_phase(link,XZ_SHRT_HOLD,0)==-1&&xz_shrt_key_for_phase(link,XZ_SHRT_RELEASE,0)==-1);
+ assert(rekordbox&&rekordbox->rule==XZ_SHRT_ASSIGNED);
+ for(int p=XZ_SHRT_PRESS;p<=XZ_SHRT_RELEASE;p++)assert(xz_shrt_key_for_phase(rekordbox,(enum xz_shrt_phase)p,0)==-1);
+ /* The source keys, and only they, end a hand-off to stock. */
+ for(uint16_t code=0x200;code<0x210;code++){
+  const struct xz_shrt_key_map *k=xz_shrt_key_lookup(code,0);
+  assert(xz_shrt_key_reclaims(k)==(code==0x203||code==0x204||code==0x205));
  }
+ assert(!xz_shrt_key_reclaims(xz_shrt_key_lookup(0x4208,0))&&!xz_shrt_key_reclaims(xz_shrt_key_lookup(0x430f,1))&&!xz_shrt_key_reclaims(NULL));
  /* REKORDBOX by assignment: the shell keeps only its own actions; stock's own is a visible hand-off. */
  static const struct { int action; enum xz_shrt_verdict v; enum xz_shrt_rb_effect e; } rb[]={
   {XZ_REKORDBOX_MODS,XZ_SHRT_SWALLOW,XZ_SHRT_RB_SHELL_MODS},{XZ_REKORDBOX_STOCK,XZ_SHRT_PASS_HAND_OFF,XZ_SHRT_RB_NONE},
@@ -99,6 +107,18 @@ static void verdicts(void) {
  assert(xz_shrt_key_verdict(&u,&m,load)==XZ_SHRT_SWALLOW); /* LOAD on PLAY would load stock's cursor */
  assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x430b,0))==XZ_SHRT_PASS); /* deck keys stay stock's */
  assert(!memcmp(&before,&u,sizeof u));                     /* probes never touch the shell */
+ /* Startup: the source picker exists while the USB catalog is still loading. */
+ {
+  struct xz_shell_source_model source={0};m.source=&source;m.capabilities=XZ_SHELL_CAP_SOURCE;
+  assert(xz_shrt_key_verdict(&u,&m,browse_key)==XZ_SHRT_SWALLOW);
+  struct xz_shell_event startup={XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_BROWSE,-1};
+  struct xz_shell_action actions[XZ_SHELL_ACTIONS];
+  assert(xz_shell_input(&u,&m,&startup,actions)==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE);
+  assert(xz_shell_input(&u,&m,&startup,actions)==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE);
+  startup.key=XZ_SHELL_KEY_BROWSE_HOLD;
+  assert(xz_shell_input(&u,&m,&startup,actions)==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE);
+  xz_shell_init(&u);m.source=NULL;
+ }
  /* With BROWSE and the settings slot the shell keeps them; held MENU opens the shell's own UTILITY. */
  m.browse=&browse_slot;m.settings_screen=&settings_slot;m.capabilities=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_SEARCH;
  assert(xz_shrt_key_verdict(&u,&m,browse_key)==XZ_SHRT_SWALLOW);
@@ -140,7 +160,7 @@ static void load_verdicts(void) {
   assert(xz_shell_input(&u,&m,&e,out)==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].id==101&&out[0].deck==(int)channel-1&&u.depth==1);
   /* Once swallowed at press, HOLD/RELEASE stay swallowed after LOAD returns to PLAY. */
   struct xz_shrt_contacts c={0};int held;
-  xz_shrt_contact_press(&c,0x430f,channel,1);
+  xz_shrt_contact_press(&c,0x430f,channel,1,0);
   assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_SWALLOW);
   assert(xz_shrt_contact_follow(&c,0x430f,channel,XZ_SHRT_HOLD,&held)==1&&xz_shrt_key_for_phase(k,XZ_SHRT_HOLD,0)==-1);
   assert(xz_shrt_contact_follow(&c,0x430f,channel,XZ_SHRT_RELEASE,&held)==1&&xz_shrt_key_for_phase(k,XZ_SHRT_RELEASE,1)==-1);
@@ -167,18 +187,18 @@ static void load_verdicts(void) {
 static void contacts(void) {
  struct xz_shrt_contacts c;memset(&c,0,sizeof c);int held;
  assert(xz_shrt_contact_follow(&c,0x4208,0,XZ_SHRT_RELEASE,&held)==-1); /* release without its press */
- xz_shrt_contact_press(&c,0x4208,0,1);
+ xz_shrt_contact_press(&c,0x4208,0,1,0);
  assert(xz_shrt_contact_follow(&c,0x4208,0,XZ_SHRT_HOLD,&held)==1&&!held);
  assert(xz_shrt_contact_follow(&c,0x4208,0,XZ_SHRT_HOLD,&held)==1&&held);
  assert(xz_shrt_contact_follow(&c,0x4208,0,XZ_SHRT_RELEASE,&held)==1&&held);
  assert(xz_shrt_contact_follow(&c,0x4208,0,XZ_SHRT_RELEASE,&held)==-1);
- xz_shrt_contact_press(&c,0x20b,0,0);xz_shrt_contact_press(&c,0x209,0,1);
+ xz_shrt_contact_press(&c,0x20b,0,0,0);xz_shrt_contact_press(&c,0x209,0,1,0);
  assert(xz_shrt_contact_follow(&c,0x20b,0,XZ_SHRT_RELEASE,&held)==0);
  assert(xz_shrt_contact_follow(&c,0x209,0,XZ_SHRT_RELEASE,&held)==1);
  /* Channels are separate contacts. */
- xz_shrt_contact_press(&c,0x430f,1,1);
+ xz_shrt_contact_press(&c,0x430f,1,1,0);
  assert(xz_shrt_contact_follow(&c,0x430f,2,XZ_SHRT_RELEASE,&held)==-1&&xz_shrt_contact_follow(&c,0x430f,1,XZ_SHRT_RELEASE,&held)==1);
- for(int i=0;i<20;i++)xz_shrt_contact_press(&c,(uint16_t)(0x100+i),0,1);   /* overflow reuses a slot, never writes past */
+ for(int i=0;i<20;i++)xz_shrt_contact_press(&c,(uint16_t)(0x100+i),0,1,0);   /* overflow reuses a slot, never writes past */
  puts("PASS key contacts: all three ops follow the press, unknown releases pass, channels and overflow");
 }
 
@@ -207,14 +227,68 @@ static void touches(void) {
  puts("PASS touch ownership: shell contacts, stock contacts, synthesized stock release, opening contact swallowed");
 }
 
+/* The selector's push as stock's browse key table carries it (encoder_push.h): every phase read once, the
+   state written back as stock's handler leaves it; then the shell's click-or-hold. */
 static void pushes(void) {
+ struct xz_push_step r=xz_push_read(1,2);assert(r.phase==XZ_PUSH_DOWN&&r.state==XZ_PUSH_MARK_DOWN);
+ r=xz_push_read(1,XZ_PUSH_MARK_DOWN);assert(r.phase==XZ_PUSH_NONE&&r.state==XZ_PUSH_MARK_DOWN);   /* the same contact again */
+ r=xz_push_read(0,XZ_PUSH_MARK_DOWN);assert(r.phase==XZ_PUSH_UP&&r.state==0);
+ r=xz_push_read(0,2);assert(r.phase==XZ_PUSH_UP&&r.state==0);                 /* a release whose press was not read */
+ r=xz_push_read(1,3);assert(r.phase==XZ_PUSH_HOLD&&r.state==XZ_PUSH_MARK_HELD);
+ r=xz_push_read(1,XZ_PUSH_MARK_HELD);assert(r.phase==XZ_PUSH_NONE);
+ r=xz_push_read(0,XZ_PUSH_MARK_HELD);assert(r.phase==XZ_PUSH_UP_HELD&&r.state==0);
+ r=xz_push_read(0,3);assert(r.phase==XZ_PUSH_UP_HELD&&r.state==0);
+ r=xz_push_read(0,0);assert(r.phase==XZ_PUSH_NONE&&r.state==0);
+ r=xz_push_read(1,0);assert(r.phase==XZ_PUSH_DOWN&&r.state==0);                /* not stock: a press, nothing marked */
+ r=xz_push_read(2,2);assert(r.phase==XZ_PUSH_NONE&&r.state==2);
+ assert(xz_push_marked(XZ_PUSH_MARK_DOWN)&&xz_push_marked(XZ_PUSH_MARK_HELD)&&!xz_push_marked(0)&&!xz_push_marked(2)&&!xz_push_marked(3));
+ /* A click acts on its release. */
  struct xz_shrt_push p={0,0};
- assert(xz_shrt_push_event(&p,0,2)==-1);                       /* a stale pass before any press */
- assert(xz_shrt_push_event(&p,1,2)==XZ_SHELL_ENCODER_PUSH);
- assert(xz_shrt_push_event(&p,0,3)==XZ_SHELL_ENCODER_HOLD);
- assert(xz_shrt_push_event(&p,0,3)==-1&&xz_shrt_push_event(&p,0,2)==-1);
- assert(xz_shrt_push_event(&p,1,2)==XZ_SHELL_ENCODER_PUSH&&xz_shrt_push_event(&p,0,2)==-1);
- puts("PASS encoder push phases: press, one hold, repeated handler passes ignored");
+ assert(xz_shrt_push_event(&p,XZ_PUSH_DOWN)==-1&&xz_shrt_push_event(&p,XZ_PUSH_NONE)==-1);
+ assert(xz_shrt_push_event(&p,XZ_PUSH_UP)==XZ_SHELL_ENCODER_PUSH);
+ /* A hold acts once, at the hold; its release does nothing, never a click as well. */
+ assert(xz_shrt_push_event(&p,XZ_PUSH_DOWN)==-1&&xz_shrt_push_event(&p,XZ_PUSH_HOLD)==XZ_SHELL_ENCODER_HOLD);
+ assert(xz_shrt_push_event(&p,XZ_PUSH_HOLD)==-1&&xz_shrt_push_event(&p,XZ_PUSH_UP_HELD)==-1);
+ assert(xz_shrt_push_event(&p,XZ_PUSH_DOWN)==-1&&xz_shrt_push_event(&p,XZ_PUSH_HOLD)==XZ_SHELL_ENCODER_HOLD);
+ assert(xz_shrt_push_event(&p,XZ_PUSH_UP)==-1);   /* a release the decoder read as short after a hold */
+ /* A release seen without its press (the press went to another owner) is one click; a held release
+    without its hold, nothing. */
+ assert(xz_shrt_push_event(&p,XZ_PUSH_UP)==XZ_SHELL_ENCODER_PUSH);
+ assert(xz_shrt_push_event(&p,XZ_PUSH_UP_HELD)==-1);
+ puts("PASS encoder push: stock entry phases read once and written back; a click on its release, a hold once, never both");
+}
+
+/* Holds of swallowed keys, timed with stock's KeyInput::getLongPressTime. */
+static void timed_holds(void) {
+ assert(xz_shrt_hold_ms(0x209)==330&&xz_shrt_hold_ms(0x20b)==330&&xz_shrt_hold_ms(0x4208)==500);
+ assert(xz_shrt_hold_ms(0x206)==0&&xz_shrt_hold_ms(0x430f)==0&&xz_shrt_hold_ms(0x4207)==0);
+ struct xz_shrt_contacts c;memset(&c,0,sizeof c);int held;
+ /* BROWSE swallowed at t=1000: nothing due before 330 ms, the hold once at 330, never again. */
+ xz_shrt_contact_press(&c,0x209,0,1,1000);
+ assert(!xz_shrt_contact_due(&c,1000)&&!xz_shrt_contact_due(&c,1329));
+ const struct xz_shrt_key_map *k=xz_shrt_contact_due(&c,1330);
+ assert(k&&k->code==0x209&&k->hold==XZ_SHELL_KEY_BROWSE_HOLD&&!xz_shrt_contact_due(&c,5000));
+ /* Its release is not also a short BROWSE. */
+ assert(xz_shrt_contact_follow(&c,0x209,0,XZ_SHRT_RELEASE,&held)==1&&held&&xz_shrt_key_for_phase(k,XZ_SHRT_RELEASE,held)==-1);
+ /* A short press releases first: no hold, the short key on release. */
+ xz_shrt_contact_press(&c,0x209,0,1,2000);
+ assert(!xz_shrt_contact_due(&c,2200));
+ assert(xz_shrt_contact_follow(&c,0x209,0,XZ_SHRT_RELEASE,&held)==1&&!held&&xz_shrt_key_for_phase(k,XZ_SHRT_RELEASE,held)==XZ_SHELL_KEY_BROWSE);
+ assert(!xz_shrt_contact_due(&c,9000));
+ /* A passed contact (stock times its own hold), a key without a hold and an ON_PRESS key are never timed. */
+ xz_shrt_contact_press(&c,0x209,0,0,3000);assert(!xz_shrt_contact_due(&c,9000));
+ xz_shrt_contact_follow(&c,0x209,0,XZ_SHRT_RELEASE,&held);
+ xz_shrt_contact_press(&c,0x206,0,1,3000);xz_shrt_contact_press(&c,0x430f,1,1,3000);assert(!xz_shrt_contact_due(&c,9000));
+ xz_shrt_contact_follow(&c,0x206,0,XZ_SHRT_RELEASE,&held);xz_shrt_contact_follow(&c,0x430f,1,XZ_SHRT_RELEASE,&held);
+ /* BACK at 500, MENU at 330; a stock hold arriving after the timed one delivers nothing. */
+ xz_shrt_contact_press(&c,0x4208,0,1,4000);xz_shrt_contact_press(&c,0x20b,0,1,4000);
+ k=xz_shrt_contact_due(&c,4330);assert(k&&k->code==0x20b&&!xz_shrt_contact_due(&c,4499));
+ k=xz_shrt_contact_due(&c,4500);assert(k&&k->code==0x4208&&k->hold==XZ_SHELL_KEY_BACK_HOLD);
+ assert(xz_shrt_contact_follow(&c,0x4208,0,XZ_SHRT_HOLD,&held)==1&&held&&xz_shrt_key_for_phase(k,XZ_SHRT_HOLD,held)==-1);
+ /* The clock wraps. */
+ memset(&c,0,sizeof c);xz_shrt_contact_press(&c,0x209,0,1,UINT32_MAX-100);
+ assert(!xz_shrt_contact_due(&c,100)&&xz_shrt_contact_due(&c,229));
+ puts("PASS timed holds: BROWSE/MENU 330 ms, BACK 500 ms, once, while down; the release after a hold is not a short press");
 }
 
 static void hand_off(void) {
@@ -706,6 +780,15 @@ static void extra_decks(void) {
  }
  assert(m.deck[2].loop.active&&m.deck[2].loop.beats_num==8&&m.deck[2].loop.beats_den==1);
  assert(m.deck[3].loop.beats_num==1&&m.deck[3].loop.beats_den==4);
+ /* LOOP IN / OUT ADJUST: the edge under the jog, as the stock decks publish it; none outside adjustment. */
+ assert(!(m.deck[2].known&XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT))&&!(m.deck[3].known&XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT)));
+ s.deck[0].loop.edit=2;s.deck[1].loop.edit=1;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert((m.deck[2].known&XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT))&&m.deck[2].loop_edit.endpoint==1&&m.deck[2].loop_edit.ms==12000);
+ assert((m.deck[3].known&XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT))&&m.deck[3].loop_edit.endpoint==0&&m.deck[3].loop_edit.ms==s.deck[1].loop.in_ms);
+ s.deck[1].loop.active=0;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(!(m.deck[3].known&XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT)));
+ s.deck[0].loop.edit=s.deck[1].loop.edit=0;s.deck[1].loop.active=1;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(!(m.deck[2].known&XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT)));
  s.deck[0].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_MEMORY_CUES);s.deck[0].memory_count=1;
  s.deck[0].memory_cue[0]=(struct xz_extra_cue){1,5000,0xff8000,6000};
  xz_shrt_extra_map(&m,&s,parts,500000,10000);
@@ -727,8 +810,11 @@ static void extra_decks(void) {
  *timeline=(struct xz_extra_timeline){.source_frame=463050,.source_rate=44100,.at_ms=9975,.rate_ppm=-1000000,.moving=1,
    .flags=XZ_EXTRA_TIMELINE_ANCHOR|XZ_EXTRA_TIMELINE_RATE|XZ_EXTRA_TIMELINE_MOTION};
  xz_shrt_extra_map(&m,&s,parts,500000,10000);m.clock_ms=500000;
- assert(!m.deck[2].playing&&m.deck[2].moving&&m.deck[2].elapsed_ms==10500&&m.deck[2].elapsed_at_ms==499975);
+ assert(!m.deck[2].playing&&m.deck[2].moving);
  assert(xz_shell_elapsed_now(&m,2)==10475);
+ /* Mapping and later presentation share the original 50 ms projection budget. */
+ m.clock_ms=500050;assert(xz_shell_elapsed_now(&m,2)==10450);
+ m.clock_ms=500100;assert(xz_shell_elapsed_now(&m,2)==10450);m.clock_ms=500000;
  assert(xz_shrt_moving_decks(&m)&4u);
  assert(xz_shrt_frame_period_ms(XZ_SHELL_PLAY,xz_shrt_moving_decks(&m)!=0)==XZ_SHRT_FRAME_LIVE_MS);
  timeline->flags&=~XZ_EXTRA_TIMELINE_RATE;xz_shrt_extra_map(&m,&s,parts,500000,10000);
@@ -925,7 +1011,7 @@ static void extra_decks(void) {
 int main(int argc, char **argv) {
  assert(argc==2);
  fx_track_build(&track,1);
- key_table();verdicts();load_verdicts();contacts();touches();pushes();hand_off();playhead();commands();writable_settings();extra_decks();library(argv[1]);
+ key_table();verdicts();load_verdicts();contacts();touches();pushes();timed_holds();hand_off();playhead();commands();writable_settings();extra_decks();library(argv[1]);
  puts("PASS shell runtime");
  return 0;
 }

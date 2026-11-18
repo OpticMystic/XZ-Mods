@@ -203,6 +203,9 @@ static void test_physical_load(void) {
  for(size_t i=0;i<sizeof screens/sizeof *screens;i++)for(int deck=0;deck<2;deck++){
   model(&m,&b);bx_tracks(&b,&lib,screens[i]);
   open_screen(&u,&m,keys[i],screens[i]);u.deck=1-deck;
+  /* SEARCH opens on its keyboard: BACK puts it away so the turn moves through the results
+     (test_browse_workflows.c). */
+  if(screens[i]==XZ_SHELL_SEARCH)assert(press(&u,&m,XZ_SHELL_KEY_BACK)==0&&xz_shell_screen(&u)==XZ_SHELL_SEARCH);
   send(&u,&m,XZ_SHELL_ENCODER_TURN,0,0,2);
   struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_LOAD,deck};
   struct xz_shell_model no=m;no.capabilities&=~(uint32_t)XZ_SHELL_CAP_LOAD;

@@ -4,11 +4,13 @@
 #include <unistd.h>
 #include <time.h>
 #include "sync_link_runtime.h"
+#include "extra_timeline_projection.h"
 #include "runtime.h"
 #include "clock_compat.h"
 #include <limits.h>
 #include <math.h>
 #include <pthread.h>
+#include "xz_mutex.h"
 #include <string.h>
 
 #if XZ_SYNC_OBSERVATION
@@ -218,7 +220,12 @@ void xz_sync_link_bundle_from_plan(const struct xz_sync_link_plan *p,struct xz_v
  memset(b,0,sizeof *b);
  b->source_id=p->source_id;
  put_le32(b->status+0x00,p->source_id);
- b->status[0x04]=0xa4;b->status[0x05]=0x01;b->status[0x06]=0;b->status[0x07]=0;
+ /* Stock LinkPlayerInfo flags (names from its debug_print). sync_stat_ 0xa4: SYNC_SUPPORTED, MASTER_ON,
+    NOT_OUT_OF_RANGE. enable_ 0x09: BPM_SYNC_AVAIL and BEAT_SYNC_AVAIL. Without BEAT_SYNC_AVAIL a stock deck
+    synced to this master took its tempo but never snapped to its beat: BeatSync::checkStartCondition,
+    syncBeatLinkMaster and checkPrecision all stop on it (tests/stock_link_beat_gate.h). A plan exists only for
+    a deck with a beat grid (xz_sync_link_anchor_from_deck), so the beat is always available here. */
+ b->status[0x04]=0xa4;b->status[0x05]=0x09;b->status[0x06]=0;b->status[0x07]=0;
  memcpy(b->status+0x10,p->music_id,8);
  b->status[0x18]=1;
  put_le32(b->status+0x1c,p->bpm100);
@@ -249,28 +256,13 @@ static void derive_music_id(int deck_index,const struct xz_extra_deck *d,unsigne
 int xz_sync_link_anchor_from_deck(int deck_index,const struct xz_extra_deck *d,uint64_t now_mono_us,struct xz_sync_link_pcm_anchor *out){
  if(!d||!out||deck_index<0||deck_index>=XZ_EXTRA_DECKS)return 0;
  memset(out,0,sizeof *out);
- const uint32_t req_flags=XZ_EXTRA_TIMELINE_ANCHOR|XZ_EXTRA_TIMELINE_SINK_FRAME|
-  XZ_EXTRA_TIMELINE_APPLIED_RATE;
  int history=!!(d->timeline.flags&XZ_EXTRA_TIMELINE_BEAT_HISTORY);
  if(!d->loaded||!d->playing||!(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE))||
     !(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_GRID))||!d->grid||d->grid_count<2||
-    (d->timeline.flags&req_flags)!=req_flags||d->timeline.source_rate<8000||!isfinite(d->timeline.completed_rate)||d->timeline.completed_rate<=0||
-    (history&&(!isfinite(d->timeline.completed_beat_age_frames)||d->timeline.completed_beat_age_frames<0))||
-    !d->timeline.route_epoch||!d->timeline.load_revision||!d->timeline.transport_generation||!d->timeline.sink_frame||
-    d->timeline.observed_wire_frame<d->timeline.sink_frame)
+    (history&&(!isfinite(d->timeline.completed_beat_age_frames)||d->timeline.completed_beat_age_frames<0)))
   return 0;
- uint32_t now_ms=(uint32_t)(now_mono_us/1000u);
- uint32_t age_ms=now_ms-d->timeline.at_ms;
- if((int32_t)age_ms<0||age_ms>90u)return 0;
- uint64_t cap_us=(uint64_t)d->timeline.at_ms*1000u+(now_mono_us%1000u);
- if(cap_us>now_mono_us)cap_us=now_mono_us;
- /* The source tag belongs to the completed block end, not the later observation.
-    Keep the existing monotonic mapping and subtract only the known wire gap. */
- uint64_t gap=d->timeline.observed_wire_frame-d->timeline.sink_frame;
- if(gap>4410u)return 0; /* 100 ms: refuse stale or inconsistent completion coordinates */
- uint64_t lag_us=gap*1000000ULL/44100u;
- if(lag_us>cap_us)return 0;
- cap_us-=lag_us;
+ uint64_t cap_us;
+ if(!xz_extra_timeline_heard_us(&d->timeline,now_mono_us,&cap_us))return 0;
  double ms=(double)d->timeline.source_frame*1000./(double)d->timeline.source_rate;
  unsigned lo=0,hi=d->grid_count;
  if(history){
@@ -311,7 +303,7 @@ int xz_sync_link_anchor_from_deck(int deck_index,const struct xz_extra_deck *d,u
  out->playing=1;
  out->phase_eligible=1;
  out->source_rate=d->timeline.source_rate;
- out->bpm100=d->track_bpm_x100>0?(uint32_t)d->track_bpm_x100:(uint32_t)llround(6000000./(double)period_ms);
+ out->bpm100=d->grid[idx].bpm_x100?d->grid[idx].bpm_x100:d->track_bpm_x100>0?(uint32_t)d->track_bpm_x100:(uint32_t)llround(6000000./(double)period_ms);
  out->uncertainty_us=1250; /* existing 250 us allowance plus millisecond observation quantization */
  out->source_frame=src_frame;
  out->beat_source_frame=beat_frame;
@@ -324,7 +316,7 @@ int xz_sync_link_anchor_from_deck(int deck_index,const struct xz_extra_deck *d,u
 
 static struct xz_va rt_va;
 static struct xz_va_registry rt_registry;
-static pthread_mutex_t rt_pub_mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t rt_pub_mutex=XZ_MUTEX_INITIALIZER;
 static struct xz_sync_link_lease rt_lease;
 static struct xz_sync_link_clock rt_clock;
 static _Atomic int rt_installed;

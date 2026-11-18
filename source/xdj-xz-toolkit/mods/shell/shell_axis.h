@@ -72,6 +72,26 @@ static inline int64_t sh_axis_px(struct sh_wave_axis a,int32_t ms){
  int64_t den=(int64_t)(a.rate?a.rate:10000u)*1000;
  return sh_axis_floor((int64_t)ms*a.pps*10000+den/2,den);
 }
+/* Fractional native frame coordinates without overflowing at the signed-ms
+   limits. Integer-ms inputs retain exactly the existing pixel rounding. */
+static inline int64_t sh_axis_ratio_us(int64_t us,int64_t mul,int64_t den){
+ int64_t whole=sh_axis_floor(us,1000),fraction=us-whole*1000;
+ int64_t product=whole*mul,q=sh_axis_floor(product,den),r=product-q*den;
+ return q+sh_axis_floor(r*1000+fraction*mul+den*500,den*1000);
+}
+static inline int64_t sh_axis_px_us(struct sh_wave_axis a,int64_t us){
+ if(a.pps<=0)return 0;
+ if(a.grid){
+  int64_t ceil_ms= -sh_axis_floor(-us,1000);
+  int32_t ms=ceil_ms<INT32_MIN?INT32_MIN:ceil_ms>INT32_MAX?INT32_MAX:(int32_t)ceil_ms;
+  uint32_t i=a.regular?a.lo:sh_axis_segment(a,ms);
+  int64_t span=a.regular?a.regular:(int64_t)a.grid[i+1].ms-a.grid[i].ms;
+  if(span>0)return (int64_t)i*(a.pps/2)+sh_axis_ratio_us(us-(int64_t)a.grid[i].ms*1000,a.pps/2,span);
+ }
+ if(a.bpm)return sh_axis_ratio_us(us,(int64_t)a.pps*a.bpm,12000000);
+ return sh_axis_ratio_us(us,(int64_t)a.pps*10000,(int64_t)(a.rate?a.rate:10000u)*1000);
+}
+
 static inline int32_t sh_axis_ms(struct sh_wave_axis a,int64_t px){
  if(a.pps<=0)return 0;
  if(px<=sh_axis_px(a,INT32_MIN))return INT32_MIN;

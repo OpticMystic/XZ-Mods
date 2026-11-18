@@ -1,4 +1,6 @@
+#include "../extra_timeline_projection.h"
 #include "l10n.h"
+#include "tempo_text.h"
 #include "../key/view.h"
 /* SPDX-License-Identifier: MIT */
 #include "extra_lane.h"
@@ -37,19 +39,6 @@ _Static_assert(sizeof(struct xz_extra_column)==3,"PWV7 columns are three packed 
 
 int xz_extra_notice_active(const struct xz_extra_decks *s,uint32_t now_ms) {
  return s&&s->notice_seq&&s->notice[0]&&(uint32_t)(now_ms-s->notice_at_ms)<3500u;
-}
-int xz_extra_banner_draw(uint16_t *pixels,size_t stride,size_t count,const char *text) {
- if(!pixels||!text||!text[0]||stride<WIDTH||stride>SIZE_MAX/XZ_WAVE_HEIGHT||count<stride*XZ_WAVE_HEIGHT)return 0;
- struct xz_canvas c={pixels,stride,WIDTH,XZ_WAVE_HEIGHT,0};
- xz_rect(c,6,244,WIDTH-12,22,0x151515);
- xz_border(c,6,244,WIDTH-12,22,0xff9a30);
- xz_text(c,14,251,text,1,63,0xffffff);
- return 1;
-}
-int xz_extra_notice_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_extra_decks *s,uint32_t now_ms) {
- if(!xz_extra_notice_active(s,now_ms))return 0;
- char text[sizeof s->notice];memcpy(text,s->notice,sizeof text);text[sizeof text-1]=0;
- return xz_extra_banner_draw(pixels,stride,count,text);
 }
 
 enum xz_extra_sync_class xz_extra_sync_class(const struct xz_extra_deck *d){
@@ -124,23 +113,8 @@ int xz_extra_lane_position_ms(const struct xz_extra_deck *d,uint32_t now_ms,int3
  int have=(d->known&K(ELAPSED))!=0;
  int64_t p=have?d->elapsed_ms:0;
  if(d->known&K(TIMELINE)){
-  const struct xz_extra_timeline *t=&d->timeline;
-  uint32_t age=now_ms-t->at_ms;
-  if((t->flags&XZ_EXTRA_TIMELINE_ANCHOR)&&t->source_rate&&t->at_ms&&(int32_t)age>=0&&age<=250u&&
-     t->source_frame<=(uint64_t)INT32_MAX*t->source_rate/1000u){
-   p=(int64_t)(t->source_frame*1000u/t->source_rate);have=1;
-   int moving=t->flags&XZ_EXTRA_TIMELINE_MOTION?t->moving:((d->known&K(PLAYING))&&d->playing);
-   if(moving&&(t->flags&XZ_EXTRA_TIMELINE_RATE)){
-    if(age>50u)age=50u;
-    int64_t advanced=p+(int64_t)age*t->rate_ppm/1000000;
-    if((d->known&K(LOOP))&&d->loop.active&&d->loop.out_ms>d->loop.in_ms&&p>=d->loop.in_ms&&p<d->loop.out_ms&&
-       (advanced<d->loop.in_ms||advanced>=d->loop.out_ms)){
-     int64_t span=(int64_t)d->loop.out_ms-d->loop.in_ms,offset=(advanced-d->loop.in_ms)%span;
-     advanced=d->loop.in_ms+(offset<0?offset+span:offset);
-    }
-    p=advanced;
-   }
-  }
+  int32_t projected;
+  if(xz_extra_project_ms(d,now_ms,&projected)){p=projected;have=1;}
  }else if((d->known&K(PLAYING))&&d->playing&&d->elapsed_at_ms){
   int32_t age=(int32_t)(now_ms-d->elapsed_at_ms);
   if(age<0)age=0;else if(age>1000)age=1000;
@@ -293,10 +267,8 @@ static void readout(struct xz_canvas c,unsigned number,const struct xz_extra_dec
    rx-=chip_width(c,text);chip(c,rx,32,11,text,0,DIM,LABEL);rx-=4;
   }
  }
- if(d->known&K(TEMPO)){
-  int32_t t=d->tempo_x100,a=t<0?-t:t;
-  snprintf(text,sizeof(text),"%c%d.%02d%%",t<0?'-':t>0?'+':' ',(int)(a/100),(int)(a%100));
- }else snprintf(text,sizeof(text),"--.--%%");
+ if(d->known&K(TEMPO)){xz_tempo_text(text,sizeof(text)-1,d->tempo_x100,(d->known&K(TEMPO_RANGE))!=0,d->tempo_range);strcat(text,"%");}
+ else snprintf(text,sizeof(text),"--.--%%");
  int tw=xz_text_width(c,text,1,8);
  if(rx-tw>=lx)xz_text(c,rx-tw,34,text,1,8,(d->known&K(TEMPO))?0xd8dde2:BLANK);
  /* Line 4: what the pads do, then REV, SLIP (filled while playback runs on underneath), QUANTIZE, VINYL. */

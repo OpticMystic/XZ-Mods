@@ -38,17 +38,17 @@ function loaderChoice(){
   const saved=savedModVersion(),recorded=W.inspection.recorded_mod_version;
   return saved&&recorded?.id===saved.id&&recorded?.runtime_sha256===saved.runtime_sha256?'keep':'update';
 }
-// A folder gets the loader only: games go straight onto a USB, so none are planned for a folder.
-function newGames(){return W.inspection?.requires_copy_to_usb_root?[]:[...W.games].filter(id=>!W.inspection?.games.find(game=>game.id===id)?.installed);}
+// A folder gets the loader only: games go straight onto a USB, so none are planned for a folder. The plan follows
+// the games list's order, whatever order the DJ ticked them in.
+function newGames(){const ins=W.inspection;return !ins||ins.requires_copy_to_usb_root?[]:offeredGames(ins).filter(game=>W.games.has(game.id)&&!game.installed).map(game=>game.id);}
 // Games the catalog offers (ui/games.js); the backend may list others, which are never offered or planned.
 function offeredGames(inspection){return (inspection.games||[]).filter(game=>GAMES.some(entry=>entry.id===game.id));}
 function installedGames(inspection){return new Set(offeredGames(inspection).filter(game=>game.installed).map(game=>game.id));}
-// A USB without the loader gets every working free game; Change games removes any. A USB that has the
-// loader keeps what it holds, so an update never adds games nobody asked for.
-function defaultGames(inspection){return new Set(offeredGames(inspection).filter(game=>game.installed||!inspection.loader.exists).map(game=>game.id));}
-// The editable settings the loader carries. Only the games_menu switches in Change games edit them.
+// Games are off unless the DJ installs them (owner, 2026-11-15): every flow starts from the games the USB already
+// holds, so a fresh install adds none and an update keeps what is there. Add free games in the review ticks more.
+// The editable settings the loader carries. Only the games_menu switches in the games list edit them.
 function startState(inspection){
-  W.games=defaultGames(inspection);
+  W.games=installedGames(inspection);
   W.settings=inspection.settings.editable?{...inspection.settings.values}:null;W.settingsStart=W.settings?{...W.settings}:null;
 }
 function settingsChanges(){
@@ -195,8 +195,8 @@ function go(patch){
 
 const bundledVersion=()=>modVersionById(modInventory?.bundled_id);
 const sameRuntime=(a,b)=>Boolean(a&&b&&a.runtime_sha256===b.runtime_sha256);
-const isIncluded=version=>/^Included development build /.test(version?.label||'');
-function buildName(version){return isIncluded(version)?'Development build '+String(version.runtime_sha256||'').slice(0,8):version?.label||version?.id||'';}
+const isIncluded=version=>/^Included (development )?build /.test(version?.label||'');
+function buildName(version){return isIncluded(version)?'Included build '+String(version.runtime_sha256||'').slice(0,8):version?.label||version?.id||'';}
 let buildSaving=false,buildNote='';
 async function saveBuild(id,pinned,origin){
   if(buildSaving||!modInventory)return;
@@ -300,7 +300,7 @@ function status(){
   if(!saved)return {tone:'setup',title:ins.loader.exists?present:missing,line:'Choose which XZ Mods build goes on this USB.',
     action:{label:'Use the newest build',run:()=>saveBuild(bundledVersion()?.id||modInventory.versions[0].id,true,jobSlot)}};
   switch(loaderChoice()){
-    case 'add':return {tone:'add',title:missing,line:'Adds the loader, free games and your DJ profile. Music and playlists stay as they are.',action:{label:'Install XZ Mods',run:()=>startFlow('install')}};
+    case 'add':return {tone:'add',title:missing,line:'Adds the loader and your DJ profile. Music and playlists stay as they are.',action:{label:'Install XZ Mods',run:()=>startFlow('install')}};
     case 'update':return {tone:'update',title:XZText('Update available'),line:(recorded?'This USB has '+buildName(recorded)+'. ':'The XZ Mods version on this USB is not known. ')+'Updating backs up its loader and adds '+buildName(saved)+'.',
       extra:changesBox(),action:{label:'Update USB',run:()=>startFlow('update')}};
     default:return {tone:'keep',title:XZText('Up to date'),line:buildName(saved)+' is on this USB.'};
@@ -329,7 +329,7 @@ function tiles(){
   return el('div',{class:'wz-tiles'},
     tile('profile','profile','DJ profile',profiles.active_name||(profiles.count?plural(profiles.count,'profile'):'Not set'),profiles.count?'Edit':'Add',
       ()=>startFlow(installReady()?'install':'profile',{profile:true})),
-    tile('games','games','Games',games?plural(games,'game')+' on USB':'None','Choose',()=>startFlow(installReady()?'install':'games',{gamesOpen:true})),
+    tile('games','games','Games',games?plural(games,'game')+' on USB':'None',games?'Choose':'Add',()=>startFlow(installReady()?'install':'games',{gamesOpen:true})),
     tile('stems','stems','Stems',stems?plural(stems,'track')+' prepared':'None yet','Prepare',()=>showPage('stems')));
 }
 function buildLine(){
@@ -389,7 +389,6 @@ function startFlow(kind,{profile=false,gamesOpen=false}={}){
   // not a step: nothing about it happens while writing, so it is explained while the write runs and on the done screen.
   const withLook=(kind==='install'||kind==='update')&&lookAvailable();
   const steps=[...(withProfile?['profile']:[]),...(withLook?['look']:[]),'review','writing','done',...((kind==='install'||kind==='update')?['support']:[])];
-  if(kind==='profile')W.games=installedGames(ins);
   const entry=gamesOpen?'review':steps[0];
   go({view:'flow',flow:{kind,steps,entry},step:entry,loader:FLOWS[kind].loader,result:null,gamesOpen,quadConfirmed:false,quadPaused:false});focusStep();
 }
@@ -678,7 +677,7 @@ function stepReview(){
   return [el('h3',{text:XZText('Ready to write to ')+driveLabel()}),
     planList(),
     W.inspection.requires_copy_to_usb_root?null:el('div',{class:'wz-games-change'},
-      el('button',{type:'button',class:'text-button',id:'wz-change-games','aria-expanded':String(W.gamesOpen),text:W.gamesOpen?XZText('Hide games'):XZText('Change games'),onclick:()=>{W.gamesOpen=!W.gamesOpen;render();}}),
+      el('button',{type:'button',class:'text-button',id:'wz-change-games','aria-expanded':String(W.gamesOpen),text:W.gamesOpen?XZText('Hide games'):W.games.size?XZText('Change games'):XZText('Add free games'),onclick:()=>{W.gamesOpen=!W.gamesOpen;render();}}),
       W.gamesOpen?gamesChooser():null),
     nothing?el('p',{class:'notice',role:'status',text:XZText('Nothing to write yet. Add a game or a DJ profile, or go back.')}):null,
     W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:XZText('This is a folder, not a USB. Copy everything in it to the top of a USB stick afterward. Games are added only when you write to the USB itself.')}):null,

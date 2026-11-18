@@ -56,14 +56,19 @@ static void enable_all_screens(struct xz_shell_model *m) {
 static void test_unknown_fields_read_nothing(void) {
  struct xz_shell u;struct xz_shell_model m,zero;
  xz_shell_init(&u);
- memset(&m,0xa5,sizeof m);                /* garbage everywhere ... */
- for(int d=0;d<2;d++){
+ /* Garbage in everything a known bit guards: the decks, the settings and the FX. The model's other
+    fields (deck_count, startup_idle, the idle logo, the recorder ...) are plain values the screens read
+    as given, so they stay zero here. */
+ memset(&m,0,sizeof m);
+ for(int d=0;d<XZ_SHELL_DECKS;d++){
+  memset(&m.deck[d],0xa5,sizeof m.deck[d]); /* garbage everywhere ... */
   m.deck[d].known=0;                      /* ... but nothing is known ... */
-  m.deck[d].title=m.deck[d].artist=m.deck[d].key=NULL;  /* ... and every pointer is NULL */
-  m.deck[d].grid=NULL;m.deck[d].wave.columns=NULL;m.deck[d].overview.columns=NULL;m.deck[d].artwork=NULL;
+  m.deck[d].title=m.deck[d].artist=m.deck[d].key=m.deck[d].key_original=NULL;  /* ... and every pointer is NULL */
+  m.deck[d].grid=NULL;m.deck[d].wave.columns=NULL;m.deck[d].overview.columns=NULL;m.deck[d].stems.columns=NULL;
+  m.deck[d].artwork=NULL;m.deck[d].alert.code=m.deck[d].alert.text=NULL;
  }
- m.settings.known=0;m.link_known=0;m.capabilities=0;m.clock_ms=0;m.fx.known=0;m.stems_known=0;m.notice=NULL;
- m.browse=NULL;m.settings_screen=NULL;m.source=NULL;m.info=NULL;
+ memset(&m.settings,0xa5,sizeof m.settings);m.settings.known=0;
+ memset(&m.fx,0xa5,sizeof m.fx);m.fx.known=0;
  render_checked(&u,&m,buffer_a);
  memset(&zero,0,sizeof zero);
  render_checked(&u,&zero,buffer_b);
@@ -124,6 +129,8 @@ static void test_navigation(void) {
   assert(press(&u,&m,again,out)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAY&&u.depth==1);
   assert(press(&u,&m,lists[i].key,out)==0&&xz_shell_screen(&u)==lists[i].screen);
   if(rooted)assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE);
+  /* SEARCH opens on its keyboard: the first BACK puts the keyboard away (test_browse_workflows.c). */
+  if(lists[i].screen==XZ_SHELL_SEARCH)assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&xz_shell_screen(&u)==XZ_SHELL_SEARCH);
   assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAY);
  }
  /* One list at a time: a second list key swaps. */
@@ -140,10 +147,9 @@ static void test_navigation(void) {
  press(&u,&m,XZ_SHELL_KEY_INFO,out);assert(u.depth==3&&u.panel.kind==XZ_SHELL_PANEL_INFO);
  assert(press(&u,&m,XZ_SHELL_KEY_BACK_HOLD,out)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAY&&u.depth==1&&u.panel.kind==XZ_SHELL_PANEL_NONE);
  assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&u.depth==1);
- /* A short MENU on PLAY opens MODS (the stock deck does nothing there); on lists it opens the MENU panel;
-    on MODS it closes. */
- assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&u.depth==2&&xz_shell_screen(&u)==XZ_SHELL_UTILITY);
- assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&u.depth==1);
+ /* A short MENU on PLAY asks for MODS, the runtime's one menu (the stock deck does nothing there;
+    test_mods_entry.c); on lists it opens the MENU panel. */
+ assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&u.depth==1);
  press(&u,&m,XZ_SHELL_KEY_BROWSE,out);
  assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&u.panel.kind==XZ_SHELL_PANEL_MENU&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);
  assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&u.panel.kind==XZ_SHELL_PANEL_NONE);
@@ -253,8 +259,9 @@ static void test_writable_settings(void) {
  struct xz_shell u;struct xz_shell_model m;struct xz_shell_action out[XZ_SHELL_ACTIONS];
  xz_shell_init(&u);fx_model_full(&m,&track);
  const struct xz_canvas measure={NULL,800,800,480,XZ_THEME_FLAGSHIP};
- int widths[]={sh_text_width(measure,"SINGLE",SH_SMALL)+sh_text_width(measure,"CONTINUE",SH_SMALL)+28,
-  sh_text_width(measure,"A. HOT CUE",SH_SMALL)+12,sh_text_width(measure,"A. CUE",SH_SMALL)+12};
+ /* 24 px boxes, 5 px padding, 6 px gaps; PLAY MODE sets SINGLE over CONTINUE (shell_play.c top_chips). */
+ int widths[]={sh_max(sh_text_width(measure,"SINGLE",SH_SMALL),sh_text_width(measure,"CONTINUE",SH_SMALL))+10,
+  sh_text_width(measure,"A. HOT CUE",SH_SMALL)+10,sh_text_width(measure,"A. CUE",SH_SMALL)+10};
  const int ids[]={XZ_SHELL_SET_PLAY_MODE,XZ_SHELL_SET_HOT_CUE_AUTO_LOAD,XZ_SHELL_SET_AUTO_CUE};
  m.settings.writable=(uint64_t)1<<XZ_SHELL_SET_TIME_MODE;
  render_checked(&u,&m,buffer_a);
@@ -277,7 +284,7 @@ static void test_writable_settings(void) {
   touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
   m.capabilities|=XZ_SHELL_CAP_SET_SETTING;
   m.settings.writable=(uint64_t)1<<XZ_SHELL_SET_TIME_MODE;
-  x+=widths[i]+8;
+  x+=widths[i]+6;
  }
  struct xz_shell_event tm={XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_TIME_MODE,1};
  struct xz_shell_rect time=xz_shell_play_rect(&m,XZ_SHELL_R_TIME,1);

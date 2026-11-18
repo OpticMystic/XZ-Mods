@@ -7,6 +7,7 @@
 static struct xz_net_view fixture;
 static enum xz_net_result read_result;
 static unsigned reads,os_calls;
+void xz_net_service_set_dhcp(struct xz_net_service *s,int enabled){(void)s;(void)enabled;os_calls++;}
 enum xz_net_result xz_net_service_try_read(struct xz_net_service *s,struct xz_net_view *v){assert(s==(struct xz_net_service *)1);reads++;if(read_result)return read_result;*v=fixture;return XZ_NET_OK;}
 enum xz_net_result xz_net_service_submit(struct xz_net_service *s,const struct xz_net_command *c){(void)s;(void)c;os_calls++;return XZ_NET_INVALID;}
 enum xz_net_result xz_net_service_start(struct xz_net_service **s,const struct xz_net_backend *b){(void)s;(void)b;os_calls++;return XZ_NET_INVALID;}

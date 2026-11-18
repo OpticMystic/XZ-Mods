@@ -16,14 +16,18 @@ import soundfile as sf
 
 ROLES = ('vocal', 'instrumental', 'drums', 'harmonics', 'vocals-drums', 'vocals-harmonics', 'full-mix')
 PAGE_BYTES = 131072
+# Page container per sample rate (FORMAT.md): the magic tells the reader which rate the FLAC pages hold.
+MAGIC = {96000: b'OVPGZ003', 44100: b'OVPGZ004'}
 
 
-def pack(raw, target):
+def pack(raw, target, rate=96000):
+    if rate not in MAGIC:
+        raise ValueError('Unsupported OverCue sample rate')
     size = raw.stat().st_size
     if not 0 < size <= PAGE_BYTES * 4096 or size % 4:
         raise ValueError('Invalid OverCue PCM length')
     count = -(-size // PAGE_BYTES)
-    header = b'OVPGZ003' + struct.pack('>IIQ', PAGE_BYTES, count, size)
+    header = MAGIC[rate] + struct.pack('>IIQ', PAGE_BYTES, count, size)
     table, pcm, offset = bytearray(), hashlib.sha256(), 24 + 48 * count
     with raw.open('rb') as source, target.open('xb') as output:
         output.seek(offset)
@@ -33,12 +37,12 @@ def pack(raw, target):
                 raise ValueError('PCM changed while encoding')
             samples = np.frombuffer(page, dtype='<i2').reshape(-1, 2)
             stream = io.BytesIO()
-            sf.write(stream, samples, 96000, format='FLAC', subtype='PCM_16')
+            sf.write(stream, samples, rate, format='FLAC', subtype='PCM_16')
             payload = stream.getvalue()
             if not payload or len(payload) > len(page) + 65536:
                 raise ValueError('FLAC page exceeds the format limit')
-            decoded, rate = sf.read(io.BytesIO(payload), dtype='int16', always_2d=True)
-            if rate != 96000 or decoded.shape != samples.shape or decoded.astype('<i2').tobytes() != page:
+            decoded, decoded_rate = sf.read(io.BytesIO(payload), dtype='int16', always_2d=True)
+            if decoded_rate != rate or decoded.shape != samples.shape or decoded.astype('<i2').tobytes() != page:
                 raise ValueError('FLAC page did not decode to the original PCM')
             table += struct.pack('>QII', offset, len(payload), len(page)) + hashlib.sha256(page).digest()
             pcm.update(page)
@@ -55,9 +59,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--roles', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--rate', type=int, choices=sorted(MAGIC), default=96000)
     args = parser.parse_args()
     args.output.mkdir(exist_ok=False)
-    result = {role: pack(args.roles / (role + '.s16le'), args.output / f'stems-sidecar-{role}.s16le.pgz') for role in ROLES}
+    result = {role: pack(args.roles / (role + '.s16le'), args.output / f'stems-sidecar-{role}.s16le.pgz', args.rate) for role in ROLES}
     (args.output / 'result.json').write_text(json.dumps(result), encoding='utf-8')
 
 

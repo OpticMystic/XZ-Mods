@@ -180,7 +180,9 @@ try {
   await evaluate(`document.querySelector('#stem-tracks tr[data-id="3"] .st-open-button').click()`);
   await check(`!document.getElementById('stems').innerText.includes('OverCue')&&!/beta/i.test(document.getElementById('stems').innerText)`, 'no OverCue or Beta wording with every drawer closed');
   await evaluate(`document.querySelector('#stem-tracks tr[data-id="2"] .st-open-button').click()`);
-  await check(`(document.body.innerText.match(/OverCue/g)||[]).length===1&&txt('#stem-tracks tr.st-drawer').includes('Prepared outside XZ Mods · 422 MB')`, 'OverCue is named exactly once, in the Ready drawer');
+  await check(`(document.body.innerText.match(/OverCue/g)||[]).length===1&&txt('#stem-tracks tr.st-drawer').includes('Prepared outside XZ Mods · 422 MB')
+    &&[...document.querySelectorAll('#stem-tracks tr.st-drawer .st-compat')].map(p=>p.textContent).join('|')==='Also works with stems prepared by OverCue Desktop.|There, choose the 44.1 kHz FLAC stems in Settings. The XZ has them ready sooner and does less work while it plays.'`,
+    'OverCue is named exactly once, in the Ready drawer, followed by the 44.1 kHz FLAC stems hint');
   await evaluate(`document.querySelector('#stem-tracks tr[data-id="2"] .st-open-button').click()`);
 
   assert.equal(await selectMissing(12), 12);

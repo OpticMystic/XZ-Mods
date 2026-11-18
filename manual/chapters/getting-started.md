@@ -38,7 +38,7 @@ The app gets and checks the files it needs. Nothing from the player's maker is i
 
 If a download is interrupted or fails verification, the app makes up to three attempts. Each attempt starts again and must pass the same size and checksum checks. If it still fails, the error distinguishes an incomplete download from a checksum mismatch. Check your connection and try again. If it continues, include that error when reporting the problem.
 
-> **Caution.** XZ Mods is a preview. Test every new USB at home before you use it in a set.
+> **Caution.** Test every new USB at home before you use it in a set.
 
 ## Prepare a USB
 
@@ -52,10 +52,10 @@ You prepare the USB in the XZ Mods app on your computer. It does not format the 
 
 ```figure app:install-review XZ Mods app · Install XZ Mods
 The checklist before the write. Music, playlists and prepared stems are never touched.
-1 @ 403,284 Loader | XZ Mods itself.
-2 @ 545,330 Games | Free games the app downloads and checks.
-3 @ 357,376 Interface | The screen the XZ starts with.
-4 @ 773,716 Write to USB | Writes everything in the checklist.
+1 @ 605,238 Loader | XZ Mods itself.
+2 @ 747,284 Games | Free games, only if you add them. A fresh USB gets none.
+3 @ 559,330 Interface | The screen the XZ starts with.
+4 @ 895,716 Write to USB | Writes everything in the checklist.
 ```
 
 Every step of the app is in [The XZ Mods app](desktop-app#usb). To add stems to your tracks, see [Stems](stems).
@@ -80,7 +80,7 @@ MODERN draws the whole play screen. The player's controls work as before, and th
 The MODERN play screen with a track on each deck.
 1 @ 772,32 MODS | Opens the MODS menu, like a short press of MENU.
 2 @ 708,32 STEMS | Shows or hides the stem rows.
-3 @ 565,32 DECKS | Chooses two or four decks.
+3 @ 603,32 DECKS | Chooses two or four decks.
 4 @ 62,105 Deck lanes | One waveform lane per deck, with its source and key.
 5 @ 200,288 Deck panel | The track, time, tempo and BPM of each deck.
 ```
@@ -107,8 +107,8 @@ A new USB starts in MODERN unless you choose the standard interface in the app.
 
 ```figure app:install-screen XZ Mods app · Install XZ Mods
 Choose the screen the XZ shows. New interface is MODERN, Standard XDJ-XZ interface is CLASSIC.
-1 @ 299,543 New interface | MODERN.
-2 @ 889,405 Standard XDJ-XZ interface | CLASSIC.
+1 @ 501,466 New interface | MODERN.
+2 @ 1040,342 Standard XDJ-XZ interface | CLASSIC.
 ```
 
 ### Switch on the player

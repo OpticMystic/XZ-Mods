@@ -15,7 +15,7 @@ typedef struct {
     uint32_t bpm_x100, track_number, bitrate, sample_rate;
     uint16_t duration_seconds;
     uint8_t rating, color_id;
-    pdb_text title, artist, album, genre, key, label, color, file_path, artwork_path, date_added;
+    pdb_text title, artist, album, genre, key, label, color, file_path, artwork_path, date_added, analysis_path;
 } pdb_track;
 typedef struct {
     uint32_t id, parent_id, sort_order;
@@ -35,10 +35,17 @@ typedef enum {
 typedef struct { uint32_t track_id, group_id; pdb_text name, title; } pdb_index_entry;
 typedef struct { const pdb_index_entry *entries; size_t count; } pdb_index;
 
-/* arena may have any alignment; db and every dynamic byte live in it. The file
- * must remain immutable until the caller discards db. No close or allocation. */
+/* arena may have any alignment; db and result allocations live in it. The file
+ * must remain immutable until the caller discards db. No close or allocation.
+ * Optional lookup-cache storage is supplied separately by the caller. */
 int pdb_open(pdb **out, pdb_read_fn read, void *user, uint64_t file_size,
              void *arena, size_t arena_size);
+/* Optional caller-owned metadata lookup storage, independent of arena results.
+ * Set only while idle; keep storage alive and unmodified until cleared with NULL/0 or db is
+ * discarded. malloc alignment and at least 64 cache entries are required.
+ * No heap allocation occurs in the reader. Existing low-memory callers keep
+ * the original small cache when this is not configured. */
+int pdb_set_lookup_cache(pdb *db, void *storage, size_t bytes);
 /* Track/tree strings expire when the callback returns. Nonzero callback result
  * stops iteration with PDB_STOP. Operations on one db are not reentrant. */
 int pdb_each_track(pdb *db, pdb_track_fn fn, void *user);

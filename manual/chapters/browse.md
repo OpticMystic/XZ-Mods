@@ -36,7 +36,7 @@ The TRACK category of USB1, sorted by title, with PREVIEW on and a row touched.
 | Control | What it does |
 |---|---|
 | Turn the encoder | Moves the highlight one row |
-| Push the encoder | Opens a folder. On a track, opens the track menu: LOAD TO DECK for each deck, CUE / LOOP LIST when the track has memory points and the deck can load at one, and CANCEL. The active deck is highlighted, so a second push loads it there |
+| Push the encoder | Opens a folder. On a track, opens the **LOAD TRACK** menu: LOAD TO DECK for each deck, in the order of the lanes, CUE / LOOP LIST when the track has memory points and the deck can load at one, and CANCEL. The active deck is highlighted, so a second push loads it there |
 | Hold the encoder | Turns letter jump on. Turning then jumps by first letter, or by page where the list has no index. Push or hold again to stop |
 | Drag or flick the list | Scrolls |
 | Tap a row | Highlights it and shows LOAD |
@@ -54,7 +54,6 @@ modern:browse-window-gap Rows still on their way from the USB stay blank for a m
 modern:browse-folders The PLAYLIST category: folders and playlists
 modern:browse-rail-scrolled The category rail dragged down to HISTORY and MATCHING
 modern:browse-long-strings Long names are cut to fit their column
-modern:browse-unknown The first moment after opening, before the list has been read
 modern:screen-browse BROWSE before the USB's library has been read: LIST NOT READ YET
 modern:screen-playlist PLAYLIST before it has been read
 modern:screen-tag-list TAG LIST before it has been read
@@ -76,6 +75,10 @@ There are three ways to load the highlighted track:
 - Press the [[LOAD]] button of the deck you want.
 
 If no track is highlighted, [[LOAD]] says **SELECT A TRACK, THEN PRESS LOAD**. On a screen that is not a track list it says **OPEN A TRACK LIST TO LOAD**. To load onto decks 3 and 4, see [Four decks](four-decks).
+
+While the **LOAD TRACK** menu is open, a [[LOAD]] key loads only when the highlighted row names its own deck. Otherwise the first press moves the highlight to that deck, and a second press loads. With **LOAD LOCK** on in UTILITY, a playing deck takes no new track: its row is dimmed and the screen says **LOAD LOCK: DECK 1 IS PLAYING**, with the deck's number.
+
+For about 30 seconds after you insert a stick, the player itself refuses to load from it. If you load an empty deck 1 or 2 in that time, the screen says **USB STARTING / DECK 1 LOADS WHEN READY** and XZ Mods repeats the load until it lands. You do not need to press [[LOAD]] again. A deck that already has a track is not loaded later by surprise: load it again once the stick is ready.
 
 ```gallery {modern}
 modern:browse-touched-load-deck2 The same row with deck 2 active: its 2 is highlighted
@@ -220,36 +223,61 @@ modern:r5-playlist-edited-marks A playlist changed on the player, marked in the 
 
 ## SOURCE {modern}
 
-SOURCE shows every place music can come from, one tile each. Press [[BACK]] at the top of a list, or tap the source tile at the top left of BROWSE.
+SOURCE shows every place music can come from, one tile each, named as the player's own source keys are printed: **USB 1**, **USB 2**, **LINK** and the library link from a computer or phone. A bar under the tiles says what the **REAR USB** port is used for. Press [[BACK]] at the top of a list, tap the source tile at the top left of BROWSE, or press the USB 1 or USB 2 key while that stick is not ready.
 
 ```nav source SOURCE {modern}
 ```
 
-```figure modern:source-full SOURCE {modern}
-USB1 is being browsed and plays on both decks. USB2 is still loading.
+```figure modern:source-06-no-cable SOURCE {modern}
+USB 1 is being browsed and plays on decks 1 and 2. USB 2 is still loading. No loopback cable is in, so the rear USB port is free for a computer.
 1 @ 95,68 BROWSING | The source BROWSE shows now.
-2 @ 100,238 Name and colour | The USB's name and the colour saved on it.
-3 @ 310,250 Status | READY, LOADING, NOT CONNECTED, or DECK'S OWN SCREEN where the player's own screen handles that source.
-4 @ 190,298 FREE | Free space on the USB.
-5 @ 120,404 Decks | The decks playing a track from this source.
-6 @ 565,250 LINK | Players on LINK. Browsing LINK from MODERN is not available yet.
-7 @ 690,250 COMPUTER | DJ software on a computer linked to the player. Browsing it from MODERN is not available yet.
-8 @ 446,22 Hint | Opening a source opens its library in BROWSE.
+2 @ 100,226 Name and colour | The USB's name and the colour saved on it.
+3 @ 330,205 Status | READY, LOADING, CAN'T READ, DECK 3/4 CABLE or NO REKORDBOX USB. See the table below.
+4 @ 115,270 FREE | Free space on the USB, with a bar for how full it is.
+5 @ 110,330 DECK | The decks playing a track from this stick.
+6 @ 565,256 LINK | Linked players over the LAN port, and DJ software over the rear USB port. Opens the player's own screen.
+7 @ 760,285 REKORDBOX OVER LAN and OVER USB | A library shared from a computer or phone, over the LAN port or the rear USB port. Opens the player's own screen.
+8 @ 446,22 Hint | What opening the highlighted tile does, or why it cannot open.
+9 @ 160,374 REAR USB | What the rear USB port holds now, and what that means.
 ```
 
-Turn the encoder to pick a tile and push to open it, or tap it. A source the player's own screen handles opens that screen. Touch cannot open it yet; push the encoder instead.
+Turn the encoder to pick a tile and push to open it. Touch a tile once to highlight it and again to open it. A USB stick opens its library in BROWSE. LINK and the library link open the player's own screen: push the encoder for those, because touch cannot open them yet. A tile that cannot open is skipped.
+
+The player's source keys answer in MODERN too. **USB 1** or **USB 2** opens that stick's library in BROWSE when it is ready, and SOURCE with that tile highlighted when it is not. [[LINK]] opens SOURCE with the LINK tile highlighted; press it again to open the player's own LINK screen. While the player's own screen is up, for example after that second press, USB 1, USB 2 or [[LINK]] brings MODERN back with that key's screen.
+
+| A USB tile says | What it means |
+|---|---|
+| READY | Its library is read. Open it to browse. |
+| LOADING | The player is still reading its library. |
+| CAN'T READ | The stick is in, but its library could not be read. Export the library to it again. |
+| DECK 3/4 CABLE | This top port holds the loopback cable for decks 3 and 4, not music. |
+| NO REKORDBOX USB | No stick with an exported library is in this port. A phone, or a stick without a library, shows this too. |
+
+The **REAR USB** bar follows the loopback cable for [decks 3 and 4](four-decks):
+
+| The bar says | What it means |
+|---|---|
+| DECK 3/4 CABLE | Decks 3 and 4 play through this port. While the cable is in, DJ software and rekordbox over a USB cable cannot connect there. Linked players and rekordbox over LAN still work. The LINK and library tiles mark their USB half with an amber cross and REAR USB IN USE. |
+| DECKS 3/4 STARTING | Decks 3 and 4 are starting. |
+| DECKS 3/4 STOPPED | Decks 3 and 4 could not start. The bar gives the reason. |
+| NO DECK 3/4 CABLE | A computer can use this port. Decks 3 and 4 need the loopback cable here, from a top USB port. |
+| FOR A COMPUTER | Four decks are not installed on this USB loader. A computer connects here. |
 
 ```gallery {modern}
-modern:source-cursor-computer The highlight on COMPUTER
-modern:source-loading-current USB2 being browsed while it loads
+modern:source-01-cable-in The loopback cable in USB 2: decks 3 and 4 play through the rear USB port
+modern:source-03-cable-in-rekordbox The library link with the cable in: over LAN only
+modern:source-04-cable-in-usb2-key USB 2 highlighted while it holds the cable
+modern:source-05-cable-in-no-music The cable in, and no music stick in the other port
+modern:source-08-starting Decks 3 and 4 starting
+modern:source-09-failed Decks 3 and 4 could not start
+modern:source-11-unreadable A stick whose library cannot be read
 modern:source-none-connected Nothing connected
 modern:source-stock-link LINK handled by the player's own screen
-modern:source-stock-export COMPUTER handled by the player's own screen
-modern:source-long-strings Long device names cut to fit
+modern:source-stock-export The library link handled by the player's own screen
 modern:source-unknown Before the sources have been read
 modern:screen-source SOURCE opened before anything has been read
 modern:r5-source-via-back SOURCE reached with [[BACK]] from the top of BROWSE
-modern:r5-source-usb2-missing USB2 asked for with nothing in it
+modern:r5-source-usb2-missing USB 2 asked for with nothing in it
 modern:r5-browse-absent-usb2 BROWSE on a USB that has been removed: no old rows remain
 ```
 
@@ -278,7 +306,6 @@ modern:info-list-highlight INFO for the track highlighted in a list, in its own 
 modern:info-not-loaded A deck with no track
 modern:info-no-browse INFO when browsing is not available: fields are not linked
 modern:info-long-strings Long names cut to fit
-modern:info-unknown Before the track has been read
 modern:screen-info INFO opened before anything has been read
 ```
 
@@ -318,6 +345,9 @@ MODS has no control for the three CLASSIC row fields in this version. They keep 
 |---|---|
 | USB1 IS NOT CONNECTED or USB2 IS NOT CONNECTED | Insert the USB, or pick another source |
 | USB SOURCE CHANGED: SELECT TRACK AGAIN | The USB changed while you chose. Highlight the track again |
+| LOAD LOCK: DECK 1 IS PLAYING (or another deck) | LOAD LOCK is on and that deck plays. Pause it, or turn LOAD LOCK off in UTILITY |
+| USB STARTING / DECK 1 LOADS WHEN READY (or DECK 2) | The stick went in a moment ago. Wait: the track loads by itself when the player is ready |
+| THAT DECK CANNOT LOAD THIS TRACK | Load it on another deck |
 | LOAD FROM THIS LIST IS OFF | Load from a track list instead |
 | LINK BROWSING IS NOT AVAILABLE YET or COMPUTER BROWSING IS NOT AVAILABLE YET | Switch to CLASSIC to browse that source |
 | TOUCH CANNOT OPEN THIS YET: PUSH THE ENCODER | Highlight the tile and push the encoder |

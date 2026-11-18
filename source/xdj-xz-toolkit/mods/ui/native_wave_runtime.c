@@ -11,6 +11,7 @@
 #include "native_raw_skin.h"
 #include "layered_wave_runtime.h"
 #include "ram_notice.h"
+#include "play_notice.h"
 /* Optional parts: harnesses without them show no RAM card, and an absent column count means nothing is known. */
 #pragma weak xz_layered_wave_native_columns
 #pragma weak xz_ram_notice_two_lane
@@ -42,7 +43,7 @@ __attribute__((visibility("default"))) uint32_t xz_native_wave_skin_v1[4]={1};
 static int transformed, drawn_layout, observed, observe_only, focus_verified;
 /* Four decks: route_up from the draw thread's snapshot at the wave lock; four_drawn is the drawn
    lane order + 1 after a successful four-deck frame, the geometry touches map against. */
-static int route_up, four_drawn, notice_up;
+static int route_up, four_drawn;
 static _Thread_local int four_frame_order,four_frame_layout;
 /* The DECK 3/4 detail panel (extra_detail.h): the touch thread opens, switches and closes it, and raises
    a refusal as (sequence << 8) | notice; the draw thread reads both once per four-deck frame. */
@@ -79,13 +80,6 @@ static const char *ready_text;
    side column, the bottom panels and touch; revoked with the play scene. */
 static _Thread_local unsigned two_frame_pair;
 static unsigned two_painted;
-/* A side switching deck while the route stays up and 2 DECKS shows raises one banner saying where it went
-   (deck_view.h xz_deck_view_pair_notice). Seen only while wave frames run back to back, so returning to the
-   play screen after a switch elsewhere says nothing. Draw thread only. */
-static unsigned pair_seen;
-static int pair_seen_valid;
-static uint32_t pair_seen_at,pair_from;
-static const char *pair_text;
 static _Thread_local uint8_t four_keep[XZ_FOUR_KEEP_BYTES];
 /* RAM ONLY (ui_runtime.c, ram/status.h DETACHED): bit d while deck d plays its whole track from RAM since the music
    USB went out. The draw thread shows the RAM card (ram_notice.h) in that deck's lane only while it has no waveform:
@@ -121,7 +115,7 @@ static int play_scene(struct xz_native_wave_scene *s){
 static int four_view(void){return xz_deck_layout_get()!=XZ_LAYOUT_TWO;}
 static int scene(struct xz_native_wave_scene *s){
  return ((requested&&requested())||xz_mods_native_style_v1()||xz_layered_wave_active()||
-         __atomic_load_n(&route_up,__ATOMIC_ACQUIRE)||__atomic_load_n(&notice_up,__ATOMIC_ACQUIRE)||four_view()||
+         __atomic_load_n(&route_up,__ATOMIC_ACQUIRE)||four_view()||
          __atomic_load_n(&ram_mask,__ATOMIC_ACQUIRE))&&play_scene(s);
 }
 static void ready_route(int up,uint32_t now){
@@ -146,16 +140,12 @@ static const char *ready_banner(uint32_t now){
 static unsigned sides_of(const struct xz_extra_decks *s){
  return s->route_up?(s->left_on_3?1u:0u)|(s->right_on_4?2u:0u):0u;
 }
-/* Route loss ends the banner: the players' own ROUTE LOST notice says what happened. */
-static void pair_route(int up,unsigned sides,uint32_t now){
- if(!up){pair_seen_valid=0;pair_text=NULL;return;}
- if(pair_seen_valid&&now-pair_seen_at<500u&&sides!=pair_seen&&xz_deck_layout_get()==XZ_LAYOUT_TWO){
-  pair_text=xz_deck_view_pair_notice(pair_seen,sides);pair_from=now;
- }
- pair_seen=sides;pair_seen_valid=1;pair_seen_at=now;
-}
-static const char *pair_banner(uint32_t now){
- return pair_text&&now-pair_from<XZ_DECK_VIEW_PAIR_NOTICE_MS?pair_text:NULL;
+/* The sentence CLASSIC's play screen shows now, for its top bar (play_notice.h), never on this surface (owner
+   2026-11-17: no notices over the waveforms): the route-up notice, else the players' notice while it is fresh.
+   Quiet ones (notice_policy.h: a new MASTER, the loop's words, a side switching deck) are not shown. Any thread;
+   s is the caller's own snapshot, now_ms monotonic like the players' notice_at_ms. */
+const char *xz_native_play_notice(const struct xz_extra_decks *s,uint32_t now_ms,char out[XZ_NATIVE_PLAY_NOTICE_BYTES]){
+ return xz_play_notice_pick(ready_banner(now_ms),s,now_ms,out,XZ_NATIVE_PLAY_NOTICE_BYTES);
 }
 uint32_t xz_native_four_card(void){return xz_native_four_order()<0?0:__atomic_load_n(&card_painted,__ATOMIC_ACQUIRE);}
 void xz_native_four_card_input(uint32_t now_ms,int focus){
@@ -241,8 +231,6 @@ static int lock_hook(void *window,void **pixels,int *pitch){
         int up=xz_extra_decks_snapshot_held(&extra,&extra_hold)!=0;uint32_t now=monotonic_ms();
         __atomic_store_n(&route_up,up,__ATOMIC_RELEASE);
         ready_route(up,now);
-        pair_route(up,sides_of(&extra),now);
-        __atomic_store_n(&notice_up,xz_extra_notice_active(&extra,now)||ready_banner(now)||pair_banner(now),__ATOMIC_RELEASE);
     }
     struct xz_native_wave_scene current;
     if(result==0&&caller==0x1fd058&&scene(&current)&&current.gr==(uintptr_t)window&&pixels&&pitch&&
@@ -263,17 +251,6 @@ static void style_main_wave(uint16_t *pixels,uint32_t count){
  xz_layered_wave_protect(pixels);
  xz_native_skin_wave_pixels(pixels,536,268,-1);
  xz_layered_wave_restore(pixels);
-}
-/* The route-up banner, else the newer of a side's switch and the player's notice, in the same place. */
-static void notice_banner(uint16_t *pixels,uint32_t count){
- uint32_t now=monotonic_ms();const char *ready=ready_banner(now),*side=pair_banner(now);
- if(ready)xz_extra_banner_draw(pixels,536,count,ready);
- else if(side&&!(xz_extra_notice_active(&extra,now)&&(int32_t)(extra.notice_at_ms-pair_from)>0))xz_extra_banner_draw(pixels,536,count,side);
- else xz_extra_notice_draw(pixels,536,count,&extra,now);
-}
-static void style_main_notice(uint16_t *pixels,uint32_t count){
- if(xz_mods_native_style_v1())style_main_wave(pixels,count);
- notice_banner(pixels,count);
 }
 /* The raw syscall, as shell_runtime.c: clock_gettime is GLIBC_2.17 and librt is not an allowed dependency. */
 static uint32_t monotonic_ms(void){
@@ -327,8 +304,8 @@ static uint32_t card_word(void){
  return XZ_NATIVE_CARD_SHOWN|(uint32_t)(four_frame_order&7)<<1|(uint32_t)(card_frame.state&15)<<4|
   (card_frame.ready_at_ms?XZ_NATIVE_CARD_SUCCESS:0u);
 }
-/* The theme over the whole surface with layer pixels kept exact, then the player's notice banner. An open
-   panel carries the notice in its own status row instead, so the banner never covers its controls. */
+/* The theme over the whole surface with layer pixels kept exact. Notices go to the top bar (play_notice.h); an
+   open DECK 3/4 panel also carries the players' notice in its own status row. */
 static void style_four(uint16_t *pixels,uint32_t count){
  if(count!=XZ_NATIVE_WAVE_PIXELS)return;
  if(xz_mods_native_style_v1()){
@@ -351,7 +328,7 @@ static void style_four(uint16_t *pixels,uint32_t count){
   xz_route_card_draw((struct xz_canvas){pixels,XZ_WAVE_WIDTH,XZ_WAVE_WIDTH,XZ_WAVE_HEIGHT,0},&xz_route_card_classic,
    (int)g.lane_y[2],(int)g.lane_y[3],&card_frame,cached?&card_cache:NULL);
   if(cached)__atomic_store_n(&card_cache_busy,0,__ATOMIC_RELEASE);
- }else if(four_frame_detail<0)notice_banner(pixels,count);
+ }
 }
 /* The decks that show the RAM card this frame; after the player drew its columns, with this frame's snapshot. */
 static unsigned ram_cards_now(void){
@@ -369,7 +346,7 @@ static unsigned ram_cards_now(void){
 }
 static struct xz_canvas ram_surface(uint16_t *pixels){return (struct xz_canvas){pixels,XZ_WAVE_WIDTH,XZ_WAVE_WIDTH,XZ_WAVE_HEIGHT,0};}
 /* 2 DECKS, over the finished surface: each native lane where its stem layout put it, a side on DECK 3 or 4 in
-   that deck's half. The notice banner keeps its place over them. */
+   that deck's half. */
 static void ram_two(uint16_t *pixels,uint32_t count){
  struct xz_wave_layout g;
  if(count!=XZ_NATIVE_WAVE_PIXELS||!ram_frame||!xz_ram_notice_two_lane||!xz_wave_layout_get(ram_rows,&g))return;
@@ -378,11 +355,6 @@ static void ram_two(uint16_t *pixels,uint32_t count){
    if(ram_frame>>(2+side)&1u)xz_ram_notice_two_lane(ram_surface(pixels),(int)XZ_TWO_LANE_Y(side),132);
   }else if(ram_frame>>side&1u)xz_ram_notice_two_lane(ram_surface(pixels),(int)g.lane_y[side],(int)g.lane_height);
  }
-}
-static void ram_two_banner(uint16_t *pixels,uint32_t count){ram_two(pixels,count);notice_banner(pixels,count);}
-static void ram_two_styled(uint16_t *pixels,uint32_t count){
- ram_two(pixels,count);
- if(__atomic_load_n(&notice_up,__ATOMIC_ACQUIRE))notice_banner(pixels,count);
 }
 /* Four decks: below each lane's deck tag, the lane's lower edge left clear. Not over the open DECK 3/4 panel, nor
    over decks 3 and 4 while their route card stands in their lanes. */
@@ -427,14 +399,14 @@ static int unlock_hook(void *window){
                 scratch,XZ_NATIVE_WAVE_PIXELS,four_frame_order,draw_extra,style_four);
             else if(two_frame_pair)drawn=xz_native_wave_finish_pair(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
                 scratch,XZ_NATIVE_WAVE_PIXELS,renderer,renderer_context,inline_rows,two_frame_pair,draw_two,style_two,
-                ram_frame?ram_two_banner:notice_banner);
-            /* The RAM card goes over the finished surface, so the banner moves after it to stay on top. */
+                ram_frame?ram_two:NULL);
+            /* The RAM card goes over the finished surface. */
             else if(ram_frame)drawn=xz_native_wave_finish_styled_after(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
                 scratch,XZ_NATIVE_WAVE_PIXELS,renderer,renderer_context,
-                xz_mods_native_style_v1()?style_main_wave:NULL,inline_rows,ram_two_styled);
+                xz_mods_native_style_v1()?style_main_wave:NULL,inline_rows,ram_two);
             else drawn=xz_native_wave_finish_styled(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
                 scratch,XZ_NATIVE_WAVE_PIXELS,renderer,renderer_context,
-                (xz_mods_native_style_v1()||__atomic_load_n(&notice_up,__ATOMIC_ACQUIRE))?style_main_notice:NULL,inline_rows);
+                xz_mods_native_style_v1()?style_main_wave:NULL,inline_rows);
             if(drawn&&xz_mods_native_style_v1())__atomic_fetch_add(&xz_native_wave_skin_v1[1],1,__ATOMIC_RELAXED);
         }
         else xz_native_wave_reset(&pair);

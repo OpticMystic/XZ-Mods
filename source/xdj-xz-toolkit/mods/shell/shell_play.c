@@ -9,22 +9,26 @@
    and lanes scroll in whole track pixels, so the picture moves every frame
    without shimmer. */
 #include "shell_internal.h"
+#include "../ui/ui_about.h"
 #include "shell_axis.h"
 #include "../ui/layout_cycle.h"
 #include "../ui/deck_view.h"
 #include "../ui/route_card.h"
 #include "../ui/deck_colour.h"
 #include "../ui/ram_notice.h"
+#include "../ui/rec_mark.h"
+#include "../ui/tempo_text.h"
 #include <stdio.h>
 #include <string.h>
 
 enum {
  TOP_H=26, COL_W=96, WAVE_X=98, WAVE_W=XZ_SHELL_WIDTH-WAVE_X-2, PAD=8,
  STEM_X=46, STEM_W=62, STEM_GAP=6, STEM_H=22, LAMP_W=14, LAMP_GAP=3,
- CHIP_Y=5, CHIP_H=16, CHIP_GAP=8,
- INFO_W=44, INFO_X=XZ_SHELL_HEADER_X-INFO_W-2, FX_Y=2, FX_H=22, FX_GAP=10,
+ CHIP_Y=1, CHIP_H=24, CHIP_PAD=5, CHIP_GAP=6, CHIP_LINE1=2, CHIP_LINE2=13,
+ /* INFO's touch target meets STEMS's as STEMS meets MODS (shell.c header_hit): no dead column between them. */
+ INFO_W=44, INFO_X=XZ_SHELL_HEADER_X-INFO_W, FX_X=251, FX_Y=2, FX_H=22,
  ALERT_BTN_W=150, GRID_BTN_W=78, GRID_BTN_GAP=4, HIT_H=44,
- /* The BEAT FX strip ends here in every view: the DECK VIEW button follows it (deck_view.h). */
+ /* The BEAT FX strip ends here in every view and state: the REC slot and the DECK VIEW button follow it. */
  FX_END=498
 };
 /* Play-screen geometry for one deck count, chosen once per call (layout_of). The drawing and the hit
@@ -68,9 +72,9 @@ static const struct play_layout two_deck={
  .pad_row_y=264, .pad_row_h=28, .stem_rows_half=0,
  .strip={.y=292, .h=188, .x0=2, .pitch=XZ_SHELL_WIDTH/2, .w=XZ_SHELL_WIDTH/2-4, .pad=8,
   .badge_y=5, .badge_w=44, .badge_h=20, .title_y=6, .title_artist_y=1, .artist_y=19, .artwork=1, .rule_y=29,
-  .track=1, .num_y=34, .time_dx=60, .time_value_dy=12, .time_face=SH_NUM_BIG, .time_frac=1,
-  .time_hit={68,32,150,56}, .quantize_right=206,
-  .tempo_dx=216, .tempo_dy=34, .tempo_value_dy=18, .lamps_dx=216, .lamps_dy=76,
+  .track=1, .num_y=34, .time_dx=48, .time_value_dy=12, .time_face=SH_NUM_BIG, .time_frac=1,
+  .time_hit={56,32,150,56}, .quantize_right=196,
+  .tempo_dx=204, .tempo_dy=34, .tempo_value_dy=18, .lamps_dx=204, .lamps_dy=76,
   .bpm_dx=298, .bpm_dy=32, .bpm_h=52, .chip_dy=97, .overview_dy=112, .overview_h=44, .scale=1}
 };
 /* Four lanes of 76 px share the zoom; four quarter strips keep the numbers a DJ reads mid-mix. Left
@@ -87,7 +91,7 @@ static const struct play_layout four_deck={
   .badge_y=2, .badge_w=56, .badge_h=22, .title_y=1, .title_artist_y=1, .artist_y=-1, .artwork=0, .rule_y=24,
   .track=0, .num_y=28, .time_dx=0, .time_value_dy=12, .time_face=SH_NUM_MID, .time_frac=0,
   .time_hit={6,26,84,44}, .quantize_right=0,
-  .tempo_dx=0, .tempo_dy=64, .tempo_value_dy=12, .lamps_dx=90, .lamps_dy=80,
+  .tempo_dx=0, .tempo_dy=64, .tempo_value_dy=12, .lamps_dx=92, .lamps_dy=80,
   .bpm_dx=90, .bpm_dy=27, .bpm_h=50, .chip_dy=100, .overview_dy=113, .overview_h=24, .scale=0}
 };
 static const struct play_layout *layout_of(const struct xz_shell_model *m) { return sh_play_deck_count(m)==4?&four_deck:&two_deck; }
@@ -114,25 +118,47 @@ static const int zoom_pps[XZ_SHELL_ZOOM_MAX+1]={32,48,64,96,128,192,256};
 static const char *const cue_letters[XZ_SHELL_HOT_CUES]={"A","B","C","D","E","F","G","H"};
 static const struct xz_canvas measure={NULL,XZ_SHELL_WIDTH,XZ_SHELL_WIDTH,XZ_SHELL_HEIGHT,XZ_THEME_FLAGSHIP};
 
-/* ---- top bar geometry ---- */
+/* ---- top bar geometry ----
+   Left of the BEAT FX strip, CHIP_GAP dead columns apart, each a 24 px box in the small face:
+     PLAY MODE x 8..66 (SINGLE over CONTINUE) | A. HOT CUE 73..134 | A. CUE 141..180 | ABLETON LINK 187..244
+   The two words of PLAY MODE stand one over the other, so the three chips end 60 px sooner than they did on one
+   16 px row (8..240) and ABLETON LINK fits before the strip, which keeps the place, size and time readout it had
+   before the control (x 251..497). */
 struct chip { struct xz_shell_rect r; enum xz_shell_setting setting; };
 static void top_chips(struct chip out[3]) {
  int x=PAD;
- int w0=sh_text_width(measure,"SINGLE",SH_SMALL)+sh_text_width(measure,"CONTINUE",SH_SMALL)+28;
+ int w0=sh_max(sh_text_width(measure,"SINGLE",SH_SMALL),sh_text_width(measure,"CONTINUE",SH_SMALL))+2*CHIP_PAD;
  out[0]=(struct chip){{x,CHIP_Y,w0,CHIP_H},XZ_SHELL_SET_PLAY_MODE};x+=w0+CHIP_GAP;
- int w1=sh_text_width(measure,"A. HOT CUE",SH_SMALL)+12;
+ int w1=sh_text_width(measure,"A. HOT CUE",SH_SMALL)+2*CHIP_PAD;
  out[1]=(struct chip){{x,CHIP_Y,w1,CHIP_H},XZ_SHELL_SET_HOT_CUE_AUTO_LOAD};x+=w1+CHIP_GAP;
- int w2=sh_text_width(measure,"A. CUE",SH_SMALL)+12;
+ int w2=sh_text_width(measure,"A. CUE",SH_SMALL)+2*CHIP_PAD;
  out[2]=(struct chip){{x,CHIP_Y,w2,CHIP_H},XZ_SHELL_SET_AUTO_CUE};
 }
-static int fx_left(void) { struct chip k[3];top_chips(k);return k[2].r.x+k[2].r.w+FX_GAP; }
-/* The BEAT FX strip ends before the DECKS button, which is always there. */
+static int chips_end(void) { struct chip k[3];top_chips(k);return k[2].r.x+k[2].r.w; }
+/* ABLETON LINK (shell.h xz_shell_ableton_rect) takes the bar's columns after A. CUE, up to XZ_SHELL_ABLETON_GAP
+   before the BEAT FX strip, which never moves for it. */
+static int link_known(const struct xz_shell_model *m) { return m&&m->ableton.known; }
+/* The right of the top bar, the same whether or not the unit records:
+     BEAT FX strip ..497 | REC slot 502..571 | DECKS 576..629 | INFO 630..673 | STEMS 674.. | MODS 744..
+   The REC mark (ui/rec_mark.h) owns the slot and is right-aligned in it; nothing is drawn there while the
+   recorder is idle or unknown. The slot fits the pill's dot and clock up to "99:59:59" (70 px), so the
+   time always shows, with the BEAT FX strip lit or not, and the strip never yields a column. The room came
+   from the DECKS button (120 px with its word, now its deck numbers alone, deck_view.h) and from the dead
+   columns around INFO; INFO keeps its 44 px target. The slot answers no touch. */
+enum { REC_Y=3, REC_GAP=4, REC_LEFT=FX_END+REC_GAP, REC_RIGHT=XZ_DECK_VIEW_MODERN_X-REC_GAP, REC_ROOM=REC_RIGHT-REC_LEFT };
+_Static_assert(REC_ROOM==70, "the REC slot holds the dot and the widest clock, 99:59:59");
+_Static_assert(XZ_DECK_VIEW_MODERN_X+XZ_DECK_VIEW_MODERN_W==INFO_X, "DECKS ends where INFO's touch target starts");
+static struct xz_rec_view rec_view(const struct xz_shell_model *m) {
+ return m?xz_rec_view_at(&m->recorder,m->clock_ms):(struct xz_rec_view){XZ_REC_NONE,0,0,0};
+}
+/* The BEAT FX strip ends before the REC slot in every view and every state. */
 static int fx_right(const struct xz_shell_model *m) { (void)m;return FX_END; }
 static int mode_lamps(const struct xz_shell *u) { return sh_indicator_shown(u,XZ_SHELL_IND_MODE_LAMPS); }
-/* The BEAT FX strip as drawn: XZ_SHELL_R_FX, reaching to the bar's left edge while the mode lamps are hidden. */
+/* The BEAT FX strip as drawn: XZ_SHELL_R_FX, reaching to the bar's left edge (or to ABLETON LINK there) while the
+   mode lamps are hidden; ABLETON LINK then stands at x 8. */
 static struct xz_shell_rect fx_rect(const struct xz_shell *u, const struct xz_shell_model *m) {
  struct xz_shell_rect r=xz_shell_play_rect(m,XZ_SHELL_R_FX,0);
- if(!mode_lamps(u)){r.w+=r.x-PAD;r.x=PAD;}
+ if(!mode_lamps(u)){int left=link_known(m)?PAD+XZ_SHELL_ABLETON_W+XZ_SHELL_ABLETON_GAP:PAD;r.w+=r.x-left;r.x=left;}
  return r;
 }
 
@@ -211,7 +237,7 @@ struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *m, enum xz_
  case XZ_SHELL_R_OVERVIEW:return (struct xz_shell_rect){sx+S->pad,S->y+S->overview_dy,S->w-2*S->pad,S->overview_h};
  case XZ_SHELL_R_ZOOM:return (struct xz_shell_rect){XZ_SHELL_WIDTH-84,lane_y(L,m,last)+L->lane_h-17,82,15};
  case XZ_SHELL_R_INFO_BUTTON:return (struct xz_shell_rect){INFO_X,0,INFO_W,TOP_H};
- case XZ_SHELL_R_FX:{int x=fx_left();return (struct xz_shell_rect){x,FX_Y,fx_right(m)-x,FX_H};}
+ case XZ_SHELL_R_FX:return (struct xz_shell_rect){FX_X,FX_Y,fx_right(m)-FX_X,FX_H};
  case XZ_SHELL_R_PAD_ROW:return L->pad_row_h?(struct xz_shell_rect){sx,L->pad_row_y,S->w,L->pad_row_h}:(struct xz_shell_rect){0,0,0,0};
  case XZ_SHELL_R_ALERT_BUTTON:return (struct xz_shell_rect){XZ_SHELL_WIDTH-2-ALERT_BTN_W-6,ly+L->lane_h/2-22,ALERT_BTN_W,HIT_H};
  case XZ_SHELL_R_GRID_RESET:case XZ_SHELL_R_GRID_SNAP:case XZ_SHELL_R_GRID_SHIFT:{
@@ -273,8 +299,10 @@ static int view_of(const struct xz_shell_model *m) {
 static int recent(const struct xz_shell *u, const struct xz_shell_model *m) {
  return m->clock_ms-u->deck_view.input_at<(uint32_t)XZ_DECK_VIEW_PICKER_TIMEOUT_MS;
 }
+/* The picker the loopback cable opened stays up longer: the DJ was looking at the cable, not the screen. */
 static int picker_live(const struct xz_shell *u, const struct xz_shell_model *m) {
- return xz_shell_screen(u)==XZ_SHELL_PLAY&&u->deck_view.open&&recent(u,m);
+ uint32_t timeout=u->deck_view.cable?(uint32_t)XZ_DECK_VIEW_CABLE_TIMEOUT_MS:(uint32_t)XZ_DECK_VIEW_PICKER_TIMEOUT_MS;
+ return xz_shell_screen(u)==XZ_SHELL_PLAY&&u->deck_view.open&&m->clock_ms-u->deck_view.input_at<timeout;
 }
 static int focus_live(const struct xz_shell *u, const struct xz_shell_model *m) {
  return xz_shell_screen(u)==XZ_SHELL_PLAY&&!u->deck_view.open&&u->deck_view.focus!=XZ_SHELL_FOCUS_NONE&&recent(u,m);
@@ -330,9 +358,9 @@ uint32_t xz_shell_play_motion_ms(const struct xz_shell *u, const struct xz_shell
 
 /* Readout text. Unknown values take the flagship's dash conventions. */
 static void fmt_time(char *out, size_t cap, int32_t ms, char *frac, size_t frac_cap) {
- if(ms<0)ms=0;
+ int negative=ms<0;if(negative)ms=-ms;
  int32_t s=ms/1000,m=s/60;if(m>99){m=99;s=99*60+59;}
- snprintf(out,cap,"%02d:%02d",(int)m,(int)(s%60));
+ snprintf(out,cap,"%s%02d:%02d",negative?"-":"",(int)m,(int)(s%60));
  snprintf(frac,frac_cap,".%03d",(int)(ms%1000));
 }
 static void fmt_fraction(char *out, size_t cap, int num, int den) {
@@ -361,6 +389,57 @@ static void number_box(struct xz_canvas c, int x, int y, int h, int deck, int li
 static uint32_t cue_color(const struct xz_shell_cue *q) { return q->is_loop?SH_LOOP:q->rgb&0xffffff; }
 static uint32_t ink_on(uint32_t fill) { return xz_theme_luma(fill)>150?SH_BLACK:SH_WHITE; }
 
+/* ---- ABLETON LINK ----
+   The setting and the session at a glance, in the top bar between A. CUE and the BEAT FX strip (shell.h
+   xz_shell_ableton_rect). One line: LINK in the small face, as the chips beside it, and the count in the large face
+   at the right end. The owner chose the bare word (2026-11-17) knowing it can be read as PRO DJ LINK; the blue fill
+   and the count tell it apart. The control keeps one rectangle in every state, so nothing moves when Link changes.
+   The state is carried by fill, not by words, so it reads from a distance and never looks like SYNC or MASTER:
+     DISABLED  LINK in grey in a grey outline; nothing else (the one state the manual's pictures show)
+     STARTING  a blue outline, LINK in white, a dash for the count
+     ON        filled blue; the count is the other apps in the session, in a white badge from the first one
+               on, so "something is listening" shows as a white square
+     FAILED    dark red with a red edge and "!" (helper not staged, or it could not start)
+   The touch sets the setting as MODS > CONNECT > NETWORK's row does; that row also says what failed. */
+enum { LINK_PAD=6, LINK_BADGE_W=22, LINK_BADGE_H=18, LINK_BADGE_RIGHT=3,
+ LINK_FAILED_FILL=0x5a0c0c, LINK_OFF_EDGE=0x5a5a5a, LINK_OFF_INK=0x8c8c8c };
+_Static_assert(XZ_SHELL_ABLETON_Y+XZ_SHELL_ABLETON_H<TOP_H, "the control sits inside the top bar, above its rule");
+_Static_assert((int)XZ_SHELL_ABLETON_Y==(int)CHIP_Y&&(int)XZ_SHELL_ABLETON_H==(int)CHIP_H, "the control stands as tall as the chips");
+_Static_assert(CHIP_LINE2+SH_CAP_SMALL<CHIP_H-1, "a chip's two lines clear its edge");
+static struct xz_shell_rect link_rect(const struct xz_shell *u, const struct xz_shell_model *m) {
+ if(!link_known(m))return (struct xz_shell_rect){0,0,0,0};
+ int x=u&&!mode_lamps(u)?PAD:chips_end()+XZ_SHELL_ABLETON_GAP;
+ return (struct xz_shell_rect){x,XZ_SHELL_ABLETON_Y,XZ_SHELL_ABLETON_W,XZ_SHELL_ABLETON_H};
+}
+/* The top bar is the same in every PLAY view, so the runtime's model and PLAY's projection give one answer. */
+struct xz_shell_rect xz_shell_ableton_rect(const struct xz_shell *u, const struct xz_shell_model *m) {
+ struct xz_shell u0;
+ if(!u){xz_shell_init(&u0);u=&u0;}
+ return link_rect(u,m);
+}
+static void render_ableton(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
+ struct xz_shell_rect r=link_rect(u,m);
+ if(!r.w)return;
+ enum xz_shell_ableton_state s=m->ableton.state;
+ uint32_t fill=s==XZ_SHELL_ABLETON_ON?SH_BLUE:s==XZ_SHELL_ABLETON_FAILED?LINK_FAILED_FILL:SH_BLACK;
+ uint32_t edge=s==XZ_SHELL_ABLETON_OFF?LINK_OFF_EDGE:s==XZ_SHELL_ABLETON_FAILED?SH_RED:SH_BLUE;
+ uint32_t name=s==XZ_SHELL_ABLETON_OFF?LINK_OFF_INK:SH_WHITE;
+ xz_rect(c,r.x,r.y,r.w,r.h,fill);
+ xz_border(c,r.x,r.y,r.w,r.h,edge);
+ sh_text(c,r.x+LINK_PAD,r.y+(r.h-SH_CAP_SMALL)/2,"LINK",SH_SMALL,name);
+ if(s==XZ_SHELL_ABLETON_OFF)return;
+ /* The count at the right end, in the large face; up to 99 fits its badge. */
+ struct xz_shell_rect k={r.x+r.w-LINK_BADGE_RIGHT-LINK_BADGE_W,r.y+(r.h-LINK_BADGE_H)/2,LINK_BADGE_W,LINK_BADGE_H};
+ char text[4]="-";uint32_t ink=SH_DIM;
+ if(s==XZ_SHELL_ABLETON_FAILED){snprintf(text,sizeof text,"!");ink=SH_WHITE;}
+ else if(s==XZ_SHELL_ABLETON_ON){
+  unsigned n=m->ableton.peers>99u?99u:m->ableton.peers;
+  snprintf(text,sizeof text,"%u",n);ink=SH_WHITE;
+  if(n){xz_rect(c,k.x,k.y,k.w,k.h,SH_WHITE);ink=SH_BLUE;}
+ }
+ sh_text_center(c,k.x+(k.w+1)/2,k.y+(k.h-SH_CAP_TEXT)/2,text,SH_TEXT,ink);
+}
+
 /* ---- top bar ---- */
 static void render_fx(const struct xz_shell_model *m, struct xz_canvas c, struct xz_shell_rect r);
 static int alert_on(const struct xz_shell_deck *d);
@@ -375,26 +454,29 @@ static void render_top(const struct xz_shell *u, const struct xz_shell_model *m,
  xz_rect(c,0,0,c.width,TOP_H,SH_CHROME);
  xz_rect(c,0,TOP_H-1,c.width,1,SH_BLACK);
  render_fx(m,c,fx_rect(u,m));
+ render_ableton(u,m,c);
+ {struct xz_rec_view rv=rec_view(m);xz_rec_draw(c,REC_RIGHT,REC_Y,XZ_REC_SHELL_H,REC_ROOM,&rv);}
  /* DECK VIEW, always on PLAY: 2 DECKS names the pair the sides drive. */
  xz_deck_view_button_draw(c,&xz_deck_view_modern,view_of(m),sh_deck_count(m)==4,sh_deck_count(m)==4?m->sides_extra&3:0,
   picker_live(u,m),focus_live(u,m)&&u->deck_view.focus==XZ_SHELL_FOCUS_DECK_VIEW);
  sh_info_icon(c,INFO_X+INFO_W/2,TOP_H/2,SH_WHITE);
  if(!mode_lamps(u))return;
  int mode_known=sh_setting(m,XZ_SHELL_SET_PLAY_MODE);
+ /* PLAY MODE: SINGLE over CONTINUE, the one in force lit. */
  struct xz_shell_rect r=chips[0].r;
  xz_border(c,r.x,r.y,r.w,r.h,SH_DIM);
  uint32_t mode_ink=sh_writable(m,XZ_SHELL_SET_PLAY_MODE)?SH_WHITE:0x8c8c8c;
- sh_text(c,r.x+6,r.y+3,"SINGLE",SH_SMALL,mode_known&&m->settings.play_mode==XZ_SHELL_PLAY_SINGLE?mode_ink:0x5a5a5a);
- int sep=r.x+6+sh_text_width(c,"SINGLE",SH_SMALL)+8;
- xz_rect(c,sep,r.y+3,1,10,SH_DIM);
- sh_text(c,sep+8,r.y+3,"CONTINUE",SH_SMALL,mode_known&&m->settings.play_mode==XZ_SHELL_PLAY_CONTINUE?mode_ink:0x5a5a5a);
+ sh_text_center(c,r.x+(r.w+1)/2,r.y+CHIP_LINE1,"SINGLE",SH_SMALL,mode_known&&m->settings.play_mode==XZ_SHELL_PLAY_SINGLE?mode_ink:0x5a5a5a);
+ sh_text_center(c,r.x+(r.w+1)/2,r.y+CHIP_LINE2,"CONTINUE",SH_SMALL,mode_known&&m->settings.play_mode==XZ_SHELL_PLAY_CONTINUE?mode_ink:0x5a5a5a);
  for(int i=1;i<3;i++){
   enum xz_shell_setting s=chips[i].setting;
   int on=sh_setting(m,s)&&(s==XZ_SHELL_SET_AUTO_CUE?m->settings.auto_cue:m->settings.hot_cue_auto_load);
   uint32_t ink=on?(sh_writable(m,s)?SH_WHITE:0x8c8c8c):0x5a5a5a;
   /* HOT CUE AUTO LOAD ON lights red and the library's own setting white, as the XZ lamp does (manual p.55). */
   if(on&&ink==SH_WHITE&&s==XZ_SHELL_SET_HOT_CUE_AUTO_LOAD&&m->settings.hot_cue_auto_load==XZ_SHELL_HCAL_ON)ink=SH_RED;
-  sh_chip(c,chips[i].r.x,chips[i].r.y,i==1?"A. HOT CUE":"A. CUE",on?SH_DIM:0x5a5a5a,ink,0);
+  struct xz_shell_rect k=chips[i].r;
+  xz_border(c,k.x,k.y,k.w,k.h,on?SH_DIM:0x5a5a5a);
+  sh_text(c,k.x+CHIP_PAD,k.y+(k.h-SH_CAP_SMALL)/2,i==1?"A. HOT CUE":"A. CUE",SH_SMALL,ink);
  }
 }
 
@@ -462,6 +544,9 @@ static void render_fx(const struct xz_shell_model *m, struct xz_canvas c, struct
  int name_known=fx_has(f,XZ_SHELL_FX_F_NAME)&&f->name&&*f->name;
  int show_beat=has_beat||!name_known,show_time=has_time||!name_known;
  int tw=show_time?sh_text_width(c,time,SH_SMALL):0,bw=show_beat?sh_text_width(c,beat,SH_TEXT):0;
+ /* The time gives way to the name: where both do not fit (a long name at a short beat and a long time), the
+    name shows in full and the time is left out, rather than the name being cut to "...". */
+ if(show_time&&name_known&&sh_text_width(c,f->name,SH_TEXT)>right-x-(show_beat?bw+10:0)-tw-8)show_time=0;
  int tail=(show_beat?bw+10:0)+(show_time?tw+8:0);
  int name_w=right-x-tail;
  int nx=x;
@@ -484,7 +569,10 @@ static void render_fx(const struct xz_shell_model *m, struct xz_canvas c, struct
    The XZ has a pad bank for beat jumps and its QUANTIZE lamp sits in the deck
    strip (in the four-deck view, at the end of the source row), so neither
    takes a row here. */
-enum { KEY_RIGHT=COL_W-6, Q_LAMP=15 };
+enum { KEY_RIGHT=COL_W-6, Q_LAMP=15, TEMPO_PCT_GAP=2 };
+/* The side mark in a four-deck lane tile: the unit box at x 30..61, clear of the number box with its USB
+   stripe (..28) and of the beat dots (66..). Its size in the tile and the strip badge. */
+enum { TILE_MARK_X=46, MARK_W=32, MARK_H=16, MARK_R=5, BADGE_MARK_W=28 };
 static int same_key(const char *a, const char *b) {
  char x[8],y[8];
  a=sh_key_text(a,XZ_SHELL_KEY_CLASSIC,x,sizeof x);b=sh_key_text(b,XZ_SHELL_KEY_CLASSIC,y,sizeof y);
@@ -537,9 +625,12 @@ static void render_column(const struct play_layout *L, const struct xz_shell *u,
  int ly=lane_y(L,m,deck),active=u->deck==deck;
  char text[32];
  xz_rect(c,0,ly,COL_W,L->lane_h,SH_CHROME);
- /* The deck tile takes the colour of the stick its track came from (USB COLORS); inactive, a stripe. */
- int control=sh_control_active(m,deck);
- int filled=sh_four_view(m)?control:active;
+ /* The deck tile takes the colour of the stick its track came from (USB COLORS); inactive, a stripe. In the
+    four-deck look the colour marks the decks the two sides drive and a white border the shell's focus; four
+    lanes add the side mark between the number and the beat dots. 2 DECKS shows the decks the sides drive,
+    upper lane left and lower lane right, so it has no mark: there it could only ever be solid. */
+ enum sh_side side=sh_side_of(m,deck);
+ int filled=sh_four_view(m)?side==SH_SIDE_DRIVES:active;
  uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=filled?accent:SH_RAIL,ink=sh_ink_on(tile);
  xz_rect(c,0,ly,COL_W,L->tag_h,tile);
  /* Four lanes: the number in its badge; the USB colour stripe moves to the badge's right. */
@@ -548,12 +639,10 @@ static void render_column(const struct play_layout *L, const struct xz_shell *u,
  snprintf(text,sizeof text,"DECK %d",deck+1);
  if(sh_four_view(m)){
   if(L!=&four_deck&&!two_deck_box(L,deck)){snprintf(text,sizeof text,"%d",deck+1);sh_num(c,6,ly+1,text,SH_NUM_MID,ink);}
-  if(control)sh_control_arrow(c,30,ly+1,deck&1);
-  else sh_text(c,30,ly+5,"DECK",SH_SMALL,ink);
-  if(control)sh_text(c,30,ly+10,"CONTROL",SH_SMALL,ink);
+  if(L==&four_deck)sh_side_mark(c,TILE_MARK_X,ly+L->tag_h/2,MARK_W,MARK_H,MARK_R,deck,side);
  }else sh_text(c,6+(!filled&&accent!=SH_BLUE?2:0),ly+L->tag_text_dy,text,SH_TEXT,ink);
  if(sh_has(d,XZ_SHELL_F_BAR_PHASE))for(int b=0;b<4;b++)
-  xz_rect(c,COL_W-30+b*7,ly+(control?3:L->phase_dy),5,4,d->bar_phase==b+1?ink:xz_blend(tile,ink,80));
+  xz_rect(c,COL_W-30+b*7,ly+L->phase_dy,5,4,d->bar_phase==b+1?ink:xz_blend(tile,ink,80));
  if(sh_four_view(m)&&active)xz_border(c,0,ly,COL_W,L->tag_h,SH_WHITE);
  xz_rect(c,0,ly+L->tag_h,COL_W,1,SH_BLACK);xz_rect(c,0,ly+L->key_rule_y,COL_W,1,SH_BLACK);
  /* source */
@@ -594,6 +683,32 @@ static void lane_caption(struct xz_canvas c, int x, int y, const char *text, uin
  xz_rect(c,x-2,y-1,sh_text_width(c,text,SH_SMALL)+4,SH_CAP_SMALL+3,SH_BLACK);
  sh_text(c,x,y,text,SH_SMALL,ink);
 }
+/* LOOP IN / OUT ADJUST (XZ manual pp.47-48), the same on all four decks: the edge the jog moves is a 3 px
+   yellow column (the adjust colour of CLASSIC's DECK 3 / 4 lanes) and a yellow chip on the loop's side of it
+   names the edge by its button as printed on the unit (IN, OUT) with the point's time. The chip flips to the
+   other side where the loop is too short or the lane ends; an edge out of view pins the chip to that end of
+   the lane with an arrow toward it. IN and OUT are the buttons' names, so no word needs a translation. */
+static void render_loop_edit(struct xz_canvas c, const struct lane_view *v, const struct xz_shell_deck *d, int ly, int lh, int tick_h) {
+ int out=d->loop_edit.endpoint!=0,ex=lane_x(v,d->loop_edit.ms);
+ char t[32],clock[16],frac[8];
+ fmt_time(clock,sizeof clock,d->loop_edit.ms,frac,sizeof frac);
+ snprintf(t,sizeof t,"%s %s%s",out?"OUT":"IN",clock,frac);
+ int lo=WAVE_X,hi=WAVE_X+WAVE_W,arrow=ex<lo?-1:ex>=hi?1:0;
+ int tw=sh_text_width(c,t,SH_SMALL)+12+(arrow?8:0),th=SH_CAP_SMALL+7,by=ly+lh-tick_h-th-3,bx;
+ if(!arrow){
+  int x0=sh_max(lo,ex-1),x1=sh_min(hi,ex+2);
+  if(x1>x0)xz_rect(c,x0,ly,x1-x0,lh,SH_ADJUST);
+  bx=out?ex-4-tw:ex+4;
+  if(bx<lo+2||bx+tw>hi-2)bx=out?ex+4:ex-4-tw;
+  bx=sh_max(lo+2,sh_min(bx,hi-2-tw));
+ }else bx=arrow<0?lo+2:hi-2-tw;
+ xz_border(c,bx-1,by-1,tw+2,th+2,SH_BLACK);xz_rect(c,bx,by,tw,th,SH_ADJUST);
+ if(arrow){
+  int ax=arrow<0?bx+4:bx+tw-8,cy=by+th/2;
+  for(int i=0;i<4;i++)xz_rect(c,arrow<0?ax+i:ax+3-i,cy-i,1,2*i+1,SH_BLACK);
+ }
+ sh_text(c,bx+6+(arrow<0?8:0),by+4,t,SH_SMALL,SH_BLACK);
+}
 static int fx_on_deck(const struct xz_shell_model *m, int deck) {
  const struct xz_shell_fx *f=&m->fx;
  if(!fx_on(f)||!fx_has(f,XZ_SHELL_FX_F_CHANNEL))return 0;
@@ -627,9 +742,10 @@ static void render_lane(const struct play_layout *L, const struct xz_shell *u, c
  int loaded=sh_has(d,XZ_SHELL_F_LOADED)&&d->loaded;
  int32_t elapsed=loaded?xz_shell_elapsed_now(m,deck):-1;
  struct lane_view v={0,sh_axis(zoom_pps[u->zoom<0?0:u->zoom>XZ_SHELL_ZOOM_MAX?XZ_SHELL_ZOOM_MAX:u->zoom],d),playhead_x(u)};
- if(elapsed>=0){
+ if(loaded&&sh_has(d,XZ_SHELL_F_ELAPSED)){
   v.axis=sh_axis_window(v.axis,elapsed,WAVE_W);
-  v.head_px=track_px(v.axis,elapsed);
+  if(deck<2){double precise=xz_shell_elapsed_precise(m,deck);int64_t us=(int64_t)(precise*1000+(precise<0?-.5:.5));v.head_px=sh_axis_px_us(v.axis,us);}
+  else v.head_px=track_px(v.axis,elapsed);
   int32_t first=lane_ms(&v,WAVE_X),last=lane_ms(&v,WAVE_X+WAVE_W);
   first=first<INT32_MIN+50?INT32_MIN:first-50;last=last>INT32_MAX-50?INT32_MAX:last+50;
   struct xz_canvas lane=xz_sub(c,WAVE_X,ly,WAVE_W,lh);
@@ -710,17 +826,7 @@ static void render_lane(const struct play_layout *L, const struct xz_shell *u, c
     lane_caption(c,sh_min(gx+4,WAVE_X+WAVE_W-34),ly+lh/2-6,"SLIP",SH_KEY_AMBER);
    }
   }
-  /* A loop point under the jog: its line doubled in white and its time in a box (XZ manual pp.47-48). */
-  if(sh_has(d,XZ_SHELL_F_LOOP_EDIT)){
-   int ex=lane_x(&v,d->loop_edit.ms);
-   if(ex>=WAVE_X&&ex<WAVE_X+WAVE_W-1)xz_rect(c,ex,ly,2,lh,SH_WHITE);
-   char t[40],clock[16],frac[8];
-   fmt_time(clock,sizeof clock,d->loop_edit.ms,frac,sizeof frac);
-   snprintf(t,sizeof t,"%s %s%s",d->loop_edit.endpoint?"LOOP OUT":"LOOP IN",clock,frac);
-   int tw=sh_text_width(c,t,SH_SMALL)+12,bx=WAVE_X+6,by=ly+lh-tick_h-24;
-   xz_rect(c,bx,by,tw,18,SH_LOOP);
-   sh_text(c,bx+6,by+4,t,SH_SMALL,SH_BLACK);
-  }
+  if(sh_has(d,XZ_SHELL_F_LOOP_EDIT))render_loop_edit(c,&v,d,ly,lh,tick_h);
  }else if(sh_has(d,XZ_SHELL_F_LOADED)&&!d->loaded)
   sh_text_center(c,WAVE_X+WAVE_W/2,ly+lh/2-7,"Not Loaded.",SH_TEXT,0x5a5a5a);
  xz_rect(c,v.ph_x,ruler_top,1,lh+title_h,SH_PLAYHEAD);
@@ -817,9 +923,10 @@ static void render_overview(const struct play_layout *L, const struct xz_shell *
  struct xz_shell_rect ov=xz_shell_play_rect(m,XZ_SHELL_R_OVERVIEW,deck);
  int chip_y=L->strip.y+L->strip.chip_dy;
  int loaded=sh_has(d,XZ_SHELL_F_LOADED)&&d->loaded;
- int timed=loaded&&elapsed>=0&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0;
+ int timed=loaded&&sh_has(d,XZ_SHELL_F_ELAPSED)&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0;
  int tm_known;enum xz_shell_time_mode mode=time_mode_of(m,d,&tm_known);
  int ph=timed?overview_x(ov,elapsed,d->total_ms):-1;
+ if(timed&&deck<2){int64_t us=(int64_t)(xz_shell_elapsed_precise(m,deck)*1000+.5);ph=ov.x+(int)(us*(ov.w-1)/((int64_t)d->total_ms*1000));}
  char text[16];
  xz_rect(c,ov.x,ov.y,ov.w,ov.h,SH_BLACK);
  xz_rect(c,ov.x,ov.y+ov.h-1,ov.w,1,SH_RAIL);
@@ -850,11 +957,14 @@ static void render_overview(const struct play_layout *L, const struct xz_shell *
   int32_t ghost=slip_now(m,d);
   if(ghost>=0)xz_rect(c,overview_x(ov,ghost,d->total_ms),ov.y,1,ov.h,SH_KEY_AMBER);
  }else xz_rect(c,ov.x,bar_y,ov.w,3,SH_RAIL);
- /* NEEDLE LOCK holds while the deck plays: the overview says so where a finger would search. */
+ /* NEEDLE LOCK holds while the deck plays: the overview says so where a finger would search. A touch it refused
+    lights this mark for the notice's time instead of a sentence over the lanes (shell_draw.c). */
  if(timed&&sh_needle_locked(m,d)){
+  const char *said=sh_notice_live(u,m);
+  int lit=u&&u->notice_deck==deck&&said&&!strcmp(said,SH_NEEDLE_NOTICE);
   int w=sh_text_width(c,"NEEDLE LOCK",SH_SMALL)+10;
-  xz_rect(c,ov.x+ov.w-w-2,ov.y+2,w,14,0x2a2a2a);
-  sh_text(c,ov.x+ov.w-w+3,ov.y+4,"NEEDLE LOCK",SH_SMALL,SH_DIM);
+  xz_rect(c,ov.x+ov.w-w-2,ov.y+2,w,14,lit?SH_KEY_AMBER:0x2a2a2a);
+  sh_text(c,ov.x+ov.w-w+3,ov.y+4,"NEEDLE LOCK",SH_SMALL,lit?SH_BLACK:SH_DIM);
  }
  /* minute scale */
  if(!L->strip.scale)return;
@@ -892,34 +1002,31 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
  char text[48],frac[16];
  xz_rect(c,s.x,s.y,s.w,s.h,SH_CHROME);
  /* title row */
- int control=sh_control_active(m,deck);
- uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=(sh_four_view(m)?control:u->deck==deck)?accent:SH_RAIL;
- int badge_w=sh_four_view(m)&&L==&two_deck?64:S->badge_w;
+ enum sh_side side=sh_side_of(m,deck);
+ uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=(sh_four_view(m)?side==SH_SIDE_DRIVES:u->deck==deck)?accent:SH_RAIL;
+ int badge_w=S->badge_w;
  int badge_h=sh_four_view(m)?22:S->badge_h;
  int by0=s.y+S->badge_y,ty=s.y+S->title_y;
  xz_rect(c,sx,by0,badge_w,badge_h,tile);
  if(L==&four_deck){
-  /* The same badge and DECK as the deck's lane tag; a side that drives it: the arrow on its fill. */
-  int seg=sx+NUMBER_BOX_W+1,seg_w=badge_w-NUMBER_BOX_W-1;
+  /* The lane tag's number and side mark (the unit box at seg+2..seg+29, clear of the USB stripe and the
+     focus border). */
+  int seg=sx+NUMBER_BOX_W+1;
   number_box(c,sx,by0,badge_h,deck,1,tile);
   if(tile!=accent&&accent!=SH_BLUE)xz_rect(c,seg,by0,3,badge_h,accent);
-  if(control)sh_control_arrow(c,seg+(seg_w-27)/2,by0+6,deck&1);
-  else sh_text_center(c,seg+seg_w/2+1,by0+(badge_h-SH_CAP_SMALL)/2,"DECK",SH_SMALL,sh_ink_on(tile));
+  sh_side_mark(c,seg+16,by0+badge_h/2,BADGE_MARK_W,MARK_H,MARK_R,deck,side);
   if(u->deck==deck)xz_border(c,sx,by0,badge_w,badge_h,SH_WHITE);
  }else{
   if(tile!=accent&&accent!=SH_BLUE)xz_rect(c,two_deck_box(L,deck)?sx+NUMBER_BOX_W+1:sx,by0,3,badge_h,accent);
   if(sh_four_view(m)){
    snprintf(text,sizeof text,"%d",deck+1);
-   int nx=control?sx+5:sx+(badge_w-sh_num_width(SH_NUM_MID,text))/2;
    if(two_deck_box(L,deck))number_box(c,sx,by0,badge_h,deck,1,tile);
-   else sh_num(c,nx,by0+1,text,SH_NUM_MID,sh_ink_on(tile));
-   if(control)sh_control_arrow(c,sx+badge_w-27,by0+6,deck&1);
+   else sh_num(c,sx+(badge_w-sh_num_width(SH_NUM_MID,text))/2,by0+1,text,SH_NUM_MID,sh_ink_on(tile));
    if(u->deck==deck)xz_border(c,sx,by0,badge_w,badge_h,SH_WHITE);
   }else{snprintf(text,sizeof text,"DECK %d",deck+1);sh_text(c,sx+5,by0+3,text,SH_SMALL,sh_ink_on(tile));}
  }
  int tx=sx+badge_w+8;
  enum sh_face title_face=L==&four_deck?SH_SMALL:SH_TEXT;
- if(control&&L==&four_deck)sh_text(c,tx,by0+12,"CONTROL",SH_SMALL,SH_WHITE);
  if(loaded_known&&!loaded)sh_text(c,tx,ty,"Not Loaded.",title_face,SH_RED);
  else if(loaded){
   if(S->artwork&&sh_has(d,XZ_SHELL_F_ARTWORK)&&d->artwork&&d->artwork_side>0){render_artwork(c,d,tx,by0,20);tx+=26;}
@@ -963,11 +1070,12 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
  int have_total=loaded&&sh_has(d,XZ_SHELL_F_TOTAL);
  int32_t shown=-1;
  if(loaded_known&&!loaded)shown=0;
- else if(mode==XZ_SHELL_TIME_REMAIN&&elapsed>=0&&have_total)shown=d->total_ms-elapsed;
- else if(mode==XZ_SHELL_TIME_ELAPSED&&elapsed>=0)shown=elapsed;
- if(shown>=0)fmt_time(text,sizeof text,shown,frac,sizeof frac);
+ else if(mode==XZ_SHELL_TIME_REMAIN&&sh_has(d,XZ_SHELL_F_ELAPSED)&&have_total)shown=((int64_t)d->total_ms-elapsed>INT32_MAX?INT32_MAX:d->total_ms-elapsed);
+ else if(mode==XZ_SHELL_TIME_ELAPSED&&sh_has(d,XZ_SHELL_F_ELAPSED))shown=elapsed;
+ int time_known=(loaded_known&&!loaded)||(loaded&&sh_has(d,XZ_SHELL_F_ELAPSED)&&(mode==XZ_SHELL_TIME_ELAPSED||have_total));
+ if(time_known)fmt_time(text,sizeof text,shown,frac,sizeof frac);
  else{snprintf(text,sizeof text,"--:--");snprintf(frac,sizeof frac,".---");}
- uint32_t time_ink=shown>=0?SH_WHITE:SH_DIM;
+ uint32_t time_ink=time_known?SH_WHITE:SH_DIM;
  enum sh_num_face time_face=(enum sh_num_face)S->time_face;
  sh_num(c,cx,num_y+S->time_value_dy,text,time_face,time_ink);
  if(S->time_frac)sh_num(c,cx+sh_num_width(time_face,text)+2,num_y+20,frac,SH_NUM_MID,time_ink);
@@ -980,13 +1088,14 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
   int w=sh_text_width(c,text,SH_SMALL)+10;
   xz_rect(c,rx,tempo_y-2,w,13,SH_RED);sh_text(c,rx+5,tempo_y,text,SH_SMALL,SH_WHITE);
  }else{xz_border(c,rx,tempo_y-2,30,13,0x5a5a5a);sh_text(c,rx+5,tempo_y,"\xb1--",SH_SMALL,SH_DIM);}
- if(sh_has(d,XZ_SHELL_F_TEMPO)){
-  int32_t t=d->tempo_x100,a=t<0?-t:t;
-  if(a>9999)a=9999;
-  snprintf(text,sizeof text,"%s%d.%02d",t>0?"+":t<0?"-":"",(int)(a/100),(int)(a%100));
-  sh_num(c,px,value_y,text,SH_NUM_MID,SH_WHITE);
-  sh_text(c,px+sh_num_width(SH_NUM_MID,text)+3,value_y+11,"%",SH_SMALL,SH_WHITE);
- }else{sh_num(c,px,value_y,"--.--",SH_NUM_MID,SH_DIM);sh_text(c,px+sh_num_width(SH_NUM_MID,"--.--")+3,value_y+11,"%",SH_SMALL,SH_DIM);}
+ /* The value in the unit's own steps (ui/tempo_text.h): at most six glyphs, "+16.00" or "-100.0", then the %.
+    The strip layouts leave that widest value 4 px or more clear of the BPM box (two decks) and of the MT and
+    SYNC chips (four decks); test_tempo_fit.c holds them to it. */
+ uint32_t tempo_ink=sh_has(d,XZ_SHELL_F_TEMPO)?SH_WHITE:SH_DIM;
+ if(sh_has(d,XZ_SHELL_F_TEMPO))xz_tempo_text(text,sizeof text,d->tempo_x100,sh_has(d,XZ_SHELL_F_TEMPO_RANGE),d->tempo_range);
+ else snprintf(text,sizeof text,"--.--");
+ sh_num(c,px,value_y,text,SH_NUM_MID,tempo_ink);
+ sh_text(c,px+sh_num_width(SH_NUM_MID,text)+TEMPO_PCT_GAP,value_y+11,"%",SH_SMALL,tempo_ink);
  int mx=sx+S->lamps_dx,my=s.y+S->lamps_dy;
  /* While KEY SYNC holds the key, MASTER TEMPO blinks on the model clock, half a second lit, half dark. */
  int key_sync=sh_has(d,XZ_SHELL_F_KEY_SYNC)&&d->key_synced;
@@ -1221,9 +1330,25 @@ static void render_card(const struct xz_shell *u, const struct xz_shell_model *m
  xz_route_card_draw(c,&xz_route_card_modern,card_lane(m,2),card_lane(m,3),&in,&card_cache);
 }
 static void render_picker(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
- if(picker_live(u,m))xz_deck_view_picker_draw(c,&xz_deck_view_modern,view_of(m),sh_deck_count(m)==4,u->deck_view.tile);
+ if(picker_live(u,m))xz_deck_view_picker_draw_line(c,&xz_deck_view_modern,view_of(m),sh_deck_count(m)==4,u->deck_view.tile,
+  u->deck_view.cable?XZ_DECK_VIEW_CABLE_LINE:NULL);
+}
+static int all_decks_empty(const struct xz_shell_model *m){
+ int unknown=0;
+ for(int d=0;d<sh_deck_count(m);d++){
+  if(!sh_has(&m->deck[d],XZ_SHELL_F_LOADED))unknown=1;
+  else if(m->deck[d].loaded)return 0;
+ }
+ return m->startup_idle||!unknown;
 }
 static void play_render_model(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
+ if(all_decks_empty(m)){
+  xz_rect(c,0,0,c.width,c.height,SH_BLACK);render_top(u,m,c);
+  xz_ui_logo_draw(c,m->idle_logo,160,(c.width-160)/2,132,160);
+  if(m->idle_logo&&m->idle_dj_name)sh_text_center(c,c.width/2,316,m->idle_dj_name,SH_TEXT,SH_WHITE);
+  sh_text_center(c,c.width/2,364,"PRESS BROWSE TO CHOOSE MUSIC",SH_TEXT,SH_DIM);
+  render_picker(u,m,c);return;
+ }
  const struct play_layout *L=layout_of(m);
  int decks=sh_play_deck_count(m),last=lane_y(L,m,sh_play_deck(m,decks-1))+L->lane_h,below=L->pad_row_h?L->pad_row_y:L->strip.y;
  /* Regions tile the frame; only the seams between them are cleared here. */
@@ -1270,21 +1395,38 @@ static size_t seek(struct xz_shell *u, const struct xz_shell_model *m, int deck,
  const struct xz_shell_deck *d=&m->deck[deck];
  if(!(sh_deck_caps(m,deck)&XZ_SHELL_CAP_SEEK)||!sh_has(d,XZ_SHELL_F_TOTAL)||d->total_ms<=0)return n;
  if(!sh_has(d,XZ_SHELL_F_LOADED)||!d->loaded)return n;
- if(sh_needle_locked(m,d)){u->notice="NEEDLE LOCK: PAUSE THE DECK TO SEARCH";u->notice_at_ms=m->clock_ms;return n;}
+ if(sh_needle_locked(m,d)){u->notice=SH_NEEDLE_NOTICE;u->notice_at_ms=m->clock_ms;u->notice_deck=deck;return n;}
  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SEEK,deck,xz_shell_overview_ms(m,d->total_ms,x,deck),0});
 }
 /* Top-bar controls answer in their own column from y 0 down to XZ_SHELL_HEADER_HIT_H, so each is 44 px
    tall; below the bar that band is the top of deck 1's lane, which only activates the deck. */
 static int header_band(int x, int y, struct xz_shell_rect r) { return x>=r.x&&x<r.x+r.w&&y>=0&&y<XZ_SHELL_HEADER_HIT_H; }
 /* ---- DECK VIEW input: the picker, the button and the card answer before anything under them ---- */
-static void note_input(struct xz_shell *u, const struct xz_shell_model *m) { u->deck_view.input_at=m->clock_ms?m->clock_ms:1; }
+/* Any PLAY input also makes the cable's picker an ordinary one. */
+static void note_input(struct xz_shell *u, const struct xz_shell_model *m) { u->deck_view.input_at=m->clock_ms?m->clock_ms:1;u->deck_view.cable=0; }
 /* Choosing a view: one action; the runtime applies it through its one DECK VIEW entry point. */
 static size_t choose_view(struct xz_shell *u, int view, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
- u->deck_view.open=0;u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
+ u->deck_view.open=0;u->deck_view.focus=XZ_SHELL_FOCUS_NONE;u->deck_view.cable=0;
  return emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_DECK_LAYOUT,-1,xz_deck_view_valid(view),0});
 }
 static void open_picker(struct xz_shell *u, const struct xz_shell_model *m) {
- u->deck_view.open=1;u->deck_view.tile=view_of(m);u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
+ u->deck_view.open=1;u->deck_view.tile=view_of(m);u->deck_view.focus=XZ_SHELL_FOCUS_NONE;u->deck_view.cable=0;
+}
+/* ---- DECK VIEW and the loopback cable (shell.h; the runtime decides when) ---- */
+int xz_shell_deck_view_quiet(const struct xz_shell *u, const struct xz_shell_model *m) {
+ if(!u||!m||xz_shell_screen(u)!=XZ_SHELL_PLAY)return 0;
+ if(u->popup.kind!=XZ_SHELL_POPUP_NONE||u->panel.kind!=XZ_SHELL_PANEL_NONE||u->load_choice.mode)return 0;
+ if(u->down||u->deck_view.contact||picker_live(u,m)||focus_live(u,m))return 0;
+ return !u->deck_view.input_at||m->clock_ms-u->deck_view.input_at>=(uint32_t)XZ_DECK_VIEW_CABLE_QUIET_MS;
+}
+void xz_shell_deck_view_cable_open(struct xz_shell *u, const struct xz_shell_model *m, int view) {
+ if(!u||!m)return;
+ u->deck_view.open=1;u->deck_view.tile=xz_deck_view_valid(view);u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
+ u->deck_view.input_at=m->clock_ms?m->clock_ms:1;u->deck_view.cable=1;
+}
+int xz_shell_deck_view_cable_close(struct xz_shell *u) {
+ if(!u||!u->deck_view.open||!u->deck_view.cable)return 0;
+ u->deck_view.open=0;u->deck_view.cable=0;return 1;
 }
 static size_t card_press(struct xz_shell *u, int hit, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
@@ -1296,6 +1438,10 @@ static size_t card_press(struct xz_shell *u, int hit, struct xz_shell_action out
 static int overlay_touch_down(struct xz_shell *u, const struct xz_shell_model *m, int x, int y, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t *n) {
  *n=0;
  int open=picker_live(u,m),button=xz_deck_view_button_hit(&xz_deck_view_modern,x,y),card=card_hit(u,m,x,y);
+ /* The cable's picker gives way during a set: a touch outside it closes it and acts on what is under it. */
+ if(open&&u->deck_view.cable&&!button&&xz_deck_view_picker_hit(&xz_deck_view_modern,x,y)==XZ_DECK_VIEW_HIT_OUTSIDE){
+  u->deck_view.open=0;u->deck_view.cable=0;open=0;
+ }
  if(!open&&!button&&card==XZ_ROUTE_CARD_HIT_NONE)return 0;
  u->deck_view.contact=1;u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
  /* The overlay under the finger must be the one on screen. */
@@ -1354,16 +1500,27 @@ int sh_play_overlay_owns(const struct xz_shell *u, const struct xz_shell_model *
 }
 int sh_play_dismiss(struct xz_shell *u, int back) {
  int had=u->deck_view.open||u->deck_view.focus!=XZ_SHELL_FOCUS_NONE;
- u->deck_view.open=0;u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
+ u->deck_view.open=0;u->deck_view.focus=XZ_SHELL_FOCUS_NONE;u->deck_view.cable=0;
  return back&&had;
 }
 void sh_play_overlay_publish(struct xz_shell *u, const struct xz_shell_model *m) {
  struct xz_shell_model view;xz_shell_play_projection(u,m,&view);
- if(!picker_live(u,&view))u->deck_view.open=0;
+ if(!picker_live(u,&view)){u->deck_view.open=0;u->deck_view.cable=0;}
  if(!focus_live(u,&view))u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
  u->deck_view.painted=overlay_token(u,&view);
 }
 
+/* A stem or BYPASS button answers at (x, y), as touch_down tries them. */
+static int stem_button_at(const struct xz_shell *u, const struct xz_shell_model *m, int x, int y) {
+ const struct play_layout *L=layout_of(m);
+ for(int slot=0;slot<sh_play_deck_count(m);slot++){
+  int deck=sh_play_deck(m,slot);
+  if(L->grid_in_stem_row&&grid_edit_shown(u,m,deck))continue;
+  if(sh_inside(xz_shell_bypass_button(u,m,deck),x,y))return 1;
+  for(int stem=0;stem<3;stem++)if(sh_inside(xz_shell_stem_button(u,m,deck,stem),x,y))return 1;
+ }
+ return 0;
+}
 static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int x, int y, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  const struct play_layout *L=layout_of(m);
  size_t n=0;
@@ -1386,6 +1543,12 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
    chips[i].setting==XZ_SHELL_SET_AUTO_CUE?!m->settings.auto_cue:(m->settings.hot_cue_auto_load+1)%3;
   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,-1,value,(int)chips[i].setting});
  }
+ /* ABLETON LINK: its own columns, from the top down to the header band's foot like its neighbours; below the bar
+    a stem button of the top lane (2 DECKS OUTSIDE layouts) wins. The setting's other value, as the NETWORK row
+    computes it from what it shows. Between it and A. CUE, and between it and the BEAT FX strip (which answers
+    no touch), are XZ_SHELL_ABLETON_GAP dead columns. */
+ if(header_band(x,y,link_rect(u,m))&&(y<TOP_H||!stem_button_at(u,m,x,y)))
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_ABLETON_LINK,-1,!m->ableton.enabled,0});
  if(y<TOP_H)return 0;
  for(int slot=0;slot<sh_play_deck_count(m);slot++){
   int deck=sh_play_deck(m,slot);

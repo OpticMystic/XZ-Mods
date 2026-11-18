@@ -9,6 +9,8 @@ void xz_ram_stop(void);
 void xz_ram_invalidate(int deck);
 void xz_ram_bind(int deck, const struct xz126_deck_source *);
 void xz_ram_status(int deck, struct xz_ram_status *);
+/* For the drawing path: 0 and the status untouched when a worker holds the lock. */
+int xz_ram_status_try(int deck, struct xz_ram_status *);
 int xz_ram_request(int deck);
 enum xz_ram_result xz_ram_native_command(int deck, enum xz_ram_command, uint64_t expected);
 int xz_ram_cancel(int deck);

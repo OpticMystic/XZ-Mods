@@ -14,7 +14,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def fixture(root, signal=False):
+def fixture(root, signal=False, frames=800000):
     source = root / 'Contents' / 'artist' / 'track.mp3'
     source.parent.mkdir(parents=True)
     source.write_bytes(b'test-source-identity')
@@ -27,14 +27,14 @@ def fixture(root, signal=False):
     if signal:
         parts = []
         for frequencies in ((193,), (557, 1297), (3719,)):
-            parts.append([round(sum(3500 * math.sin(2 * math.pi * f * i / 96000 + f / 100) for f in frequencies)) for i in range(800017)])
+            parts.append([round(sum(3500 * math.sin(2 * math.pi * f * i / 96000 + f / 100) for f in frequencies)) for i in range(frames + 17)])
     else:
         pcm = b''.join(struct.pack('<hh', i % 1000, -(i % 1000)) for i in range(32771))
     roles = {}
     drum_pages = drum_table = None
     for name, mask in masks.items():
         if signal:
-            pcm = b''.join(struct.pack('<hh', *[sum(parts[r][i + channel * 17] for r in range(3) if mask & (1 << r)) for channel in range(2)]) for i in range(800000))
+            pcm = b''.join(struct.pack('<hh', *[sum(parts[r][i + channel * 17] for r in range(3) if mask & (1 << r)) for channel in range(2)]) for i in range(frames))
         pages = [pcm[i:i + 131072] for i in range(0, len(pcm), 131072)]
         compressed = [zlib.compress(p, level=0) for p in pages]
         offset = 24 + 48 * len(pages)
@@ -84,6 +84,59 @@ def four_file(source, bundle, large_index=False):
     manifest_path.write_text(json.dumps(manifest))
 
 
+def source_mapping_cases(binary, root):
+    """Exported duplicates have different paths/IDs but exactly the same source bytes."""
+    from copy import deepcopy
+    from flac_fixture import repack
+    source, bundle, _, _ = fixture(root)
+    repack(source, bundle)
+    four_file(source, bundle)
+    alias = source.with_name('track-1.mp3')
+    alias.write_bytes(source.read_bytes())
+    index_path = root / 'CDJMODS/index.json'
+    index = json.loads(index_path.read_text())
+    entry = index['tracks'].pop('1')
+    entry['file_path'] = '/Contents/artist/track-1.mp3'
+    entry['source_size'] = source.stat().st_size
+    index['tracks']['1184'] = entry
+    index['tracks_onelibrary'] = {'8915': dict(entry)}
+
+    def check(value, mode, path=source):
+        index_path.write_text(json.dumps(value))
+        subprocess.run([str(binary), str(path), mode], check=True)
+
+    check(index, 'four')
+    # Filename and ID are advisory for a content-verified alias, even if that
+    # original indexed file is no longer present on the USB.
+    alias.unlink()
+    check(index, 'four')
+    other = source.with_name('different.mp3')
+    other.write_bytes(b'x' * source.stat().st_size)
+    check(index, 'unmapped', other)
+    missing = deepcopy(index)
+    for table in ('tracks', 'tracks_onelibrary'):
+        for row in missing[table].values():
+            row.pop('source_sha256')
+    check(missing, 'unmapped')
+    conflict = deepcopy(index)
+    conflict['tracks_onelibrary']['8915']['bundle'] = 'fedcba9876543210'
+    check(conflict, 'unmapped')
+    conflict = deepcopy(index)
+    conflict['tracks_onelibrary']['8915']['drums_sha256'] = '0' * 64
+    check(conflict, 'unmapped')
+    # A bad exact binding cannot be bypassed by a valid content alias.
+    exact = deepcopy(index)
+    exact['tracks']['91'] = dict(entry, file_path='/Contents/artist/track.mp3', bundle='invalid')
+    check(exact, 'unmapped')
+    exact['tracks']['91'] = dict(entry, file_path='/Contents/artist/track.mp3', source_sha256='0' * 64)
+    check(exact, 'reject')
+    # Exact path wins over unrelated alternative preparations of the same file.
+    exact['tracks']['91'] = dict(entry, file_path='/Contents/artist/track.mp3')
+    exact['tracks']['1184']['bundle'] = 'fedcba9876543210'
+    check(exact, 'four')
+    check(index, 'four')
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     compiler = p.add_mutually_exclusive_group(required=True)
@@ -105,6 +158,7 @@ def main():
             str(ROOT / 'vendor/sha256/sha256.c'), str(ROOT / 'tests/test_overcue_file.c'), '-lm', '-o', str(binary)], check=True)
         if args.real_source:
             subprocess.run([str(binary), str(args.real_source), 'real'], check=True)
+        source_mapping_cases(binary, root / 'source-mapping')
         regression_args = ['--zig', args.zig] if args.zig else ['--cc', args.cc]
         if args.sanitizer:
             regression_args += ['--sanitizer', args.sanitizer]
@@ -199,7 +253,7 @@ def main():
         streaming = root / 'stream.exe'
         subprocess.run(compiler + checks + [
             '-DMINIZ_NO_ARCHIVE_APIS', '-DMINIZ_NO_DEFLATE_APIS',
-            str(ROOT / 'overcue_file.c'), str(ROOT / 'stem_decode.c'), str(ROOT / 'overcue_stream.c'), str(ROOT / 'foreign_stems.c'), str(ROOT / 'stem_media.c'), str(ROOT / 'stem_mp3.c'), str(ROOT / 'vendor/miniz/miniz_tinfl.c'),
+            str(ROOT / 'overcue_file.c'), str(ROOT / 'stem_decode.c'), str(ROOT / 'overcue_stream.c'), str(ROOT / 'stem_pool.c'), str(ROOT / 'foreign_stems.c'), str(ROOT / 'stem_media.c'), str(ROOT / 'stem_mp3.c'), str(ROOT / 'vendor/miniz/miniz_tinfl.c'),
             str(ROOT / 'vendor/sha256/sha256.c'), str(ROOT / 'tests/test_overcue_stream.c'), '-pthread', '-lm', '-o', str(streaming)], check=True)
         source, bundle, _, _ = fixture(root / 'stream-usb', signal=True)
         subprocess.run([str(streaming), str(source)], check=True, timeout=30)
@@ -212,6 +266,28 @@ def main():
         subprocess.run([str(streaming), str(source)], check=True, timeout=30)
         # An MP3 Info frame (1152) plus LAME encoder and decoder delay (576 + 529), as OverCue's MP3 realignment moves it.
         subprocess.run([str(streaming), str(source), '2257.4'], check=True, timeout=30)
+        # The whole-track store: resampler and build order alone, then through a stream at 96 kHz and 44.1 kHz.
+        flat = root / 'flat.exe'
+        subprocess.run(compiler + checks + [
+            '-DMINIZ_NO_ARCHIVE_APIS', '-DMINIZ_NO_DEFLATE_APIS',
+            str(ROOT / 'overcue_file.c'), str(ROOT / 'stem_decode.c'), str(ROOT / 'overcue_stream.c'), str(ROOT / 'stem_pool.c'), str(ROOT / 'foreign_stems.c'), str(ROOT / 'stem_media.c'), str(ROOT / 'stem_mp3.c'), str(ROOT / 'vendor/miniz/miniz_tinfl.c'),
+            str(ROOT / 'vendor/sha256/sha256.c'), str(ROOT / 'tests/test_overcue_flat.c'), '-pthread', '-lm', '-o', str(flat)], check=True)
+        subprocess.run([str(flat), 'kernel'], check=True, timeout=180)
+        subprocess.run([str(flat), 'stream', str(source)], check=True, timeout=60)
+        subprocess.run([str(flat), 'yield', str(source)], check=True, timeout=120)
+        subprocess.run([str(flat), 'stream', str(source), '2257.4'], check=True, timeout=60)
+        subprocess.run([str(flat), 'stream', str(source44)], check=True, timeout=60)
+        # USB STOP: a stream lets go of its stick. The floor is lowered so a short fixture can make a bubble.
+        gone = root / 'gone.exe'
+        subprocess.run(compiler + checks + [
+            '-DMINIZ_NO_ARCHIVE_APIS', '-DMINIZ_NO_DEFLATE_APIS', '-DXZ_OC_FLAT_FLOOR=2u',
+            str(ROOT / 'overcue_file.c'), str(ROOT / 'stem_decode.c'), str(ROOT / 'overcue_stream.c'), str(ROOT / 'stem_pool.c'), str(ROOT / 'foreign_stems.c'), str(ROOT / 'stem_media.c'), str(ROOT / 'stem_mp3.c'), str(ROOT / 'vendor/miniz/miniz_tinfl.c'),
+            str(ROOT / 'vendor/sha256/sha256.c'), str(ROOT / 'tests/test_overcue_flat.c'), '-pthread', '-lm', '-o', str(gone)], check=True)
+        subprocess.run([str(gone), 'gone-whole', str(source), str(root / 'stream-usb') + '/'], check=True, timeout=120)
+        subprocess.run([str(gone), 'gone-none', str(source), str(root / 'stream-usb') + '/'], check=True, timeout=120)
+        long_source, long_bundle, _, _ = fixture(root / 'gone-usb', signal=True, frames=1100000)
+        repack(long_source, long_bundle, rate=44100)
+        subprocess.run([str(gone), 'gone-bubble', str(long_source), str(root / 'gone-usb') + '/'], check=True, timeout=180)
 
 
 if __name__ == '__main__':

@@ -42,6 +42,8 @@ def main():
         '-DXZ_XP_JOG_TICKS_PER_REV='+str(args.counts),'-I'+linux(MODS)]
  cc='gcc' if args.arch=='host' else 'arm-linux-gnueabi-gcc'
  if args.arch=='host':flags+=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-pie','-no-pie']
+ # The unit's CPU: the toolchain's default ARM target has no lock-free 32-bit atomics, which extra_player.c asserts.
+ else:flags+=['-mcpu=cortex-a9','-mfpu=vfpv3','-mfloat-abi=softfp']
  source_names=[name for name in SOURCES if not(player_object and name=='extra_player.c')]
  command=['wsl','-d','Ubuntu','--exec',cc,*flags,*[linux(MODS/name) for name in source_names],
           *([linux(player_object)] if player_object else []),'-lm','-o',linux(binary)]

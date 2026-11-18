@@ -60,7 +60,7 @@ function installMock() {
     profiles: fx.profile ? [{ source: '1.0', editable: true, active: true, folder: fx.profile.dj_name, tagline: '', aliases: [], links: [], page_url: null, note: '', logos: [], tile: null, track: null, ...fx.profile }] : [] });
   // mode 'builds': several archived builds, saved choice an older included build.
   const builds = mode === 'builds' ? [
-    { id: 'v1', label: 'Included development build newsha12', runtime_sha256: 'newsha12', hardware_qualified: false, source_commit: savedCommit, archived_at: '2026-10-12T09:54:00Z' },
+    { id: 'v1', label: 'Included build newsha12', runtime_sha256: 'newsha12', hardware_qualified: false, source_commit: savedCommit, archived_at: '2026-10-12T09:54:00Z' },
     { id: 'old', label: 'Included development build 98cc63d1', runtime_sha256: '98cc63d1aaaa', hardware_qualified: false, source_commit: OLD, archived_at: '2026-10-08T19:51:00Z' },
     { id: 'rel', label: '0.2.1 released', runtime_sha256: 'e47166e2aaaa', hardware_qualified: false, source_commit: OLD, archived_at: '2026-10-08T17:00:00Z' }]
     : [{ id: 'v1', label: 'Fixture build', runtime_sha256: 'newsha', hardware_qualified: false, source_commit: savedCommit, quad_supported: mode !== 'noquadany' }];
@@ -257,8 +257,8 @@ try {
   await view('device');
   await check(`fx.requests.slice(0,3).map(r=>r.method).join()==='list_mod_versions,discover_usbs,inspect_usb'&&fx.calls.includes('list_volumes')&&!document.getElementById('job-panel').checkVisibility()`, 'a single USB opens by itself: no Find button, no job panel flash');
   await check(`txt('.wz-drive h2')==='KINGSTON'&&txt('.wz-drive .wz-mono')==='E:\\\\'&&txt('.wz-drive-meta')==='FAT32 · 29.1 GB free of 32 GB'&&Boolean(button('Change USB'))`, 'device header: label, volume, filesystem and free space, Change USB');
-  await check(`document.querySelector('.wz-status').dataset.tone==='add'&&txt('.wz-status h3')==='XZ Mods is not on this USB yet'&&txt('.wz-status p')==='Adds the loader, free games and your DJ profile. Music and playlists stay as they are.'&&document.querySelectorAll('#wiz button.primary').length===1&&Boolean(button('Install XZ Mods'))`, 'fresh USB: one status and one primary button, Install XZ Mods');
-  await check(`txt('.wz-tile[data-tile=profile] .wz-tile-value')==='Not set'&&txt('.wz-tile[data-tile=profile] .wz-tile-action')==='Add'&&txt('.wz-tile[data-tile=games] .wz-tile-value')==='None'&&txt('.wz-tile[data-tile=stems] .wz-tile-value')==='None yet'&&txt('.wz-tile[data-tile=stems] .wz-tile-action')==='Prepare'`, 'tiles: DJ profile not set, no games, no stems yet');
+  await check(`document.querySelector('.wz-status').dataset.tone==='add'&&txt('.wz-status h3')==='XZ Mods is not on this USB yet'&&txt('.wz-status p')==='Adds the loader and your DJ profile. Music and playlists stay as they are.'&&document.querySelectorAll('#wiz button.primary').length===1&&Boolean(button('Install XZ Mods'))`, 'fresh USB: one status and one primary button, Install XZ Mods');
+  await check(`txt('.wz-tile[data-tile=profile] .wz-tile-value')==='Not set'&&txt('.wz-tile[data-tile=profile] .wz-tile-action')==='Add'&&txt('.wz-tile[data-tile=games] .wz-tile-value')==='None'&&txt('.wz-tile[data-tile=games] .wz-tile-action')==='Add'&&txt('.wz-tile[data-tile=stems] .wz-tile-value')==='None yet'&&txt('.wz-tile[data-tile=stems] .wz-tile-action')==='Prepare'`, 'tiles: DJ profile not set, no games (Add), no stems yet');
   await check(`txt('.wz-build-line')==='Build: Fixture build · Change'&&!document.querySelector('#wiz input[type=checkbox],#wiz input[type=radio],#wiz select')&&!document.querySelector('.wz-files').open`, 'one quiet build line; no tick boxes, radios or build chooser on the main path; files folded away');
   await shot('02-device-fresh');
   await check(`setupWizard.loopbackPort===${JSON.stringify(loopbackPort)}&&setupWizard.musicPort==='the other top port'`, 'the four-deck ports are the firmware\'s: cable in ' + loopbackPort + ', music in the other top port');
@@ -329,14 +329,24 @@ try {
   await click('Next');
   // Four decks is no longer a step of the guide: the screen step leads straight to the checklist.
   await view('flow', 'review');
-  await check(`plan().join('|')==='Add the XZ Mods loader (Fixture build)|Add 3 free games: Doom shareware, Chex Quest and Freedoom Phase 2|Use the new interface on the XZ|Create the settings file'&&txt('.wz-safe')==='Music, playlists and prepared stems are never touched.'&&txt('.wz-flow-count')==='Step 3 of 6'`, 'review: a plain checklist of what will happen, then the reassurance line');
+  // Games are off unless the DJ installs them: a fresh USB plans no games and the checklist says nothing about them.
+  await check(`plan().join('|')==='Add the XZ Mods loader (Fixture build)|Use the new interface on the XZ|Create the settings file'&&!plan().some(line=>/game/i.test(line))&&setupWizard.newGames().length===0&&txt('.wz-safe')==='Music, playlists and prepared stems are never touched.'&&txt('.wz-flow-count')==='Step 3 of 6'`, 'review: a plain checklist of what will happen, with no games on a fresh USB, then the reassurance line');
   await check(bar('Write to USB'), 'review: Back, then Write to USB last in the bar');
-  await check(`!document.querySelector('.wz-games-change .games')&&Boolean(button('Change games'))&&!button('Write to USB').disabled`, 'games stay folded behind Change games');
+  await check(`!document.querySelector('.wz-games-change .games')&&Boolean(button('Add free games'))&&!button('Change games')&&!button('Write to USB').disabled`, 'with no games chosen the folded games list is offered as Add free games');
   await shot('06-flow-review');
-  await click('Change games');
-  await check(`(()=>{const rows=[...document.querySelectorAll('.wz-games-change .games-group[data-kind=download] .games-row')];return rows.map(r=>r.dataset.id).join()==='doom,chex,freedoom'&&rows.every(r=>r.querySelector('.tree-check input').checked);})()&&txt('.wz-games-change .games-builtin-line').startsWith('Beat Arcade, Wave Rider')`, 'Change games opens the chooser in place: three downloads ticked, built-ins in one line');
+  await click('Add free games');
+  await check(`(()=>{const rows=[...document.querySelectorAll('.wz-games-change .games-group[data-kind=download] .games-row')];return rows.map(r=>r.dataset.id).join()==='doom,chex,freedoom'&&rows.every(r=>!r.querySelector('.tree-check input').checked&&r.querySelector('.tree-badge').textContent==='Not on USB');})()&&txt('.wz-games-change .games-builtin-line').startsWith('Beat Arcade, Wave Rider')&&Boolean(button('Hide games'))`, 'Add free games opens the chooser in place: three downloads, none ticked, built-ins in one line');
   await evaluate(`gameBox('chex').click()`);
-  await check(`setupWizard.newGames().join()==='doom,freedoom'&&plan()[1]==='Add 2 free games: Doom shareware and Freedoom Phase 2'&&Boolean(document.querySelector('.wz-games-change .games'))`, 'unticking Chex Quest updates the checklist and keeps the chooser open');
+  await check(`setupWizard.newGames().join()==='chex'&&plan()[1]==='Add 1 free game: Chex Quest'&&plan().length===4&&Boolean(document.querySelector('.wz-games-change .games'))`, 'ticking Chex Quest adds exactly that game to the checklist and keeps the chooser open');
+  await click('Hide games');
+  await check(`!document.querySelector('.wz-games-change .games')&&Boolean(button('Change games'))&&!button('Add free games')&&plan()[1]==='Add 1 free game: Chex Quest'`, 'with a game ticked the folded list reads Change games and the tick stays');
+  await click('Change games');
+  await click('Add all free games');
+  await check(`setupWizard.newGames().join()==='doom,chex,freedoom'&&plan()[1]==='Add 3 free games: Doom shareware, Chex Quest and Freedoom Phase 2'`, 'Add all free games ticks all three downloads');
+  await click('None');
+  await check(`setupWizard.newGames().length===0&&!plan().some(line=>/game/i.test(line))&&[...document.querySelectorAll('.wz-games-change .tree-check input')].every(box=>!box.checked)`, 'None unticks every download and the checklist drops the games line');
+  await evaluate(`gameBox('doom').click();gameBox('freedoom').click()`);
+  await check(`setupWizard.newGames().join()==='doom,freedoom'&&plan()[1]==='Add 2 free games: Doom shareware and Freedoom Phase 2'&&Boolean(document.querySelector('.wz-games-change .games'))`, 'ticking Doom shareware and Freedoom Phase 2 plans exactly those two');
   await check(fits, 'review with the games chooser fits without horizontal scroll');
   await shot('06b-flow-review-games');
   await evaluate(`appUpdating=true`);
@@ -519,8 +529,10 @@ try {
   await click('Next');
   await view('flow', 'review');
   await check(`(()=>{const box=document.getElementById('wz-eject-auto');return box&&!box.checked&&txt('.wz-eject-auto').startsWith('Eject the USB when writing finishes')&&(document.querySelector('.wz-eject-auto').compareDocumentPosition(document.getElementById('wz-write'))&Node.DOCUMENT_POSITION_FOLLOWING);})()`, 'the review offers Eject the USB when writing finishes, unticked by default, just above Write to USB');
+  await check(`setupWizard.newGames().length===0&&!plan().some(line=>/game/i.test(line))&&Boolean(button('Add free games'))`, 'a fresh install left as it is plans no games');
   await click('Write to USB');
   await view('flow', 'done');
+  await check(`(()=>{const writes=fx.written.filter(r=>r.method==='prepare_usb');return writes.length===1&&Array.isArray(writes[0].games)&&writes[0].games.length===0&&!fx.written.some(r=>r.method==='prepare_games_usb')&&!txt('.wz-done').includes('Games on USB')&&Object.values(fx.games).every(on=>!on);})()`, 'a fresh install left as it is sends an empty games list and copies no games');
   await check(`button('Eject USB')?.classList.contains('primary')&&button('Done').classList.contains('secondary')&&!(fx.ejects||[]).length&&!document.getElementById('job-panel').checkVisibility()`, 'done offers Eject USB as the main action; with the box unticked nothing ejects by itself');
   await shot('09-done-eject-offer');
   await evaluate(`fx.failEject=true`);
@@ -565,6 +577,9 @@ try {
   await click('Next');
   await view('flow', 'review');
   await check(`document.getElementById('wz-eject-auto').checked`, 'the remembered choice is ticked on the next write');
+  await click('Add free games');
+  await evaluate(`gameBox('doom').click()`);
+  await check(`setupWizard.newGames().join()==='doom'`, 'Doom shareware ticked for the failed-download case');
   await evaluate(`fx.failGame='doom'`);
   await click('Write to USB');
   await view('flow', 'done');
@@ -589,11 +604,13 @@ try {
   await click('Next');
   await view('flow', 'review');
   await check(`txt('.wz-flow-count')==='Step 2 of 5'&&plan().join('|')==='Back up and update the loader'&&txt('.wz-plan small')==='Old build → Fixture build'`, 'update flow: no profile step; keeping the saved screen adds nothing to the review');
+  await check(`[...setupWizard.state.games].join()==='chex'&&setupWizard.newGames().length===0&&Boolean(button('Change games'))&&!button('Add free games')`, 'an update starts from the game the USB holds (Chex Quest), adds none, and offers Change games');
   await evaluate(`window.__mark=fx.requests.length`);
   await click('Write to USB');
   await view('flow', 'done');
   await check(`since(window.__mark)==='inspect_mod_settings,update_usb,inspect_usb'&&fx.written.length===1&&fx.written[0].method==='update_usb'&&JSON.stringify(fx.written[0].expected_identity)==='{"serial":1}'&&fx.written[0].expected_loader.sha256==='abc'&&JSON.stringify(fx.written[0].games)==='[]'`, 'update writes update_usb with the inspected identity and loader, and adds no games');
   await check(`txt('.wz-done').includes('Loader updated. The previous loader is backed up on the USB.')&&!fx.saved`, 'done says the old loader is backed up; the unchanged screen choice writes nothing');
+  await check(`setupWizard.state.inspection.games.find(g=>g.id==='chex').installed&&!fx.written.some(r=>r.method==='prepare_games_usb')`, 'after the update the USB still holds Chex Quest');
   await click('Done');
   await view('device');
   await evaluate(`setupWizard.startFlow('update')`);
@@ -684,6 +701,8 @@ try {
   await view('device');
   await evaluate(`fx.failGame='chex'`);
   await click('Install XZ Mods'); await view('flow', 'profile'); await click('Skip for now'); await view('flow', 'look'); await click('Next'); await view('flow', 'review');
+  await click('Add free games');
+  await click('Add all free games');
   await click('Write to USB');
   await view('flow', 'done');
   await check(`txt('.wz-done-hero h3')==='Finished, with something to check'&&txt('.wz-done').includes('chex did not download: Download failed')&&Boolean(button('Retry the failed games'))`, 'a failed game download ends on Finished, with something to check and a Retry button');
@@ -722,7 +741,7 @@ try {
   await open('builds');
   await view('device');
   await waitFor(`fx.selections.length===1&&activeJob===null&&document.querySelector('.wz-build-note')`, 'older included build follows the newest');
-  await check(`fx.selections[0].mod_version_id==='v1'&&txt('.wz-build-note')==='Switched to the newest build, which came with this app.'&&txt('.wz-build-name')==='Development build newsha12'`, 'a saved older included build follows the newest build, said in the build line');
+  await check(`fx.selections[0].mod_version_id==='v1'&&txt('.wz-build-note')==='Switched to the newest build, which came with this app.'&&txt('.wz-build-name')==='Included build newsha12'`, 'a saved older included build (old "Included development build" label) follows the newest build (new "Included build" label), said in the build line');
   await click('Change');
   await check(`txt('#page-title')==='XZ Mods version'&&!document.getElementById('advanced').classList.contains('hidden')&&document.querySelector('nav button.selected').dataset.page==='updates'&&document.getElementById('tab-advanced').getAttribute('aria-selected')==='true'&&!document.getElementById('back-to-tools').checkVisibility()`, 'Change in the build line opens Updates › XZ Mods version');
 
@@ -743,7 +762,7 @@ try {
   await view('device');
   await evaluate(`tile('games').click()`);
   await view('flow', 'review');
-  await check(`txt('.wz-flow-title h2')==='Install XZ Mods'&&[...document.querySelectorAll('.wz-games-change .games-group[data-kind=builtin] .games-switch input')].map(i=>i.closest('.games-row').dataset.id).join()==='beat-arcade,wave-rider,rhythm-lab,static-surfer'`, 'Games on a fresh USB joins the install; games_menu in the schema gives built-ins a menu switch');
+  await check(`txt('.wz-flow-title h2')==='Install XZ Mods'&&setupWizard.newGames().length===0&&Boolean(button('Hide games'))&&[...document.querySelectorAll('.wz-games-change .games-group[data-kind=builtin] .games-switch input')].map(i=>i.closest('.games-row').dataset.id).join()==='beat-arcade,wave-rider,rhythm-lab,static-surfer'`, 'Games on a fresh USB joins the install; games_menu in the schema gives built-ins a menu switch');
   await click('Back');
   await view('device');
   passed++; console.log('ok', 'a guide opened from the Games tile goes Back to the dashboard, not to steps it skipped');
@@ -842,6 +861,7 @@ try {
   await open('beta');
   await waitFor(`fx.calls.filter(c=>c==='check_app_update').length===1&&!updateChecking`, 'one automatic beta check on launch');
   await check(`document.documentElement.dataset.updateChannel==='beta'&&txt('#update-channel-note').includes('automatically at launch')&&document.getElementById('app-update-banner').checkVisibility()&&txt('#app-update-banner-text').includes('0.3.0-preview.13')`, 'beta startup shows the update banner without opening Tools');
+  await check(`document.getElementById('beta-badge').checkVisibility()&&txt('#beta-badge')==='Beta'&&document.getElementById('beta-badge').closest('.top-version')`, 'a beta build shows the Beta badge beside its version');
   await check(`document.getElementById('app-downloads').href==='https://beta.xzmods.com/'&&document.getElementById('portable-downloads').href.includes('/v0.3.0-preview.12/')`, 'beta download links never point at stable latest');
   await evaluate(`showPage('updates');document.getElementById('check-app-update').click()`);
   await waitFor(`fx.calls.filter(c=>c==='check_app_update').length===2&&!updateChecking`, 'manual beta recheck');
@@ -858,6 +878,7 @@ try {
   await evaluate(`showPage('updates')`);
   await check(`document.getElementById('check-app-update').checkVisibility()&&!document.getElementById('install-app-update').checkVisibility()&&!button('Open downloads page')&&txt('#update-install-note')==='The update replaces the app and reopens it when finished.'&&fx.calls.filter(c=>c==='check_app_update').length===1&&!document.getElementById('portable-downloads').checkVisibility()`, 'Mac: App updates checks at launch, shows Check for updates and the Mac install note, and hides the Windows downloads');
   await shot('12-mac-updates');
+  await check(`document.documentElement.dataset.updateChannel==='stable'&&!document.getElementById('beta-badge').checkVisibility()&&txt('#update-channel-note').startsWith('Stable channel')`, 'a full release (no pre-release tag) shows no Beta badge and names the stable channel');
   await check(`document.querySelector('nav button.selected').dataset.page==='updates'&&document.getElementById('tab-updates').getAttribute('aria-selected')==='true'&&!document.querySelector('nav .nav-dot')`, 'Mac: Updates in the rail opens App updates, with no update dot');
 
 

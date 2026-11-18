@@ -109,7 +109,7 @@ static void test_button_and_picker(void){
  struct xz_shell u;struct xz_shell_model m;struct xz_shell_action out[XZ_SHELL_ACTIONS];
  xz_shell_init(&u);route_down(&m,XZ_LAYOUT_TWO,XZ_EXTRA_ROUTE_NOT_DETECTED);
  struct xz_shell_rect b=xz_shell_play_rect(&m,XZ_SHELL_R_VIEW_TWO,0),fx=xz_shell_play_rect(&m,XZ_SHELL_R_FX,0);
- assert(b.x==504&&b.y==0&&b.w==120&&b.h==26&&fx.x+fx.w==498);
+ assert(b.x==576&&b.y==0&&b.w==54&&b.h==26&&fx.x+fx.w==498);
  paint(&u,&m);
  /* The touch band reaches 43 px down, like the other top-bar controls. */
  assert(!down_up(&u,&m,b.x+b.w-2,43,out)&&u.deck_view.open);
@@ -200,7 +200,7 @@ static void test_always_shown(void){
   assert(b.w&&b.h&&fx.x+fx.w<=b.x);
  }
  xz_shell_init(&u);route_down(&m,XZ_LAYOUT_TWO,XZ_EXTRA_ROUTE_NOT_DETECTED);paint(&u,&m);
- down_up(&u,&m,560,10,out);assert(u.deck_view.open);
+ {struct xz_shell_rect b=xz_shell_play_rect(&m,XZ_SHELL_R_VIEW_TWO,0);down_up(&u,&m,b.x+b.w/2,10,out);}assert(u.deck_view.open);
  puts("PASS DECKS button always on the play screen, BEAT FX strip ends before it, a tap opens the picker");
 }
 int main(void){fx_track_build(&track,7);test_placeholders();test_button_and_picker();test_encoder();test_motion_and_success();test_always_shown();return 0;}

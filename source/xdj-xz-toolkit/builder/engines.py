@@ -90,9 +90,10 @@ def download(record,folder,job):
 
 def engine_lock():return exclusive_lock(cache._safe_path(data_root()/'.engine.lock'))
 
-def require_scratch(frames):
+def require_scratch(frames,rate=44100):
     """Worst-case raw roles plus FLAC pages, bounded PCM maps and filesystem headroom."""
-    output_frames=-(-frames*320//147)
+    from .stem_estimate import role_frames
+    output_frames=role_frames(frames,rate)
     needed=output_frames*4*7*5//2+frames*24+128*1024*1024
     if shutil.disk_usage(data_root()).free<needed:
         raise ValueError(f'Low-memory processing needs {needed/1024**3:.1f} GB of free temporary disk space for this track. Free space on the XZ Mods data drive and retry.')
@@ -102,7 +103,7 @@ def python_path(environment):return environment/('Scripts/python.exe' if os.name
 def engine_python():
     base=data_root();python=python_path(base/'engine-python')
     if not python.is_file() or not any(base.glob('setup-*.json')):
-        raise ValueError('Set up the separation engine first. Imported stems are resampled to 96 kHz with it.')
+        raise ValueError('Set up the separation engine first. Imported stems are prepared with it.')
     return python
 
 def installed_torch_flavour(uv,python,job):
@@ -186,6 +187,8 @@ def setup(request,job,resources):
 TRACK_FRAMES=300*44100
 TEST_SECONDS=30
 PUBLISH_KEY='publish/any'
+# Publish timings per stem sample rate. 'publish/any' predates 44.1 kHz stems, so it holds the 96 kHz runs.
+PUBLISH_KEYS={96000:PUBLISH_KEY,44100:'publish/44100'}
 PUBLISH_PRIOR_RATE=0.2
 
 def machine_facts():
@@ -216,22 +219,27 @@ def machine_facts():
     except (OSError,ValueError,AttributeError):pass
     return {'cpu_name':name,'cpu_cores':os.cpu_count() or 0,'ram_bytes':ram}
 
-def record_publish_timing(frames,seconds):
-    """Seconds per source second for the 96 kHz render, FLAC pages, verification and waveforms, last TIMING_RUNS runs."""
-    if not frames or seconds<=0:return
-    store=read_timings();entry=store.setdefault(PUBLISH_KEY,{'rates':[]})
+def record_publish_timing(frames,seconds,sample_rate=44100):
+    """Seconds per source second for the role render, FLAC pages, verification and waveforms at one stem
+    sample rate, last TIMING_RUNS runs."""
+    if not frames or seconds<=0 or sample_rate not in PUBLISH_KEYS:return
+    store=read_timings();entry=store.setdefault(PUBLISH_KEYS[sample_rate],{'rates':[]})
     entry['rates']=(entry.get('rates',[])+[seconds/(frames/44100)])[-TIMING_RUNS:];entry['updated']=time.time()
     path=timing_store();temporary=path.with_suffix('.tmp')
     temporary.write_text(json.dumps(store,indent=2),encoding='utf-8');os.replace(temporary,path)
 
-def estimate_publish_seconds(frames):
-    entry=read_timings().get(PUBLISH_KEY,{})
-    rate=statistics.median(entry['rates']) if entry.get('rates') else PUBLISH_PRIOR_RATE
-    return rate*frames/44100
+def estimate_publish_seconds(frames,sample_rate=44100):
+    """Until this computer has timed a 44.1 kHz run, its 96 kHz runs stand in: they take longer, so the
+    first estimates err high rather than low."""
+    store=read_timings()
+    for key in (PUBLISH_KEYS.get(sample_rate,PUBLISH_KEY),PUBLISH_KEY):
+        rates=store.get(key,{}).get('rates')
+        if rates:return statistics.median(rates)*frames/44100
+    return PUBLISH_PRIOR_RATE*frames/44100
 
-def estimate_track_seconds(preset,frames,device=None,include_load=False):
-    """Expected wall-clock for one track through separation and publication."""
-    return estimate_separation_seconds(preset,frames,device,include_load)+estimate_publish_seconds(frames)
+def estimate_track_seconds(preset,frames,device=None,include_load=False,rate=44100):
+    """Expected wall-clock for one track through separation and publication at stem sample rate ``rate``."""
+    return estimate_separation_seconds(preset,frames,device,include_load)+estimate_publish_seconds(frames,rate)
 
 def last_test_seconds():
     try:return json.loads((data_root()/'engine-test.json').read_text(encoding='utf-8')).get('seconds')
@@ -402,16 +410,20 @@ class Engine:
 
 def separate(request,job,resources,engine=None):
     from .service import locate_track
+    from .overcue_writer import requested_rate
+    rate=requested_rate(request)
     track=locate_track(request['source'])
     import shutil
     from . import stem_estimate
-    needed=stem_estimate.required_free_bytes(track.frames,stem_estimate.SizeModel.load(stem_estimate.model_path(data_root())))
+    needed=stem_estimate.required_free_bytes(track.frames,stem_estimate.SizeModel.load(stem_estimate.model_path(data_root()),rate),rate)
     if shutil.disk_usage(track.usb_root).free<needed:raise ValueError('Not enough USB space for this track. Free space and try again.')
     if engine is not None:return _separate(track,request,job,engine)
     with Engine(request['preset'],job,resources) as owned:return _separate(track,request,job,owned)
 
 def _separate(track,request,job,engine):
-    require_scratch(track.frames)
+    from .overcue_writer import requested_rate
+    rate=requested_rate(request)
+    require_scratch(track.frames,rate)
     with tempfile.TemporaryDirectory(prefix='xz-separate-',dir=data_root()) as temporary:
         temporary=Path(temporary)
         from .service import _as_wav
@@ -422,7 +434,7 @@ def _separate(track,request,job,engine):
         stems={item['name']:item for item in result['stems']}
         from .service import prepare_stems
         parts={name:(output/stems[name]['file'],cache._gain(stems[name]['gain'])) for name in ('vocals','harmonics')}
-        receipt=prepare_stems(track,parts,cache.validate_model_id(result['model_id']),engine.state['python'],job,temporary,mix=canonical)
+        receipt=prepare_stems(track,parts,cache.validate_model_id(result['model_id']),engine.state['python'],job,temporary,mix=canonical,rate=rate)
         return {**receipt,'preset':request['preset'],'device':result['identity']['device'],'diagnostics':result.get('diagnostics',{}),'vjtools_required':False}
 
 def separate_drums(source,output_dir,job,resources):

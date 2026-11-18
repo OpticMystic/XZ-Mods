@@ -75,7 +75,6 @@ static void render(const struct xz_extra_decks *decks,int order,int detail,int n
  for(int i=0;i<2;i++){m.look[2+i]=marks[i].look;m.col[2+i]=marks[i].col;}
  xz_four_protect(&g,&m,surface,keep);
  xz_four_restore(&g,&m,surface,keep);
- if(detail<0)xz_extra_notice_draw(surface,XZ_WAVE_WIDTH,PIXELS,decks,NOW);
 }
 static void save(const char *folder,const char *name){
  char path[512];snprintf(path,sizeof(path),"%s/%s.raw",folder,name);
@@ -206,15 +205,15 @@ int main(int argc,char **argv){
  synced(&native_tempo.deck[1],-1,XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED,0);
  render(&native_tempo,XZ_FOUR_STACKED,0,XZ_EXTRA_DETAIL_NOTICE_NONE);save(argv[2],"13-detail-native-tempo-only");
  render(&native_tempo,XZ_FOUR_STACKED,1,XZ_EXTRA_DETAIL_NOTICE_NONE);save(argv[2],"14-detail-external-master");
- /* Player notice: the banner with the panel closed, the panel's status row while open. */
+ /* Player notice: nothing on the surface with the panel closed (the top bar shows it, play_notice.h), the panel's
+    status row while open. */
  struct xz_extra_decks notice=left;notice.notice_seq=1;notice.notice_at_ms=NOW;
  snprintf(notice.notice,sizeof notice.notice,"LOOP IN ADJUST");
  render(&notice,XZ_FOUR_STACKED,-1,0);save(argv[2],"15-player-notice-banner");
  render(&notice,XZ_FOUR_STACKED,0,0);save(argv[2],"16-player-notice-in-panel");
- /* Route lost: two native decks again, the notice still shown. */
+ /* Route lost: two native decks again; the notice shows in the top bar, not here. */
  memcpy(surface,native,sizeof(surface));
  snprintf(notice.notice,sizeof notice.notice,"DECK 3/4 ROUTE LOST");notice.route_up=0;
- xz_extra_notice_draw(surface,XZ_WAVE_WIDTH,PIXELS,&notice,NOW);
  save(argv[2],"17-route-lost-two-native-decks");
  render(&loops,XZ_FOUR_STACKED,1,0);save(argv[2],"18-detail-hot-cue-call");
  /* SYNC reason atlas: two current-source tempo-proof states for every reason. */

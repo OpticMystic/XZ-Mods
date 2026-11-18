@@ -77,7 +77,17 @@ static void copy_safe(void) {
  struct xz_shell probe=u;expect_load(load_key(&probe,&m,2),2,b.rows[0].id);
  assert(xz_shell_screen(&u)==XZ_SHELL_BROWSE&&!sh_browse_load_pending(&u));
  assert(!event(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,-1));probe=u;
- expect_load(load_key(&probe,&m,1),1,b.rows[0].id);assert(sh_browse_load_pending(&u));
+ /* With the menu open a LOAD key off the highlight moves the highlight to its deck; the next press loads. */
+ assert(!load_key(&probe,&m,1)&&sh_browse_load_pending(&probe)&&sh_browse_load_choice_deck(&probe,probe.load_choice.cursor)==1);
+ expect_load(load_key(&probe,&m,1),1,b.rows[0].id);
+ assert(sh_browse_load_pending(&u)&&sh_browse_load_choice_deck(&u,u.load_choice.cursor)==u.deck);
+ /* Four decks in MIXER ORDER: the rows read DECK 3, 1, 2, 4 like the lanes, the cursor starts on the deck in focus. */
+ setup(&u,&m,&b,4);m.wave_order=1;u.deck=0;assert(!event(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,-1));
+ assert(sh_browse_load_choice_deck(&u,0)==2&&sh_browse_load_choice_deck(&u,1)==0&&sh_browse_load_choice_deck(&u,2)==1&&
+        sh_browse_load_choice_deck(&u,3)==3&&sh_browse_load_choice_deck(&u,4)==-1&&u.load_choice.cursor==1);
+ m.wave_order=0; /* DECK VIEW changed while open: the rows keep the order they were drawn in */
+ assert(sh_browse_load_choice_deck(&u,0)==2);
+ event(&u,&m,XZ_SHELL_ENCODER_TURN,-1,0,-1);expect_load(event(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,-1),2,b.rows[0].id);
 }
 static void two_decks_and_touch(void) {
  struct xz_shell u;struct xz_shell_model m;struct xz_shell_browse_model b;setup(&u,&m,&b,2);
@@ -99,6 +109,16 @@ static void two_decks_and_touch(void) {
  struct xz_shell_rect chip=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_LOAD,4);assert(chip.w>0);
  down.x=chip.x+chip.w/2;down.y=chip.y+chip.h/2;
  expect_load(xz_shell_input(&u,&m,&down,actions),3,b.rows[0].id);assert(!sh_browse_load_pending(&u));
+ /* MIXER ORDER: the row's chips read 3, 1, 2, 4 like the lanes; the first deck chip loads DECK 3. */
+ static const int lanes[4]={2,0,1,3};
+ for(int i=0;i<4;i++){
+  setup(&u,&m,&b,4);m.wave_order=1;
+  down.kind=XZ_SHELL_TOUCH_DOWN;down.x=row.x+row.w/2;down.y=row.y+row.h/2;
+  xz_shell_input(&u,&m,&down,actions);xz_shell_input(&u,&m,&up,actions);
+  chip=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_LOAD,i+1);assert(chip.w>0);
+  down.x=chip.x+chip.w/2;down.y=chip.y+chip.h/2;
+  expect_load(xz_shell_input(&u,&m,&down,actions),lanes[i],b.rows[0].id);
+ }
 }
 int main(void) {
  (void)&bx_folders;fx_track_build(&track,1);bx_build(&library);

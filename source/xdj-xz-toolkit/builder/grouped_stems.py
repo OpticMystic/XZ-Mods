@@ -104,20 +104,20 @@ def group(request,output):
     (output/'groups.json').write_text(json.dumps(state),encoding='utf-8')
     return state
 
-def render_groups(output,split=None):
-    """Render roles from group WAVs; split gives the drum separation of instrumental.wav."""
+def render_groups(output,split=None,rate=_roles.DEFAULT_RATE):
+    """Render roles at ``rate`` from group WAVs; split gives the drum separation of instrumental.wav."""
     output=Path(output);state=json.loads((output/'groups.json').read_text(encoding='utf-8'));gains=state['gains']
     if state['needs_drum_split']:
         if not split:raise ValueError('The instrumental stem needs drum separation before rendering')
         # Separated PCM / gain is at the scale the engine read instrumental.wav: PCM/32768.
         parts={name:(split[name]['path'],float(split[name]['gain'])*gains['instrumental']*32767/32768) for name in ('drums','harmonics')}
     else:parts={name:(output/(name+'.wav'),gains[name]) for name in ('drums','harmonics')}
-    report=render(output/'mix.wav',output/'vocals.wav',gains['vocals'],parts['harmonics'][0],parts['harmonics'][1],output/'roles',parts['drums'][0],parts['drums'][1])
+    report=render(output/'mix.wav',output/'vocals.wav',gains['vocals'],parts['harmonics'][0],parts['harmonics'][1],output/'roles',parts['drums'][0],parts['drums'][1],rate=rate)
     return {**report,'check':state['check']}
 
 def combine(request,output):
     state=group(request,output)
-    return state if state['needs_drum_split'] else render_groups(output)
+    return state if state['needs_drum_split'] else render_groups(output,rate=request.get('sample_rate',_roles.DEFAULT_RATE))
 
 def plan(request,output):
     """Alignment of the summed stems against the mix, with each file's length at 44.1 kHz."""
@@ -149,7 +149,7 @@ if __name__=='__main__':
     try:
         if a.mode=='plan':plan(request,a.output)
         elif a.mode=='group':group(request,a.output)
-        elif a.mode=='render':render_groups(a.output,request.get('split'))
+        elif a.mode=='render':render_groups(a.output,request.get('split'),request.get('sample_rate',_roles.DEFAULT_RATE))
         else:combine(request,a.output)
     except ValueError as exc:
         print(str(exc),file=sys.stderr);raise SystemExit(1)

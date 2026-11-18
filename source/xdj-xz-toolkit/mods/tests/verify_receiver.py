@@ -29,8 +29,32 @@ declarations = r'''
 #ifdef NDEBUG
 #error assertions required
 #endif
-static uint8_t composite_frame[16];
-static uint16_t mods_present_frame[8];
+/* The present path (r33): a frame budget, a full-frame renderer and the display pipeline's async slots
+   (dp_render_request) came in; the VJ base is recomposed from RAW for each present (compose_base_for_present). */
+#define XZ_FRAME_BYTES 16
+static uint16_t vj_composite_frame[8];
+static uint16_t mods_present_storage[8],*mods_present_frame=mods_present_storage;
+static unsigned xz_frame_copy_render_offset(void){return 0;}
+static struct xz_pipeline_request_v1 dp_render_request;
+static int full_frame;
+static int fake_full_frame(void){return full_frame;}
+static int fake_prepare(uint16_t *p,uint32_t w,uint32_t h,uint32_t s,const struct xz_vj_connection_v1 *c,const struct xz_pipeline_request_v1 *r){
+ (void)p;(void)w;(void)h;(void)s;(void)c;(void)r;return 1;}
+static xz_mods_full_frame_fn_v1 mods_full_frame;
+static xz_mods_pipeline_prepare_fn_v1 mods_pipeline_prepare;
+static unsigned base_updates,base_draws;
+static unsigned update_composite_base(void){base_updates++;return 0;}
+static void draw_composite_frame(uint8_t *output){(void)output;base_draws++;}
+static uint64_t monotonic_us(void){return 0;}
+/* The flip hook's kart primary-display diagnostic and stock-thread pacing: the diagnostic writer is never active
+   here (the stock primary is modelled), and pacing runs only on the presenter branch, counted. */
+static int diagnostic_primary_active(int overlay){(void)overlay;return 0;}
+static uint32_t xz_kart_primary_display_proof_v1[16];
+static uint32_t diagnostic_primary_logged;
+static int diagnostic_writer_claim(unsigned owner){(void)owner;return 1;}
+static void diagnostic_writer_release(void){}
+static unsigned paced;
+static void stock_frame_pace(void){paced++;}
 static int visible, draw_result, vj_active, flips, probe_calls;
 static int mods_token;
 static void *mods_render;
@@ -42,6 +66,7 @@ typedef int DFBResult;
 typedef int DFBSurfaceFlipFlags;
 typedef struct {int x;} DFBRegion;
 typedef struct {int unused;} IDirectFBSurface;
+static void capture_mods_native(IDirectFBSurface *s){(void)s;}
 struct fake_dfb {void (*WaitIdle)(struct fake_dfb *);};
 static struct fake_dfb *directfb_interface;
 #define DFB_OK 0
@@ -88,8 +113,20 @@ static int socket(int a,int b,int c){(void)a;(void)b;(void)c;ip_queries++;return
 static int close(int fd){(void)fd;return 0;}
 static int ioctl(int fd,unsigned long request,void *p){(void)fd;(void)request;(void)p;return 0;}
 static const char *inet_ntop(int family,const void *a,char *s,size_t n){(void)family;(void)a;snprintf(s,n,"192.0.2.3");return s;}
+/* The address now comes through network/receiver_address.h (POSIX headers; its own test is
+   network/test_receiver_address.c). With no MODS address service its answer is the eth0 fallback, made here with
+   the fakes above. */
+typedef int (*xz_network_address_fn_v1)(char out[16]);
+static xz_network_address_fn_v1 mods_network_address;
+static int xz_receiver_network_ipv4(int fd,xz_network_address_fn_v1 preferred,char out[16]){
+ memset(out,0,16);assert(!preferred);if(fd<0)return 0;
+ struct ifreq request;memset(&request,0,sizeof request);memcpy(request.ifr_name,"eth0",5);
+ if(ioctl(fd,SIOCGIFADDR,&request))return 0;
+ return inet_ntop(AF_INET,&request.ifr_addr.sin_addr,out,16)!=NULL;
+}
 '''
-functions = '\n'.join(extract(s) for s in [
+functions = extract('struct preparation_budget {') + ';\n' + '\n'.join(extract(s) for s in [
+    'static void compose_base_for_present(',
     'static const uint8_t *composite_for_present(',
     'static DFBResult hooked_primary_flip(',
     'static int send_touch_event_checked(',
@@ -102,20 +139,37 @@ int main(void){
  IDirectFBSurface surface={0};DFBRegion region={1};struct xz_vj_connection_v1 status;
  const uint8_t *out;uint8_t pristine[16];
  assert(sizeof(status)==48);
- memset(composite_frame,0x12,sizeof(composite_frame));memcpy(pristine,composite_frame,16);
- assert(composite_for_present()==composite_frame);
+ memset(vj_composite_frame,0x12,sizeof(vj_composite_frame));memcpy(pristine,vj_composite_frame,16);
+ /* No MODS renderer: the VJ base, recomposed from RAW for this present, and the budget says so. */
+ struct preparation_budget budget;memset(&budget,0,sizeof budget);
+ assert(composite_for_present(&budget,NULL)==(const uint8_t*)vj_composite_frame);
+ assert(base_updates==1&&base_draws==1&&budget.compose_calls==1&&!budget.render_calls);
+ /* The MODS frame is drawn on a copy of the base; the base itself is never written. */
  mods_render=&mods_token;visible=1;draw_result=1;
- out=composite_for_present();assert(out==(const uint8_t*)mods_present_frame);assert(((const uint16_t*)out)[0]==0x7777);
- assert(memcmp(composite_frame,pristine,16)==0);
- draw_result=0;assert(composite_for_present()==NULL);assert(memcmp(composite_frame,pristine,16)==0);
- visible=0;assert(composite_for_present()==composite_frame);assert(memcmp(composite_frame,pristine,16)==0);
+ out=composite_for_present(NULL,NULL);assert(out==(const uint8_t*)mods_present_frame);assert(((const uint16_t*)out)[0]==0x7777);
+ assert(memcmp(vj_composite_frame,pristine,16)==0);
+ draw_result=0;assert(composite_for_present(NULL,NULL)==NULL);assert(memcmp(vj_composite_frame,pristine,16)==0);
+ visible=0;assert(composite_for_present(NULL,NULL)==(const uint8_t*)vj_composite_frame);assert(memcmp(vj_composite_frame,pristine,16)==0);
+ /* A full-frame renderer draws the whole present frame: no VJ base is composed under it. */
+ mods_full_frame=fake_full_frame;full_frame=1;draw_result=1;
+ {unsigned draws=base_draws;out=composite_for_present(NULL,NULL);assert(out==(const uint8_t*)mods_present_frame&&base_draws==draws);}
+ /* Display-pipeline slots: an async destination gets a frame only for a slot request with a full-frame
+    renderer, and the synchronous present yields while a slot is being rendered on this thread. */
+ {uint16_t slot[8]={0};
+  assert(composite_for_present(NULL,slot)==NULL);
+  dp_render_request.token=5;mods_pipeline_prepare=fake_prepare;
+  out=composite_for_present(NULL,slot);assert(out==(const uint8_t*)slot&&slot[0]==0x7777);
+  assert(composite_for_present(NULL,NULL)==NULL);
+  dp_render_request.token=0;mods_pipeline_prepare=NULL;}
+ mods_full_frame=NULL;full_frame=0;
  mods_render=NULL;assert(hooked_primary_flip(&surface,&region,55)==19);assert(last_region==&region&&last_flags==55);
  mods_render=&mods_token;draw_result=0;assert(hooked_primary_flip(&surface,&region,55)==19);assert(last_region==&region&&last_flags==55);
  draw_result=1;assert(hooked_primary_flip(&surface,&region,55)==19);assert(last_region==NULL&&last_flags==(55|DSFLIP_WAITFORSYNC));
  visible=1;draw_result=0;{int previous=flips;assert(hooked_primary_flip(&surface,&region,55)==DFB_OK);assert(flips==previous);}
  visible=0;mods_render=NULL;vj_active=1;
  assert(hooked_primary_flip(&surface,&region,55)==19);assert(last_region==NULL&&last_flags==(55|DSFLIP_WAITFORSYNC));
- framebuffer_presenter_started=1;{int previous=flips;assert(hooked_primary_flip(&surface,&region,55)==DFB_OK);assert(flips==previous);}
+ assert(!paced);
+ framebuffer_presenter_started=1;{int previous=flips;assert(hooked_primary_flip(&surface,&region,55)==DFB_OK);assert(flips==previous&&paced==1);}
  framebuffer_presenter_started=0;vj_active=1;vjfs_client_fd=9;
  xz_vj_touch_v1(1,100,200);assert(touch_calls==1&&touch_type==1&&touch_px==100&&touch_py==200);
  xz_vj_touch_v1(1,101,201);assert(touch_calls==1);

@@ -91,6 +91,7 @@ def mapping_identity(rows, address, size):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', required=True, type=Path)
+    parser.add_argument('--symbol', choices=['xz_mods_deck_input_trace_v1', 'xz_mods_native_contact_trace_v1'], default='xz_mods_deck_input_trace_v1')
     parser.add_argument('--host', required=True)
     parser.add_argument('--source', required=True)
     parser.add_argument('--pid', required=True, type=int)
@@ -107,7 +108,7 @@ def main():
         if elf.elfclass != 32 or not elf.little_endian or elf['e_machine'] != 'EM_ARM':
             raise ValueError('Expected the exact ARM32 runtime')
         table = elf.get_section_by_name('.dynsym')
-        symbols = table.get_symbol_by_name('xz_mods_deck_input_trace_v1') if table else None
+        symbols = table.get_symbol_by_name(args.symbol) if table else None
         if not symbols or len(symbols) != 1 or symbols[0]['st_size'] != SIZE or symbols[0]['st_info']['type'] != 'STT_OBJECT':
             raise ValueError('Runtime has no matching input trace ABI')
         offset = int(symbols[0]['st_value'])

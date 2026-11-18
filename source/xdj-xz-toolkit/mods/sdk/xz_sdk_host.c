@@ -11,6 +11,8 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <pthread.h>
+#include "../xz_mutex.h"
+#include "../xz_spawn.h"
 #include <signal.h>
 #include <spawn.h>
 #include <stdatomic.h>
@@ -115,7 +117,7 @@ struct xz_manager {
     uint64_t next_media_check;
 };
 
-static pthread_mutex_t manager_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t manager_mutex = XZ_MUTEX_INITIALIZER;
 static struct xz_manager manager;
 static atomic_int foreground_reserved = ATOMIC_VAR_INIT(0);
 
@@ -704,6 +706,10 @@ static int spawn_staged(const struct xz_sdk_stage *stage, uint32_t kind, const c
             return -1;
         }
     }
+    /* vfork, never fork: a fork of the player stalls every one of its threads for about 350 ms (xz_spawn.h).
+     * The child's descriptor table and signal handlers are its own copies, so the closes and the signal
+     * setup above do not touch the player. */
+    (void)xz_spawn_without_copy(&attributes);
     arguments[0] = (char *)stage->entry_path;
     arguments[1] = NULL;
     result = posix_spawn(process, stage->entry_path, &actions, &attributes,

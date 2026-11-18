@@ -54,11 +54,9 @@ void xz_four_number_box(struct xz_canvas c,int x,int y,unsigned number);
    top-left corner, lit while that side's controls drive the native deck. The native left column no
    longer lines up with the lanes, so every lane names its deck. Writes only the tag's pixels. */
 int xz_four_badge_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,int lit);
-/* A transient player/route notice on the existing Classic play surface, including after route loss. */
+/* A transient player/route notice is fresh (3.5 s), including after route loss. CLASSIC shows it in the top bar
+   (native_wave_runtime.h xz_native_play_notice, play_notice.h), never on the waveform surface. */
 int xz_extra_notice_active(const struct xz_extra_decks *,uint32_t now_ms);
-int xz_extra_notice_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_extra_decks *,uint32_t now_ms);
-/* The same banner with any text (up to 63 characters), e.g. the DECK VIEW route-up notice (deck_view.h). */
-int xz_extra_banner_draw(uint16_t *pixels,size_t stride,size_t count,const char *text);
 
 /* The SYNC/MASTER state of a software deck, as the plate and the detail panel say it. */
 enum xz_extra_sync_class {

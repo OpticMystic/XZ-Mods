@@ -149,6 +149,10 @@ static void *xz_screen_listener(void *unused) {
     struct sched_param priority={0};
     pthread_setschedparam(pthread_self(),SCHED_OTHER,&priority);
     setpriority(PRIO_PROCESS,0,10);
+    /* This worker is created from the stock interface thread and inherited its core. The display threads now
+     * live there above it, so let it run on any of cores 0-2 or screen observation stops answering. */
+    { cpu_set_t cores; CPU_ZERO(&cores); CPU_SET(0, &cores); CPU_SET(2, &cores); /* not the display core */
+      pthread_setaffinity_np(pthread_self(), sizeof(cores), &cores); }
     if (server < 0) return NULL;
     setsockopt(server,SOL_SOCKET,SO_REUSEADDR,&one,sizeof(one));
     memset(&address,0,sizeof(address)); address.sin_family=AF_INET;

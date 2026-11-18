@@ -158,6 +158,8 @@ struct xz_extra_deck {
  struct xz_extra_timeline timeline;
  struct xz_extra_sync sync;
  uint32_t jog_content_epoch;          /* accepted LOAD/instance identity, captured under publication lock; 0 invalid */
+ uint32_t track_id;                   /* rekordbox id of the loaded track in its stick's export, set with source; 0 empty */
+ int cue_play;                        /* CUE held at the cue point: plays until CUE is released (Cue Sampler) */
 };
 
 /* What pads A..H do, chosen by the HOT CUE / BEAT LOOP / SLIP LOOP / BEAT JUMP buttons (manual pp.52-62).
@@ -204,6 +206,11 @@ struct xz_performance_settings;struct xz_jump_snapshot;
 void xz_extra_decks_set_performance_settings(const struct xz_performance_settings *);
 int xz_extra_decks_jump_snapshot(int deck,struct xz_jump_snapshot *);
 void xz_extra_decks_set_quantize_grid(unsigned denominator,int known);
+/* Diagnostic: record what the mixer sends back over the loopback USB link. action 1: start a capture of ms
+   milliseconds (at most 4000); 2: progress; 3: write the finished capture to /dev/shm/xz-usb-capture.bin
+   (16-byte header: 'XZUC', version 1, frames, bytes per frame; then the frames). out: frames filled, frames
+   wanted, done. 0 = ok, negative errno otherwise. Never called from an audio or drawing path. */
+int xz_extra_decks_usb_capture(int action,uint32_t ms,uint32_t out[3]);
 struct xz_sync_native_snapshot;
 int xz_extra_native_sync_clock(struct xz_sync_native_snapshot *); /* cache copy only, never native I/O */
 
@@ -274,9 +281,15 @@ enum xz_extra_input {
  XZ_EXTRA_IN_LOOP_4_8,
  XZ_EXTRA_IN_MEMORY, XZ_EXTRA_IN_MEMORY_DELETE,
  XZ_EXTRA_IN_KEY,
+ /* Private bench (bench_keys.h) only, no control produces them: what a BEAT LOOP pad does (hot_cue = the pad's
+    size, 0..7 = 1/4..32 beats) and what a BEAT JUMP pad does once its size is resolved (beats, signed),
+    without changing the deck's pad mode. Presses only; no release is owed. */
+ XZ_EXTRA_IN_BEAT_LOOP, XZ_EXTRA_IN_BEAT_JUMP,
  XZ_EXTRA_INPUT_COUNT
 };
 #define XZ_EXTRA_TEMPO_SPAN 10000  /* tempo position at either end of the fader */
+/* A SYNC event from a remote controller names the state it wants, so a repeated command is harmless. */
+enum xz_extra_sync_set { XZ_EXTRA_SYNC_TOGGLE, XZ_EXTRA_SYNC_SET_ON, XZ_EXTRA_SYNC_SET_OFF };
 struct xz_extra_deck_event {
  int deck;                          /* 0 DECK 3, 1 DECK 4 */
  enum xz_extra_input kind;
@@ -289,11 +302,13 @@ struct xz_extra_deck_event {
   /* Fader position, -XZ_EXTRA_TEMPO_SPAN at the minus end to +XZ_EXTRA_TEMPO_SPAN at the plus end;
      the player applies its own tempo range. Already past pickup when it arrives. */
   int32_t tempo_position;
-  int hot_cue;                      /* 0..7, pads A..H; the deck's pad mode decides what a pad does */
+  int hot_cue;                      /* 0..7, pads A..H; the deck's pad mode decides what a pad does.
+                                       SYNC: enum xz_extra_sync_set (0 toggles, as the button does) */
   /* Caller keeps its reference; accepted queue and loaded deck each retain their own. */
   struct { int source; uint32_t track_id; uint64_t media_generation; uint32_t route_epoch;
            struct xz_extra_order *order; uint32_t order_index; } load;
   int32_t seek_ms;
+  int32_t beats;                    /* BEAT_JUMP: signed beats */
   struct xz_key_command key;
  };
 };

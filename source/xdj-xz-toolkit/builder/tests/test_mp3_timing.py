@@ -47,10 +47,15 @@ class ProbeShapeTests(unittest.TestCase):
             self.assertIsNone(mp3_timing.probe(path))
 
     def test_latency_pad_scales_to_96k(self):
-        self.assertEqual(mp3_timing.latency_pad_frames({'lame_tag': True, 'delay_frames': 1105}, 44100), 2405)
-        self.assertEqual(mp3_timing.latency_pad_frames({'lame_tag': True, 'delay_frames': 1105}, 48000), 2210)
-        self.assertEqual(mp3_timing.latency_pad_frames({'lame_tag': False, 'delay_frames': 1105}, 44100), 0)
-        self.assertEqual(mp3_timing.latency_pad_frames(None, 44100), 0)
+        self.assertEqual(mp3_timing.latency_pad_frames({'lame_tag': True, 'delay_frames': 1105}, 44100, 96000), 2405)
+        self.assertEqual(mp3_timing.latency_pad_frames({'lame_tag': True, 'delay_frames': 1105}, 48000, 96000), 2210)
+        self.assertEqual(mp3_timing.latency_pad_frames({'lame_tag': False, 'delay_frames': 1105}, 44100, 96000), 0)
+        self.assertEqual(mp3_timing.latency_pad_frames(None, 44100, 96000), 0)
+
+    def test_latency_pad_at_44k1_is_the_source_delay(self):
+        self.assertEqual(mp3_timing.latency_pad_frames({'lame_tag': True, 'delay_frames': 1105}, 44100, 44100), 1105)
+        self.assertEqual(mp3_timing.latency_pad_frames({'lame_tag': True, 'delay_frames': 1105}, 48000, 44100), 1015)
+        self.assertEqual(mp3_timing.latency_pad_frames({'lame_tag': False, 'delay_frames': 1105}, 44100, 44100), 0)
 
     def test_source_record_keeps_mp3_timing_only_for_mp3(self):
         mp3 = {'lame_tag': True, 'delay_frames': 1105, 'padding_frames': 407}

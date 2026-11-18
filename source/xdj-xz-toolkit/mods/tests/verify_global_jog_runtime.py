@@ -5,7 +5,10 @@ p=argparse.ArgumentParser();p.add_argument('--out',required=True,type=Path);a=p.
 root=Path(__file__).resolve().parents[1]
 def linux(p):
  p=str(p.resolve()).replace('\\','/');return '/mnt/'+p[0].lower()+p[2:]
-def run(*args):subprocess.run(['wsl','-d','Ubuntu','--cd',linux(root),'--exec',*map(str,args)],check=True)
+def run(*args):
+ args=list(args)
+ if args and args[0]=='arm-linux-gnueabi-gcc':args[1:1]=['-mcpu=cortex-a9']
+ subprocess.run(['wsl','-d','Ubuntu','--cd',linux(root),'--exec',*map(str,args)],check=True)
 for arch,cc,objcopy in [('host','gcc','objcopy'),('arm','arm-linux-gnueabi-gcc','arm-linux-gnueabi-objcopy')]:
  selector=a.out/f'test-global-selector-{arch}';run(cc,'-std=c11','-O1','-UNDEBUG','-Wall','-Wextra','-Werror','tests/test_global_jog.c','deck_select.c','-o',linux(selector))
  run(*(['qemu-arm','-L','/usr/arm-linux-gnueabi'] if arch=='arm' else []),linux(selector))

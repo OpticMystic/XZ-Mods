@@ -79,11 +79,13 @@ def stem_status(root,track,index,index_error):
         codec=next(iter(codecs)) if len(codecs)==1 else 'mixed'
         separation=manifest.get('separation') if isinstance(manifest.get('separation'),dict) else {}
         frames=matches[0].get('frames',manifest.get('runtime',{}).get('frames'))
-        waveforms=type(frames) is int and writer.waveforms_present(folder,frames)
+        rate=matches[0].get('sample_rate',manifest.get('runtime',{}).get('sample_rate',writer.UNLABELLED_RATE))
+        waveforms=type(frames) is int and rate in writer.PROFILES and writer.waveforms_present(folder,frames,rate)
         timeline=writer.mp3_timeline(manifest,source)
         regenerate=timeline=='gapless'
         result.update(stem_status='present',stem_label='Prepared · '+owner+(' · FLAC' if codec.startswith('flac-') else '')+(' · Prepare again' if regenerate else ''),
                       can_generate=supported and owner==writer.WRITER,can_verify=True,page_codec=codec,stored_bytes=stored,
+                      stem_sample_rate=rate,
                       producer='xz-mods' if owner==writer.WRITER else owner,prepared_at=int(folder.stat().st_mtime),
                       preset=separation.get('preset') or separation.get('method') or manifest.get('writer',{}).get('version'),
                       stem_waveforms=waveforms,can_add_waveforms=not waveforms and owner==writer.WRITER,
@@ -112,7 +114,8 @@ def browse(request,job):
     except (OSError,ValueError) as exc:index={};error=str(exc)
     disk=shutil.disk_usage(root)
     from .engines import data_root
-    model=stem_estimate.SizeModel.load(stem_estimate.model_path(data_root()))
+    rate=writer.requested_rate(request)
+    model=stem_estimate.SizeModel.load(stem_estimate.model_path(data_root()),rate)
     index_path=root/'CDJMODS'/'index.json'
     index_bytes=index_path.stat().st_size if index_path.is_file() else 0
     summary=library_summary(root,tracks,index,error)
@@ -128,7 +131,7 @@ def browse(request,job):
     return {'volume':str(root),'identity':managed_usb.identity(root,media=True),'database':str(pdb),'total':len(tracks),'matched':len(filtered),'offset':offset,'page_size':PAGE_SIZE,
             'free_bytes':disk.free,'total_bytes':disk.total,'index_bytes':index_bytes,'summary':summary,
             'index_room_tracks':max(0,((writer.MAX_INDEX_JSON if index_bytes>writer.MAX_JSON else writer.MAX_JSON)-index_bytes)//stem_estimate.INDEX_ENTRY_BYTES),
-            'size_model':{'learned':model.observations()>0,'observations':model.observations()},
+            'size_model':{'learned':model.observations()>0,'observations':model.observations(),'sample_rate':rate},
             'tracks':rows,'index_error':error}
 
 STATUS_FILTERS={'missing':('missing',),'present':('present',),'cant':('unsupported','unavailable','error')}
@@ -143,12 +146,19 @@ def quick_status(root,track,prepared,index_error):
     return 'missing' if source.suffix.lower() in cache.SUPPORTED_SUFFIXES else 'unsupported'
 
 def library_summary(root,tracks,index,index_error):
-    """Library-wide counts by status and the bytes stems already take, without opening any bundle."""
-    prepared={entry.get('file_path') for table in ('tracks','tracks_onelibrary') for entry in index.get(table,{}).values()}
+    """Library-wide counts by status and by stem sample rate, and the bytes stems already take, without
+    opening any bundle. An index entry without sample_rate is the 96 kHz profile."""
+    rates_by_path={entry.get('file_path'):entry.get('sample_rate',writer.UNLABELLED_RATE)
+                   for table in ('tracks','tracks_onelibrary') for entry in index.get(table,{}).values()}
+    prepared=set(rates_by_path)
     counts={'present':0,'missing':0,'unsupported':0,'unavailable':0,'error':0}
+    rates={str(rate):0 for rate in writer.SAMPLE_RATES}
     for track in tracks:
-        counts[quick_status(root,track,prepared,index_error)]+=1
-    return {'counts':counts,'stems_bytes':stems_on_usb(root)['bytes'],'tracks':len(tracks)}
+        status=quick_status(root,track,prepared,index_error);counts[status]+=1
+        if status=='present' and str(rates_by_path.get(track['file_path'])) in rates:rates[str(rates_by_path[track['file_path']])]+=1
+    # index-v2 is OverCue's lookup for CDJ-3000s on OverCue firmware 0.14: this USB is played on CDJ-3000s.
+    return {'counts':counts,'stem_sample_rates':rates,'stems_bytes':stems_on_usb(root)['bytes'],'tracks':len(tracks),
+            'overcue_index_v2':(Path(root)/'CDJMODS'/'index-v2').is_dir()}
 
 def stems_on_usb(root):
     """Prepared stem folders under CDJMODS/stems and the bytes their files take."""
@@ -170,4 +180,4 @@ def generate(request,job,resources):
     from . import engines
     root=cache._safe_path(request['volume']);managed_usb.check_target(root,request['expected_identity'],media=True)
     source=source_path(root,request['file_path'])
-    return engines.separate({'source':str(source),'preset':request['preset']},job,resources)
+    return engines.separate({'source':str(source),'preset':request['preset'],'stem_sample_rate':writer.requested_rate(request)},job,resources)

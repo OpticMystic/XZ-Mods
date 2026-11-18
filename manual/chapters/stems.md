@@ -17,6 +17,26 @@ The player cannot split a track itself. You prepare stems on your computer, once
 
 A track without prepared stems plays as normal. Its stem buttons say why, and the button at their end tells you what to do (see [Stem readiness](#stem-readiness)).
 
+### Stems from OverCue Desktop
+
+In OverCue Desktop's Settings, choose the 44.1 kHz FLAC stems option. The XZ plays at 44.1 kHz, so it copies these stems straight into memory. A track's stems are ready sooner, the player does less work while it plays, and the stems take less space on the USB.
+
+OverCue's default is 96 kHz. These stems still play, but the XZ has to convert them while it plays. That takes about a third of one processor core per deck, and they take longer to become ready. With four decks playing, they become ready more slowly than the track plays.
+
+| Stems option in OverCue Desktop | On the XZ |
+|---|---|
+| 44.1 kHz FLAC | The best choice. They are ready sooner and the player does less work |
+| 96 kHz, the default | Stems play, but the player converts them while it plays. Keep it only for a USB you also play on players running OverCue: they play 44.1 kHz stem tracks without stems |
+| 44.1 kHz WAV | XZ Mods does not read these stems |
+
+The 44.1 kHz FLAC option is in OverCue Desktop 2.2.10 and later on Mac and 2.2.11 and later on Windows. Since 2.2.34, OverCue labels these options by player model, so look for the one that makes 44.1 kHz FLAC stems.
+
+### Stems are held in memory
+
+When you load a track with prepared stems on deck 1 or 2, the player copies the whole track's stems into its memory. While the track plays, its stems no longer read the USB, so mute, solo, beat jumps and loops act at once. The track itself loads in a few seconds, as it does with stems off. With 44.1 kHz stems, the stems are ready about 15 seconds after the load with two decks playing, and about 20 seconds with four. Until then the stem buttons say so (see [Stem readiness](#stem-readiness)), and the deck plays the normal track.
+
+If you press **USB STOP** for the stick a deck plays from, stems whose whole track is already in memory keep working. Otherwise that deck's stems end and it plays the normal track.
+
 ## Turn stems on
 
 Open MODS, choose **STEMS** on the section rail, and turn **USB STEMS** on. It is on by default. With it off, every pad keeps its normal job and the stem buttons say **STEMS ARE OFF** or **STEMS OFF**.

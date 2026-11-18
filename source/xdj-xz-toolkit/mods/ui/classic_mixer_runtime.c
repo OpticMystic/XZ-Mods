@@ -12,13 +12,14 @@
 #pragma weak xz_stock_dialog_active
 static int stock_window_up(void){return xz_stock_dialog_active&&xz_stock_dialog_active();}
 #include <pthread.h>
+#include "../xz_mutex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define OVERVIEW_PIXELS (300u*34u)
-static pthread_mutex_t state_mutex=PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t overview_mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t state_mutex=XZ_MUTEX_INITIALIZER;
+static pthread_mutex_t overview_mutex=XZ_MUTEX_INITIALIZER;
 static struct xz_shell_model_storage *storage;
 static struct xz_shell_model native;
 static uint32_t refreshed_at;

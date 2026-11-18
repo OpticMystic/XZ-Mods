@@ -6,6 +6,8 @@
 #include "../runtime.h"
 #include <math.h>
 #include <pthread.h>
+#include "../xz_thread.h"
+#include "../xz_mutex.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -94,7 +96,7 @@ int xz_wave_rider_window(struct xz_wave_rider_snapshot *out,const uint8_t *bands
 }
 
 #ifndef XZ_WAVE_RIDER_SOURCE_PORTABLE
-static pthread_mutex_t publication_lock=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t publication_lock=XZ_MUTEX_INITIALIZER;
 static struct xz_wave_rider_snapshot published;
 static int selected=-1,started;
 static uint32_t selection_epoch,published_epoch;
@@ -188,7 +190,7 @@ int xz_wave_rider_source_start(void){
     uint8_t got[16];pthread_t thread;
     if(xz_read_memory(0x49588,got,sizeof(position_guard))||memcmp(got,position_guard,sizeof(position_guard))||
        xz_read_memory(0x62b7c,got,sizeof(pause_guard))||memcmp(got,pause_guard,sizeof(pause_guard))||
-       pthread_create(&thread,NULL,worker,NULL)){
+       XZ_WORKER_CREATE(&thread,worker,NULL)){
         __atomic_store_n(&started,0,__ATOMIC_RELEASE);return -1;
     }
     pthread_detach(thread);__atomic_store_n(&started,2,__ATOMIC_RELEASE);return 0;

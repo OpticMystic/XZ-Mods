@@ -23,6 +23,9 @@ struct pdb {
     uint32_t page_size, pages, loaded[2];
     struct table tables[TABLES];
     struct cache cache[CACHE];
+    struct cache *lookup_cache;
+    size_t lookup_slots, lookup_used;
+    uint32_t lookup_complete, lookup_attempted;
     pdb_stats stats;
     int busy;
 };
@@ -199,7 +202,7 @@ static int name_location(uint32_t type, const unsigned char *r, size_t n, uint32
 static int validate_row(const unsigned char *r, size_t n, uint32_t type) {
     if (type == 0) {
         if (n < 0x88 || u16(r) != 0x24 || r[0x59] > 5) return PDB_EFORMAT;
-        const unsigned fields[] = {10, 17, 20};
+        const unsigned fields[] = {10, 14, 17, 20};
         for (size_t i = 0; i < sizeof(fields) / sizeof(fields[0]); ++i) {
             size_t at = u16(r + 0x5e + fields[i] * 2);
             if (at < 0x88 || at >= n || decode(NULL, r + at, n - at, NULL)) return PDB_EFORMAT;
@@ -297,6 +300,45 @@ int pdb_open(pdb **out, pdb_read_fn read, void *user, uint64_t file_size, void *
     d->floor = d->used; *out = d;
     return PDB_OK;
 }
+int pdb_set_lookup_cache(pdb *d, void *storage, size_t bytes) {
+    if (!d || (!storage && bytes)) return PDB_EINVAL;
+    if (d->busy) return PDB_EBUSY;
+    size_t slots = 0;
+    if (storage) {
+        if ((uintptr_t)storage % alignof(struct cache)) return PDB_EINVAL;
+        size_t available = bytes / sizeof(struct cache);
+        if (available < CACHE) return PDB_ENOMEM;
+        slots = CACHE;
+        while (slots <= available / 2) slots *= 2;
+        memset(storage, 0, slots * sizeof(struct cache));
+    }
+    memset(d->cache, 0, sizeof d->cache);
+    d->lookup_cache = storage; d->lookup_slots = slots;
+    d->lookup_used = 0; d->lookup_complete = 0; d->lookup_attempted = 0;
+    return PDB_OK;
+}
+static struct cache *cached_name(pdb *d, uint32_t type, uint32_t id) {
+    uint32_t hash = (id * 2654435761u) ^ type;
+    if (!d->lookup_cache) return &d->cache[hash % CACHE];
+    size_t slot = hash & (d->lookup_slots - 1);
+    for (size_t n = 0; n < d->lookup_slots; n++) {
+        struct cache *c = d->lookup_cache + slot;
+        if (!c->valid || (c->id == id && c->type == type)) return c;
+        slot = (slot + 1) & (d->lookup_slots - 1);
+    }
+    return NULL;
+}
+struct preload { uint32_t type; int complete; };
+static int preload_name(pdb *d, const unsigned char *r, size_t n, uint32_t page, size_t at, void *user) {
+    struct preload *p = user; uint32_t id; size_t offset;
+    if (name_location(p->type, r, n, &id, &offset) || !id) return PDB_OK;
+    struct cache *c = cached_name(d, p->type, id);
+    if (c && c->valid) return PDB_OK; /* Preserve the first duplicate, as lookup did. */
+    if (!c || d->lookup_used >= d->lookup_slots * 3 / 4) { p->complete = 0; return PDB_OK; }
+    *c = (struct cache){id, p->type, page, (uint32_t)at, (uint32_t)(at + n), 1};
+    d->lookup_used++;
+    return PDB_OK;
+}
 struct find { uint32_t type, id, page, start, end; pdb_text text; };
 static int find_row(pdb *d, const unsigned char *r, size_t n, uint32_t page, size_t at, void *user) {
     struct find *f = user; uint32_t id; size_t offset;
@@ -308,9 +350,24 @@ static int find_row(pdb *d, const unsigned char *r, size_t n, uint32_t page, siz
 static int lookup(pdb *d, uint32_t type, uint32_t id, pdb_text *out) {
     *out = empty;
     if (!id) return PDB_OK;
-    struct cache *c = &d->cache[((id * 2654435761u) ^ type) % CACHE];
-    if (c->valid && c->id == id && c->type == type) {
-        d->stats.cache_hits++;
+    struct cache *c = cached_name(d, type, id);
+    int hit = c && c->valid && c->id == id && c->type == type;
+    if (!hit && d->lookup_cache && (d->lookup_complete & (1u << type))) { d->stats.cache_hits++; return PDB_OK; }
+    if (!hit) d->stats.cache_misses++;
+    if (d->lookup_cache && (!c || !c->valid) && !(d->lookup_attempted & (1u << type))) {
+        d->lookup_attempted |= 1u << type;
+        struct preload p = {type, 1};
+        pdb_stats before = d->stats;
+        int rc = walk(d, type, 1, preload_name, &p);
+        if (rc < 0) return rc;
+        /* Invalid pages stay rejected in this immutable file. A transient I/O
+         * failure is different: uncached lookups must still retry the reader. */
+        if (p.complete && d->stats.io_errors == before.io_errors)
+            d->lookup_complete |= 1u << type;
+        c = cached_name(d, type, id);
+    }
+    if (c && c->valid && c->id == id && c->type == type) {
+        if (hit) d->stats.cache_hits++;
         if (!c->page) return PDB_OK;
         if (load(d, 1, c->page)) { corrupt(d, c->page); return PDB_OK; }
         uint32_t key; size_t at;
@@ -318,11 +375,14 @@ static int lookup(pdb *d, uint32_t type, uint32_t id, pdb_text *out) {
         if (name_location(type, r, c->end - c->start, &key, &at)) return PDB_EFORMAT;
         return decode(d, r + at, c->end - c->start - at, out);
     }
-    d->stats.cache_misses++;
+    if (d->lookup_cache && (d->lookup_complete & (1u << type))) return PDB_OK;
     struct find f = {type, id, 0, 0, 0, {"", 0}};
     int rc = walk(d, type, 1, find_row, &f);
     if (rc < 0) return rc;
-    *c = (struct cache){id, type, f.page, f.start, f.end, 1};
+    if (!d->lookup_cache) *c = (struct cache){id, type, f.page, f.start, f.end, 1};
+    else if (c && !c->valid && d->lookup_used < d->lookup_slots * 3 / 4) {
+        *c = (struct cache){id, type, f.page, f.start, f.end, 1}; d->lookup_used++;
+    }
     *out = f.text;
     return PDB_OK;
 }
@@ -337,9 +397,9 @@ static int track_row(pdb *d, const unsigned char *r, size_t n, uint32_t page, si
     t.artwork_id = u32(r + 0x1c); t.bpm_x100 = u32(r + 0x38);
     t.track_number = u32(r + 0x34); t.bitrate = u32(r + 0x30); t.sample_rate = u32(r + 8);
     t.duration_seconds = u16(r + 0x54); t.color_id = r[0x58]; t.rating = r[0x59];
-    const unsigned fields[] = {17, 20, 10};
-    pdb_text *texts[] = {&t.title, &t.file_path, &t.date_added};
-    for (size_t i = 0; i < 3; ++i) {
+    const unsigned fields[] = {17, 20, 10, 14};
+    pdb_text *texts[] = {&t.title, &t.file_path, &t.date_added, &t.analysis_path};
+    for (size_t i = 0; i < 4; ++i) {
         size_t offset = u16(r + 0x5e + fields[i] * 2);
         int rc = decode(d, r + offset, n - offset, texts[i]);
         if (rc) return rc;

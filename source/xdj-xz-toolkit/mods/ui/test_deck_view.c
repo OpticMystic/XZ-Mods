@@ -27,9 +27,17 @@ static uint32_t fnv(void) { uint32_t h=2166136261u;for(int i=0;i<W*H;i++){h^=pix
 /* The button's number in slot (lanes left to right) is exactly the badge (deck_colour.h) for that deck, drawn
    alone at the same place: digit, fill and polarity all checked. */
 static uint16_t ref[W*H];
-static int button_badge(const struct xz_deck_view_style *s, const unsigned char *lanes, int slot, int live) {
+/* Where the first number starts: after the glyph and DECKS, or (compact, MODERN) centred left of the
+   triangle's 13 columns. */
+static int numbers_x(const struct xz_deck_view_style *s, const unsigned char *lanes, int n) {
  struct xz_canvas c={ref,W,W,H,s->theme};const struct xz_dv_rect b=s->button;
- int tx=b.x+26+xz_text_width(c,"DECKS",1,99)+5,ty=b.y+(b.h-9)/2;
+ if(!s->compact)return b.x+26+xz_text_width(c,"DECKS",1,99)+5;
+ int nw=0;for(int i=0;i<n;i++){char d[2]={(char)('0'+lanes[i]),0};nw+=xz_text_width(c,d,1,99)+(i?4:0);}
+ return b.x+2+(b.w-2-13-nw)/2;
+}
+static int button_badge_n(const struct xz_deck_view_style *s, const unsigned char *lanes, int n, int slot, int live) {
+ struct xz_canvas c={ref,W,W,H,s->theme};const struct xz_dv_rect b=s->button;
+ int tx=numbers_x(s,lanes,n),ty=b.y+(b.h-9)/2;
  for(int i=0;i<slot;i++){char d[2]={(char)('0'+lanes[i]),0};tx+=xz_text_width(c,d,1,99)+4;}
  char digit[2]={(char)('0'+lanes[slot]),0};int dw=xz_text_width(c,digit,1,99);
  for(int i=0;i<W*H;i++)ref[i]=SENTINEL;
@@ -59,7 +67,9 @@ static void test_words(void) {
 static void test_button(void) {
  const struct xz_deck_view_style *styles[2]={&xz_deck_view_modern,&xz_deck_view_classic};
  /* Design rects and touch bands. */
- assert(styles[0]->button.x==504&&styles[0]->button.w==120&&styles[0]->button.h==26&&styles[0]->button_touch_h==44);
+ /* MODERN: compact, deck numbers and triangle, between the REC slot and INFO (shell_play.c). */
+ assert(styles[0]->button.x==576&&styles[0]->button.w==54&&styles[0]->button.h==26&&styles[0]->button_touch_h==44&&styles[0]->compact);
+ assert(!styles[1]->compact);
  assert(styles[1]->button.x==162&&styles[1]->button.w==116&&styles[1]->button.h==18&&styles[1]->button_touch_h==40);
  for(int i=0;i<2;i++){
   const struct xz_deck_view_style *s=styles[i];
@@ -81,16 +91,30 @@ static void test_button(void) {
   for(int view=0;view<3;view++)for(int ready=0;ready<2;ready++){
    clear();xz_deck_view_button_draw(canvas(),s,view,ready,0,0,0);
    unsigned char lanes[4];int lanes_n=xz_deck_view_lanes(view,lanes);
-   for(int k=0;k<lanes_n;k++)assert(button_badge(s,lanes,k,lanes[k]<=2||ready)==(view!=XZ_LAYOUT_TWO));
+   for(int k=0;k<lanes_n;k++)assert(button_badge_n(s,lanes,lanes_n,k,lanes[k]<=2||ready)==(view!=XZ_LAYOUT_TWO));
   }
   /* A 2 DECKS pair names the decks the sides drive, DECK 3 and 4 in their badges, 1 and 2 still plain; not
      while 3 and 4 are down. */
   static const unsigned char pair_lanes[4][2]={{1,2},{3,2},{1,4},{3,4}};
   for(int pair=1;pair<4;pair++){
    clear();xz_deck_view_button_draw(canvas(),s,0,1,pair,0,0);assert(fnv()!=seen[1]);only_inside(s->button,0);
-   for(int k=0;k<2;k++)assert(button_badge(s,pair_lanes[pair],k,1)==(pair_lanes[pair][k]>2));
+   for(int k=0;k<2;k++)assert(button_badge_n(s,pair_lanes[pair],2,k,1)==(pair_lanes[pair][k]>2));
   }
   clear();xz_deck_view_button_draw(canvas(),s,0,0,3,0,0);assert(fnv()==seen[0]);
+  if(s->compact){
+   /* MODERN's compact button: no lane glyph and no word (nothing drawn left of the numbers but the frame),
+      and four badges keep at least 2 px clear of the triangle. */
+   for(int view=0;view<3;view++){
+    unsigned char lanes[4];int lanes_n=xz_deck_view_lanes(view,lanes);
+    clear();xz_deck_view_button_draw(canvas(),s,view,1,0,0,0);
+    int x0=numbers_x(s,lanes,lanes_n)-1,ty=s->button.y+(s->button.h-9)/2;
+    uint16_t fill=pixels[(ty+4)*W+s->button.x+2];
+    for(int y=s->button.y+3;y<s->button.y+s->button.h-3;y++)for(int x=s->button.x+2;x<x0;x++)assert(pixels[y*W+x]==fill);
+    int end=numbers_x(s,lanes,lanes_n);
+    for(int k=0;k<lanes_n;k++){char d[2]={(char)('0'+lanes[k]),0};end+=xz_text_width(canvas(),d,1,99)+(k<lanes_n-1?4:0);}
+    assert(end+2+2<=s->button.x+s->button.w-8-3);
+   }
+  }
  }
  puts("PASS deck view button: design rects, touch bands >= 40 px, writes only its rect, 2/4/4 x ready/not, open and focus looks, deck badges in four-deck views and for DECK 3/4 in a 2 DECKS pair");
 }

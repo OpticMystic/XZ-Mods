@@ -83,6 +83,7 @@ PLAY changes what the pads and buttons do while you perform.
 3 @ 462,196 KEYS and RAM TRACKS | Open their own pages.
 4 @ 128,260 BUTTON ABOVE LINK | What the button above LINK does on a press, and with SHIFT.
 5 @ 722,425 WORKS ON | The decks the highlighted feature works on.
+6 @ 478,324 RECORDING TRACKLIST | A list of the tracks you played, beside each recording. Off by default.
 ```
 
 [Beat jump and performance features](performance) explains every item on this page.

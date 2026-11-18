@@ -3,6 +3,7 @@
 #include "shell_browse.h"
 #include "shell_source.h"
 #include "../ui/menu_key.h"
+#include "../ui/rec_mark.h"
 #include <string.h>
 
 static const char *const screen_names[XZ_SHELL_SCREEN_COUNT]={
@@ -104,7 +105,7 @@ static const struct sh_screen *screen_of(const struct xz_shell *u) {
 void xz_shell_init(struct xz_shell *u) {
  memset(u,0,sizeof *u);
  u->stack[0].screen=XZ_SHELL_PLAY;u->depth=1;
- u->zoom=XZ_SHELL_ZOOM_DEFAULT;
+ u->zoom=XZ_SHELL_ZOOM_DEFAULT;u->notice_deck=-1;
  u->display=(struct xz_shell_display){.wave_color=XZ_SHELL_WAVE_3BAND,.wave_position=XZ_SHELL_POSITION_CENTER,.key_display=XZ_SHELL_KEY_AS_DECK,.usb_colors=XZ_SHELL_USB_COLORS_ALL};
 }
 int xz_shell_restore_setting(struct xz_shell *u, int id, int value) {
@@ -154,7 +155,16 @@ static int header_matches(const struct xz_shell *u){
 }
 void sh_header_buttons(const struct xz_shell *u,const struct xz_shell_model *m, struct xz_canvas c) {
  xz_rect(c,XZ_SHELL_HEADER_X-2,0,XZ_SHELL_WIDTH-XZ_SHELL_HEADER_X+2,XZ_SHELL_HEADER_BUTTON_H,SH_CHROME);
- if(header_closes(u)){header_button(c,XZ_SHELL_MODS_X,XZ_SHELL_MODS_W,"X",0);return;}
+ if(header_closes(u)){
+  header_button(c,XZ_SHELL_MODS_X,XZ_SHELL_MODS_W,"X",0);
+  /* Off PLAY the STEMS column is empty: the REC mark (ui/rec_mark.h) takes it, right-aligned to it. PLAY
+     draws its own in the top bar, also while a panel or popup is open over it. */
+  if(xz_shell_screen(u)!=XZ_SHELL_PLAY){
+   struct xz_rec_view v=xz_rec_view_at(&m->recorder,m->clock_ms);
+   xz_rec_draw(c,XZ_SHELL_STEMS_X+XZ_SHELL_STEMS_W,(XZ_SHELL_HEADER_BUTTON_H-XZ_REC_SHELL_H)/2,XZ_REC_SHELL_H,XZ_SHELL_STEMS_W,&v);
+  }
+  return;
+ }
  /* Four lanes: STEMS shows or hides the stem buttons, so it is lit while they show and has no layout marks. */
  int four=sh_play_four(u,m);
  header_button(c,XZ_SHELL_STEMS_X,XZ_SHELL_STEMS_W,"STEMS",m->stems_known&&(four?!m->four_stems_hidden:m->stems_on));
@@ -230,6 +240,11 @@ static size_t stick(struct xz_shell *u, const struct xz_shell_model *m, int slot
   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_BROWSE,-1,0,XZ_SHELL_BROWSE_TOP});
  }
  if(!available(m,XZ_SHELL_SOURCE))return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,XZ_SHELL_SOURCE});
+ /* LINK and REKORDBOX are browsed in the deck's own screen: the first press shows their tile here, the same
+    key pressed with that tile already shown opens the deck's screen (a visible hand-off). */
+ if((slot==XZ_SHELL_SRC_LINK||slot==XZ_SHELL_SRC_COMPUTER)&&xz_shell_screen(u)==XZ_SHELL_SOURCE&&
+    u->stack[u->depth-1].cursor==slot&&u->stack[u->depth-1].scroll==0)
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,XZ_SHELL_SOURCE});
  u->depth=1;close_panels(u);push(u,XZ_SHELL_SOURCE);
  u->stack[1].cursor=slot;u->stack[1].focus=1;
  return n;
@@ -276,6 +291,11 @@ static enum xz_menu_place menu_place(const struct xz_shell *u) {
  default:return XZ_MENU_AT_OTHER;
  }
 }
+static int screen_key;   /* sh_screen_key is running */
+size_t sh_screen_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_key k, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ screen_key=1;size_t n=sh_key(u,m,k,-1,out);screen_key=0;
+ return n;
+}
 size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_key k, int event_deck, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  size_t n=0;
  if((int)k<0||k>=XZ_SHELL_KEY_COUNT)return 0;
@@ -310,6 +330,12 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
  switch(t.kind){
  case NAV_NONE:break;
  case NAV_OPEN:
+  /* No shell library: a BROWSE or SEARCH key shows the picker, so a source can be chosen (also while the
+     catalog loads). A screen's own way into the browser (a source picked on the picker, an INFO jump, both
+     through sh_screen_key) goes to stock's browser instead, visibly: reopening the picker would do nothing,
+     and the jump runs in stock's browser. */
+  if((t.screen==XZ_SHELL_BROWSE||t.screen==XZ_SHELL_SEARCH)&&!screen_key&&
+     !available(m,XZ_SHELL_BROWSE)&&available(m,XZ_SHELL_SOURCE))t.screen=XZ_SHELL_SOURCE;
   if(!available(m,t.screen))return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,(int)t.screen});
   open_screen(u,m,t.screen);break;
  case NAV_PUSH:

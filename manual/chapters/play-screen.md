@@ -19,26 +19,49 @@ MODERN draws every deck the same way: a top bar across the screen, one waveform 
 
 ```figure modern:play-full PLAY · TOP BAR {modern}
 Deck 1 is the master, deck 2 plays in a 4-beat loop with KEY SYNC holding its key.
-1 @ 112,40 SINGLE | CONTINUE | PLAY MODE. The lit word is what a deck does at the end of a track: SINGLE stops, CONTINUE loads the next track in the list and plays it. Tap to switch.
-2 @ 160,40 A. HOT CUE | Lit while HOT CUE AUTO LOAD is on. Red means every track brings its hot cues, white means only the tracks marked for it in the library. Tap to step through ON, the library setting and OFF.
-3 @ 222,40 A. CUE | Lit while AUTO CUE is on, so the cue point lands where the music starts. Tap to switch it.
+1 @ 70,40 SINGLE | CONTINUE | PLAY MODE. SINGLE stands over CONTINUE; the lit word is what a deck does at the end of a track: SINGLE stops, CONTINUE loads the next track in the list and plays it. Tap to switch.
+2 @ 104,40 A. HOT CUE | Lit while HOT CUE AUTO LOAD is on. Red means every track brings its hot cues, white means only the tracks marked for it in the library. Tap to step through ON, the library setting and OFF.
+3 @ 160,40 A. CUE | Lit while AUTO CUE is on, so the cue point lands where the music starts. Tap to switch it.
 4 @ 380,40 BEAT FX | The effect, its beat and time, the FX BPM and the channel it is on. It fills red while the effect is on.
-5 @ 563,40 DECKS | Shows which decks the sides drive and opens DECK VIEW. See [Four decks](four-decks).
+5 @ 603,40 DECKS | Shows which decks the sides drive and opens DECK VIEW. See [Four decks](four-decks).
 6 @ 650,40 INFO | Opens INFO for the active deck's track.
 7 @ 708,40 STEMS | Steps the stem buttons through their layouts. Lit blue while stems are on. In 4 DECKS it shows or hides them. See [Stems](stems).
 8 @ 772,40 MODS | Opens MODS.
 ```
 
-A lamp label in grey shows a mode the player does not let XZ Mods change from the screen. Change it in the player's own UTILITY instead (hold [[MENU]]). You can hide the three lamps in MODS under **SCREEN**, **LAMPS AND TITLES**. The BEAT FX readout then takes their room.
+A lamp label in grey shows a mode the player does not let XZ Mods change from the screen. Change it in the player's own UTILITY instead (hold [[MENU]]). You can hide the three lamps in MODS under **SCREEN**, **LAMPS AND TITLES**. LINK and the BEAT FX readout then take their room.
+
+**LINK**, between A. CUE and the BEAT FX readout, switches Ableton Link on and off. One touch does what MODS > CONNECT > NETWORK > **ABLETON LINK** does, and the choice is saved. Off, LINK is grey. On, it turns blue, and the number beside it is how many other apps are in the Ableton Link session: a white square with a number means at least one app follows the XZ's tempo. A blue outline with a dash means it is starting. Dark red with **!** means it could not start; the NETWORK page says why. Ableton Link is experimental: try it at home before a gig. See [Pro DJ Link and Ableton Link](connect#pro-dj-link-and-ableton-link).
+
+When a long effect name, its beat and the effect time do not all fit in the BEAT FX readout, the time is left out so the name stays whole.
 
 ```gallery {modern}
 modern:play-fx-on ECHO on: the readout fills red, with the beat, the time in milliseconds and the FX BPM
 modern:play-fx-off PING PONG chosen but off: a quiet outline
 modern:play-fx-reverb An effect without beats shows its name alone
-modern:play-fx-long VINYL BRAKE with a long time and the FX BPM set by TAP
+modern:play-fx-long VINYL BRAKE with a long time: the time gives way so the name stays whole. The FX BPM is set by TAP
 modern:play-fx-unknown The first moments after start, before the effect has been read
 modern:key-indicators-hidden MODE LAMPS and QUANTIZE LAMP hidden: the readout starts at the left edge
 modern:key-indicators-hidden-fx-on The same with ECHO on
+```
+
+### The REC mark {modern}
+
+While the player's own recorder records (MASTER REC), a red dot and the recording time show between the BEAT FX readout and **DECKS**. On BROWSE, INFO, SOURCE, UTILITY, SHORTCUT and the MODS pages the mark sits in the top bar, left of **X**. The time counts from the moment recording starts and runs on through **TRACK MARK**. After an hour the whole mark turns red and its dot blinks, so a recording you forgot about stands out. If the time cannot be read, the mark says **REC**. Nothing shows while the player does not record.
+
+The mark only shows what the recorder does. Start and stop recording with the player's own controls. To get a list of the tracks you played with each recording, see [Recording](extras#recording).
+
+```figure modern:play-2deck-fx-off-calm PLAY · REC mark {modern}
+Three seconds into a recording.
+1 @ 560,40 REC mark | The red dot says the player records. The time is how long this recording has run.
+```
+
+```gallery {modern}
+modern:play-2deck-fx-lit-long After an hour the mark turns red and the dot blinks. BEAT FX keeps its place
+modern:play-2deck-fx-off-ten A ten-hour recording still fits
+modern:play-2deck-fx-off-no-clock The time cannot be read: REC
+modern:play-4deck-fx-off-calm Four decks: the mark in the same place
+modern:browse-calm BROWSE: the mark left of X
 ```
 
 ### Deck column and waveform lanes {modern}
@@ -59,6 +82,8 @@ Each deck gets an info column and a scrolling waveform. The playhead is the red 
 12 @ 245,277 Hot-cue lamps | Pads A to H in their cue colours. A dark lamp is an empty pad.
 ```
 
+While you adjust a loop (press [[IN/CUE]] or [[OUT]] during a loop, then turn the jog), the end you are moving is a yellow line with a yellow box beside it: **IN** or **OUT** and that point's time. The other end stays orange. If the end is off screen, the box waits at the lane's edge with an arrow towards it. The yellow goes when adjusting ends, by the button or after ten seconds without input. All four decks show it the same way.
+
 Turn the rotary encoder on the play screen to zoom both lanes together. There are seven zoom steps. The zoom is kept when you leave the screen, and saved to the USB with your other settings.
 
 ```gallery {modern}
@@ -76,8 +101,8 @@ The two deck strips. Deck 1 is the tempo master, deck 2 is synced to it.
 3 @ 368,302 Play state | A triangle while the deck plays, two bars while it is paused.
 4 @ 52,345 TRACK | The track's number in the list it was loaded from.
 5 @ 150,380 REMAIN / TIME | The lit word says how the time counts: REMAIN counts down to the end, TIME counts up from the start. Tap the time to switch.
-6 @ 215,313 QUANTIZE | Red while QUANTIZE is on, with the beat value loops and cues snap to.
-7 @ 297,313 Tempo range | The tempo slider's range, for example ±10.
+6 @ 178,315 QUANTIZE | Red while QUANTIZE is on, with the beat value loops and cues snap to.
+7 @ 265,313 Tempo range | The tempo slider's range, for example ±10.
 8 @ 262,375 MT | MASTER TEMPO. It blinks while KEY SYNC holds the key.
 9 @ 700,375 SYNC | Lit while the deck is synced.
 10 @ 399,350 BPM | The deck's playing BPM. MASTER marks the tempo master.
@@ -88,6 +113,8 @@ The two deck strips. Deck 1 is the tempo master, deck 2 is synced to it.
 
 In the last 30 seconds of a track the overview's playing address flashes slowly, and in the last 15 seconds it flashes fast, in either time mode.
 
+The tempo shows two decimals in the ±6, ±10 and ±16 ranges and one decimal in WIDE, in the player's own steps: **+16.00 %**, **-100.0 %**.
+
 ```gallery {modern}
 modern:play-ending-flash Deck 1 in its last 12 seconds, the end warning flashing
 modern:play-not-loaded Deck 2 with no track: Not Loaded. in its lane and strip
@@ -95,6 +122,8 @@ modern:play-track-123 A three-digit track number
 modern:play-time-mode-writable TIME MODE that you can switch by touch: the lit word is white
 modern:play-unknown The first frame after start, before anything has been read: dashes everywhere
 ```
+
+When no deck has a track, MODERN shows a calm screen instead of empty lanes: the logo of your DJ profile with your DJ name, or the XZ Mods logo when the USB has no profile logo, and **PRESS BROWSE TO CHOOSE MUSIC**. The top bar stays, so DECKS, STEMS and MODS work as usual. See [DJ profiles](connect) for your own logo.
 
 ### Key and KEY SYNC {modern}
 
@@ -149,14 +178,14 @@ modern:usb-colors-off OFF: every deck uses the player's own colours
 
 ### Notices {modern}
 
-When something you asked for does not happen, a notice appears in the middle of the screen for two and a half seconds. It says what went wrong in one line, for example **DECK 1 DID NOT LOAD THE TRACK**. A long notice wraps. [Messages and troubleshooting](troubleshooting) explains each one.
+When something you asked for does not happen, a notice appears in the top bar, in place of the BEAT FX readout, for two and a half seconds. It never covers the waveforms. It says what went wrong in one line, for example **DECK 1 DID NOT LOAD THE TRACK**. A longer notice also covers the lamps and LINK at the left of the top bar, and the longest takes two lines. A notice that would only repeat what the screen already shows, such as a new master deck or a loop being set, does not appear. [Messages and troubleshooting](troubleshooting) explains each one.
 
 ```nav nav-a-choose-track-error Notices {modern}
 ```
 
 ```gallery {modern}
-modern:play-notice A notice over the lanes
-modern:play-notice-long A long notice
+modern:play-notice A notice in the top bar
+modern:play-notice-long The longest notice takes two lines
 modern:play-notice-expired The same screen once the notice has gone
 ```
 
@@ -179,10 +208,10 @@ Press [[SHORTCUT]] on the play screen to see the settings you change most during
 ```figure modern:screen-shortcut SHORTCUT {modern}
 The SHORTCUT screen with quantize, waveform and time settings for both decks.
 1 @ 205,68 Highlighted row | Turn the encoder to move between rows. The line under the title explains the highlighted row.
-2 @ 125,130 Locked value | A lock and READ ONLY HERE mean XZ Mods shows this value but cannot change it here. Pushing or tapping it does nothing.
+2 @ 90,130 Locked value | A lock and READ ONLY HERE mean XZ Mods shows this value but cannot change it here. Pushing or tapping it does nothing.
 3 @ 240,174 Choice buttons | Tap a value to change it. The lit button is the current value.
-4 @ 430,92 DECK 1 lamps | QUANTIZE (or Q1), SYNC, SLIP, MASTER and the time mode for deck 1. Tap QUANTIZE to switch it, tap REMAIN or TIME to change the time mode.
-5 @ 745,49 LINK lamp | Shows whether the player is linked to other players.
+4 @ 480,107 DECK 1 lamps | QUANTIZE (or Q1), SYNC, SLIP, MASTER and the time mode for deck 1. Tap QUANTIZE to switch it, tap REMAIN or TIME to change the time mode.
+5 @ 788,64 LINK lamp | Shows whether the player is linked to other players.
 6 @ 480,200 Jumps | TRACK, PLAYLIST and SEARCH open those lists. MATCHING opens matching tracks, or hands over to the player's own browser when XZ Mods cannot list them.
 7 @ 200,280 DEVICE SETTINGS | Waveform colour, playhead position, key display format and waveform zoom. These change the MODERN screen at once.
 8 @ 600,295 MY SETTINGS | Time mode, play mode and auto cue for the decks.
@@ -190,7 +219,7 @@ The SHORTCUT screen with quantize, waveform and time settings for both decks.
 
 Which rows you can change depends on what the player lets XZ Mods write. A locked row shows its value and the reason it is read-only. A short [[MENU]] on SHORTCUT opens MODS.
 
-NEEDLE LOCK appears in PLAYER SETTINGS when the player reports it. LOCK prevents a waveform touch from searching a playing deck. Pause the deck to search, or choose UNLOCK when that setting is writable.
+NEEDLE LOCK appears in PLAYER SETTINGS when the player reports it. LOCK prevents a waveform touch from searching a playing deck; when it refuses a touch, the NEEDLE LOCK mark on that deck's overview lights. Pause the deck to search, or choose UNLOCK when that setting is writable.
 
 ```gallery {modern}
 modern:settings-shortcut-full HOT CUE AUTO LOAD has choices; QUANTIZE BEAT VALUE and AUTO CUE LEVEL are read-only in this fixture
@@ -212,7 +241,7 @@ CLASSIC keeps the familiar play screen, in the classic theme you chose, with a r
 The ORIGINAL theme with stems on in the BELOW / HALF layout. Deck 1's playing key has moved from 2A to 11A.
 1 @ 120,10 VJ.TOOLS | Switches to the VJ.Tools screen when a VJ.Tools computer is connected. See [Connect and DJ profiles](connect).
 2 @ 220,30 DECKS | Shows which decks the sides drive and opens DECK VIEW. See [Four decks](four-decks).
-3 @ 440,30 Metrics | The player's CPU load, free memory and temperature. Tap METRICS to set it up. See [Extras](extras).
+3 @ 440,30 Metrics | The player's CPU load, free memory and temperature. A notice about decks 3 and 4 takes its place for a few seconds. Tap METRICS to set it up. See [Extras](extras).
 4 @ 678,30 STEMS | Steps the stem rows through their layouts. The marks under the label show the current one. Dark in 4 DECKS, which has no stem rows. See [Stems](stems).
 5 @ 789,28 MODS | Opens MODS.
 6 @ 110,140 Playing key | Shown under the player's own key. The analysed key, an arrow, then the key the deck plays now, with its tuning in cents.
@@ -223,6 +252,8 @@ The ORIGINAL theme with stems on in the BELOW / HALF layout. Deck 1's playing ke
 This picture shows CLASSIC with the XZ Mods buttons and stem rows. Everything else on it is the player's own: the deck tabs, source, key, BEAT FX, ZOOM, the deck strips with A.HOTCUE, A.CUE, QUANTIZE, TEMPO and the BPM box. The XDJ-XZ operating instructions explain those.
 
 The key line replaces the player's beat countdown under the key. You choose the key notation and whether the playing key shows in MODS under **SCREEN**.
+
+While the player's own recorder records, the REC mark (a red dot and the recording time) shows in the top band, left of **DECKS**, and in the MODS header. After an hour it turns red and its dot blinks. See [The REC mark](#the-rec-mark) for what it shows.
 
 ```figure capture:classic-play-stems PLAY · CLASSIC, FULL ROWS {classic}
 An earlier capture with stems in the BELOW / FULL layout, the rows taller with room for the stem level bars. Stem colours here follow an older default. Today drums are blue and harmonics red; see [Stem colours](stems#stem-colours).

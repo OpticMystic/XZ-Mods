@@ -18,7 +18,7 @@ import tempfile
 import zlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from verify_dj_profile import OLD_FIXTURES, SPEC, WRITER, build, checker  # noqa: E402
+from verify_dj_profile import OLD_FIXTURES, SPEC, WRITER, build, checker, skip_missing_inputs  # noqa: E402
 
 EXPORTED = ('created', 'migrated', 'adopted', 'unknown', 'full', 'errors', 'large', 'heavy')
 # 16x16 JPEG of rgb(40,200,90), quality 95, 4:4:4 (Pillow 12.3).
@@ -215,8 +215,7 @@ def main():
     parser.add_argument('--export', help='copy the produced sticks here (replaced)')
     args = parser.parse_args()
     if not OLD_FIXTURES or not SPEC:
-        print(f'fixtures not found (pre-1.0: {OLD_FIXTURES}, spec: {SPEC})')
-        return 1
+        return skip_missing_inputs()
     with tempfile.TemporaryDirectory(prefix='xz-dj-write-') as temporary:
         temporary = Path(temporary)
         work = temporary / 'work'

@@ -48,12 +48,18 @@ static struct {
 } f;
 /* ui/layered_wave_source.c links the stem loader; the players read no stems. */
 int xz_oc_bundle(const char *source, char *folder, size_t capacity) { (void)source; (void)folder; (void)capacity; return -1; }
+static uint32_t now_ms(void);
 static uint32_t clock_ms = 1000;
 static int threaded_clock;
 static int hold_flush;
 static unsigned position_interval,position_calls[2];
 static int position_blocked,position_noise,stepping_side;
 static unsigned wire_horizon;
+/* Where a new generation starts on the wire, past the published submitted count. The unit's pump starts it at
+   its next turn after the flush; sync_landing_delay (extra_player.c) aims a jump at the publication's age plus
+   one turn, 1.5 ms. This fake publishes with age 0, so a suite that sets 66 here lands jumps where the unit
+   does. 0, the default, starts the new generation at the published count. */
+static unsigned pump_turn_frames;
 static unsigned entered_worker[2];
 static pthread_t owner_thread;
 static void worker_enter_test(int deck) {
@@ -93,7 +99,7 @@ static xz_usb_result fake_transition(void *ctx,uint32_t epoch,int d,uint32_t exp
   : f.write[d]-f.read[d]>=FAKE_BLOCKS ? XZ_USB_AGAIN : XZ_USB_OK;
  if(result==XZ_USB_OK) {
   uint32_t next=expected+1;f.queue_generation[d]=next;
-  f.activate_at[d]=(uint64_t)f.wire[d]+wire_horizon;
+  f.activate_at[d]=(uint64_t)f.wire[d]+wire_horizon+pump_turn_frames;
   result=fake_submit_locked(ctx,d,next,pcm,frames,after);assert(result==XZ_USB_OK);
   f.flushes[d]++;*generation=next;
  }
@@ -105,7 +111,7 @@ static xz_usb_result fake_flush(void *ctx, uint32_t epoch, int d, uint32_t *gene
  pthread_mutex_lock(&f.lock);
  if (!epoch || epoch != f.link) { pthread_mutex_unlock(&f.lock); return XZ_USB_STOPPED; }
  *generation = ++f.queue_generation[d]; f.flushes[d]++;
- f.activate_at[d]=(uint64_t)f.wire[d]+wire_horizon;
+ f.activate_at[d]=(uint64_t)f.wire[d]+wire_horizon+pump_turn_frames;
  pthread_mutex_unlock(&f.lock);
  return XZ_USB_OK;
 }
@@ -115,7 +121,7 @@ static xz_usb_result fake_position(void *ctx, uint32_t epoch, xz_usb_position *o
  if (!epoch || epoch != f.link) { pthread_mutex_unlock(&f.lock); return XZ_USB_STOPPED; }
  unsigned call=++position_calls[stepping_side];
  if(position_blocked||(position_interval&&call%position_interval)){pthread_mutex_unlock(&f.lock);return XZ_USB_BUSY;}
- *out = f.position; out->state = XZ_USB_RUNNING;out->requested_generation[0]=f.queue_generation[0];out->requested_generation[1]=f.queue_generation[1];
+ *out = f.position;out->wire_observed_at_us=(uint64_t)now_ms()*1000u; out->state = XZ_USB_RUNNING;out->requested_generation[0]=f.queue_generation[0];out->requested_generation[1]=f.queue_generation[1];
  out->wire_submitted_frames=(uint64_t)f.wire[stepping_side]+wire_horizon;
  if(position_noise)for(int i=0;i<2;i++)if(out->deck[i].source_after_completed>1)
   out->deck[i].source_after_completed+=(i+(int)call)&1?1:UINT64_MAX;
@@ -127,7 +133,7 @@ static void consume_chunk(int d,double frames,int apply){
  xz_usb_deck_position *p = &f.position.deck[d];
  if (apply&&p->applied_generation != f.queue_generation[d]) {
   memset(p, 0, sizeof *p); p->applied_generation = f.queue_generation[d];
-  if(wire_horizon)f.credit[d]=0; /* old partial wire PCM ends at the committed generation boundary */
+  f.credit[d]=0; /* old partial wire PCM ends at every committed generation boundary */
  }
  f.credit[d] += frames;
  f.wire[d]+=frames;f.position.wire_completed_frames=(uint64_t)f.wire[d];
@@ -148,8 +154,8 @@ static void consume(int d,double frames){
  while(frames>.000001){
   int pending=f.position.deck[d].applied_generation!=f.queue_generation[d];
   double until=(double)f.activate_at[d]-f.wire[d];
-  double part=pending&&wire_horizon&&until>0&&until<frames?until:frames;
-  int apply=!pending||!wire_horizon||until<=0;
+  double part=pending&&(wire_horizon+pump_turn_frames)&&until>0&&until<frames?until:frames;
+  int apply=!pending||!(wire_horizon+pump_turn_frames)||until<=0;
   consume_chunk(d,part,apply);frames-=part;
  }
  pthread_mutex_unlock(&f.lock);
@@ -277,7 +283,8 @@ static void build_analysis(void) {
  u32(&two, 3); u32(&two, 300); u32(&two, 0);
  for (unsigned i = 0; i < 300; ++i) {
   columns[i*3] = (uint8_t)(i % 200); columns[i*3+1] = (uint8_t)(i % 7 * 9); columns[i*3+2] = (uint8_t)(255 - i % 50);
-  u8(&two, columns[i*3]); u8(&two, columns[i*3+1]); u8(&two, columns[i*3+2]);
+  /* PWV7 disk bytes are mid, high, low; runtime columns are low, mid, high. */
+  u8(&two, columns[i*3+1]); u8(&two, columns[i*3+2]); u8(&two, columns[i*3]);
  }
  close_section(&two, s);
  file_end(&two);
@@ -374,7 +381,7 @@ static void test_players(void) {
  assert(debug(0).state == XZ_XP_CUED && debug(0).source_rate == 44100);
  assert(debug(0).position == ms_frames(0, 500) && debug(0).cue == ms_frames(0, 500));
  assert(a->loaded && !a->playing && !strcmp(a->title, "Track A") && !strcmp(a->artist, "Artist A") && !strcmp(a->key, "Fm"));
- assert(a->source == 1 && a->total_ms == 2000 && a->cue_ms == 500 && a->elapsed_ms == 500 && a->elapsed_at_ms == clock_ms);
+ assert(a->source == 1 && a->track_id == 1 && !a->cue_play && a->total_ms == 2000 && a->cue_ms == 500 && a->elapsed_ms == 500 && a->elapsed_at_ms == clock_ms);
  assert(a->track_bpm_x100 == 12000 && a->bpm_x100 == 12000 && a->tempo_x100 == 0 && a->master == 0 && !a->loop.active);
  assert(a->hot_cue[0].set && a->hot_cue[0].ms == 300 && a->hot_cue[0].rgb == 0x305aff && a->hot_cue[7].set && a->hot_cue[7].ms == 1500);
  assert(!a->hot_cue[1].set);
@@ -400,6 +407,8 @@ static void test_players(void) {
  assert(heard > ms_frames(0, 650) && heard < ms_frames(0, 720));
  assert(view.deck[0].elapsed_ms == (int32_t)(heard * 1000 / 44100) && view.deck[0].elapsed_at_ms <= clock_ms);
  assert(debug(0).position > heard);
+ /* The fake wire consumed 200 ms after the 500 ms cue, including its partial block. */
+ heard=ms_frames(0,700);
  press(0, XZ_EXTRA_IN_PLAY);
  assert(debug(0).state == XZ_XP_CUED && debug(0).position == heard && !view.deck[0].playing);
  expect_jump(0, before);
@@ -415,7 +424,7 @@ static void test_players(void) {
  assert(debug(0).state == XZ_XP_CUED && flushes(0) == before);
  /* CUE held at the cue plays; release returns to the cue and pauses */
  hold(0, XZ_EXTRA_IN_CUE, 1);
- assert(debug(0).state == XZ_XP_SAMPLING && view.deck[0].playing && f.submits[0] > submits);
+ assert(debug(0).state == XZ_XP_SAMPLING && view.deck[0].playing && view.deck[0].cue_play && f.submits[0] > submits);
  advance(100);
  assert(completed_tag(0) > heard);
  before = flushes(0);
@@ -426,7 +435,7 @@ static void test_players(void) {
  hold(0, XZ_EXTRA_IN_CUE, 1);
  press(0, XZ_EXTRA_IN_PLAY);
  hold(0, XZ_EXTRA_IN_CUE, 0);
- assert(debug(0).state == XZ_XP_PLAYING);
+ assert(debug(0).state == XZ_XP_PLAYING && !view.deck[0].cue_play);
  advance(100);
  /* CUE while playing: back to the cue, paused */
  before = flushes(0);
@@ -439,7 +448,8 @@ static void test_players(void) {
  /* hot cues: an empty pad stores the position, a stored pad jumps and plays, SHIFT clears */
  press(0, XZ_EXTRA_IN_PLAY);
  advance(100);
- heard = completed_tag(0);
+ /* From the independently timed 700 ms cue: 100 ms at unity reaches 800 ms. */
+ heard = ms_frames(0,800);
  struct xz_extra_deck_event pad = event(0, XZ_EXTRA_IN_HOT_CUE, 1); pad.hot_cue = 1;
  before = flushes(0);
  assert(input(pad)); step();
@@ -504,6 +514,18 @@ static void test_players(void) {
  assert(input(event(0, XZ_EXTRA_IN_SYNC, 1))); step();
  assert(view.deck[0].sync.requested&&!view.deck[0].sync.locked&&view.deck[0].sync.reason==XZ_EXTRA_SYNC_WAIT_MASTER);
  assert(view.deck[0].tempo_x100 == 0);
+ {
+  /* A remote SYNC names the state it wants: repeating it changes nothing, the button still toggles. */
+  struct xz_extra_deck_event set = event(0, XZ_EXTRA_IN_SYNC, 1);
+  set.hot_cue = XZ_EXTRA_SYNC_SET_ON;
+  assert(input(set)); step(); assert(view.deck[0].sync.requested);
+  set.hot_cue = XZ_EXTRA_SYNC_SET_OFF;
+  assert(input(set)); step(); assert(!view.deck[0].sync.requested);
+  assert(input(set)); step(); assert(!view.deck[0].sync.requested);
+  set.hot_cue = XZ_EXTRA_SYNC_SET_ON;
+  assert(input(set)); step(); assert(input(set)); step();
+  assert(view.deck[0].sync.requested&&view.deck[0].sync.reason==XZ_EXTRA_SYNC_WAIT_MASTER);
+ }
  master = 12600;
  assert(input(event(0, XZ_EXTRA_IN_SYNC, 1))); step(); /* off, then a new release action enables */
  assert(input(event(0, XZ_EXTRA_IN_SYNC, 1))); step();
@@ -595,7 +617,8 @@ static void test_players(void) {
  /* route down: input refused, a playing deck pauses; a new route restarts the generations */
  press(0, XZ_EXTRA_IN_PLAY);
  advance(50);
- heard = completed_tag(0);
+ /* Fresh 500 ms memory cue plus 50 ms consumed wire time. */
+ heard = ms_frames(0,550);
  fake_route(0);
  assert(!input(event(0, XZ_EXTRA_IN_PLAY, 1)) && !input(event(1, XZ_EXTRA_IN_CUE, 1)));
  step();
@@ -747,6 +770,21 @@ static void test_controls(void) {
  assert(debug(0).loop_active && debug(0).loop_in == in + ms_frames(0, 500) && debug(0).loop_out == in + ms_frames(0, 1000));
  assert(debug(0).position >= debug(0).loop_in && debug(0).position < debug(0).loop_out);
  pad_key(0, 7, 1); pad_key(0, 7, 0); assert(debug(0).loop_in == in + ms_frames(0, 500)); /* past the end: refused */
+ hold(0, XZ_EXTRA_IN_RELOOP, 1); assert(!debug(0).loop_active);
+ /* Private bench events (bench_keys.h): the BEAT JUMP / BEAT LOOP pad actions without the pad mode, which stays. */
+ mode(0, XZ_EXTRA_PAD_HOT_CUE, 0); seek(0, 1000);
+ { struct xz_extra_deck_event b = event(0, XZ_EXTRA_IN_BEAT_JUMP, 1); b.beats = 1; assert(input(b)); step(); }
+ assert(debug(0).position == ms_frames(0, 1500) && view.deck[0].pad_mode == XZ_EXTRA_PAD_HOT_CUE);
+ { struct xz_extra_deck_event b = event(0, XZ_EXTRA_IN_BEAT_JUMP, 1); b.beats = -2; assert(input(b)); step(); }
+ assert(debug(0).position == ms_frames(0, 500));
+ { struct xz_extra_deck_event b = event(0, XZ_EXTRA_IN_BEAT_JUMP, 1); b.beats = -4; assert(input(b)); step(); }
+ assert(debug(0).position == ms_frames(0, 500)); /* before the start: refused */
+ { struct xz_extra_deck_event b = event(0, XZ_EXTRA_IN_BEAT_JUMP, 0); b.beats = 4; assert(input(b)); step(); }
+ assert(debug(0).position == ms_frames(0, 500)); /* an up does nothing and is owed nothing */
+ seek(0, 600);
+ { struct xz_extra_deck_event b = event(0, XZ_EXTRA_IN_BEAT_LOOP, 1); b.hot_cue = 1; assert(input(b)); step(); }
+ assert(debug(0).loop_active && debug(0).loop_out - debug(0).loop_in == ms_frames(0, 250));
+ assert(view.deck[0].active_pad == 1 && view.deck[0].pad_mode == XZ_EXTRA_PAD_HOT_CUE);
  hold(0, XZ_EXTRA_IN_RELOOP, 1); assert(!debug(0).loop_active);
 
  /* SLIP LOOP: held pad loops, its release continues from the background position. */
@@ -1160,6 +1198,7 @@ static int copy_sim_native(struct xz_sync_native_snapshot *out){
   .uncertainty_us=sim_native.uncertainty_us,.output_latency_us=sim_native.output_latency_us,
   .bpm=(float)sim_native.bpm,.nominal_bpm=120.f,
   .bar_phase=(float)sim_native_phase_at_us(cap_us),
+  .position_frames=(uint32_t)llround(sim_native_phase_at_us(cap_us)*22050.),
   .speed=(float)(sim_native.bpm/120.),
   .playing=sim_native.playing,.manual=sim_native.manual
  };

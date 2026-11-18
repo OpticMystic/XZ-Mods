@@ -8,6 +8,7 @@
 #include "ui_network.h"
 #include "ui_support.h"
 #include "ui_sections.h"
+#include "rec_mark.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -518,6 +519,8 @@ static struct xz_ui_look look(const struct xz_ui *u,const struct xz_ui_model *m,
  int deck=a->deck>=0?a->deck:u->deck,k=a->index;const struct xz_ui_deck *d=&m->deck[deck];
  const struct xz_theme_palette *p=xz_theme_palette(m->theme);
  struct xz_ui_look l={ready(u,m,deck,a),0,p->accent};
+ if(a->kind==XZ_UI_PRO_DJ_LINK){l.selected=m->pro_dj_link_decks;return l;}
+ if(a->kind==XZ_UI_ABLETON_LINK){l.selected=m->ableton_link;return l;}
  if(xz_ui_network_kind(a->kind)){l.selected=xz_ui_network_selected(u,a);return l;}
  if(xz_ui_support_kind(a->kind)){l.selected=xz_ui_support_selected(u,m,a);return l;}
  switch(a->kind){
@@ -702,10 +705,15 @@ static int profile_kind(enum xz_ui_action_kind kind){
  return kind==XZ_UI_PROFILE||kind==XZ_UI_PROFILE_PICK||kind==XZ_UI_PROFILE_PAGE||xz_ui_profile_owns(kind);
 }
 static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16_t *pixels,size_t stride,int chrome);
+/* The REC mark in the panel's header, over every skin, after everything else (rec_mark.h). */
+static void rec_mark(const struct xz_ui_model *m,uint16_t *pixels,size_t stride){
+ struct xz_rec_view v=xz_rec_view_at(&m->recorder,m->clock_ms);
+ xz_rec_draw((struct xz_canvas){pixels,stride,800,480,m->theme},XZ_REC_PANEL_RIGHT,XZ_REC_PANEL_Y,XZ_REC_PANEL_H,XZ_REC_PANEL_ROOM,&v);
+}
 int xz_ui_render(struct xz_ui *u,const struct xz_ui_model *m,uint16_t *pixels,size_t count,size_t stride){
  if(u)u->network_review.painted=0;
  if(!u||!m||!pixels||u->deck<0||u->deck>3||stride<800||stride>count/480)return 0;
- if(!u->profile_open||!m->dj){uint64_t review=xz_ui_network_review_token(u,m);render_page(u,m,pixels,stride,1);xz_ui_network_painted(u,m,review);return 1;}
+ if(!u->profile_open||!m->dj){uint64_t review=xz_ui_network_review_token(u,m);render_page(u,m,pixels,stride,1);xz_ui_network_painted(u,m,review);rec_mark(m,pixels,stride);return 1;}
  /* The open profile list sits over the page it was opened from. */
  struct xz_ui base=*u;base.profile_open=0;
  render_page(&base,m,pixels,stride,0);
@@ -716,6 +724,7 @@ int xz_ui_render(struct xz_ui *u,const struct xz_ui_model *m,uint16_t *pixels,si
  xz_ui_chrome_profile(&s,bg,ink,xz_blend(bg,ink,160),accent,palette.alarm);
  xz_ui_chrome_focus(&s,accent);
  xz_ui_chrome_dock(&s,bg,ink,xz_blend(bg,ink,160),accent,palette.alarm);
+ rec_mark(m,pixels,stride);
  return 1;
 }
 static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16_t *pixels,size_t stride,int chrome){

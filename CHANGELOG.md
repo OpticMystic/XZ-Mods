@@ -3,6 +3,68 @@
 What changed in each version of XZ Mods for the XDJ-XZ, newest first. XZ Mods is independent and experimental:
 test each build with your own tracks before a set, and keep a known working USB.
 
+## 0.6.0 - 2026-11-17
+
+Steadier four-deck audio, stems held in memory and ready in seconds, and beat-locked SYNC on decks 3 and 4.
+
+- Stems are held in memory. Decks 1 and 2 keep the whole track's stems in memory and no longer read them from the USB while they play.
+- Tracks with stems load in about 3 to 5 seconds (was 13 to 24), about the same as with stems off. 44.1 kHz stems are usable about 15 seconds after loading with two decks playing, about 21 seconds with four (was 46 seconds to almost 5 minutes).
+- 44.1 kHz stems are the recommended kind. The XZ plays at 44.1 kHz, and 96 kHz stems cost it about six times as much processor time to prepare. In OverCue Desktop, choose the 44.1 kHz stem setting. 96 kHz stems still play.
+- The XZ Mods app makes 44.1 kHz stems by default. They take about 30% less space. For a USB you also use on players running OverCue, choose Change next to Stems for on the Stems page and pick XDJ-XZ and OverCue players. Prepare again removes a track's old stems once the new ones pass their check.
+- Recording tracklist (off by default): turn on MODS > PLAY > RECORDING TRACKLIST. When a recording ends, a text file beside it lists the tracks that were on air with their times, plus a cue sheet. Nothing is written while it records. It is also written when you end a recording with USB STOP.
+- While MASTER REC records, the screen shows a red dot and the recording time.
+- In MODERN, LOOP IN / OUT adjust is shown on all four decks: the edge you move turns yellow, with its time beside it.
+- In the four-deck view (MODERN), each deck shows a small picture of the XZ's two jog wheels. White: this side is on this deck now. Grey: this deck's side is on its other deck. Dotted: the other side.
+- With four decks, the strip at the bottom of BROWSE, INFO and UTILITY shows the title of the track on each deck (MODERN).
+- In MODERN, the highlight (the cursor row, the deck in focus, lit controls) is a deeper blue, so white lettering on it is easier to read.
+- PRO DJ LINK DECKS 3/4 (MODS > CONNECT > NETWORK, experimental, off by default) shows decks 3 and 4 on the network as players 3 and 4. Handing the tempo master to or from another player is not supported yet.
+- ABLETON LINK (MODS > CONNECT > NETWORK, experimental, off by default) sends the XZ's master tempo and beat to an Ableton Link session. It only sends; the XZ does not follow the session.
+- LINK on the MODERN play screen: in the top bar, left of the BEAT FX readout, one touch switches ABLETON LINK on or off (experimental), and the number beside it is how many other apps are in the Link session. The SINGLE / CONTINUE, A. HOT CUE and A. CUE lamps beside it are smaller, so the BEAT FX readout keeps its effect time.
+- Four decks over the loopback cable (experimental) in MODERN: when you plug the cable in, the play screen switches to 4 DECKS in mixer order (3 1 2 4) by itself and the DECK VIEW picker opens for a few seconds. When you pull it, the play screen goes back to 2 DECKS after about a second and a half, and a side on deck 3 or 4 goes back to deck 1 or 2.
+- The desktop app has a new look: the sections run down the left side, in black and grey, with yellow only on the logo and the main button.
+- The XZ Mods mark has a yellow XZ on the XZ's start-up screen, its ABOUT page and the empty-deck banner. On an empty MODERN play screen it is small and grey.
+- Decks 3 and 4 no longer go silent for about a quarter of a second every 30 seconds. This was in every published beta.
+- Decks 3 and 4 no longer lose audio in small gaps while stems are being prepared, and no longer stall while other decks load.
+- Loading all four decks within a few seconds no longer leaves gaps on deck 3 or 4: 0 of 6 tests had a gap (before, every test had gaps of 4 to 43 ms each). A deck 3 or 4 track is copied to memory as soon as it is loaded, and the deck no longer waits on the USB stick while other decks load.
+- The deck 3 and 4 audio link no longer drops (ROUTE LOST) during four-deck play.
+- The XZ no longer freezes about 15 minutes after start or when you swap sticks.
+- The screen no longer stutters: no missed refreshes in a 20-minute four-deck run (was about 16 every 30 seconds, with hitches up to 0.4 seconds).
+- No more memory leak. After some hours the XZ could lose about 500 MB. This was also in Beta.2.
+- Long soak: about an hour with four decks playing while decks 1 and 2 loaded new stem tracks every few minutes, 12 rounds in all. No audio gap on deck 3 or 4 in any round.
+- Stem tracks load reliably. Before, stems could fail to load, or the player could quit, once one stem track was loaded.
+- Stem mute and solo act at once (were up to 2 seconds late, with silence in between). Beat jumps and loops with stems are smoother.
+- SYNC on decks 3 and 4 locks to the beat: in 54 of 54 checks within 1.6 ms of the master, typically within 0.4 ms. Before, their beat grid did not load. Speed corrections while synced are much smaller.
+- SYNC works across all four decks. Deck 3 or 4 following a master on deck 1 or 2 locked in 39 of 40 readings, typically within 0.5 ms. Following the other of the two through tempo changes it locked in 74 of 77, and locked again within 0.8 seconds of each change. Decks 1 and 2 follow deck 3 or 4 as master to within 0.5 % without the out-of-sync warning. The screen, the audio and Pro DJ Link always name the same master deck.
+- With deck 3 or 4 as master, SYNC on deck 1 or 2 now lines the deck up on the master's beat. Before, it matched only the tempo, however often you pressed SYNC.
+- In MODERN, USB 1, USB 2 and LINK no longer leave a CLASSIC screen up. USB 1 and USB 2 open that stick's BROWSE, or SOURCE when that slot has no stick to browse, also from a stock screen. LINK shows SOURCE with LINK highlighted; press LINK again for the stock LINK screen.
+- On decks 3 and 4, hot cues load and saving cues works.
+- LOOP IN / OUT adjust on decks 3 and 4: the loop keeps playing while you turn the jog. Before, every jog tick restarted it. Not yet confirmed by ear on the XZ.
+- LOAD right after you insert a stick works. The stock player refuses loads for about 30 seconds after a stick goes in; XZ Mods now repeats the load until it lands.
+- USB STOP leaves the stick clean with everything loaded, also while recording. A deck 3 or 4 track fully in RAM keeps playing; one still read from that stick stops. Stems whose whole track is in memory keep working; others end and the deck plays the normal track.
+- In MODERN, the LOAD menu loads only the deck you highlighted. With four decks in mixer order its rows read DECK 3, 1, 2, 4, like the lanes. With the menu open, a LOAD key first moves the highlight to its deck; a second press loads. Before, it could replace a playing track.
+- LOAD LOCK protects decks 3 and 4: a playing deck 3 or 4 takes no new track while LOAD LOCK is on.
+- The tempo readout fits its box. Values like +16.00 % no longer run into the BPM box, and WIDE shows one decimal (-100.0).
+- Recordings made with XZ Mods running were checked and are clean.
+- XZ Mods 0.6.0 is a full release, not a beta. The app no longer shows Beta, and from now on it offers you full releases only.
+- Games are off unless you install them. They no longer start with the player. Add them to a USB from the app under Tools > Game downloads.
+- The app's USB setup no longer adds the free games by itself. To add them, choose Add free games in its review step.
+- No notice covers the waveforms any more. Notices that only repeat what the screen already shows, such as a new master deck or a loop being set, are no longer shown. The others appear in the top bar for a few seconds, in place of the BEAT FX readout (MODERN) or METRICS (CLASSIC). When NEEDLE LOCK refuses a touch, its mark on the deck lights instead.
+- The Manual in the app covers the new screens and settings: four decks, stems in memory, the REC mark and recording tracklist, PRO DJ LINK and ABLETON LINK, LOAD LOCK and the top bar's LINK and notices.
+- Ableton Link support uses the official Ableton Link library, which is licensed under the GNU General Public License version 2 or later. It runs as a separate helper program (xz-link-peer). Its complete source code is attached to this release as xz-link-peer-source.tar.gz (sha256 13f3fb66930a3ce4f09c99f7f40a107d6d872377c74c63476fcce7d9bc2e74a5) and included with the app's license notices; the license texts are in the app (About > Open license notices) and on the USB stick (licenses/xz-link-peer/).
+- Experimental. For the XDJ-XZ on version 1.26 only.
+- Update every XZ Mods stick after updating the app: plug it in and choose Back up and update loader on the USB page. A stick with an older beta switches the XZ back to that beta when you insert it.
+- To get 44.1 kHz stems, make your stems again in the app or in OverCue Desktop. 96 kHz stems are slow to prepare on the XZ and can fall behind with four decks playing and long tracks.
+- Not in this release: stems on decks 3 and 4, OverCue Live Stems, and an option for black-outlined lettering on the screen.
+- Decks 3 and 4 start a little late: each start has 13 to 56 ms of late audio in the first half second. This is not a dropout in the middle of a track.
+- Decks 1 and 2 have no automatic dropout counter and are judged by ear. A stutter was heard once, in a test that loaded all four decks at the same moment, on a test build that has since changed.
+- A beat jump past the end of a track with stems plays about 6 ms of the full mix.
+- The MASTER and SYNC lamps can stay wrong in one known case with deck 3 or 4 as master. The master and SYNC state behind them was right at every step checked; the lamps themselves could not be read by the test.
+- USB STOP while a deck 3 or 4 track still plays from that stick stops it with a hard cut.
+- The recording tracklist is lost if the stick is pulled out without USB STOP. Turning the setting on during a recording gives that recording no list.
+- The new switches for Pro DJ Link on decks 3 and 4 and for Ableton Link have not been measured with four decks and stems playing. Ableton Link's fix for a forced beat jump every second was measured on the XZ: no forced jump in 30 seconds with a steady master (before: 19). It has had little use beyond that: try it at home before a gig.
+- The LOAD menu and LOAD LOCK changes, and LOOP IN / OUT adjust on decks 3 and 4, were checked in tests on a computer; checks on the XZ are still to come. The loop adjust display, the tempo readout and the side marks were seen on the XZ.
+- The new switches on the XZ (PRO DJ LINK DECKS 3/4, ABLETON LINK, RECORDING TRACKLIST) show in English in every language.
+
 ## 0.5.1-Beta.2 - 2026-11-06
 
 OverCue's newest stems play, decks 3 and 4 hold SYNC and spin back properly, and AIFF tracks get stems.

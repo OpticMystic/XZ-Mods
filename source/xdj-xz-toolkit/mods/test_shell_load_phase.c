@@ -16,7 +16,7 @@ static size_t physical(struct xz_shrt_contacts *contacts,struct xz_shell *u,cons
  enum xz_shrt_phase phase=xz_shrt_phase_of(op);
  if(xz_shrt_load_duplicate(contacts,map,phase)>=0)return 0;
  int held=0;
- if(phase==XZ_SHRT_PRESS)xz_shrt_contact_press(contacts,0x430f,channel,1);
+ if(phase==XZ_SHRT_PRESS)xz_shrt_contact_press(contacts,0x430f,channel,1,0);
  else if(xz_shrt_contact_follow(contacts,0x430f,channel,phase,&held)<=0)return 0;
  int key=xz_shrt_key_for_phase(map,phase,held);
  struct xz_shell_event event={XZ_SHELL_KEY,0,0,0,key,map->deck};
@@ -38,7 +38,7 @@ int main(void) {
   assert(!physical(&contacts,&u,&m,channel,0));assert(!physical(&contacts,&u,&m,channel,1));assert(!physical(&contacts,&u,&m,channel,2));assert(!physical(&contacts,&u,&m,channel,2));
  }
  const struct xz_shrt_key_map *browse=xz_shrt_key_lookup(0x209,0);
- xz_shrt_contact_press(&contacts,0x209,0,1);assert(xz_shrt_load_duplicate(&contacts,browse,XZ_SHRT_PRESS)==-1);
+ xz_shrt_contact_press(&contacts,0x209,0,1,0);assert(xz_shrt_load_duplicate(&contacts,browse,XZ_SHRT_PRESS)==-1);
  puts("PASS physical LOAD phases: one press loads native channel 1/2 to deck 1/2; duplicate/hold/release inert; non-LOAD repeats unchanged");
  return 0;
 }

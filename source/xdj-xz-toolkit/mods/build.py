@@ -9,6 +9,7 @@ import re
 import pathlib
 import shutil
 import subprocess
+import sys
 from elftools.elf.elffile import ELFFile
 from capstone import Cs, CS_ARCH_ARM, CS_MODE_ARM
 
@@ -98,6 +99,37 @@ def build_mp3_vfp(output: pathlib.Path, arm_gcc: str | None, wsl_distro: str) ->
             "decoder_header_sha256": hashlib.sha256((ROOT / "audio/vendor/dr_libs/dr_mp3.h").read_bytes()).hexdigest()}
 
 
+RUNTIME_IMAGE_BASE = 0x26000000
+
+
+def link_at_low_base(command: list, destination: pathlib.Path) -> None:
+    """Link the runtime at a fixed base below the XZ kernel's own mapping range.
+
+    The XZ maps libraries, thread stacks and every large allocation into one 1.3 GiB range that the player
+    nearly fills. Its loader asks the kernel for the address a library is linked at, so a base below that
+    range moves this library and its 35 MiB of zero-initialised data out of it. The compiler driver drops
+    the base option for shared objects, so the linker command it prints is replayed with the option added.
+    """
+    verbose = subprocess.run([*command[:2], "-v", *command[2:]], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    if verbose.returncode:
+        # The compiler's own command lines are thousands of characters long and contain "-ferror-limit";
+        # showing them hid the real diagnostic behind a cut-off list of flags.
+        raise RuntimeError(" | ".join(line[:400] for line in verbose.stdout.splitlines()
+                                      if ("error" in line.lower() or "undefined" in line.lower()) and len(line) < 1200)[-4000:])
+    lines = [line for line in verbose.stdout.splitlines() if line.startswith("ld.lld ")]
+    if len(lines) != 1:
+        raise RuntimeError("Expected one linker command from the compiler driver")
+    arguments = lines[0].split()[1:]
+    if arguments[arguments.index("-o") + 1] != str(destination):
+        raise RuntimeError("Linker output does not match the runtime destination")
+    subprocess.run([command[0], "ld.lld", *arguments, "--image-base=" + hex(RUNTIME_IMAGE_BASE),
+                    "-Map=" + str(destination.with_suffix(".map"))], check=True)
+    with destination.open("rb") as stream:
+        loads = [s for s in ELFFile(stream).iter_segments() if s["p_type"] == "PT_LOAD"]
+    if min(s["p_vaddr"] for s in loads) != RUNTIME_IMAGE_BASE or max(s["p_vaddr"] + s["p_memsz"] for s in loads) > 0x2A000000:
+        raise RuntimeError("Runtime image is not inside the low address zone")
+
+
 def inspect(path: pathlib.Path) -> dict:
     with path.open("rb") as stream:
         elf = ELFFile(stream)
@@ -162,6 +194,8 @@ def main() -> None:
         parser.error("Supply --zig with a Zig executable supporting arm-linux-gnueabi.2.13")
     if not 100 <= args.jog_counts_per_rev <= 100000:
         parser.error("--jog-counts-per-rev must be between 100 and 100000")
+    # No real-time thread may wait behind a lower-priority one on a condition variable, rwlock or plain mutex.
+    subprocess.run([sys.executable, str(ROOT / "tests" / "verify_rt_locks.py")], check=True)
     args.output.mkdir(parents=True, exist_ok=True)
     destination = args.output.resolve() / "libxz-mods-development.so"
     compiler = shutil.which(args.zig) or str(pathlib.Path(args.zig).resolve())
@@ -229,6 +263,18 @@ def main() -> None:
                         "-fPIC", "-fvisibility=hidden", "-c", str(ROOT / "arcade" / (name + ".c")),
                         "-o", str(target)], check=True)
         lab_objects.append(str(target))
+    # Display/model math only. VFP instructions keep the stock soft-float call ABI;
+    # preserve IEEE precision and prohibit multiply/add contraction.
+    display_math_sources = ("shell/shell_wave.c", "shell_runtime.c", "shell_runtime_core.c", "arcade/native_clock.c")
+    display_math_objects = []
+    for source in display_math_sources:
+        target = args.output.resolve() / (pathlib.Path(source).stem + "-display-vfp.o")
+        subprocess.run([compiler, "cc", "-target", "arm-linux-gnueabi.2.13", "-mcpu=cortex_a9",
+                        "-mfloat-abi=softfp", "-mfpu=vfpv3", "-ffp-contract=off", "-O2", "-std=c11",
+                        "-Wall", "-Wextra", "-Werror", "-fPIC", "-fvisibility=hidden",
+                        *(["-DXZ_SYNC_OBSERVATION=1"] if args.sync_observation else []),
+                        "-c", str(ROOT / source), "-o", str(target)], check=True)
+        display_math_objects.append(str(target))
     diary_version = args.diary_version
     if diary_version is None:
         release_source = ROOT.parents[2] / "release-source.json"
@@ -240,14 +286,14 @@ def main() -> None:
                "-O2", "-s", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared",
                "-fvisibility=hidden", "-Wl,--no-undefined", "-Wl,-z,nodelete",
                "-Wl,-T," + str(ROOT / "xz-relocations.ld"),
-               str(ROOT / "runtime.c"), str(ROOT / "cue/cue.c"), str(ROOT / "cue/native.c"),
-               str(ROOT / "deck_select.c"), str(ROOT / "extra_decks.c"), str(ROOT / "extra_cue_store.c"), str(ROOT / "classic_load.c"), str(ROOT / "classic_popup.c"), str(ROOT / "stock_dialog.c"),
+               str(ROOT / "runtime.c"), str(ROOT / "kernel_guard.c"), str(ROOT / "core_use.c"), str(ROOT / "games_gate.c"), str(ROOT / "xz_thread.c"), str(ROOT / "usb_probe.c"), str(ROOT / "usb_release.c"), str(ROOT / "cue/cue.c"), str(ROOT / "cue/native.c"),
+               str(ROOT / "deck_select.c"), str(ROOT / "extra_decks.c"), str(ROOT / "extra_cue_store.c"), str(ROOT / "tracklist.c"), str(ROOT / "tracklist_file.c"), str(ROOT / "tracklist_runtime.c"), str(ROOT / "classic_load.c"), str(ROOT / "classic_popup.c"), str(ROOT / "stock_dialog.c"),
                str(player_object), str(ROOT / "anlz_extra.c"), str(transport_object),
                str(ROOT / "doom/native_bridge.c"),
                str(ROOT / "kart/xz_kart_input.c"), str(ROOT / "kart/xz_kart_runtime.c"),
                *(str(ROOT / "sdk" / name) for name in SDK_SOURCES),
                str(ROOT / "arcade/arcade.c"),str(ROOT / "arcade/render.c"),
-               str(ROOT / "arcade/input.c"),str(ROOT / "arcade/clock.c"),str(ROOT / "arcade/native_clock.c"),
+               str(ROOT / "arcade/input.c"),str(ROOT / "arcade/clock.c"),display_math_objects[3],
                str(ROOT / "arcade/wave_rider_source.c"),str(ROOT / "arcade/wave_rider_runtime.c"),
                *lab_objects, str(ROOT / "arcade/rhythm_lab_runtime.c"),
                str(ROOT / "doom/wad_catalog.c"),
@@ -255,6 +301,8 @@ def main() -> None:
                str(ROOT / "support/native_support.c"), str(ROOT / "support/loader_identity.c"),
                *(str(ROOT / "network" / name) for name in ("lease.c", "service.c", "linux.c", "linux_os.c", "runtime.c")),
                str(ROOT / "ui_runtime.c"), str(ROOT / "metrics_runtime.c"),
+               # REC mark: the shared poller (the recorder seam, recorder_state.c, is linked with ram/removal.c below).
+               str(ROOT / "recorder_poll.c"),
                str(ROOT / "diary/format.c"), str(ROOT / "diary/store.c"), str(ROOT / "diary/runtime.c"), str(ROOT / "pc_control/stems.c"), str(ROOT / "pc_control/native.c"), str(ROOT / "pc_control/wave.c"), *(str(ROOT / "ui" / name) for name in UI_SOURCES), str(ROOT / "ui/native_touch.c"),
                str(ROOT / "ui/stem_pads.c"), str(ROOT / "ui/beat_jump.c"),
                str(ROOT / "ui/native_led.c"),
@@ -267,9 +315,11 @@ def main() -> None:
                str(ROOT / "ui/native_raw_skin.c"),
                str(ROOT / "ui/native_window_keys.c"),
                # FLAGSHIP source closure shares its small UI renderers with UI_SOURCES.
-               *(str(ROOT / "shell" / name) for name in SHELL_SOURCES if name not in {"../ui/" + item for item in UI_SOURCES}),
-               str(ROOT / "shell_model.c"), str(ROOT / "shell_runtime.c"), str(ROOT / "shell_runtime_core.c"), str(ROOT / "sync_native.c"),
+               *(str(ROOT / "shell" / name) for name in SHELL_SOURCES if name != "shell_wave.c" and name not in {"../ui/" + item for item in UI_SOURCES}),
+               str(ROOT / "xz_bench_control.c"), str(ROOT / "bench_keys.c"), str(ROOT / "bench_lights.c"), str(ROOT / "master_lights.c"), str(ROOT / "shell_model.c"), display_math_objects[1], display_math_objects[2], display_math_objects[0], str(ROOT / "sync_native.c"),
                str(ROOT / "sync_link_plan.c"), str(ROOT / "sync_link_runtime.c"), str(ROOT / "jog_display.c"), str(ROOT / "jog_display_wave.c"), str(ROOT / "jog_display_runtime.c"),
+               str(ROOT / "djlink_facts.c"), str(ROOT / "djlink_runtime.c"),
+               str(ROOT / "link_clock.c"), str(ROOT / "link_policy.c"), str(ROOT / "link_runtime.c"),
                str(ROOT / "shell_library.c"), str(ROOT / "shell_analysis.c"), str(ROOT / "shell_playlists.c"), str(ROOT / "shell_utility.c"), str(ROOT / "shell_mysettings.c"), str(ROOT / "my_settings.c"), str(ROOT / "pdb/pdb.c"),
                str(ROOT / "settings.c"), str(ROOT / "settings_internal.c"), str(ROOT / "usb_profile.c"),
                str(ROOT / "dj_profile.c"), str(ROOT / "dj_runtime.c"), str(ROOT / "dj_profile_write.c"), str(ROOT / "dj_folders.c"),
@@ -280,10 +330,10 @@ def main() -> None:
                str(ROOT / "key/catalog.c"), str(ROOT / "key/browser.c"),
                str(audio_runtime_object), str(ROOT / "audio/native_reader.c"),
                str(ROOT / "audio/trace.c"),
-               str(ROOT / "ram/cache.c"), str(ROOT / "ram/budget.c"), str(ROOT / "ram/file.c"), str(ROOT / "ram/extra.c"), str(ROOT / "ram/decks.c"), str(ROOT / "ram/runtime.c"), str(ROOT / "ram/removal.c"), str(ROOT / "ram/presentation.c"), str(ROOT / "ram/pin.c"),
+               str(ROOT / "ram/cache.c"), str(ROOT / "ram/budget.c"), str(ROOT / "ram/file.c"), str(ROOT / "ram/extra.c"), str(ROOT / "ram/decks.c"), str(ROOT / "ram/runtime.c"), str(ROOT / "ram/removal.c"), str(ROOT / "recorder_state.c"), str(ROOT / "ram/presentation.c"), str(ROOT / "ram/pin.c"),
                str(ROOT / "audio/stem_cache.c"), str(ROOT / "audio/stem_mix.c"), str(ROOT / "audio/stem_decode.c"),
                str(ROOT / "audio/overcue_file.c"), str(ROOT / "audio/foreign_stems.c"),
-               str(mp3_object), str(media_object), str(stream_object),
+               str(mp3_object), str(media_object), str(stream_object), str(ROOT / "audio/stem_pool.c"),
                str(ROOT / "audio/vendor/miniz/miniz_tinfl.c"), str(ROOT / "audio/vendor/sha256/sha256.c"),
                "-DMINIZ_NO_ARCHIVE_APIS", "-DMINIZ_NO_DEFLATE_APIS",
                "-pthread", "-lm", "-ldl",
@@ -293,7 +343,7 @@ def main() -> None:
     if args.sync_observation:
         command.insert(2, "-DXZ_SYNC_OBSERVATION=1")
     command[2:2] = player_defines(args)
-    subprocess.run(command, check=True)
+    link_at_low_base(command, destination)
     result = inspect(destination)
     result["jog_display_proof"] = args.jog_display_proof
     result["xp_service_proof"] = args.xp_service_proof
@@ -346,6 +396,8 @@ def main() -> None:
             "extra_player.c", "key/keyshift.c", "key/music.c", "key/control.c", "deck_select.c", "anlz_extra.c", "shell_analysis.c", "ui/layered_wave_source.c", "ui/layered_wave.c",
             "audio/stem_media.c", "audio/stem_decode.c", "test_extra_player.c")), str(mp3_object), "-lm"],
         "settings-test": [str(ROOT / "settings.c"), str(ROOT / "tests/test_settings.c")],
+        "recorder-poll-test": ["-DXZ_RECORDER_POLL_HOST", str(ROOT / "recorder_poll.c"), str(ROOT / "ui/rec_mark.c"),
+                               str(ROOT / "ui/ui_draw.c"), str(ROOT / "test_recorder_poll.c")],
         "my-settings-test": [str(ROOT / "my_settings.c"), str(ROOT / "test_my_settings.c")],
         "native-decode-test": [str(ROOT / "cue/native.c"), str(ROOT / "cue/test_native_decode.c")],
         "stem-test": ["-I" + str(ROOT / "audio"), str(ROOT / "audio/stem_cache.c"),
@@ -358,6 +410,26 @@ def main() -> None:
         "sync-link-plan-test": [str(ROOT / "sync_link_plan.c"), str(ROOT / "tests/test_sync_link_plan.c"), "-lm"],
         "sync-link-runtime-test": ["-pthread", str(ROOT / "sync_link_plan.c"), str(ROOT / "sync_link_runtime.c"), str(ROOT / "tests/test_sync_link_runtime.c"), "-lm"],
         "jog-display-runtime-test": [str(ROOT / "jog_display.c"), str(ROOT / "jog_display_wave.c"), str(ROOT / "jog_display_runtime.c"), str(ROOT / "tests/test_jog_display_runtime.c")],
+        "djlink-facts-test": [str(ROOT / "djlink_facts.c"), str(ROOT / "tests/test_djlink_facts.c"), "-lm"],
+        "djlink-runtime-test": ["-pthread", '-DXZ_DJLINK_DIR="/tmp/xz-djlink-test"', str(ROOT / "djlink_runtime.c"), str(ROOT / "djlink_facts.c"),
+                                str(ROOT / "tests/test_djlink_runtime.c"), "-lm"],
+        "xz-wake-test": ["-pthread", str(ROOT / "tests/test_xz_wake.c")],
+        "recorder-state-test": ["-DXZ_RECORDER_STATE_NO_RUNTIME", str(ROOT / "recorder_state.c"), str(ROOT / "tests/test_recorder_state.c")],
+        "bench-keys-test": ["-DXZ_BENCH_KEYS_NO_RUNTIME", str(ROOT / "bench_keys.c"), str(ROOT / "tests/test_bench_keys.c")],
+        # USB STOP with the mods running: the unmount policy and the hidden mounts (usb_release.h).
+        "usb-release-test": ["-DXZ_USB_RELEASE_NO_RUNTIME", str(ROOT / "usb_release.c"), str(ROOT / "tests/test_usb_release.c")],
+        # MASTER / BEAT SYNC lights with DECK 3/4 (master_lights.h) and their bench read-out (bench_lights.h).
+        "master-lights-test": ["-DXZ_LED_PORTABLE_TEST", "-DXZ_MASTER_LIGHTS_NO_RUNTIME", str(ROOT / "ui/native_led.c"),
+                               str(ROOT / "master_lights.c"), str(ROOT / "tests/test_master_lights.c")],
+        "bench-lights-test": ["-DXZ_BENCH_LIGHTS_NO_RUNTIME", str(ROOT / "bench_lights.c"), str(ROOT / "tests/test_bench_lights.c")],
+        # Recording tracklist (tests/verify_recorder.py runs these and the mutation check on the host and under qemu).
+        "tracklist-test": [str(ROOT / "tracklist.c"), str(ROOT / "tests/tracklist/test_tracklist.c")],
+        "tracklist-file-test": [str(ROOT / "tracklist.c"), str(ROOT / "tracklist_file.c"), str(ROOT / "tests/tracklist/test_tracklist_file.c")],
+        "tracklist-runtime-test": ["-pthread", "-I" + str(ROOT), str(ROOT / "tracklist.c"), str(ROOT / "tracklist_file.c"),
+                                   str(ROOT / "tests/tracklist/test_tracklist_runtime.c")],
+        "link-policy-test": [str(ROOT / "link_policy.c"), str(ROOT / "link_clock.c"), str(ROOT / "tests/test_link_policy.c"), "-lm"],
+        "link-runtime-test": ["-pthread", '-DXZ_LINK_DIR="/tmp/xz-link-test"', str(ROOT / "link_runtime.c"), str(ROOT / "link_policy.c"),
+                              str(ROOT / "link_clock.c"), str(ROOT / "djlink_facts.c"), str(ROOT / "tests/test_link_runtime.c"), "-lm"],
     }
     test_evidence = {}
     for name, sources in tests.items():

@@ -2,6 +2,7 @@
 #define _FILE_OFFSET_BITS 64
 #define _POSIX_C_SOURCE 200809L
 #include "overcue.h"
+#include "../xz_cloexec.h"
 #include <limits.h>
 #include <math.h>
 #include <stdlib.h>
@@ -9,10 +10,31 @@
 #if defined(__linux__)
 extern int xz_ram_files_pin(FILE *const[],struct xz_ram_file_pin[],size_t) __attribute__((weak));
 extern void xz_ram_file_unpin(struct xz_ram_file_pin *) __attribute__((weak));
+extern void xz_ram_pin_set_poll(int (*)(void *),void *) __attribute__((weak));
+extern int xz_ram_track_load_busy(void) __attribute__((weak));
+#include <fcntl.h>
+#include <time.h>
+#include <unistd.h>
+/* The bytes of a stem page just read from the stick are decoded and not read again in a store build. Left in
+   the kernel's file cache they are a second copy of the whole stem set, evicted only under pressure, in the
+   middle of the next track load. Whole cache pages only: the last, partial one holds the next stem page's
+   head. Drops clean pages; a later read of the same bytes still works and reads the stick again. */
+static void cache_release(FILE *file,uint64_t offset,uint64_t bytes){
+    uint64_t begin=offset&~UINT64_C(4095),end=(offset+bytes)&~UINT64_C(4095);
+    if(end>begin)(void)posix_fadvise(fileno(file),(off_t)begin,(off_t)(end-begin),POSIX_FADV_DONTNEED);
+}
+/* A track that is loading on any deck has the USB to itself (ram/budget.h). */
+static void usb_stand_back(void){
+    while(xz_ram_track_load_busy&&xz_ram_track_load_busy()){struct timespec wait={0,20000000};nanosleep(&wait,NULL);}
+}
 #else
 #define xz_ram_file_unpin xz_ram_file_unpin_absent
+static void usb_stand_back(void){}
+static void cache_release(FILE *file,uint64_t offset,uint64_t bytes){(void)file;(void)offset;(void)bytes;}
 static void (*xz_ram_file_unpin)(struct xz_ram_file_pin *);
 #endif
+/* Parent links keep sibling-heavy catalog parsing linear. */
+#define JSMN_PARENT_LINKS
 #define JSMN_STATIC
 #include "vendor/jsmn/jsmn.h"
 #include "vendor/sha256/sha256.h"
@@ -31,11 +53,14 @@ static int digest_matches(const unsigned char digest[32], const char *hexstr) {
     return 1;
 }
 static void hash(const void *data,size_t n,unsigned char out[32]) { SHA256_CTX c;sha256_init(&c);sha256_update(&c,data,n);sha256_final(&c,out); }
-static int file_hash_matches(const char *path,const char *expected) {
+static int file_hash(const char *path,unsigned char sum[32]) {
     FILE *f=fopen(path,"rb"); if(!f)return 0;
-    SHA256_CTX c;sha256_init(&c);unsigned char data[32768],sum[32];size_t n;uint64_t total=0;
-    while((n=fread(data,1,sizeof(data),f))){sha256_update(&c,data,n);total+=n;if(total>UINT64_C(2147483648)){fclose(f);return 0;}}
-    int ok=!ferror(f);fclose(f);sha256_final(&c,sum);return ok&&digest_matches(sum,expected);
+    SHA256_CTX c;sha256_init(&c);unsigned char data[32768];size_t n;uint64_t total=0;
+    while((n=fread(data,1,sizeof(data),f))){sha256_update(&c,data,n);total+=n;if(total>UINT64_C(2147483648)){fclose(f);return 0;}usb_stand_back();}
+    int ok=!ferror(f);fclose(f);sha256_final(&c,sum);return ok;
+}
+static int file_hash_matches(const char *path,const char *expected) {
+    unsigned char sum[32];return file_hash(path,sum)&&digest_matches(sum,expected);
 }
 /* OverCue Desktop 2.2.40+ can grow index.json past the 4 MiB older OverCue firmware reads. */
 #define XZ_OC_DOCUMENT_MAX (16*1024*1024)
@@ -99,7 +124,7 @@ static double number(const struct document *d,int t){
 static int path_join(char out[4096],const char *a,const char *b){return snprintf(out,4096,"%s/%s",a,b)>=4096?-1:0;}
 static int open_pgz(const char *path,const char *table_sha,uint64_t frames,struct xz_oc_file *f){
     unsigned char header[24],sum[32];for(unsigned i=0;i<XZ_OC_PAGE_SLOTS;i++)f->cached_page[i]=UINT32_MAX;
-    f->file=fopen(path,"rb");if(!f->file)return -1;
+    f->file=fopen(path,XZ_FOPEN_READ_CLOEXEC);if(!f->file)return -1;
     if(fread(header,1,24,f->file)!=24||be32(header+8)!=XZ_OC_PAGE)return -1;
     if(!memcmp(header,"OVPGZ001",8))f->codec=1;
     else if(!memcmp(header,"OVPGZ003",8))f->codec=3;
@@ -114,7 +139,8 @@ static int open_pgz(const char *path,const char *table_sha,uint64_t frames,struc
     if(!digest_matches(sum,table_sha)){free(table);return -1;}
     if(fseek(f->file,0,SEEK_END)){free(table);return -1;}long file_bytes=ftell(f->file);if(file_bytes<0){free(table);return -1;}
     f->pages=calloc(f->page_count,sizeof(*f->pages));f->raw=malloc(XZ_OC_PAGE*XZ_OC_PAGE_SLOTS);f->compressed=malloc(XZ_OC_COMPRESSED_MAX);
-    if(!f->pages||!f->raw||!f->compressed){free(table);return -1;}
+    f->arena=f->codec>=3?malloc(XZ_OC_DECODER_AREA):NULL;
+    if(!f->pages||!f->raw||!f->compressed||(f->codec>=3&&!f->arena)){free(table);return -1;}
     uint64_t previous=24+table_bytes,total=0;
     for(uint32_t i=0;i<f->page_count;i++){
         const unsigned char *p=table+(size_t)i*48;struct xz_oc_page *page=f->pages+i;
@@ -124,6 +150,18 @@ static int open_pgz(const char *path,const char *table_sha,uint64_t frames,struc
            (i+1<f->page_count&&page->bytes!=XZ_OC_PAGE)||page->offset+page->compressed>(uint64_t)file_bytes){free(table);return -1;}
         total+=page->bytes;previous=page->offset+page->compressed;
     }free(table);return total==f->bytes&&previous==(uint64_t)file_bytes?0:-1;
+}
+/* The FLAC decoder asks for its working memory once per page. Served from a fixed area per file: no heap
+   traffic while stems are decoded (a request that does not fit falls back to the heap). */
+static void *decoder_take(size_t bytes,void *user){
+    struct xz_oc_file *f=user;size_t at=(f->arena_used+15u)&~(size_t)15u;
+    if(f->arena&&bytes<=XZ_OC_DECODER_AREA&&at<=XZ_OC_DECODER_AREA-bytes){f->arena_used=at+bytes;return f->arena+at;}
+    return malloc(bytes);
+}
+static void decoder_give(void *memory,void *user){
+    struct xz_oc_file *f=user;unsigned char *p=memory;
+    if(!p||(f->arena&&p>=f->arena&&p<f->arena+XZ_OC_DECODER_AREA))return;
+    free(p);
 }
 static int page_read(struct xz_oc_file *f,uint32_t index){
     if(index>=f->page_count)return -1;
@@ -136,11 +174,14 @@ static int page_read(struct xz_oc_file *f,uint32_t index){
     unsigned char *raw=f->raw+(size_t)slot*XZ_OC_PAGE;
     struct xz_oc_page *p=f->pages+index;unsigned char sum[32];
     if(p->offset>LONG_MAX||fseek(f->file,(long)p->offset,SEEK_SET)||fread(f->compressed,1,p->compressed,f->file)!=p->compressed)return -1;
+    if(!f->ram.mapping)cache_release(f->file,p->offset,p->compressed); /* a RAM copy has no second copy */
     size_t n;
     if(f->codec>=3){
         if(p->compressed<42||memcmp(f->compressed,"fLaC",4)||(f->compressed[4]&127)!=0||
            f->compressed[5]!=0||f->compressed[6]!=0||f->compressed[7]!=34)return -1;
-        drflac *decoder=drflac_open_memory(f->compressed,p->compressed,NULL);
+        f->arena_used=0;
+        drflac_allocation_callbacks room={f,decoder_take,NULL,decoder_give};
+        drflac *decoder=drflac_open_memory(f->compressed,p->compressed,&room);
         if(!decoder)return -1;
         uint64_t frames=p->bytes/4;
         int valid=decoder->sampleRate==f->sample_rate&&decoder->channels==2&&decoder->bitsPerSample==16&&
@@ -175,7 +216,35 @@ int xz_oc_read(struct xz_oc_file *f,int64_t first,size_t count,int16_t *out){
         for(size_t i=0;i<n*2;i++){unsigned char *p=f->raw+(size_t)slot*XZ_OC_PAGE+offset+i*2;out[done*2+i]=(int16_t)((unsigned)p[0]|(unsigned)p[1]<<8);}done+=n;
     }return 0;
 }
-static void close_file(struct xz_oc_file *f){if(f->file)fclose(f->file);if(f->ram.mapping&&xz_ram_file_unpin)xz_ram_file_unpin(&f->ram);free(f->pages);free(f->raw);free(f->compressed);memset(f,0,sizeof(*f));}
+/* A RAM copy is unmapped, emptied and only then closed, so its pages return whatever still names the file. */
+static void close_file(struct xz_oc_file *f){
+    int copied=f->ram.mapping!=NULL;
+    if(copied&&xz_ram_file_unpin)xz_ram_file_unpin(&f->ram);
+    if(f->file){
+#if defined(__linux__)
+        if(copied&&ftruncate(fileno(f->file),0)){}
+#endif
+        fclose(f->file);
+    }
+    free(f->pages);free(f->raw);free(f->compressed);free(f->arena);memset(f,0,sizeof(*f));
+}
+int xz_oc_assets_pin_supported(void){
+#if defined(__linux__)
+    return xz_ram_files_pin!=NULL;
+#else
+    return 0;
+#endif
+}
+int xz_oc_assets_pin_polled(struct xz_oc_assets *a,int (*poll)(void *),void *context){
+#if defined(__linux__)
+    if(xz_ram_pin_set_poll)xz_ram_pin_set_poll(poll,context);
+    int result=xz_oc_assets_pin(a);
+    if(xz_ram_pin_set_poll)xz_ram_pin_set_poll(NULL,NULL);
+    return result;
+#else
+    (void)poll;(void)context;return xz_oc_assets_pin(a);
+#endif
+}
 int xz_oc_assets_pin(struct xz_oc_assets *a){
 #if defined(__linux__)
     if(!a||!xz_ram_files_pin)return 0;
@@ -188,6 +257,11 @@ int xz_oc_assets_pin(struct xz_oc_assets *a){
 #else
     (void)a;return 0;
 #endif
+}
+void xz_oc_assets_release_audio(struct xz_oc_assets *a){
+    if(!a)return;
+    for(unsigned i=0;i<3;i++)close_file(&a->role[i]);
+    close_file(&a->reference);
 }
 size_t xz_oc_assets_ram_bytes(const struct xz_oc_assets *a){
     if(!a)return 0;size_t total=a->reference.ram.bytes;
@@ -231,7 +305,8 @@ static int same_token(const struct document *d,int left,int right){
     return length==(size_t)(d->token[right].end-d->token[right].start)&&
            !memcmp(d->text+d->token[left].start,d->text+d->token[right].start,length);
 }
-static int find_entry(const struct document *d,const char *track,char bundle[17]){
+/* -1 means no matching entry; -2 means a matching identity is invalid or ambiguous. */
+static int find_entry(const struct document *d,const char *track,const unsigned char *source_sha,char bundle[17]){
     const char *maps[]={"tracks","tracks_onelibrary"};int found=-1;char value[4096];
     const char *keys[]={"bundle","frames","three_part","page_bytes","sample_rate","source_sha256",
         "vocal_sha256","vocal_page_table_sha256","instrumental_sha256","instrumental_page_table_sha256",
@@ -239,18 +314,28 @@ static int find_entry(const struct document *d,const char *track,char bundle[17]
         "vocals_drums_sha256","vocals_drums_page_table_sha256","vocals_harmonics_sha256","vocals_harmonics_page_table_sha256",
         "full_mix_sha256","full_mix_page_table_sha256"};
     for(unsigned m=0;m<2;m++){
-        int map=field(d,0,maps[m]);if(map<0)continue;if(d->token[map].type!=JSMN_OBJECT)return -1;
+        int map=field(d,0,maps[m]);if(map<0)continue;if(d->token[map].type!=JSMN_OBJECT)return -2;
         for(int key=map+1;key<d->count&&d->token[key].start<d->token[map].end;){
-            int entry=key+1;if(entry>=d->count)return -1;
-            if(!string(d,field(d,entry,"file_path"),value,sizeof(value))&&!strcmp(value,track)){
-                if(string(d,field(d,entry,"bundle"),value,sizeof(value))||strlen(value)!=16)return -1;
-                for(unsigned i=0;i<16;i++)if(!((value[i]>='0'&&value[i]<='9')||(value[i]>='a'&&value[i]<='f')))return -1;
+            int entry=key+1;if(entry>=d->count)return -2;
+            int match=source_sha?(!string(d,field(d,entry,"source_sha256"),value,sizeof(value))&&digest_matches(source_sha,value)):
+                (!string(d,field(d,entry,"file_path"),value,sizeof(value))&&!strcmp(value,track));
+            if(match){
+                if(string(d,field(d,entry,"bundle"),value,sizeof(value))||strlen(value)!=16)return -2;
+                for(unsigned i=0;i<16;i++)if(!((value[i]>='0'&&value[i]<='9')||(value[i]>='a'&&value[i]<='f')))return -2;
                 if(found>=0)for(unsigned i=0;i<sizeof(keys)/sizeof(*keys);i++)
-                    if(!same_token(d,field(d,found,keys[i]),field(d,entry,keys[i])))return -1;
+                    if(!same_token(d,field(d,found,keys[i]),field(d,entry,keys[i])))return -2;
                 found=entry;memcpy(bundle,value,17);
             }key=next(d,entry);
         }
     }return found;
+}
+static int source_entry(const struct document *d,const char *track,const char *source,char bundle[17]){
+    int entry=find_entry(d,track,NULL,bundle);
+    if(entry!=-1)return entry;
+    /* Exporters can assign another ID/path to an identical source. Resolve only
+     * by its complete bytes, on the worker, without trusting names or metadata. */
+    unsigned char sum[32];
+    return file_hash(source,sum)?find_entry(d,track,sum,bundle):-1;
 }
 int xz_oc_open(const char *source,struct xz_oc_assets *a,char *error,size_t capacity){
     struct document index={0},manifest={0};char path[4096],root[4096],bundle[32]="",value[4096],expected[65];int rc=-1;
@@ -259,7 +344,7 @@ int xz_oc_open(const char *source,struct xz_oc_assets *a,char *error,size_t capa
     char *relative=strstr(root,"/Contents/");if(!relative)goto done;char track[4096];strcpy(track,relative);*relative=0;
     if(path_join(path,root,"CDJMODS/index.json")||document_open(path,&index))goto done;
     if(!equal(&index,field(&index,0,"schema"),"overcue-index/1"))goto done;
-    int entry=find_entry(&index,track,bundle);if(entry<0)goto done;
+    int entry=source_entry(&index,track,source,bundle);if(entry<0)goto done;
     char folder[4096];if(snprintf(folder,sizeof(folder),"%s/CDJMODS/stems/%s",root,bundle)>=(int)sizeof(folder))goto done;
     if(path_join(path,folder,"overcue-manifest.json"))goto done;
     int has_manifest=!document_open(path,&manifest);
@@ -335,7 +420,7 @@ int xz_oc_bundle(const char *source,char *folder,size_t capacity){
     char *relative=strstr(root,"/Contents/");if(!relative)return -1;strcpy(track,relative);*relative=0;
     if(path_join(path,root,"CDJMODS/index.json")||document_open(path,&index))goto done;
     if(!equal(&index,field(&index,0,"schema"),"overcue-index/1"))goto done;
-    if(find_entry(&index,track,bundle)<0)goto done;
+    if(source_entry(&index,track,source,bundle)<0)goto done;
     if(bundle[0]&&snprintf(folder,capacity,"%s/CDJMODS/stems/%s",root,bundle)<(int)capacity)rc=0;
 done:
     document_close(&index);return rc;

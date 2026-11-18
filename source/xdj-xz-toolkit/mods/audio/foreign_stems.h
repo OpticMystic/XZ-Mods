@@ -10,6 +10,8 @@ enum xz_foreign_format { XZ_FOREIGN_AZ = 1, XZ_FOREIGN_RX3 = 2 };
  * Native playback must still measure alignment before using any samples. */
 struct xz_foreign_stems *xz_foreign_open(const char *source, char *error, size_t capacity);
 void xz_foreign_close(struct xz_foreign_stems *);
+/* Owning worker only: closes every file of the bundle and the source; rate, frames and count stay. Later reads fail. */
+void xz_foreign_release_audio(struct xz_foreign_stems *);
 uint32_t xz_foreign_rate(const struct xz_foreign_stems *);
 uint64_t xz_foreign_frames(const struct xz_foreign_stems *);
 unsigned xz_foreign_stem_count(const struct xz_foreign_stems *);

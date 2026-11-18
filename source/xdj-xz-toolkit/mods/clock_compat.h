@@ -1,6 +1,15 @@
 #ifndef XZ_CLOCK_COMPAT_H
 #define XZ_CLOCK_COMPAT_H
 #include <errno.h>
+#ifdef _WIN32
+/* Windows-host test builds only (zig cc): there is no raw syscall there, so the C library's clock stands in.
+ * The unit never builds this branch. */
+#include <time.h>
+static inline int xz_clock_gettime_compat(clockid_t clock,struct timespec *out) {
+    if(!out){errno=EFAULT;return -1;}
+    return clock_gettime(clock,out);
+}
+#else
 #include <sys/syscall.h>
 #include <time.h>
 #include <unistd.h>
@@ -17,4 +26,5 @@ static inline int xz_clock_gettime_compat(clockid_t clock,struct timespec *out) 
     out->tv_nsec=kernel.nanoseconds;
     return 0;
 }
+#endif
 #endif

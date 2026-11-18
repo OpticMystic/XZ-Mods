@@ -12,7 +12,7 @@ const GAMES=[
   {id:'static-surfer',name:'Static Surfer',kind:'builtin',bit:3,blurb:'Jump a glitch cat over the waveform on the beat'}
 ];
 const GROUPS=[
-  {kind:'builtin',title:XZText('Your games'),note:XZText('Built into the loader.'),fixed:'Built into the loader. Always in MODS › EXTRAS › GAMES.'},
+  {kind:'builtin',title:XZText('Your games'),note:XZText('Built into the loader.'),fixed:'Built into the loader, in MODS › EXTRAS › GAMES. They start once a free game is on the USB.'},
   {kind:'download',title:XZText('Free downloads'),note:XZText('Copied to VJTOOLS\\Games on the USB.')}
 ];
 const mb=bytes=>(bytes/1048576).toFixed(bytes>=104857600?0:1)+' MB';
@@ -41,7 +41,7 @@ function gameRow(game,found,props){
 // Built-in games are compiled into the loader. Without games_menu they cannot be left out, so they are one line, not rows.
 function builtinLine(){
   const names=GAMES.filter(game=>game.kind==='builtin').map(game=>game.name);
-  return el('p',{class:'games-builtin-line',text:names.slice(0,-1).join(', ')+' and '+names.at(-1)+XZText(' are built into the loader and always come with it.')});
+  return el('p',{class:'games-builtin-line',text:names.slice(0,-1).join(', ')+' and '+names.at(-1)+XZText(' are built into the loader. They start once a free game below is on the USB.')});
 }
 // props: {inspection, games:Set, loaderOnUsb, menu:{value,set(bit,on)}|null, toggleGame(id,on), allGames(), noGames()}
 function createGamesChooser(props){

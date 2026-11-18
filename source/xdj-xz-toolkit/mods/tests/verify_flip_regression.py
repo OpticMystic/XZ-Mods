@@ -49,6 +49,10 @@ static uint32_t xz_kart_primary_display_proof_v1[16];
 static uint32_t diagnostic_primary_logged;
 static int diagnostic_writer_claim(unsigned owner){(void)owner;return 1;}
 static void diagnostic_writer_release(void){}
+/* The stock interface thread's frame pacing (a sleep) runs only on the presenter branches, which this regression
+   keeps off (no presenter started); counted so the check below can say so. */
+static unsigned paced;
+static void stock_frame_pace(void){paced++;}
 '''
 checks=r'''
 int main(void){
@@ -68,6 +72,7 @@ int main(void){
  /* An idle/no-draw overlay must retain the original region and flags. */
  draws=0;assert(hooked_primary_flip(&surface,&dirty,DSFLIP_BLIT)==19);
  assert(last_region==&dirty&&last_flags==DSFLIP_BLIT);
+ assert(!paced);
  puts("PASS real Flip hook: stable stock pixels across tap redraws and preserved BLIT/dirty semantics");
 }
 '''

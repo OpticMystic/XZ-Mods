@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 #define _FILE_OFFSET_BITS 64
 #include "file.h"
+#include "lowzone.h"
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/mman.h>
@@ -20,10 +21,10 @@ enum xz_ram_reason xz_ram_file_prepare(struct xz_ram_file *f, int source,
     if (f->fd < 0) return XZ_RAM_PIN_FAILED;
     unlink(name);
     if (fcntl(f->fd, F_SETFD, FD_CLOEXEC) || posix_fallocate(f->fd, 0, f->bytes)) return XZ_RAM_PIN_FAILED;
-    void *map = mmap(NULL, f->bytes, PROT_READ | PROT_WRITE, MAP_SHARED, f->fd, 0);
+    void *map = xz_lowzone_mmap(f->bytes, PROT_READ | PROT_WRITE, MAP_SHARED, f->fd, 0);
     if (map == MAP_FAILED) return XZ_RAM_PIN_FAILED;
     f->mapping = map;
-    if (mlock(map, f->bytes)) return XZ_RAM_PIN_FAILED;
+    if (xz_lowzone_mlock(map, f->bytes)) return XZ_RAM_PIN_FAILED;
     if (xz_ram_copy_all(map, f->bytes, copy) || copy->cancelled(copy->context)) return XZ_RAM_INTERRUPTED;
     if (!xz_media_identify(source, &after) || !xz_media_same(&before, &after)) return XZ_RAM_SOURCE_CHANGED;
     if (mprotect(map, f->bytes, PROT_READ) || !xz_media_identify(f->fd, &f->identity)) return XZ_RAM_PIN_FAILED;
@@ -31,7 +32,7 @@ enum xz_ram_reason xz_ram_file_prepare(struct xz_ram_file *f, int source,
 }
 void xz_ram_file_dispose(struct xz_ram_file *f) {
     if (f->fd >= 0) close(f->fd);
-    if (f->mapping) { munlock(f->mapping, f->bytes); munmap((void *)f->mapping, f->bytes); }
+    if (f->mapping) xz_lowzone_release((void *)f->mapping, f->bytes);
     xz_ram_return(&f->ticket);
     *f = (struct xz_ram_file)XZ_RAM_FILE_INIT;
 }

@@ -26,7 +26,7 @@ def resources():
     if not configured:raise ValueError('Builder resources are not configured')
     return Path(configured).resolve()
 
-VERSION='0.5.1-Beta.2'
+VERSION='0.6.0'
 SOURCE_FORMATS=['WAV','AIFF','FLAC','MP3']
 # 96 kHz roles are capped at 4096 pages; resample_poly(320/147) output is ceil(frames*320/147).
 MAX_SOURCE_FRAMES=overcue_writer.MAX_FRAMES*147//320
@@ -37,14 +37,16 @@ def status():
     catalog_path=Path(__file__).with_name('models.json')
     catalog=json.loads(catalog_path.read_text()) if catalog_path.exists() else {}
     return {'name':'XZ Mods','version':VERSION,'firmware':'XDJ-XZ 1.26',
-        'prepared_formats':['overcue-stems/4','stemd-cache/1'],
+        'prepared_formats':['overcue-stems/4','overcue-stems/5','stemd-cache/1'],
         'prepared_containers':['OVPGZ001','OVPGZ003','OVPGZ004'], 'stem_page_codecs':['zlib','flac-96k','flac-44k1'],
         'separation_output_format':'overcue-index/1',
         'stem_import':{'plan_format':'stem-import-plan/1','archives':['ZIP'],'source_formats':['WAV','FLAC','AIFF','OGG','MP3'],
                        'groups':['vocals','drums','harmonics','instrumental','mix']},
         'stem_builder':{'beta':True,'source_formats':SOURCE_FORMATS,'sample_rate':44100,'source_sample_rates':[cache.MIN_RATE,cache.MAX_RATE],
                         'requires_rekordbox_export':True,
-                        'memory_profile':'disk-backed-tracks-gpu-when-present','output_page_codec':'flac-96k','default_preset':catalog.get('default_preset')},
+                        'memory_profile':'disk-backed-tracks-gpu-when-present','output_page_codec':'flac-44k1',
+                        'output_sample_rates':list(overcue_writer.SAMPLE_RATES),'default_output_sample_rate':overcue_writer.DEFAULT_SAMPLE_RATE,
+                        'default_preset':catalog.get('default_preset')},
         'release_ready':False,'runtime_present':manifest is not None,'runtime':manifest,
         'vjtools_required':False,'vjtools_connection':True,'engines':catalog,
         'limits':{'sample_rate':44100,'channels':2,'source_formats':SOURCE_FORMATS,'source_sample_rates':[cache.MIN_RATE,cache.MAX_RATE],
@@ -89,10 +91,12 @@ def _as_wav(path,target,job):
     decoded.unlink()
     return target
 
-def prepare_stems(track,parts,separation_id,python,job,work,mix=None):
-    """One pipeline for import and separation: 44.1 kHz parts, 96 kHz roles, verified OverCue bundle."""
+def prepare_stems(track,parts,separation_id,python,job,work,mix=None,rate=overcue_writer.DEFAULT_SAMPLE_RATE):
+    """One pipeline for import and separation: 44.1 kHz parts, roles at ``rate`` (44.1 kHz keeps the parts'
+    samples; 96 kHz is the CDJ-3000 profile), verified OverCue bundle."""
     from .engines import require_scratch
-    require_scratch(track.frames)
+    if rate not in overcue_writer.PROFILES:raise ValueError('Stem sample rate must be 44100 or 96000 Hz')
+    require_scratch(track.frames,rate)
     wavs={}
     for name,(path,gain) in parts.items():
         if cache.inspect_audio(path)['frames']!=track.frames:raise ValueError('Stems must have exactly the same length as the track')
@@ -101,10 +105,11 @@ def prepare_stems(track,parts,separation_id,python,job,work,mix=None):
     roles=work/'roles'
     import time
     publish_started=time.time()
-    job.progress('render','Resampling stems to 96 kHz for OverCue. Your original track is unchanged.')
+    job.progress('render','Resampling stems to 96 kHz for OverCue. Your original track is unchanged.' if rate==96000 else
+                 'Preparing stems for OverCue at 44.1 kHz. Your original track is unchanged.')
     job.run([python,'-I',resources()/'inference'/'overcue_roles.py','--mix',mix,
         '--vocals',wavs['vocals'],'--vocals-gain',repr(parts['vocals'][1]),
-        '--harmonics',wavs['harmonics'],'--harmonics-gain',repr(parts['harmonics'][1]),'--output-dir',roles],
+        '--harmonics',wavs['harmonics'],'--harmonics-gain',repr(parts['harmonics'][1]),'--output-dir',roles,'--rate',str(rate)],
         # Resampling needs no BLAS; default OpenBLAS thread buffers alone commit about 1 GB on many-core PCs.
         env={**os.environ,'OPENBLAS_NUM_THREADS':'1','OMP_NUM_THREADS':'1','MKL_NUM_THREADS':'1'})
     if usb.sha(track.source)!=track.sha256:raise ValueError('The track changed while stems were being prepared')
@@ -114,21 +119,22 @@ def prepare_stems(track,parts,separation_id,python,job,work,mix=None):
         source={'sample_rate':track.source_rate,'mp3':track.mp3})
     from . import stem_estimate
     from .engines import data_root,record_publish_timing
-    stem_estimate.observe_bundle(Path(track.usb_root)/'CDJMODS'/'stems'/receipt['bundle'],receipt['frames'],data_root())
-    if not receipt.get('reused'):record_publish_timing(track.frames,time.time()-publish_started)
+    stem_estimate.observe_bundle(Path(track.usb_root)/'CDJMODS'/'stems'/receipt['bundle'],receipt['frames'],data_root(),receipt['sample_rate'])
+    if not receipt.get('reused'):record_publish_timing(track.frames,time.time()-publish_started,receipt['sample_rate'])
     return {'format':overcue_writer.INDEX_SCHEMA,'beta':True,'usb_root':str(track.usb_root),'file_path':track.file_path,
         'track_id':track.track_id,**receipt,'alignment_verified':False,'separation_id':separation_id}
 
 def import_stems(request,job):
     from .engines import data_root,engine_lock,engine_python
     separation_id=cache.validate_model_id(request['separation_id'])
+    rate=overcue_writer.requested_rate(request)
     job.progress('inspect','Checking the USB track, its exported library entry and the stem files')
     track=locate_track(request['source'])
     parts={name:(cache._regular(request[name]),cache._gain(request.get(name+'_gain',1))) for name in ('vocals','harmonics')}
     with engine_lock():
         python=engine_python()
         with tempfile.TemporaryDirectory(prefix='xz-import-',dir=data_root()) as work:
-            return prepare_stems(track,parts,separation_id,python,job,Path(work))
+            return prepare_stems(track,parts,separation_id,python,job,Path(work),rate=rate)
 
 def inspect_cache_entry(entry,source):
     entry=cache._safe_path(entry)

@@ -23,7 +23,7 @@ int main(int argc,char **argv){
    struct xz_shell_rect keybox=rect(&view,XZ_SHELL_R_KEY,deck);
    assert(xz_shell_render_frame(&s,&m,frame(buffer_a),STRIDE));assert(xz_shell_play_key_deck(&s,&m,keybox.x+6,keybox.y+6)==deck);checks++;
   }
-  struct xz_shell_rect button=rect(&view,XZ_SHELL_R_VIEW_TWO,0);assert(button.x==504&&button.w==120&&!rect(&view,XZ_SHELL_R_VIEW_FOUR,0).w);
+  struct xz_shell_rect button=rect(&view,XZ_SHELL_R_VIEW_TWO,0);assert(button.x==576&&button.w==54&&!rect(&view,XZ_SHELL_R_VIEW_FOUR,0).w);
   assert(xz_shell_render_frame(&s,&m,frame(buffer_a),STRIDE));
   /* DECK VIEW: one tap opens the picker; a picture chooses; nothing acts on an unpainted overlay. */
   size_t n=tap(&s,&m,button.x+button.w/2,10,out);assert(n==0&&s.deck_view.open&&s.deck_view.tile==mode);

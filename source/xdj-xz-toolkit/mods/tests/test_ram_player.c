@@ -60,6 +60,13 @@ static void lose_sources(void){
  for(unsigned i=0;i<3;i++){char path[512];assert(snprintf(path,sizeof path,"%s/%s",anlz_dir,names[i])<(int)sizeof path);assert(!unlink(path));}
  atomic_store(&ram_generation_value,100);
 }
+uint64_t ram_player_reader(struct xz_xp_players *p,int d,uint64_t *cue,int *cue_cached); /* ram_player_engine.c */
+static atomic_uint lead_seen_count[2];
+static _Atomic uint64_t lead_seen_first[2];
+static void lead_seen(unsigned d,uint64_t from,uint64_t bytes){
+ (void)bytes;assert(d<2);
+ if(!atomic_fetch_add(&lead_seen_count[d],1))atomic_store(&lead_seen_first[d],from);
+}
 static struct xz_ram_status ram_state(struct xz_ram_extra *s,unsigned d){struct xz_ram_status r;xz_ram_extra_status(s,d,&r);return r;}
 static uint64_t ram_wall_ms(void){
  struct timespec t;assert(!clock_gettime(CLOCK_MONOTONIC,&t));
@@ -93,11 +100,31 @@ static void run_player(const char *reference,int ram,int destroy,int controls){
  struct xz_ram_extra *service=ram?xz_ram_extra_create(NULL,fake_link,ram_generation):NULL;
  if(ram){assert(service);struct xz_ram_player_service ops=xz_ram_extra_player_service(service);xz_xp_set_ram_service(p,&ops);}
  xz_xp_set_source_generation(p,cue_generation);xz_xp_set_cue_store(p,NULL,cue_write);
+ for(unsigned d=0;d<2;d++){atomic_store(&lead_seen_count[d],0);atomic_store(&lead_seen_first[d],UINT64_MAX);}
+ xz_ram_extra_lead_probe=ram?lead_seen:NULL;
  for(unsigned d=0;d<2;d++){
   struct xz_extra_deck_event e=event((int)d,XZ_EXTRA_IN_LOAD,1);
   e.load.source=1;e.load.track_id=d+1;e.load.media_generation=99;assert(input(e));step();
  }
- struct xz_extra_analysis_hold analysis_hold;struct xz_extra_decks held;
+ /* A deck starts at its cue point (AUTO CUE: the memory cue at 500 ms), not at the head of the file. The load
+    reads the first buffer there, at load priority: PLAY then starts from memory instead of asking the stick on
+    the real-time thread, and the RAM service leads the stick from that place from the moment of the load. */
+ for(unsigned d=0;d<2;d++){
+  uint64_t cue;int cue_cached;uint64_t at=ram_player_reader(p,(int)d,&cue,&cue_cached);
+  if(!(at>44u+cue*4u))fprintf(stderr,"deck %u cued at frame %llu: its reader has read to byte %llu\n",d,
+   (unsigned long long)cue,(unsigned long long)at);
+  assert(cue>0&&at>44u+cue*4u); /* 16-bit stereo reference, 44-byte header */
+  assert(cue_cached);
+  if(ram){
+   uint64_t deadline=ram_wall_ms()+5000;
+   while(!atomic_load(&lead_seen_count[d])){
+    assert(ram_wall_ms()<deadline);struct timespec delay={0,1000000};nanosleep(&delay,NULL);
+   }
+   assert(atomic_load(&lead_seen_first[d])==((at-1u)&~(uint64_t)4095u));
+  }
+ }
+ xz_ram_extra_lead_probe=NULL;
+ struct xz_extra_analysis_hold analysis_hold={0};struct xz_extra_decks held; /* read_view refuses a used hold */
  assert(xz_xp_read_held(p,&held,&analysis_hold));
  assert(held.deck[0].wave.columns&&held.deck[0].grid_count);
  unsigned char wave_copy[900];memcpy(wave_copy,held.deck[0].wave.columns,sizeof wave_copy);

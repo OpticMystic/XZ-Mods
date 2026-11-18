@@ -11,10 +11,10 @@ with tempfile.TemporaryDirectory(prefix="xz-no-stem-source-") as temporary:
     sources = [HERE / "test_no_stems.c"]
     sources += [MODS / "audio" / name for name in (
         "native_reader.c", "stem_cache.c", "stem_mix.c", "stem_decode.c",
-        "overcue_file.c", "overcue_stream.c", "foreign_stems.c", "stem_media.c", "stem_mp3.c", "trace.c",
+        "overcue_file.c", "overcue_stream.c", "stem_pool.c", "foreign_stems.c", "stem_media.c", "stem_mp3.c", "trace.c",
         "vendor/miniz/miniz_tinfl.c", "vendor/sha256/sha256.c")]
     sources += [MODS / "ram" / name for name in (
-        "cache.c", "runtime.c", "removal.c", "presentation.c", "pin.c")]
+        "cache.c", "runtime.c", "removal.c", "presentation.c", "pin.c", "budget.c")]
     binary = Path(temporary) / "no-stem-source"
     command = shlex.split(os.environ.get("CC", "gcc")) + [
         "-std=c11", "-O1", "-g", "-UNDEBUG", "-Wall", "-Wextra", "-Werror",

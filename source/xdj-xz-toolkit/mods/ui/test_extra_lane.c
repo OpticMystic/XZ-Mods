@@ -438,28 +438,18 @@ int main(void){
  assert(!(keep[(y*536+10)>>3]&(1u<<((y*536+10)&7))));
  xz_four_protect(&g,NULL,surface,keep);for(unsigned i=0;i<XZ_FOUR_KEEP_BYTES;i++)assert(!keep[i]);
  xz_four_restore(&g,&m,NULL,keep);xz_four_protect(&g,&m,surface,NULL);
- /* Notices survive a route loss, expire, and only touch their bounded banner. */
+ /* Notices survive a route loss and expire after 3.5 s, across the clock wrap. They draw in the top bar
+    (play_notice.h, test_notice_place.c), never on this surface. */
  struct xz_extra_decks notice={0};
  snprintf(notice.notice,sizeof notice.notice,"DECK 3/4 ROUTE LOST");
  notice.notice_at_ms=100;notice.notice_seq=1;
- fill();memcpy(copy,pixels,sizeof pixels);
  assert(xz_extra_notice_active(&notice,100));
- assert(xz_extra_notice_draw(pixels,STRIDE,STRIDE*268,&notice,100));
- unsigned changes=0;
- for(size_t i=0;i<sizeof pixels/sizeof *pixels;i++)if(pixels[i]!=copy[i]){
-  size_t x=i%STRIDE,y=i/STRIDE;
-  assert(x>=6&&x<530&&y>=244&&y<266);changes++;
- }
- assert(changes>500);
+ assert(xz_extra_notice_active(&notice,3599));
  assert(!xz_extra_notice_active(&notice,3600));
- fill();memcpy(copy,pixels,sizeof pixels);
- assert(!xz_extra_notice_draw(pixels,STRIDE,STRIDE*268,&notice,3600));
- assert(!memcmp(copy,pixels,sizeof pixels));
- assert(!xz_extra_notice_draw(pixels,STRIDE,STRIDE*268-1,&notice,100));
+ assert(!xz_extra_notice_active(NULL,100));
  notice.notice_at_ms=UINT32_MAX-30;
  assert(xz_extra_notice_active(&notice,20));
- memset(notice.notice,'X',sizeof notice.notice);
- assert(xz_extra_notice_draw(pixels,STRIDE,STRIDE*268,&notice,20));
+ notice.notice_seq=0;assert(!xz_extra_notice_active(&notice,20));
  plate_modes();
  puts("PASS extra-deck lane: position extrapolation, guards and lane-only writes, playhead, zoom-scaled ticks, loop tint, NULL/unknown wave, unloaded, blank readouts, lit tag, theme protect/restore");
 }

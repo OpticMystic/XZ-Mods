@@ -65,8 +65,8 @@ def _error_code(exc):
 class BatchClock:
     """Time left for the batch from this machine's learned rates and each running track's overall progress."""
 
-    def __init__(self, preset, items, frames_by_id):
-        self.preset, self.items, self.frames_by_id = preset, items, frames_by_id
+    def __init__(self, preset, items, frames_by_id, rate=overcue_writer.DEFAULT_SAMPLE_RATE):
+        self.preset, self.items, self.frames_by_id, self.rate = preset, items, frames_by_id, rate
         self.device = None
 
     def seconds(self):
@@ -76,7 +76,7 @@ class BatchClock:
                 continue
             frames = self.frames_by_id.get(item['id'], 0)
             try:
-                estimate = engines.estimate_track_seconds(self.preset, frames, self.device, include_load=not loaded)
+                estimate = engines.estimate_track_seconds(self.preset, frames, self.device, include_load=not loaded, rate=self.rate)
             except ValueError:
                 return None
             loaded = True
@@ -88,6 +88,17 @@ class BatchClock:
 
 class TargetChanged(Exception):
     pass
+
+
+def upgrade_rate(state, rate):
+    """True when present stems should be prepared again rather than reused for this batch's rate.
+
+    96 kHz stems play on the XDJ-XZ and on CDJ-3000s, so a 44.1 kHz batch reuses them. 44.1 kHz stems do
+    not serve a CDJ-3000, so a 96 kHz batch prepares XZ Mods' own 44.1 kHz stems again. Stems another
+    writer made are never replaced here.
+    """
+    return (rate == 96000 and state.get('stem_sample_rate') == 44100 and state.get('producer') == 'xz-mods'
+            and bool(state.get('can_generate')))
 
 
 class TrackJob:
@@ -126,11 +137,12 @@ def generate(request, job, resources):
     preset = request.get('preset')
     if preset not in engines.registry()['presets']:
         raise ValueError('Unknown separation preset')
+    rate = overcue_writer.requested_rate(request)
     tracks = _selected(request, root)
     items = [{'id': str(track['id']), 'title': _short(track['title'], 80),
               'artist': _short(track['artist'], 40), 'state': 'queued', 'stage': 'waiting'} for track in tracks]
     current = None
-    clock = BatchClock(preset, items, {str(track['id']): int(track['duration'] * 44100) for track in tracks})
+    clock = BatchClock(preset, items, {str(track['id']): int(track['duration'] * 44100) for track in tracks}, rate)
     try:
         job.progress('batch', f'{len(items)} tracks queued', eta_seconds=clock.seconds(), batch=_report(items, eta=clock.seconds()))
         with engines.Engine(preset, job, resources) as engine:
@@ -149,7 +161,7 @@ def generate(request, job, resources):
                     index, _ = overcue_writer.read_index(root / 'CDJMODS')
                     state = stem_library.stem_status(root, track, index, None)
                     source = stem_library.source_path(root, track['file_path'])
-                    if state['stem_status'] == 'present':
+                    if state['stem_status'] == 'present' and not upgrade_rate(state, rate):
                         child.progress('verify', 'Checking existing stems before reusing them')
                         verified = json.loads(child.run([executable(resources,'xz-overcue-check'), source]))
                         if (verified.get('format') != 'overcue-stems/4' or type(verified.get('verified_mixes')) is not int
@@ -158,7 +170,8 @@ def generate(request, job, resources):
                             raise ValueError('Existing stems did not pass verification. They were left unchanged.')
                         item.update(state='reused', stage='complete')
                     elif state['can_generate']:
-                        result = engines.separate({'source': str(source), 'preset': preset}, child, resources, engine=engine)
+                        result = engines.separate({'source': str(source), 'preset': preset, 'stem_sample_rate': rate}, child, resources,
+                                                  engine=engine)
                         item.update(state='reused' if result.get('reused') else 'prepared', stage='complete')
                     else:
                         raise ValueError(state.get('detail') or state['stem_label'])

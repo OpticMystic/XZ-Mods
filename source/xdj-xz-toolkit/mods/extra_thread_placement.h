@@ -48,6 +48,7 @@ void xz_extra_thread_place(const char *role);
 #include <fcntl.h>
 #include <sched.h>
 #include <stdlib.h>
+#include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -74,9 +75,20 @@ static void xz_extra_thread_place(const char *role) {
  const struct xz_place_ops ops = {xz_place_gate, xz_place_get, xz_place_set};
  unsigned long before, after;
  int result = xz_place_apply(&ops, &before, &after), error = result ? errno : 0;
+ { char name[16]; snprintf(name, sizeof name, "xz-%s", role); prctl(PR_SET_NAME, name, 0, 0, 0); }
+ /* DECK 3/4 audio is produced by these threads and has real deadlines: a 256-frame block every 5.8 ms and a
+  * USB packet every millisecond. At normal priority on core 2 they ran only when the stock file reader (RR 58)
+  * and the display thread let them, the USB pump timed out (100 ms) and the route dropped. They now rank just
+  * above the stock reader, which only fills buffers ahead of time. The connector is the highest because the
+  * USB pump it creates inherits its priority and must run between the players' blocks. */
+ int rt = 0;
+ if (!result) {
+  struct sched_param parameter = {.sched_priority = !strcmp(role, "connector") ? 60 : 59};
+  rt = sched_setscheduler(0, SCHED_RR, &parameter) ? -errno : parameter.sched_priority;
+ }
  int policy = sched_getscheduler(0); errno = 0; int nice_value = getpriority(PRIO_PROCESS, 0);
  char text[256];
- snprintf(text, sizeof text, "DECK 3/4 placement role=%s tid=%ld before=0x%lx after=0x%lx policy=%d nice=%d result=%d errno=%d", role, (long)syscall(SYS_gettid), before, after, policy, nice_value, result, error);
+ snprintf(text, sizeof text, "DECK 3/4 placement role=%s tid=%ld before=0x%lx after=0x%lx policy=%d nice=%d result=%d errno=%d rt=%d", role, (long)syscall(SYS_gettid), before, after, policy, nice_value, result, error, rt);
  xz_log(text);
 }
 #else

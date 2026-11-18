@@ -5,7 +5,7 @@
 #include <limits.h>
 #include <assert.h>
 #include <stdio.h>
-#include "shell_runtime_core.c"
+#include "../shell_runtime_core.c"   /* the runtime's push decoder; this test lives in shell/ */
 
 static struct xz_shell u;
 static struct xz_shell_model m;
@@ -19,7 +19,8 @@ static size_t event(struct xz_shell_event e){return xz_shell_input(&u,&m,&e,out)
 static size_t turn(int delta){return event((struct xz_shell_event){.kind=XZ_SHELL_ENCODER_TURN,.delta=delta,.deck=-1});}
 static size_t push(void){return event((struct xz_shell_event){.kind=XZ_SHELL_ENCODER_PUSH,.deck=-1});}
 static size_t key(enum xz_shell_key k){return event((struct xz_shell_event){.kind=XZ_SHELL_KEY,.key=k,.deck=-1});}
-static size_t physical_push(struct xz_shrt_push *phase,uint32_t flags,uint32_t state){int k=xz_shrt_push_event(phase,flags,state);return k<0?0:event((struct xz_shell_event){.kind=(enum xz_shell_event_kind)k,.deck=-1});}
+/* The selector as stock's browse key entry carries it (encoder_push.h), read the way the runtime reads it. */
+static size_t physical_push(struct xz_shrt_push *phase,uint32_t flags,uint32_t state){int k=xz_shrt_push_event(phase,(int)xz_push_read(flags,state).phase);return k<0?0:event((struct xz_shell_event){.kind=(enum xz_shell_event_kind)k,.deck=-1});}
 static int index_of(const char *label){for(int i=0;i<XZ_SHELL_BROWSE_KEYS;i++)if(!strcmp(label,xz_shell_browse_key_label(i)))return i;assert(0);return 0;}
 static void select_key(const char *label){turn(INT_MIN);turn(index_of(label));}
 static size_t tap(enum xz_shell_browse_region region,int i){struct xz_shell_rect r=xz_shell_browse_rect(&u,&m,region,i);assert(r.w&&r.h);size_t n=event((struct xz_shell_event){.kind=XZ_SHELL_TOUCH_DOWN,.x=r.x+r.w/2,.y=r.y+r.h/2,.deck=-1});event((struct xz_shell_event){.kind=XZ_SHELL_TOUCH_UP,.x=r.x+r.w/2,.y=r.y+r.h/2,.deck=-1});return n;}
@@ -36,12 +37,14 @@ int main(int argc,char **argv){
  select_key("CLEAR");push();turn(INT_MIN);push();query("1");turn(INT_MAX);push();query("1 ");
  select_key("A");if(argc>1){char path[1024];snprintf(path,sizeof path,"%s/search-focus.ppm",argv[1]);picture(path);}else picture(NULL);
  select_key("SEARCH");CHECK(!push());CHECK(xz_shell_browse_rows_visible(&u)==9);turn(18);CHECK(u.stack[u.depth-1].cursor==18);
- struct xz_shrt_push phase={0};CHECK(xz_shrt_push_event(&phase,1,2)==XZ_SHELL_ENCODER_PUSH);CHECK(xz_shrt_push_event(&phase,2,3)==XZ_SHELL_ENCODER_HOLD);
+ struct xz_shrt_push phase={0};CHECK(xz_shrt_push_event(&phase,XZ_PUSH_DOWN)<0);CHECK(xz_shrt_push_event(&phase,XZ_PUSH_UP)==XZ_SHELL_ENCODER_PUSH);
+ CHECK(xz_shrt_push_event(&phase,XZ_PUSH_DOWN)<0&&xz_shrt_push_event(&phase,XZ_PUSH_HOLD)==XZ_SHELL_ENCODER_HOLD&&xz_shrt_push_event(&phase,XZ_PUSH_UP_HELD)<0);
  CHECK(!turn(-19)&&u.stack[u.depth-1].cursor==0&&!u.load_choice.mode);CHECK(xz_shell_browse_rows_visible(&u)==9);
  turn(INT_MIN);CHECK(u.stack[u.depth-1].cursor==0&&!u.load_choice.mode);turn(1);CHECK(u.stack[u.depth-1].cursor==0&&!u.load_choice.mode);turn(-1);
- memset(&phase,0,sizeof phase);CHECK(!physical_push(&phase,1,2)&&!u.load_choice.mode);CHECK(xz_shell_browse_rows_visible(&u)==4);query("1 ");
+ memset(&phase,0,sizeof phase);CHECK(!physical_push(&phase,1,2)&&!u.load_choice.mode&&xz_shell_browse_rows_visible(&u)==9);   /* the press alone does nothing */
+ CHECK(!physical_push(&phase,0,XZ_PUSH_MARK_DOWN)&&!u.load_choice.mode);CHECK(xz_shell_browse_rows_visible(&u)==4);query("1 ");   /* its release: the field's click */
  /* No preceding PUSH from a long gesture can run a result action here. */
- CHECK(!physical_push(&phase,2,3)&&!u.load_choice.mode);query("1 ");CHECK(!physical_push(&phase,0,0)&&!u.load_choice.mode);
+ CHECK(!physical_push(&phase,1,2)&&!physical_push(&phase,1,3)&&!u.load_choice.mode);query("1 ");CHECK(!physical_push(&phase,0,XZ_PUSH_MARK_HELD)&&!u.load_choice.mode);query("1 ");
  CHECK(!key(XZ_SHELL_KEY_BACK));CHECK(xz_shell_screen(&u)==XZ_SHELL_SEARCH&&xz_shell_browse_rows_visible(&u)==9);
  turn(18);CHECK(!push()&&u.load_choice.mode==2);key(XZ_SHELL_KEY_BACK);CHECK(!u.load_choice.mode&&xz_shell_screen(&u)==XZ_SHELL_SEARCH);
  CHECK(event((struct xz_shell_event){.kind=XZ_SHELL_KEY,.key=XZ_SHELL_KEY_LOAD,.deck=2})==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==2&&out[0].id==1018);CHECK(xz_shell_screen(&u)==XZ_SHELL_PLAY);key(XZ_SHELL_KEY_BACK);CHECK(xz_shell_screen(&u)==XZ_SHELL_SEARCH&&u.stack[u.depth-1].cursor==18);query("1 ");

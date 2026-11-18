@@ -57,11 +57,90 @@ CLASSIC title band, and the MODERN four-deck strip under browse and the menus),
 in the detail panel's header and lane numbers, on the WORKS ON chips and the
 4 DECKS grid's column heads in MODS, on the DECKS button's numbers and on the
 picker's lane and channel numbers. The driven-deck highlight (blue or pale blue
-fill with the arrow, LEFT or RIGHT) and USB stick colours stay on the rest of
-the tag. The CLASSIC theme pass recolours the wave surface, so `style_four`
+fill; on CLASSIC with the arrow, LEFT or RIGHT; on MODERN with the side mark,
+below) and USB stick colours stay on the rest of the tag. The CLASSIC theme pass recolours the wave surface, so `style_four`
 puts the badges back afterwards (`xz_four_identity_draw`). 2 DECKS screens with
 both sides on DECK 1 and 2 are unchanged; a 2 DECKS half showing DECK 3 or 4
 carries its badge (below).
+
+## Loop adjust (MODERN, all four decks)
+
+LOOP IN/CUE (IN ADJUST) or LOOP OUT (OUT ADJUST) during a loop moves that edge with the jog (XZ manual
+pp.47-48). MODERN draws it the same on every deck: the edge under the jog is a 3 px yellow column (the adjust
+yellow of CLASSIC's DECK 3/4 lanes and detail) and a yellow chip beside it, on the loop's side, names it by its
+button (IN or OUT, as printed on the unit) with the point's time. The other edge stays a thin orange line and the
+loop keeps its orange band, so the loop and the edge in focus read apart. A chip that does not fit beside the
+edge flips to the other side; an edge out of view pins the chip to that end of the lane with an arrow toward it.
+The look goes the moment adjustment ends, by the button or the ten-second timeout.
+
+Stock decks: `shell_model.c` reads the stock per-deck status frame the stock display uses (`+0x2e` bit 3 IN
+ADJUST, bit 4 OUT ADJUST, `+0x10` the point under the jog in ms), guarded by the bytes of the three stock
+getters, and moves the loop's edge to that point so band and focus never disagree while the jog turns. DECK 3/4:
+`shell_runtime_core.c` publishes the players' own `loop.edit`. CLASSIC keeps the stock screen's own adjust
+display for decks 1/2 and `extra_lane.c` for 3/4.
+
+## The side mark (MODERN)
+
+MODERN shows which physical side a deck is on with a small drawing of the unit,
+as the owner drew it (2026-11-16): a black box for the unit with its two jog
+wheels. The wheel on this deck's side (left for DECK 1 and 3, right for DECK 2
+and 4) is a filled disc with a black stroke; the other side's wheel is a dotted
+white circle. The own wheel also says whether that side is on this deck now:
+
+- white disc: the side drives this deck (it is under the hand);
+- mid grey disc (`SH_WHEEL_DIM`, 0x707070): the deck belongs to this side, but
+  the side is on its other deck;
+- dotted white circle: the other side's wheel, the same in both cases.
+
+So a side switch turns one wheel white and dims the other in that side's two
+tiles, and nothing moves. The grey sits halfway in lightness between the black
+box and the white wheel (about four to one in contrast each way), darker than
+the box's 0x8c8c8c edge, so it reads neither as lit nor as an empty box at 1x;
+a ring in place of the disc was rejected because next to the dotted ring it
+reads as the other side. The tile's fill says the same (blue or the stick's
+colour: driven; grey: the side is on its other deck), but the mark no longer
+depends on it, since the fill also changes with the USB stick colour. A 1 px
+grey edge keeps the box apart from dark tiles; on blue, grey, white and every
+USB stick colour the wheels sit on the same black. Down a four-lane column the
+discs of 1 and 3 line up left and those of 2 and 4 right; the white border stays
+the shell's focus. Sizes: 32 x 16 with 11 px wheels in the lane tile and the
+status strip, 28 x 16 in the four-deck strip badge (`sh_side_mark`).
+
+The mark is drawn only where a deck on screen can be one that no side drives:
+the four lanes, the four strips, and the four-deck status strip under BROWSE,
+INFO and UTILITY. There every deck carries it, so no mark never means "not under
+my hands". 2 DECKS always shows the sides' own decks (upper lane left, lower
+right), so it has no mark; its number (in its badge for 3 and 4) names the deck.
+4 DECKS waiting for decks 3 and 4 marks 1 and 2 as driven, the only decks the
+sides can have. With decks 3 and 4 up but no deck select seam the sides are
+unknown and no deck is marked. `sh_side_of` and `sh_side_mark` (shell) hold the
+rule and the drawing; `test_side_mark.c` pins them.
+
+## The four-deck status strip (MODERN)
+
+Under BROWSE, INFO and UTILITY with four decks the bottom strip gives each deck a
+quarter, in mixer columns 3, 1, 2, 4 whatever the lane order (`sh_deck_quarters`,
+`shell_wave.c`). Left to right: the badge (number, side fill, side mark, USB
+stick stripe, white focus border), three rows, and the BPM box (MASTER and the
+digits in red for the master deck). The rows, between the badge and the BPM box:
+
+- the track title in the small face, white, cut with "..." where the overview
+  ends (`sh_text_fit`, as the four-deck play tiles cut theirs), so a DJ picking
+  the next track sees what is on every deck. A loaded deck whose title is not
+  known yet shows dim "---", as the play tiles do; an empty deck shows only
+  "Not Loaded." across the quarter;
+- REMAIN or TIME and the time;
+- the mini overview with the playhead. It ends 4 px above the quarter's bottom,
+  so it is 22 px tall under BROWSE (58 px strip) and 12 px under INFO and
+  UTILITY (48 px strip): the title row took 7 px off its top on both, and the
+  time row moved down 11 px.
+
+The title row holds about 13 characters of the small face. Titles draw through
+the same Latin-1 atlas as everywhere in the shell; other scripts show as "?"
+marks, the same as on the play screen. The touch cells, the strip's height and
+the badge did not move. The 2 DECKS strip under BROWSE has no title and was left
+as it is. `test_side_mark.c` pins that each title draws only in its own
+quarter's row, in every pair and both orders.
 
 ## 2 DECKS follows the sides
 
@@ -109,7 +188,8 @@ gets a mod-drawn half in the stock look; the other side stays stock:
   overview and bar (x 10..309 of the panel, y 421..466) needle-search the
   software deck under NEEDLE LOCK, a refusal raising its line in the top bar's
   notice; the key slot opens the key controls first; the rest is inert. The
-  header strip keeps its touches. The DECKS button names the pair ("DECKS 3 2").
+  header strip keeps its touches. The DECKS button names the pair ("DECKS 3 2"; MODERN's compact
+  button shows the numbers alone, "3 2").
 - Route loss: the players drop both sides to DECK 1 and 2 (`deck_select` epoch);
   the next wave frame is the stock frame, the halves hide and a repaint returns
   the stock column and panel.
@@ -280,7 +360,11 @@ popup/key/layout busy-owner guard.
 ## DECK VIEW button and picker
 
 `deck_view.h` draws the button and the three-picture picker for both
-interfaces from one style each. CLASSIC: the button (162,0,116,18) sits in the
+interfaces from one style each. MODERN: a compact button (576,0,54,26) with the
+deck numbers in screen order and the triangle, no lane glyph or word, between
+the REC mark's slot and INFO (shell_play.c); it answers y 0..43. It was 120 px
+wide at x 504 until the REC mark needed room that the BEAT FX strip must not
+give. CLASSIC: the button (162,0,116,18) sits in the
 empty black between VJ.TOOLS and the METRICS readout on every Classic play
 screen, 2 DECKS included; its touch reaches y 39, except where an OUTER stem
 row lies under it (the row keeps its touches). One tap opens the picker
@@ -293,6 +377,21 @@ banner says "DECKS 3 AND 4 ARE READY. TAP DECKS AT THE TOP FOR FOUR DECKS."
 for 3.5 s, once per route-up; the view does not change by itself. The latch
 (`xz_deck_view_ready_notice_take`) is shared with MODERN, so one route-up raises
 one notice.
+
+MODERN follows the cable instead (`shell_runtime.c` `cable_tick_locked`, the pure
+step `xz_shrt_cable_step`, on the owner tick). A connection (the route up after
+it was settled down; switching into MODERN with the cable in is none) while 2
+DECKS shows waits until PLAY is at rest and on screen (no touch, popup, panel,
+LOAD menu, picker, encoder focus, key overlay, stock window, MODS panel or other
+screen, and no PLAY input for 1 s), then sets 4 DECKS in mixer order like a
+picker choice (saved through `deck_view_follow_locked`) and opens the picker on
+that tile with the green line "DECKS 3 AND 4 CONNECTED: 4 DECKS SHOWN". That
+picker closes after 8 s untouched; a tap outside it closes it and acts on what
+is under it. A four-deck view at the connection, or any DECK VIEW change before
+the screen is at rest, means nothing happens. The route down for 1.5 s sets 2
+DECKS, closes the cable's picker and puts both sides on DECK 1 / DECK 2 through
+`xz_runtime_deck_select_target`; a shorter drop is the same connection. MODERN
+takes the ready-notice latch without the notice. CLASSIC is unchanged.
 
 ## Decks 3 and 4 not connected
 

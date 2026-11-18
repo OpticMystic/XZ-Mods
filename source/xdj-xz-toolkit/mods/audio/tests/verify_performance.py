@@ -8,10 +8,10 @@ import shlex
 import subprocess
 import sys
 import tempfile
-from verify_upstream import PIN, function, run
+from verify_upstream import PIN, function, need_upstream, run
 
 HERE = Path(__file__).resolve().parent
-upstream = Path(sys.argv[1]).resolve()
+upstream = need_upstream()
 git = ["git", "-c", f"safe.directory={upstream}", "-C", upstream]
 audio = run(git + ["show", f"{PIN}:package/deck/mods/xpad/audio.c"])
 loop = run(git + ["show", f"{PIN}:package/deck/mods/stem/loop.c"])

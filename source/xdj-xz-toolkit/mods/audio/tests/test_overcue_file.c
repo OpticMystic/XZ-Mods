@@ -10,8 +10,11 @@
 int main(int argc,char **argv){
     if(argc!=3)return 2;struct xz_oc_assets assets;char error[256];
     int result=xz_oc_open(argv[1],&assets,error,sizeof(error));
+    char folder[4096];
+    if(!strcmp(argv[2],"unmapped")){assert(result);assert(xz_oc_bundle(argv[1],folder,sizeof(folder)));puts("PASS rejected unverified source mapping");return 0;}
     if(!strcmp(argv[2],"reject")){assert(result);puts("PASS rejected invalid bundle");return 0;}
     if(result){fprintf(stderr,"%s\n",error);return 1;}
+    assert(!xz_oc_bundle(argv[1],folder,sizeof(folder)));
     if(!strcmp(argv[2],"valid44"))assert(assets.sample_rate==44100u);
     else if(!strcmp(argv[2],"valid")||!strcmp(argv[2],"gain")||!strcmp(argv[2],"four"))assert(assets.sample_rate==96000u);
     if(!strcmp(argv[2],"real")){

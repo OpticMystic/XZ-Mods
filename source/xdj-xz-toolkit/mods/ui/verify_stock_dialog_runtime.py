@@ -5,6 +5,7 @@ import tempfile
 from ui_sources import UI_SOURCES
 
 HERE=Path(__file__).resolve().parent
+base_skipped=None  # set when the 0318fe4 runtime for the byte comparison is not available
 with tempfile.TemporaryDirectory(prefix='xz-controls-') as temporary:
     binary=Path(temporary)/'controls'
     sources=[HERE/'test_stock_dialog_runtime.c',*(HERE/name for name in UI_SOURCES),HERE/'native_touch.c',HERE/'stem_pads.c',HERE/'beat_jump.c',HERE/'wave_viewport.c',HERE.parent/'settings.c',HERE.parent/'usb_profile.c',HERE.parent/'doom/native_bridge.c',HERE.parent/'doom/wad_catalog.c',HERE.parent/'ota/native_update.c']
@@ -13,6 +14,8 @@ with tempfile.TemporaryDirectory(prefix='xz-controls-') as temporary:
     sources += [HERE.parent/'arcade'/name for name in ('arcade.c','render.c','input.c','clock.c','native_clock.c')]
     sources += [HERE.parent/'audio/vendor/sha256/sha256.c',HERE.parent/'pc_control/stems.c']
     sources += [HERE.parent/'kart'/name for name in ('xz_kart_input.c','xz_kart_runtime.c')]
+    # The REC mark reads the recorder through the shared poller; on the host the stand-in state.
+    sources += [HERE.parent/'recorder_poll.c',HERE.parent/'recorder_state_stub.c']
     subprocess.run(['gcc','-std=c11','-O1','-UNDEBUG','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
                     '-fsanitize=address,undefined','-fno-sanitize-recover=all',*map(str,sources),'-pthread','-ldl','-lm','-o',str(binary)],check=True)
     subprocess.run([str(binary),*__import__('sys').argv[1:]],check=True)
@@ -24,31 +27,42 @@ with tempfile.TemporaryDirectory(prefix='xz-controls-') as temporary:
     base=Path(temporary)/'base-runtime.c'
     import os
     supplied=os.environ.get('XZ_STOCK_BASE_RUNTIME')
-    base.write_bytes(Path(supplied).read_bytes() if supplied else subprocess.check_output(
-        ['git','-C',str(HERE),'show',BASE+':source/xdj-xz-toolkit/mods/ui_runtime.c']))
-    # REPORT AN ISSUE (a56ce84) dropped the support preview pages: the base runtime reads page 0, as the current one
-    # does. Support state is not drawn in the no-dialog frames compared below.
-    base.write_bytes(base.read_bytes().replace(b'ui.support.preview_page',b'0'))
-    controls=Path(temporary)/'test_runtime_controls.c'
-    controls.write_text((HERE/'test_runtime_controls.c').read_text().replace(
-        '#include "../ui_runtime.c"','#include "'+str(base)+'"'))
-    probe=Path(temporary)/'test_stock_dialog_runtime.c'
-    probe.write_text((HERE/'test_stock_dialog_runtime.c').read_text().replace(
-        '#include "../stock_dialog_fixture.h"','#include "'+str(HERE.parent/'stock_dialog_fixture.h')+'"').replace(
-        '#include "../stock_dialog.c"','#include "'+str(HERE.parent/'stock_dialog.c')+'"'))
-    # Both probes run from fresh state, bypassing all dialog cases, for a byte comparison.
-    current=Path(temporary)/'current';previous=Path(temporary)/'previous'
-    current.mkdir();previous.mkdir()
-    subprocess.run([str(binary),str(current),'baseline'],check=True)
-    reference=Path(temporary)/'reference'
-    subprocess.run(['gcc','-std=c11','-O1','-UNDEBUG','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
-        '-fsanitize=address,undefined','-fno-sanitize-recover=all','-DXZ_STOCK_DIALOG_REFERENCE','-I'+str(HERE),'-I'+str(HERE.parent),
-        str(probe),*map(str,sources[1:]),'-pthread','-ldl','-lm','-o',str(reference)],check=True)
-    subprocess.run([str(reference),str(previous),'baseline'],check=True)
-    for name in ['no-dialog-panel','no-dialog-classic','no-dialog-modern']:
-        a=(current/(name+'.ppm')).read_bytes();b=(previous/(name+'.ppm')).read_bytes()
-        assert a==b,name+' pixels differ from '+BASE
-        print('PASS '+name+' byte-identical to '+BASE+':',hashlib.sha256(a).hexdigest())
+    if supplied:base_source=Path(supplied).read_bytes()
+    else:
+        shown=subprocess.run(['git','-C',str(HERE),'show',BASE+':source/xdj-xz-toolkit/mods/ui_runtime.c'],capture_output=True)
+        base_source=shown.stdout if shown.returncode==0 else None
+    # Without that runtime only this comparison is left out; every other part below still runs and can still fail.
+    if base_source is None:
+        base_skipped=('needs the ui_runtime.c of commit '+BASE+' (main XZ-Mods repository, source/ layout) for the '
+                      'no-dialog byte comparison; set XZ_STOCK_BASE_RUNTIME=<that file>')
+        print('NOT RUN: '+base_skipped)
+    else:
+        base.write_bytes(base_source)
+        # REPORT AN ISSUE (a56ce84) dropped the support preview pages: the base runtime reads page 0, as the current one
+        # does. Support state is not drawn in the no-dialog frames compared below.
+        base.write_bytes(base.read_bytes().replace(b'ui.support.preview_page',b'0'))
+        # The base runtime still woke its settings worker through a condition variable; xz_wake (7d9781c) came later.
+        controls=Path(temporary)/'test_runtime_controls.c'
+        controls.write_text((HERE/'test_runtime_controls.c').read_text().replace(
+            '#include "../ui_runtime.c"','#include "'+str(base)+'"').replace(
+            'xz_wake_set(&settings_changed)','pthread_cond_signal(&settings_changed)'))
+        probe=Path(temporary)/'test_stock_dialog_runtime.c'
+        probe.write_text((HERE/'test_stock_dialog_runtime.c').read_text().replace(
+            '#include "../stock_dialog_fixture.h"','#include "'+str(HERE.parent/'stock_dialog_fixture.h')+'"').replace(
+            '#include "../stock_dialog.c"','#include "'+str(HERE.parent/'stock_dialog.c')+'"'))
+        # Both probes run from fresh state, bypassing all dialog cases, for a byte comparison.
+        current=Path(temporary)/'current';previous=Path(temporary)/'previous'
+        current.mkdir();previous.mkdir()
+        subprocess.run([str(binary),str(current),'baseline'],check=True)
+        reference=Path(temporary)/'reference'
+        subprocess.run(['gcc','-std=c11','-O1','-UNDEBUG','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
+            '-fsanitize=address,undefined','-fno-sanitize-recover=all','-DXZ_STOCK_DIALOG_REFERENCE','-I'+str(HERE),'-I'+str(HERE.parent),
+            str(probe),*map(str,sources[1:]),'-pthread','-ldl','-lm','-o',str(reference)],check=True)
+        subprocess.run([str(reference),str(previous),'baseline'],check=True)
+        for name in ['no-dialog-panel','no-dialog-classic','no-dialog-modern']:
+            a=(current/(name+'.ppm')).read_bytes();b=(previous/(name+'.ppm')).read_bytes()
+            assert a==b,name+' pixels differ from '+BASE
+            print('PASS '+name+' byte-identical to '+BASE+':',hashlib.sha256(a).hexdigest())
 
 with tempfile.TemporaryDirectory(prefix='xz-stock-wave-') as temporary:
     binary=Path(temporary)/'wave'
@@ -71,3 +85,7 @@ with tempfile.TemporaryDirectory(prefix='xz-stock-model-') as temporary:
         str(HERE.parent/'shell_model.c'),*[str(HERE.parent/'shell'/f) for f in SHELL_SOURCES],
         '-Wno-error=format-truncation','-lm','-o',str(binary)],check=True)
     subprocess.run([str(binary),*sys.argv[1:]],check=True)
+if base_skipped:
+    # Exit 77 is "skipped" for run_all_host.py: everything else above ran and passed.
+    print('SKIPPED: '+base_skipped+'; the runtime, wave and model checks passed')
+    raise SystemExit(77)

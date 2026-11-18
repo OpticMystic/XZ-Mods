@@ -5,6 +5,7 @@
 #include "extra_lane.h"
 #include "deck_colour.h"
 #include "../shell/shell_font.h"
+#include "tempo_text.h"
 #include <stdio.h>
 #include <string.h>
 #define N(f) XZ_SHELL_KNOWN(XZ_SHELL_F_##f)
@@ -202,7 +203,7 @@ int xz_classic_mixer_half_draw(uint16_t *pixels,size_t stride,size_t count,const
   if(mode[0]&&x<280)text(c,x,101,300-x,mode,1,WHITE);
  }
  /* Tempo and the BPM box; MASTER fills its foot orange, as stock. */
- if(p.tempo_known&&p.loaded){int64_t t=p.tempo;snprintf(b,sizeof b,"%c%lld.%02lld%%",t<0?'-':'+',(long long)(t<0?-t:t)/100,(long long)(t<0?-t:t)%100);}else strcpy(b,"--.--%");
+ if(p.tempo_known&&p.loaded){xz_tempo_text(b,sizeof b-1,(int32_t)p.tempo,p.range_known,p.range);strcat(b,"%");}else strcpy(b,"--.--%");
  text(c,312,65,86,b,2,p.tempo_known&&p.loaded?WHITE:GRAY);
  int master=p.master_known&&p.master;
  xz_border(c,313,92,80,45,master?ORANGE:WHITE);
@@ -240,7 +241,7 @@ int xz_classic_mixer_draw(uint16_t *pixels,size_t stride,size_t count,const stru
   if(p.loaded&&p.time_known&&(!p.remain||p.total_known)){int64_t t=p.remain?(int64_t)p.total-p.elapsed:p.elapsed;if(t<0)t=0;if(t>5999999)t=5999999;snprintf(b,sizeof b,"%02d:%02d.%02d",(int)(t/60000),(int)(t/1000%60),(int)(t/10%100));}else strcpy(b,"--:--.--");
   digits(c,6,67,b,1,194,WHITE);
   if(p.loaded&&p.bpm_known&&p.bpm>0)snprintf(b,sizeof b,"%d.%01d",p.bpm/100,p.bpm/10%10);else strcpy(b,"---.-");digits(c,6,101,b,0,83,ORANGE);text(c,84,114,25,"BPM",1,ORANGE);
-  if(p.tempo_known&&p.loaded){int64_t t=p.tempo;snprintf(b,sizeof b,"%c%lld.%02lld%%",t<0?'-':'+',(long long)(t<0?-t:t)/100,(long long)(t<0?-t:t)%100);}else strcpy(b,"--.--%");text(c,116,100,78,b,1,WHITE);
+  if(p.tempo_known&&p.loaded){xz_tempo_text(b,sizeof b-1,(int32_t)p.tempo,p.range_known,p.range);strcat(b,"%");}else strcpy(b,"--.--%");text(c,116,100,78,b,1,WHITE);
   if(p.range_known&&p.range!=100){
    /* Pixel themes lack U+00B1. Draw the same five-column plus/minus in every theme. */
    xz_rect(c,116,116,5,1,GRAY);xz_rect(c,118,114,1,5,GRAY);xz_rect(c,116,120,5,1,GRAY);

@@ -9,26 +9,45 @@ uint32_t xz_blend(uint32_t a,uint32_t b,unsigned n){
  unsigned g=(((a>>8)&255)*(256-n)+((b>>8)&255)*n)>>8;
  unsigned v=((a&255)*(256-n)+(b&255)*n)>>8;return (r<<16)|(g<<8)|v;
 }
+/* Fills are the renderer's largest single cost. The compiler emits one 16-bit store per loop turn for the
+ * plain loop, so rows are filled with aligned 32-bit stores, eight pixels per turn. Output is identical. */
+typedef uint32_t __attribute__((may_alias)) xz_pixel_pair;
+static inline void fill_row(uint16_t *row,int count,uint16_t pixel){
+ if(count>0&&((uintptr_t)row&2u)){*row++=pixel;count--;}
+ xz_pixel_pair pair=(uint32_t)pixel|((uint32_t)pixel<<16),*wide=(xz_pixel_pair *)row;
+ for(;count>=8;count-=8,wide+=4){wide[0]=pair;wide[1]=pair;wide[2]=pair;wide[3]=pair;}
+ for(;count>=2;count-=2)*wide++=pair;
+ if(count>0)*(uint16_t *)wide=pixel;
+}
 void xz_rect(struct xz_canvas c,int x,int y,int w,int h,uint32_t col){
- int xx,yy;if(!c.p)return;
+ int yy;if(!c.p)return;
  if(x<0){w+=x;x=0;}if(y<0){h+=y;y=0;}
  if(x+w>c.width)w=c.width-x;if(y+h>c.height)h=c.height-y;
  uint16_t pixel=rgb(col);
- for(yy=y;yy<y+h;yy++)for(xx=x;xx<x+w;xx++)c.p[(size_t)yy*c.stride+(size_t)xx]=pixel;
+ for(yy=y;yy<y+h;yy++)fill_row(c.p+(size_t)yy*c.stride+(size_t)x,w,pixel);
 }
 void xz_border(struct xz_canvas c,int x,int y,int w,int h,uint32_t color){
  xz_rect(c,x,y,w,1,color);xz_rect(c,x,y+h-1,w,1,color);
  xz_rect(c,x,y,1,h,color);xz_rect(c,x+w-1,y,1,h,color);
 }
+/* The Cortex-A9 has no divide instruction, so the blend uses tables for the 5/6-bit expansions and an exact
+ * shift form of division by 255 (exact for every value up to 65,535). Output is bit-identical. */
+static const uint8_t expand5[32]={0,8,16,24,32,41,49,57,65,74,82,90,98,106,115,123,131,139,148,156,164,172,180,189,197,205,213,222,230,238,246,255};
+static const uint8_t expand6[64]={0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60,64,68,72,76,80,85,89,93,97,101,105,109,113,117,121,125,
+ 129,133,137,141,145,149,153,157,161,165,170,174,178,182,186,190,194,198,202,206,210,214,218,222,226,230,234,238,242,246,250,255};
+static inline unsigned div255(unsigned v){return (v+1u+(v>>8))>>8;}
+static inline void blend_pixel(uint16_t *pixel,uint32_t color,unsigned n){
+ unsigned old=*pixel,r=expand5[(old>>11)&31],g=expand6[(old>>5)&63],b=expand5[old&31];
+ r=div255(r*(255-n)+((color>>16)&255)*n+127);
+ g=div255(g*(255-n)+((color>>8)&255)*n+127);
+ b=div255(b*(255-n)+(color&255)*n+127);
+ *pixel=rgb((r<<16)|(g<<8)|b);
+}
 void xz_plot(struct xz_canvas c,int x,int y,uint32_t color,int a){
  if(!c.p||a<=0||x<0||y<0||x>=c.width||y>=c.height)return;
  uint16_t *pixel=&c.p[(size_t)y*c.stride+(size_t)x];
  if(a>=255){*pixel=rgb(color);return;}
- unsigned old=*pixel,r=((old>>11)&31)*255/31,g=((old>>5)&63)*255/63,b=(old&31)*255/31,n=(unsigned)a;
- r=(r*(255-n)+((color>>16)&255)*n+127)/255;
- g=(g*(255-n)+((color>>8)&255)*n+127)/255;
- b=(b*(255-n)+(color&255)*n+127)/255;
- *pixel=rgb((r<<16)|(g<<8)|b);
+ blend_pixel(pixel,color,(unsigned)a);
 }
 static unsigned codepoint(const char **cursor){
  const unsigned char *s=(const unsigned char *)*cursor;unsigned ch=*s++;
@@ -44,8 +63,21 @@ static unsigned codepoint(const char **cursor){
  return ch>=32&&ch<=255?ch:'?';
 }
 static void letter(struct xz_canvas c,int x,int y,const struct xz_font_glyph *g,uint32_t color){
- for(unsigned row=0;row<g->height;row++)for(unsigned col=0;col<g->width;col++)
-  xz_plot(c,x+g->x+(int)col,y+g->y+(int)row,color,xz_font_coverage[g->offset+row*g->width+col]);
+ if(!c.p)return;
+ int left=x+g->x,top=y+g->y,first_col=left<0?-left:0,first_row=top<0?-top:0;
+ int cols=(int)g->width,rows=(int)g->height;
+ if(left+cols>c.width)cols=c.width-left;
+ if(top+rows>c.height)rows=c.height-top;
+ uint16_t solid=rgb(color);
+ for(int row=first_row;row<rows;row++){
+  const unsigned char *coverage=&xz_font_coverage[g->offset+(unsigned)row*g->width];
+  uint16_t *line=&c.p[(size_t)(top+row)*c.stride+(size_t)left];
+  for(int col=first_col;col<cols;col++){
+   unsigned a=coverage[col];
+   if(!a)continue;
+   if(a>=255)line[col]=solid;else blend_pixel(&line[col],color,a);
+  }
+ }
 }
 void xz_pixel_text(struct xz_canvas c,int x,int y,const char *s,int dot,int limit,uint32_t color){
  if(!s||limit<=0||dot<=0)return;

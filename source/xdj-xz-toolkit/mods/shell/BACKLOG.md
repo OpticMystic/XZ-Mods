@@ -39,7 +39,8 @@ In the owner's priority order:
 2. Encoder push opens the track menu (LOAD TO DECK 1/2, CUE/LOOP LIST) instead of loading onto the active
    deck; LOAD pressed twice = instant double.
 3. Feed PLAY MODE, A. HOT CUE (red ON / white library setting), A. CUE per deck, ON AIR, the alert
-   banners (emergency loop, E-8302/8304/8305), LOOP IN/OUT adjust time, MEMORY / DELETED confirmations.
+   banners (emergency loop, E-8302/8304/8305), MEMORY / DELETED confirmations. (LOOP IN/OUT adjust: done,
+   read from the stock frame in shell_model.c; see ui/FOUR_DECK.md "Loop adjust".)
 4. Remove the non-XZ UTILITY/SHORTCUT rows BEAT JUMP BEAT VALUE and PLAY MODE.
 5. Keep display settings (APPEARANCE, zoom, key notation, hide switches) across restarts.
 6. Bigger: folder browsing on sticks without a library export, GRID ADJUST (RESET / SNAP / SHIFT), TAG

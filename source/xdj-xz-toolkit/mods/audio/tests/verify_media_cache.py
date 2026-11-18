@@ -50,6 +50,9 @@ def main():
     report={'hardware_tested':False,'sanitize':a.sanitize,'source':str(source),'source_sha256':{},'results':{}};stage=out/'build';audio=stage/'audio';tests=audio/'tests';tests.mkdir(parents=True,exist_ok=True)
     for rel in AUDIO_FILES:
         data=(source/rel).read_bytes();dest=audio/rel;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data);report['source_sha256'][rel]=hashlib.sha256(data).hexdigest()
+    # The shared headers the decoder includes from the mods folder (../xz_cloexec.h since 92cd666).
+    for header in sorted(source.parent.glob('*.h')):
+        data=header.read_bytes();(stage/header.name).write_bytes(data);report['source_sha256']['../'+header.name]=hashlib.sha256(data).hexdigest()
     for name in TEST_FILES:shutil.copyfile(Path(__file__).resolve().parent/name,tests/name)
     (stage/'decoder_impl.c').write_text(IMPL);(tests/'test_media_malformed.c').write_text(FAULT)
     cc=shlex.split(a.cc);flags=['-std=c11','-UNDEBUG','-ffp-contract=off','-O1' if a.sanitize else '-O2']

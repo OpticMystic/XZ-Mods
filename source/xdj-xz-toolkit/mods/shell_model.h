@@ -66,6 +66,11 @@ int xz_shell_model_fx_raw(const struct xz_shell_model_storage *storage, unsigned
    thread may call it, with or without the shell running. */
 int32_t xz_shell_model_master_bpm(xz_shell_read_fn read);
 
+/* The title stock shows for native deck 0/1 (the R5 record), as UTF-8 cut at a character boundary to fit cap.
+   1 = title, 0 = none or malformed, -1 = the record could not be read stably. Reads only and keeps no state,
+   so any thread may call it (the tracklist sampler does). */
+int xz_shell_model_title(xz_shell_read_fn read, unsigned deck, char *out, size_t cap);
+
 /* Qualified Utility quantize subdivision: denominator 1,2,4,8. Unknown returns
  * zero and clears *denominator; this does not infer a deck's QUANTIZE on/off. */
 int xz_shell_model_quantize_grid(xz_shell_read_fn read, unsigned *denominator);

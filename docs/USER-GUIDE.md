@@ -20,7 +20,16 @@ to build source.
    The public download contains no firmware, boot support or personal boot image.
 4. Prepare stems with [OverCue](https://overcue.gg/). This is the recommended
    path. OverCue Desktop separates your tracks and writes a `CDJMODS` folder on
-   your music USB. Keep the matching `Contents` and `CDJMODS` folders on the
+   your music USB. **In OverCue Desktop's Settings, choose the 44.1 kHz FLAC stems.**
+   Since OverCue Desktop 2.2.34 that choice is labelled **CDJ-2000NXS2**; it has been
+   there since 2.2.11 on Windows and 2.2.10 on Mac. The XZ plays at 44.1 kHz, so these
+   stems need no conversion on the player: a track's stems are ready in memory sooner,
+   and they take less space on the USB. OverCue's default 96 kHz stems still play on
+   the XZ, but the player has to convert them, and a track needs several minutes before
+   loops and jumps have stems everywhere in it. Do not choose the 44.1 kHz WAV option:
+   the XZ does not read WAV stems. If you also play the USB on players running OverCue,
+   keep 96 kHz: those players play 44.1 kHz stem tracks without stems, and 96 kHz stems
+   work on both. Keep the matching `Contents` and `CDJMODS` folders on the
    same USB. Open **Prepare stems > Check OverCue track** and choose the original
    track inside `Contents`. This reads the source and all prepared pages without
    changing them. Both new lossless FLAC pages and legacy zlib pages are supported,
@@ -269,9 +278,10 @@ setup. App updates use signed architecture-specific bundles when available.
 
 ## New FLAC stem pages
 
-The reader accepts OverCue's OVPGZ003 FLAC pages and existing OVPGZ001 zlib
-pages. Generate and Import write FLAC and verify all seven playback mixes, which
-older OverCue firmware still needs. The XZ reads only the vocal, drums, harmonics
+The reader accepts 44.1 kHz OVPGZ004 FLAC pages, OverCue's 96 kHz OVPGZ003 FLAC
+pages and existing OVPGZ001 zlib pages. Generate and Import write 44.1 kHz FLAC
+stems, or 96 kHz FLAC stems for a USB set to **XDJ-XZ and OverCue players**, and
+verify all seven playback mixes, which older OverCue firmware still needs. The XZ reads only the vocal, drums, harmonics
 and full-mix files, so OverCue's four-file stems play too.
 Keep Contents and CDJMODS together. Update an older USB loader through USB
 loader > Back up and update loader before using the new FLAC pages on the XZ.

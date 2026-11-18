@@ -9,20 +9,27 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#define JSMN_PARENT_LINKS
 #define JSMN_STATIC
 #include "audio/vendor/jsmn/jsmn.h"
 
 #define ANALYSIS_CAP (8u*1024u*1024u)
 #define PATH_CAP 1024
-struct entry { uint64_t hash; char folder[32]; }; /* "P016/0001A2B3" below PIONEER/USBANLZ */
+struct entry { uint64_t hash; char folder[48]; }; /* "P016/0001A2B3" below PIONEER/USBANLZ */
 struct xz_shana { char root[PATH_CAP]; struct entry *e; uint32_t n, cap; };
 
+static int analysis_file(char *out,size_t cap,const char *dir,const char *ext){
+ const char *base=strrchr(dir,'/');base=base?base+1:dir;
+ int named=strlen(base)==8&&!strncmp(base,"ANLZ",4);
+ for(int i=4;named&&i<8;i++)named=base[i]>='0'&&base[i]<='9';
+ return snprintf(out,cap,"%s%s.%s",dir,named?"":"/ANLZ0000",ext)>=(int)cap?-1:0;
+}
 static int head_path(const char *dir, char *track, size_t cap) {
  /* Every analysis file starts with the same PPTH; DAT is the smallest. */
  char path[PATH_CAP];FILE *f=NULL;
  static const char *const ext[2]={"DAT","EXT"};
  for(int i=0;i<2&&!f;i++){
-  if(snprintf(path,sizeof path,"%s/ANLZ0000.%s",dir,ext[i])>=(int)sizeof path)return -1;
+  if(analysis_file(path,sizeof path,dir,ext[i]))return -1;
   f=fopen(path,"rb");
  }
  if(!f)return -1;
@@ -59,6 +66,28 @@ int xz_shana_build(const char *root, struct xz_shana **out, uint32_t *files) {
  }
  *out=a;return 0;
 }
+int xz_shana_build_paths(const char *root,const struct xz_shana_path *paths,size_t count,struct xz_shana **out) {
+ if(!root||!out||(count&&!paths))return -1;
+ *out=NULL;struct xz_shana *a=calloc(1,sizeof *a);
+ if(!a||snprintf(a->root,sizeof a->root,"%s",root)>=(int)sizeof a->root){free(a);return -1;}
+ const char prefix[]="/PIONEER/USBANLZ/";
+ for(size_t i=0;i<count;i++){
+  const char *path=paths[i].analysis_file,*track=paths[i].track;
+  if(!path||!track||!track[0]||strncmp(path,prefix,sizeof prefix-1))continue;
+  const char *g=path+sizeof prefix-1,*slash=strchr(g,'/');
+  if(!slash||slash==g||(size_t)(slash-g)>=16)continue;
+  const char *name=slash+1,*end=strchr(name,'/');
+  if(!end||end==name||(size_t)(end-name)>=24||strlen(end)!=13||strncmp(end,"/ANLZ",5)||strcmp(end+9,".DAT"))continue;
+  int suffix=1;for(int k=5;k<9;k++)if(end[k]<'0'||end[k]>'9')suffix=0;if(!suffix)continue;
+  int safe=1;
+  for(const char *s=g;s<end;s++)if(*s!='/'&&!((*s>='A'&&*s<='Z')||(*s>='a'&&*s<='z')||(*s>='0'&&*s<='9')))safe=0;
+  if(!safe)continue;
+  char group[16],folder[40];memcpy(group,g,(size_t)(slash-g));group[slash-g]=0;
+  size_t folder_len=(size_t)(end-name)+9;memcpy(folder,name,folder_len);folder[folder_len]=0;
+  if(add(a,xz_layered_path_hash(track),group,folder)){xz_shana_free(a);return -1;}
+ }
+ *out=a;return 0;
+}
 void xz_shana_free(struct xz_shana *a) { if(a){free(a->e);free(a);} }
 const char *xz_shana_root(const struct xz_shana *a) { return a?a->root:""; }
 uint32_t xz_shana_count(const struct xz_shana *a) { return a?a->n:0; }
@@ -75,7 +104,7 @@ int xz_shana_find(const struct xz_shana *a, const char *track, char *dir, size_t
 int xz_shana_three_band(const char *dir, struct xz_wave_load *out) {
  memset(out,0,sizeof *out);
  char path[PATH_CAP];
- if(snprintf(path,sizeof path,"%s/ANLZ0000.2EX",dir)>=(int)sizeof path)return -1;
+ if(analysis_file(path,sizeof path,dir,"2EX"))return -1;
  FILE *f=fopen(path,"rb");if(!f)return -1;
  uint8_t *file=NULL;size_t n=0;
  /* One read of the whole file: the size is known up front. */
@@ -91,6 +120,7 @@ int xz_shana_three_band(const char *dir, struct xz_wave_load *out) {
  size_t at;uint32_t count;
  if(xz_anlz_section(file,n,"PWV7",3,&at,&count)||!(out->bands=malloc((size_t)count*3))){free(file);return -1;}
  memcpy(out->bands,file+at,(size_t)count*3);free(file);
+ xz_wave_decode_bands(out->bands,count);
  out->count=count;out->kind=XZ_LAYERED_THREE_BAND;
  out->normalization=xz_wave_normalization(out->bands,count,out->kind);
  return 0;
@@ -187,16 +217,28 @@ static int json_string(const char *text, const jsmntok_t *t, char *out, size_t c
  out[at]=0;return 0;
 }
 static int stems_add(struct xz_shana_stems *s, uint64_t hash, const char *bundle) {
- for(uint32_t i=0;i<s->n;i++)if(s->e[i].hash==hash){
-  if(strcmp(s->e[i].bundle,bundle))s->e[i].bundle[0]=0; /* contradictory duplicate */
-  return 0;
- }
  if(s->n==s->cap){
   uint32_t next=s->cap?s->cap*2:256;struct stem_entry *grown=realloc(s->e,(size_t)next*sizeof *grown);
   if(!grown)return -1;
   s->e=grown;s->cap=next;
  }
  s->e[s->n].hash=hash;memcpy(s->e[s->n].bundle,bundle,17);s->n++;return 0;
+}
+static int stem_order(const void *left, const void *right) {
+ const struct stem_entry *a=left,*b=right;
+ return a->hash<b->hash?-1:a->hash>b->hash;
+}
+static void stems_finish(struct xz_shana_stems *s) {
+ if(s->n<2)return;
+ qsort(s->e,s->n,sizeof *s->e,stem_order);
+ uint32_t written=1;
+ for(uint32_t i=1;i<s->n;i++){
+  struct stem_entry *last=&s->e[written-1];
+  if(last->hash==s->e[i].hash){
+   if(strcmp(last->bundle,s->e[i].bundle))last->bundle[0]=0;
+  }else s->e[written++]=s->e[i];
+ }
+ s->n=written;
 }
 int xz_shana_stems_build(const char *root, struct xz_shana_stems **out) {
  *out=NULL;
@@ -238,6 +280,7 @@ int xz_shana_stems_build(const char *root, struct xz_shana_stems **out) {
  }
  free(t);free(text);
  if(!ok||!schema)s->n=0;
+ else stems_finish(s);
  *out=s;return 0;
 }
 void xz_shana_stems_free(struct xz_shana_stems *s) { if(s){free(s->e);free(s);} }
@@ -245,11 +288,14 @@ uint32_t xz_shana_stems_count(const struct xz_shana_stems *s) { return s?s->n:0;
 int xz_shana_stems_find(const struct xz_shana_stems *s, const char *track, char *folder, size_t cap) {
  if(!s||!track)return -1;
  uint64_t hash=xz_layered_path_hash(track);
- for(uint32_t i=0;i<s->n;i++)if(s->e[i].hash==hash){
-  if(!s->e[i].bundle[0])return -1;
-  return snprintf(folder,cap,"%s/CDJMODS/stems/%s",s->root,s->e[i].bundle)<(int)cap?0:-1;
+ uint32_t first=0,last=s->n;
+ while(first<last){
+  uint32_t middle=first+(last-first)/2;
+  if(s->e[middle].hash<hash)first=middle+1;
+  else last=middle;
  }
- return -1;
+ if(first==s->n||s->e[first].hash!=hash||!s->e[first].bundle[0])return -1;
+ return snprintf(folder,cap,"%s/CDJMODS/stems/%s",s->root,s->e[first].bundle)<(int)cap?0:-1;
 }
 static uint32_t be32(const uint8_t *b) { return (uint32_t)b[0]<<24|(uint32_t)b[1]<<16|(uint32_t)b[2]<<8|b[3]; }
 /* One 3-byte-entry section (PWV7, PWV6): walk the section headers with seeks and read just that payload. */
@@ -278,8 +324,9 @@ static uint8_t *read_section(const char *path, const char tag[4], uint32_t limit
 static uint8_t *read_pwv7(const char *path, uint32_t *count) { return read_section(path,"PWV7",1000000u,count); }
 int xz_shana_preview(const char *dir, uint8_t **bands, uint32_t *count) {
  char path[PATH_CAP];*bands=NULL;*count=0;
- if(snprintf(path,sizeof path,"%s/ANLZ0000.2EX",dir)>=(int)sizeof path)return -1;
- return (*bands=read_section(path,"PWV6",65536u,count))?0:-1;
+ if(analysis_file(path,sizeof path,dir,"2EX"))return -1;
+ if(!(*bands=read_section(path,"PWV6",65536u,count)))return -1;
+ xz_wave_decode_bands(*bands,*count);return 0;
 }
 /* gettimeofday: timespec_get and clock_gettime are newer than the deck's GLIBC_2.4 ceiling. */
 static uint32_t since_ms(struct timeval a) {
@@ -336,7 +383,7 @@ static void utf16be(const uint8_t *p, uint32_t bytes, char *out, size_t cap) {
 }
 static int cue_list_ext(const char *dir, struct xz_shana_cue *out, int cap) {
  char path[PATH_CAP];size_t n=0;
- if(snprintf(path,sizeof path,"%s/ANLZ0000.EXT",dir)>=(int)sizeof path)return -1;
+ if(analysis_file(path,sizeof path,dir,"EXT"))return -1;
  uint8_t *f=read_all(path,ANALYSIS_CAP,&n);
  if(!f)return -1;
  int count=-1;
@@ -369,7 +416,7 @@ static int cue_list_ext(const char *dir, struct xz_shana_cue *out, int cap) {
 }
 int xz_shana_active_loop(const char *dir,struct xz_shana_cue *out){
  char path[PATH_CAP];size_t n=0;int found=0;
- if(!dir||!out||snprintf(path,sizeof path,"%s/ANLZ0000.DAT",dir)>=(int)sizeof path)return 0;
+ if(!dir||!out||analysis_file(path,sizeof path,dir,"DAT"))return 0;
  uint8_t *f=read_all(path,ANALYSIS_CAP,&n);if(!f)return 0;
  if(n>=12&&!memcmp(f,"PMAI",4)){
   uint32_t length=be32(f+8);if(length>n)length=(uint32_t)n;
@@ -398,7 +445,7 @@ int xz_shana_cue_list(const char *dir, struct xz_shana_cue *out, int cap) {
  if(count<0){
   /* The DAT's memory list: times and loop ends, no comments or colours. */
   char path[PATH_CAP];size_t n=0;
-  if(snprintf(path,sizeof path,"%s/ANLZ0000.DAT",dir)>=(int)sizeof path)return -1;
+  if(analysis_file(path,sizeof path,dir,"DAT"))return -1;
   uint8_t *f=read_all(path,ANALYSIS_CAP,&n);
   if(!f)return -1;
   if(n>=12&&!memcmp(f,"PMAI",4)){
@@ -430,7 +477,7 @@ int xz_shana_cue_list(const char *dir, struct xz_shana_cue *out, int cap) {
 }
 int xz_shana_memory_cues(const char *dir, struct xz_shell_cue out[XZ_SHELL_MEMORY_CUES]) {
  char path[PATH_CAP];size_t n=0;
- if(snprintf(path,sizeof path,"%s/ANLZ0000.DAT",dir)>=(int)sizeof path)return -1;
+ if(analysis_file(path,sizeof path,dir,"DAT"))return -1;
  uint8_t *f=read_all(path,ANALYSIS_CAP,&n);
  if(!f)return -1;
  int count=-1;

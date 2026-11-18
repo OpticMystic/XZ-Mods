@@ -8,13 +8,22 @@ from pathlib import Path
 import argparse, struct, subprocess, tempfile
 
 p = argparse.ArgumentParser(description=__doc__)
-p.add_argument('--frame', type=Path, required=True, help='800x480 PNG of the controller screen')
-g = p.add_mutually_exclusive_group(required=True)
+p.add_argument('--frame', type=Path, help='800x480 PNG of the controller screen (required to run)')
+g = p.add_mutually_exclusive_group()
 g.add_argument('--zig', type=Path)
 g.add_argument('--gcc', action='store_true')
 p.add_argument('--output', type=Path)
-p.add_argument('--kind', choices=('play','browse'), required=True)
+p.add_argument('--kind', choices=('play','browse'))
 a = p.parse_args()
+if not a.frame:
+    # Exit 77 is "skipped" for run_all_host.py. With a frame, a missing compiler or --kind is still an error.
+    print('SKIPPED: needs --frame, an 800x480 PNG photographed from the unit\'s screen (with --kind play|browse '
+          'and --zig or --gcc); none is in the repository')
+    raise SystemExit(77)
+if not (a.zig or a.gcc):
+    p.error('one of --zig or --gcc is required')
+if not a.kind:
+    p.error('--kind is required')
 root = Path(__file__).resolve().parent
 sources = [root / 'test_key_strip.c', root / 'key_strip.c', root / 'ui_draw.c']
 

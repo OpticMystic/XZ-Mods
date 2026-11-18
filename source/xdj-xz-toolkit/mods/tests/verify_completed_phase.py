@@ -2,7 +2,7 @@
 from pathlib import Path
 import argparse,hashlib,json,subprocess,time
 M=Path(__file__).resolve().parent.parent
-ap=argparse.ArgumentParser();ap.add_argument('--out',type=Path,required=True);ap.add_argument('--arch',choices=['host','arm'],required=True);ap.add_argument('--data',type=Path,required=True);a=ap.parse_args()
+ap=argparse.ArgumentParser();ap.add_argument('--out',type=Path,required=True);ap.add_argument('--arch',choices=['host','arm'],required=True);ap.add_argument('--data',type=Path,help='player fixture folder; default: the synthetic fixtures of extra_player_fixtures.py');a=ap.parse_args()
 O=a.out.resolve();assert not O.exists();O.mkdir(parents=True)
 def linux(p):
  s=str(p.resolve()).replace('\\','/');return '/mnt/'+s[0].lower()+s[2:]
@@ -15,7 +15,11 @@ def run(cmd):
  commands.append(dict(command=cmd,exit=p.returncode,seconds=time.monotonic()-start,stdout=p.stdout,stderr=p.stderr))
  (O/'commands.json').write_text(json.dumps(commands,indent=2)+'\n');print((p.stdout+p.stderr)[-5000:],flush=True);return p.returncode
 import shutil
-shutil.copytree(a.data.resolve(),O/'data')
+if a.data:shutil.copytree(a.data.resolve(),O/'data')
+else:
+ # The generation test reads the player's fixtures (test_extra_player.c: <data>/44100.wav, 48000.wav, 44100.aiff,
+ # anlz/): the same synthetic files verify_sync_engine.py and verify_jog_content_epoch.py write.
+ import sys;sys.path.insert(0,str(M));from extra_player_fixtures import fixtures;(O/'data').mkdir();fixtures(O/'data')
 all_sources=[]
 for suite in ['phase','generation']:
  sources=[M/f'tests/test_completed_{suite}.c']

@@ -42,7 +42,7 @@ int xz_native_led_start(void){return 0;}
 void xz_native_led_stop(void){}
 void xz_log(const char *s){(void)s;}
 unsigned xz_runtime_cue_flags(void){return 0;}
-static uint64_t fixture_retained_stems;
+static uint64_t fixture_retained_stems;static int fixture_stems_whole;
 static int jump_calls,jump_deck,jump_beats,jump_accept=1;
 int xz_runtime_beat_jump(int deck,int beats){jump_calls++;jump_deck=deck;jump_beats=beats;return jump_accept;}
 int xz_runtime_set_cues(int a,int b){(void)a;(void)b;return 0;}
@@ -81,7 +81,7 @@ void xz_audio_set_levels4(int deck,const float value[4]){
 int xz_audio_set_levels4_for_generation(int deck,uint32_t generation,const float value[4]){
     if(generation!=fixture_generation)return -1;xz_audio_set_levels4(deck,value);return 0;
 }
-int xz_audio_get_status(int deck,struct xz_audio_status *out){assert(deck>=0&&deck<2);fixture_audio_status_calls[deck]++;memset(out,0,sizeof(*out));if(fixture_loaded&(1<<deck))snprintf(out->path,sizeof(out->path),"/media/usb2/test-track.mp3");out->retained_stems_bytes=fixture_retained_stems;out->generation=fixture_generation;out->prepared=fixture_prepared;out->stem_count=fixture_stem_count[deck];out->state=fixture_prepared?XZ_AUDIO_EXPERIMENTAL_READY:XZ_AUDIO_CACHE_MISSING;return 0;}
+int xz_audio_get_status(int deck,struct xz_audio_status *out){assert(deck>=0&&deck<2);fixture_audio_status_calls[deck]++;memset(out,0,sizeof(*out));if(fixture_loaded&(1<<deck))snprintf(out->path,sizeof(out->path),"/media/usb2/test-track.mp3");out->retained_stems_bytes=fixture_retained_stems;out->stems_whole=fixture_stems_whole;out->generation=fixture_generation;out->prepared=fixture_prepared;out->stem_count=fixture_stem_count[deck];out->state=fixture_prepared?XZ_AUDIO_EXPERIMENTAL_READY:XZ_AUDIO_CACHE_MISSING;return 0;}
 const char *xz_audio_state_name(enum xz_audio_state state){(void)state;return "ready";}
 int xz_audio_waveform(int deck,unsigned role,unsigned char *bins,size_t count,float *progress){
     (void)role;if(deck<0||deck>1)return 0;
@@ -129,10 +129,13 @@ static void ram_tracks(void){
     ram_tap(XZ_UI_RAM_CANCEL,0);assert(fixture_ram_calls[1]==1);
     fixture_ram[1].state=XZ_RAM_DETACHED;fixture_ram[1].can_release=0;
     struct xz_ui_action release={.kind=XZ_UI_RAM_RELEASE,.deck=1};apply(NULL,&release,1);assert(!fixture_ram_calls[2]);
+    /* A store still building from the stick holds stems, but the card counts them only once it is whole. */
     fixture_retained_stems=4096;fixture_ram[1].state=XZ_RAM_READY;fixture_ram[1].can_release=1;refresh();
-    assert(model.deck[1].ram.retained_stems_bytes==4096);
+    assert(model.deck[1].ram.retained_stems_bytes==0&&strstr(model.deck[1].ram.message,"STEMS STILL NEED USB"));
+    fixture_stems_whole=1;refresh();
+    assert(model.deck[1].ram.retained_stems_bytes==4096&&strstr(model.deck[1].ram.message,"PREPARED STEMS IN RAM"));
     ram_tap(XZ_UI_RAM_RELEASE,0);assert(fixture_ram_calls[2]==1);
-    fixture_retained_stems=0;
+    fixture_retained_stems=0;fixture_stems_whole=0;
     for(int deck=2;deck<4;deck++){
         fixture_ram[deck]=(struct xz_ram_status){.state=XZ_RAM_EMPTY,.supported=1,.route_up=1,.source_current=1,.can_request=1,.key={.session=77}};
         refresh();ram_tap(XZ_UI_RAM_DECK,deck);ram_tap(XZ_UI_RAM_REQUEST,0);
@@ -479,7 +482,7 @@ int main(void){
         {.kind=XZ_UI_BROWSE_PREVIEW,.value=1}
     };
     model.stems_overlay=1;apply(NULL,persist_actions,5);
-    assert(settings_pending);settings_running=0;pthread_cond_signal(&settings_changed);pthread_mutex_unlock(&ui_mutex);
+    assert(settings_pending);settings_running=0;xz_wake_set(&settings_changed);pthread_mutex_unlock(&ui_mutex);
     assert(!pthread_join(settings_thread,NULL));
     struct xz_settings persisted;assert(!xz_settings_load(settings_usb,&persisted));
     assert(persisted.browse_preview==1&&persisted.theme==14&&persisted.stem_bank==1&&persisted.stems_overlay==XZ_STEM_LAYOUT_BELOW_HALF&&persisted.jump.sizes[7]==9);

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 #define _GNU_SOURCE
 #include "usb_transport.h"
+#include "../../late_trail.h"
+/* The transport's note of its latest unfilled packet group per deck (late_trail.h). */
+struct xz_underrun_note xz_usb_underrun_note[2];
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
@@ -10,6 +13,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#if defined(__linux__)
+#include <sys/prctl.h>
+#endif
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <sys/vfs.h>
@@ -69,8 +75,12 @@ struct xz_usb_transport {
     struct deck_queue queue[2];
     struct slot input[DEPTH], output[DEPTH];
     xz_usb_position live, published;
+    _Atomic(uint8_t *) capture;          /* diagnostic: where the worker copies device-to-host frames; NULL = idle */
+    atomic_uint capture_filled;
+    unsigned capture_capacity;
     unsigned packet_index;
     uint64_t out_sequence, completed_sequence, last_input, last_output, last_completion, last_publish;
+    uint64_t tick, pause_window_at; uint32_t pause_window_us, pause_before_us; /* diagnostic: late_trail.h */
 };
 static unsigned load32(const atomic_uint *p) { return atomic_load_explicit(p, memory_order_acquire); }
 static void store32(atomic_uint *p, unsigned n) { atomic_store_explicit(p, n, memory_order_release); }
@@ -274,6 +284,14 @@ static int submit_slot(xz_usb_transport *t, struct slot *s, int input) {
             xz_usb_deck_position *p = &t->live.deck[d];
             p->staged_frames += s->deck[d].frames;
             p->underrun_frames += frames - s->deck[d].frames;
+            if (frames > s->deck[d].frames) {
+                struct xz_underrun_note *note = &xz_usb_underrun_note[d];
+                note->missing_frames = frames - s->deck[d].frames;
+                note->queued_blocks = load32(&t->queue[d].write) - load32(&t->queue[d].read);
+                note->since_completion_us = t->tick >= t->last_completion ? (uint32_t)(t->tick - t->last_completion) : 0;
+                note->pause_us = t->pause_window_us > t->pause_before_us ? t->pause_window_us : t->pause_before_us;
+                __atomic_store_n(&note->count, note->count + 1, __ATOMIC_RELEASE);
+            }
             if (s->deck[d].source_valid) {
                 p->source_after_staged = s->deck[d].source_after; p->source_valid |= 1;
                 p->source_staged_output_frames=p->staged_frames-s->deck[d].frames+s->deck[d].source_frames;
@@ -321,6 +339,7 @@ static void restore(xz_usb_transport *t) {
 }
 static int service(xz_usb_transport *t) {
     uint64_t tick = t->io->now();
+    t->tick = tick;
     if (tick - t->last_input > 100000 || tick - t->last_output > 100000) {
         fail(t, XZ_USB_TIMEOUT, ETIMEDOUT); return 0;
     }
@@ -336,6 +355,8 @@ static int service(xz_usb_transport *t) {
     if (s->u.status || s->u.error_count) { fail(t, XZ_USB_IO, EIO); return 0; }
     if (t->last_completion && tick - t->last_completion > t->live.maximum_completion_gap_us)
         t->live.maximum_completion_gap_us = tick - t->last_completion;
+    if (tick - t->pause_window_at >= 500000u) { t->pause_before_us = t->pause_window_us; t->pause_window_us = 0; t->pause_window_at = tick; }
+    if (t->last_completion && tick - t->last_completion > t->pause_window_us) t->pause_window_us = (uint32_t)(tick - t->last_completion);
     t->last_completion = tick;
     if (input) {
         unsigned counts[PACKETS];
@@ -345,6 +366,17 @@ static int service(xz_usb_transport *t) {
                 fail(t, XZ_USB_IO, EPROTO); return 0;
             }
             counts[i] = bytes / IN_BYTES; t->live.input_frames += counts[i];
+        }
+        uint8_t *capture = atomic_load_explicit(&t->capture, memory_order_acquire);
+        if (capture) {
+            /* Each packet's data starts at its 1024-byte slot of the URB buffer. */
+            unsigned filled = load32(&t->capture_filled);
+            for (unsigned i = 0; i < PACKETS; ++i) {
+                if (filled + counts[i] > t->capture_capacity) { atomic_store_explicit(&t->capture, NULL, memory_order_release); break; }
+                memcpy(capture + (size_t)filled * IN_BYTES, s->data + i * 1024u, (size_t)counts[i] * IN_BYTES);
+                filled += counts[i];
+            }
+            store32(&t->capture_filled, filled);
         }
         struct slot *next = &t->output[((unsigned)(s - t->input) + 1) % DEPTH];
         if (next->clock_generation != next->used_generation) ++t->live.feedback_replaced;
@@ -361,6 +393,7 @@ static int service(xz_usb_transport *t) {
         ++t->completed_sequence;
         for (unsigned i = 0; i < PACKETS; ++i) if (s->iso[i].status) { fail(t, XZ_USB_IO, EIO); return 0; }
         t->live.wire_completed_frames += (unsigned)s->u.buffer_length / OUT_BYTES;
+        t->live.wire_observed_at_us = tick;
         for (unsigned d = 0; d < 2; ++d) {
             xz_usb_deck_position *p = &t->live.deck[d];
             if (s->deck[d].generation != p->applied_generation) continue;
@@ -379,9 +412,21 @@ static int service(xz_usb_transport *t) {
     if (tick - t->last_publish >= 10000) publish(t, 0);
     return 1;
 }
+/* The transport's late turns, quoted by the DECK 3/4 dropout line (late_trail.h). One turn is one service
+   call: a wait of at most 5 ms for a completed packet group, then its refill. */
+struct xz_late_trail xz_usb_late_trail;
 static void *worker(void *arg) {
     xz_usb_transport *t = arg;
-    while (!load32(&t->stop) && service(t)) {}
+#if defined(__linux__)
+    prctl(PR_SET_NAME, "xz-usb-pump", 0, 0, 0);
+#endif
+    for (;;) {
+        if (load32(&t->stop)) break;
+        xz_late_woke(&xz_usb_late_trail, 0);
+        int alive = service(t);
+        xz_late_worked(&xz_usb_late_trail, 0x40000000u, 8000u);
+        if (!alive) break;
+    }
     restore(t);
     publish(t, 1);
     if (load32(&t->state) != XZ_USB_FAULTED) store32(&t->state, XZ_USB_CLOSED);
@@ -394,6 +439,7 @@ static xz_usb_transport *allocate_transport(const struct io_ops *io) {
     if (pthread_mutex_init(&t->snapshot_lock, NULL)) { free(t); return NULL; }
     atomic_init(&t->state, XZ_USB_STARTING); atomic_init(&t->stop, 0); atomic_init(&t->fault, XZ_USB_OK);
     atomic_init(&t->system_errno, 0); atomic_init(&t->cleanup_errno, 0);
+    atomic_init(&t->capture, NULL); atomic_init(&t->capture_filled, 0);
     for (unsigned d = 0; d < 2; ++d) {
         atomic_init(&t->queue[d].write, 0); atomic_init(&t->queue[d].read, 0);
         atomic_init(&t->queue[d].generation, XZ_USB_INITIAL_GENERATION); atomic_init(&t->queue[d].producer, 0);
@@ -439,6 +485,19 @@ static xz_usb_result open_with_io(const char *path, xz_usb_transport **out, cons
     return result;
 }
 xz_usb_result xz_usb_transport_open(const char *path, xz_usb_transport **out) { return open_with_io(path, out, &real_io); }
+xz_usb_result xz_usb_transport_capture(xz_usb_transport *t, uint8_t *buffer, uint32_t capacity_frames) {
+    if (!t || !buffer || capacity_frames < 64) return XZ_USB_INVALID;
+    if (load32(&t->state) != XZ_USB_RUNNING) return XZ_USB_STOPPED;
+    if (atomic_load_explicit(&t->capture, memory_order_acquire)) return XZ_USB_BUSY;
+    t->capture_capacity = capacity_frames; store32(&t->capture_filled, 0);
+    atomic_store_explicit(&t->capture, buffer, memory_order_release);
+    return XZ_USB_OK;
+}
+uint32_t xz_usb_transport_capture_filled(xz_usb_transport *t, int *done) {
+    if (!t) { if (done) *done = 1; return 0; }
+    if (done) *done = !atomic_load_explicit(&t->capture, memory_order_acquire);
+    return load32(&t->capture_filled);
+}
 xz_usb_result xz_usb_transport_close(xz_usb_transport **io) {
     if (!io) return XZ_USB_INVALID;
     xz_usb_transport *t = *io;

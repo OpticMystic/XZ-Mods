@@ -1,9 +1,11 @@
 #define _GNU_SOURCE
 #include "writes.h"
 #include "ui_runtime.h"
+#include "games_gate.h"
 #include "ui/play_key.h"
 #include "ui/play_key_classic.h"
 #include "ui/menu_key.h"
+#include "encoder_push.h"
 #pragma weak xz_extra_decks_snapshot
 #pragma weak xz_extra_decks_route_status
 #pragma weak xz_extra_decks_rescan
@@ -15,6 +17,17 @@
 #pragma weak xz_diary_notice_code
 #pragma weak xz_diary_error_code
 /* Portable UI harnesses omit the OS sampler. */
+#include "djlink_runtime.h"
+#pragma weak xz_djlink_runtime_set_enabled
+#pragma weak xz_djlink_runtime_status
+#include "link_runtime.h"
+#pragma weak xz_link_runtime_set_enabled
+#include "tracklist_runtime.h"
+#include "recorder_state.h"
+#pragma weak xz_tracklist_set_enabled
+#pragma weak xz_tracklist_status_json
+#pragma weak xz_recorder_status_json
+#pragma weak xz_link_runtime_status
 #pragma weak xz_metrics_start
 #pragma weak xz_metrics_stop
 #pragma weak xz_metrics_enable
@@ -36,6 +49,7 @@ extern int xz_sync_link_runtime_master_observe(struct xz_master_observation *) _
 #include "ui/key_strip.h"
 #include "ui/key_frame_cache.h"
 #include "ui/transient_notice.h"
+#include "ui/play_notice.h"
 /* Root's native browse operations. Weak so UI tests link without the stock ABI. */
 extern int xz_native_browse_open_sort(void) __attribute__((weak));
 extern unsigned xz_native_browse_mode(void) __attribute__((weak));
@@ -52,6 +66,7 @@ static uint32_t ram_debug_sample_ms;
 #include "ram/runtime.h"
 #include "ram/decks.h"
 #pragma weak xz_ram_deck_status
+#pragma weak xz_ram_deck_status_try
 #pragma weak xz_ram_deck_command
 #pragma weak xz_ram_usage
 #include "ui/native_touch.h"
@@ -123,11 +138,17 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_shell_runtime_key_frame
 #pragma weak xz_shell_runtime_owns
 #pragma weak xz_shell_runtime_idle
+#pragma weak xz_shell_pipeline_allowed
+#pragma weak xz_shell_pipeline_epoch
+#pragma weak xz_shell_pipeline_begin
+#pragma weak xz_shell_pipeline_end
+#pragma weak xz_shell_pipeline_accept
 #pragma weak xz_shell_runtime_frame
 #pragma weak xz_shell_runtime_touch
 #pragma weak xz_shell_runtime_key
 #pragma weak xz_shell_runtime_encoder_turn
 #pragma weak xz_shell_runtime_encoder_push
+#pragma weak xz_shell_runtime_selector_push
 #pragma weak xz_shell_runtime_take_ui_requests
 #pragma weak xz_shell_runtime_notice
 #pragma weak xz_shell_runtime_will_refresh
@@ -164,9 +185,14 @@ extern int xz_settings_internal_save(const struct xz_settings *) __attribute__((
 #include "../vendor/tools/xz_runtime/mods_bridge.h"
 #include <dlfcn.h>
 #include <pthread.h>
+#include "xz_thread.h"
+#include "xz_mutex.h"
+#include "xz_wake.h"
 #include <stdio.h>
 #include <string.h>
 #include "stock_dialog.h"
+#include "recorder_poll.h"
+#include "ui/rec_mark.h"
 #pragma weak xz_stock_dialog_active
 #pragma weak xz_stock_counter_ids
 #pragma weak xz_stock_usb_hub_text
@@ -179,7 +205,7 @@ static unsigned stock_counter_mask(uint32_t ids[2]){return xz_stock_counter_ids?
 #include <unistd.h>
 #include <math.h>
 
-static pthread_mutex_t ui_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t ui_mutex = XZ_MUTEX_INITIALIZER;
 static struct xz_ui ui;
 static struct xz_ui inline_ui;
 static struct xz_play_key play_key;
@@ -210,6 +236,13 @@ static struct xz_ui_dj dj_view;
 static xz_stock_touch stock_touch;
 static void (*forward_touch)(int, int, int);
 static int started, visible, audio_available, key_available, forwarded_down;
+struct xz_touch_diagnostic {
+ uint32_t version,size,received,completed,downs,ups,last_down,last_x,last_y,last_ms,max_ms,actions,last_action;
+};
+__attribute__((visibility("default"))) struct xz_touch_diagnostic xz_mods_touch_diagnostic_v1={.version=1,.size=sizeof(struct xz_touch_diagnostic)};
+/* Read-only ABI evidence: retain full native status words, not just the down byte. */
+__attribute__((visibility("default"))) uint32_t xz_mods_touch_words_v1[9]={1,9*4};
+
 /* A live player window takes the screen, keys, encoder and touch only from CLASSIC's own pages. MODERN and an open
    MODS (either interface) keep all of them and show the window's text themselves: the dock strip here, the play
    screen's notice in the shell. Polls every call, so the hub calm card and the window text stay current. */
@@ -257,6 +290,8 @@ static int wave_rider_previous_takeover,lab_previous_takeover;
 struct xz_arcade_proof {uint32_t version,frames,inputs,phase,mode,live,deck;float bpm,x,y;};
 __attribute__((visibility("default"))) struct xz_arcade_proof xz_arcade_proof_v1={.version=1};
 static int network_enabled, network_connected;
+/* Optional receiver capability; older bridges keep their established link behavior. */
+static int (*receiver_vj_content)(void);
 /* fb_takeover_active mirrors model.fb_takeover: the VJ.TOOLS view PREFERENCE (saved on the USB, fb_takeover=). The
    view is only on screen while VJ.Tools is linked, which is what the receiver shows (xz_mods_takeover_v1), or while
    Doom runs (it forces the preference on for its lifetime). Every reader that means "the takeover is on screen"
@@ -265,7 +300,8 @@ static int network_enabled, network_connected;
    showed), and CLASSIC's busy frames skipped the cached top row. */
 static int takeover_link_shown(void){
     return __atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE)&&__atomic_load_n(&network_enabled,__ATOMIC_ACQUIRE)&&
-        __atomic_load_n(&network_connected,__ATOMIC_ACQUIRE);
+        __atomic_load_n(&network_connected,__ATOMIC_ACQUIRE)&&
+        (!receiver_vj_content||receiver_vj_content());
 }
 static int takeover_on_screen(void){
     return takeover_link_shown()||__atomic_load_n(&doom_phase,__ATOMIC_ACQUIRE)!=0||xz_doom_running();
@@ -296,10 +332,13 @@ static struct xz_jump_state jump_state;
 static int deck_page[2] = {-1,-1};
 static unsigned sync_down, sync_owned;
 static unsigned master_tempo_down, master_tempo_owned;
-static pthread_cond_t settings_changed = PTHREAD_COND_INITIALIZER;
+/* Wakes the settings writer (normal priority). Interface actions and the stock list-text hook (RR 24) signal it:
+   never a condition variable, see xz_wake.h. */
+static struct xz_wake settings_changed;
 static pthread_t settings_thread;
 static int settings_running, settings_pending, settings_readonly, settings_created;
 static struct xz_usb_profile settings_profile,settings_owner;
+static int saved_network_dhcp=1;
 static int settings_owner_valid,settings_target_empty;
 static int settings_slot = -1;
 static uint64_t settings_revision,settings_save_revision;
@@ -342,31 +381,74 @@ static int stem_json_string(char *out,size_t capacity,const char *text){
     out[n++]='"';out[n]=0;return 1;
 }
 /* The screen observer can inspect readiness without a shell or any control action. */
+extern size_t xz_shell_browser_status_json_v1(char *,size_t) __attribute__((weak));
+static void tracklist_apply_locked(int on);
+/* Private bench (bench_adapter.h op 13): a NETWORK page option as its row sets it, not saved to the profile.
+   3 is RECORDING TRACKLIST (MODS > PLAY), the same way; out[0] then reports it. */
+int xz_ui_runtime_bench_link_option(int which,int value,int out[2]){
+    pthread_mutex_lock(&ui_mutex);
+    if(which==0){
+        model.pro_dj_link_decks=value!=0;
+        if(xz_djlink_runtime_set_enabled)xz_djlink_runtime_set_enabled(model.pro_dj_link_decks);
+    }else if(which==1){
+        model.ableton_link=value!=0?XZ_ABLETON_LINK_SEND:XZ_ABLETON_LINK_OFF;
+        if(xz_link_runtime_set_enabled)xz_link_runtime_set_enabled(model.ableton_link);
+    }else if(which==3){
+        tracklist_apply_locked(value!=0);
+    }
+    out[0]=which==3?!!(model.enabled&XZ_UI_TRACKLIST):model.pro_dj_link_decks;out[1]=model.ableton_link;
+    pthread_mutex_unlock(&ui_mutex);
+    return 0;
+}
 __attribute__((visibility("default"))) size_t xz_mods_stem_status_json_v1(char *out,size_t capacity){
     struct xz_audio_status state[2]={{0}};int available,on,layout,metrics,slot,owner_usb,owner_matches,target_empty;
     char boot_json[128];const char *boot=getenv("XZ_MODS_BOOT_RUNTIME");
     if(!boot||strlen(boot)>60||!stem_json_string(boot_json,sizeof(boot_json),boot))strcpy(boot_json,"null");
     uint32_t revision,profiles,actions;const char *origin;
+    char input_json[256];
     if(!out||capacity<128||pthread_mutex_trylock(&ui_mutex))return 0;
     available=audio_available;on=!!(model.enabled&XZ_UI_STEM);
     layout=model.stems_overlay;metrics=model.metrics_enabled;slot=settings_profile.root[0]?settings_slot:-1;
     owner_usb=!settings_owner_valid?0:!strncmp(settings_owner.root,"/media/usb1/",12)?1:!strncmp(settings_owner.root,"/media/usb2/",12)?2:0;
     owner_matches=settings_owner_matches_locked();target_empty=settings_target_empty;
     revision=stem_layout_revision;profiles=settings_profile_applies;actions=stem_layout_actions;origin=stem_layout_origin;
+    snprintf(input_json,sizeof input_json,"{\"page\":%d,\"down\":%d,\"capture\":%d,\"visible\":%d,\"opening\":%d,\"panel_contact\":%d,\"raw_down\":%d,\"network_step\":%d}",ui.page,ui.down,ui.capture,touch.visible,touch.opening_contact,panel_contact,play_key_raw_down,(int)ui.network.step);
+
     pthread_mutex_unlock(&ui_mutex);
     if(available)for(int i=0;i<2;i++)if(xz_audio_get_status(i,&state[i]))return 0;
-    int n=snprintf(out,capacity,"{\"version\":1,\"runtime_pid\":%ld,\"boot_runtime\":%s,\"ovpgz004\":true,\"engine\":%s,\"enabled\":%s,\"layout\":%d,\"layout_revision\":%u,\"layout_origin\":\"%s\",\"layout_control_count\":%u,\"profile_apply_count\":%u,\"profile_usb\":%d,\"profile_owner_usb\":%d,\"profile_owner_matches_target\":%s,\"profile_target_empty\":%s,\"metrics_enabled\":%s,\"decks\":[",(long)getpid(),boot_json,available?"true":"false",on?"true":"false",layout,revision,origin,actions,profiles,slot<0?0:slot+1,owner_usb,owner_matches?"true":"false",target_empty?"true":"false",metrics?"true":"false");
+    char browser[1024];size_t browser_size=xz_shell_browser_status_json_v1?xz_shell_browser_status_json_v1(browser,sizeof browser):0;
+    if(!browser_size)strcpy(browser,"{\"available\":false}");
+    int n=snprintf(out,capacity,"{\"version\":1,\"runtime_pid\":%ld,\"boot_runtime\":%s,\"ovpgz004\":true,\"engine\":%s,\"enabled\":%s,\"layout\":%d,\"layout_revision\":%u,\"layout_origin\":\"%s\",\"layout_control_count\":%u,\"profile_apply_count\":%u,\"profile_usb\":%d,\"profile_owner_usb\":%d,\"profile_owner_matches_target\":%s,\"profile_target_empty\":%s,\"metrics_enabled\":%s,\"input\":%s,\"browser\":%s,\"decks\":[",(long)getpid(),boot_json,available?"true":"false",on?"true":"false",layout,revision,origin,actions,profiles,slot<0?0:slot+1,owner_usb,owner_matches?"true":"false",target_empty?"true":"false",metrics?"true":"false",input_json,browser);
     if(n<0||(size_t)n>=capacity)return 0;size_t used=(size_t)n;
     for(int i=0;i<2;i++){
         char path[sizeof(state[i].path)*6+3],error[sizeof(state[i].error)*6+3],format[sizeof(state[i].format_name)*6+3];
         if(!stem_json_string(path,sizeof(path),state[i].path)||!stem_json_string(error,sizeof(error),state[i].error)||
            !stem_json_string(format,sizeof(format),state[i].format_name))return 0;
-        n=snprintf(out+used,capacity-used,"%s{\"deck\":%d,\"state\":%d,\"status\":\"%s\",\"prepared\":%s,\"generation\":%u,\"reader_rate\":%u,\"mixed_blocks\":%u,\"skipped_blocks\":%u,\"alignment_frames\":%d,\"alignment_correlation\":%.6f,\"path\":%s,\"error\":%s,\"format\":%s}",
+        n=snprintf(out+used,capacity-used,"%s{\"deck\":%d,\"state\":%d,\"status\":\"%s\",\"prepared\":%s,\"generation\":%u,\"reader_rate\":%u,\"mixed_blocks\":%u,\"skipped_blocks\":%u,\"moved_blocks\":%u,\"cue_blocks\":%u,\"miss_blocks\":%u,\"unproven_blocks\":%u,\"identity_blocks\":%u,\"stream_miss_blocks\":%u,\"alignment_frames\":%d,\"alignment_correlation\":%.6f,\"path\":%s,\"error\":%s,\"format\":%s,\"flat\":[%u,%u,%u],\"store\":{\"held\":%u,\"grant\":%u,\"need\":%u,\"class\":%u,\"lead_ms\":%u,\"behind_ms\":%u},\"stems_ram\":%llu,\"wait_ram\":%s}",
             i?",":"",i+1,state[i].state,xz_audio_state_name(state[i].state),state[i].prepared?"true":"false",state[i].generation,
-            state[i].reader_rate,state[i].mixed_blocks,state[i].skipped_blocks,state[i].alignment_frames,(double)state[i].alignment_correlation,path,error,format);
+            state[i].reader_rate,state[i].mixed_blocks,state[i].skipped_blocks,state[i].moved_blocks,state[i].cue_blocks,
+            state[i].miss_blocks,state[i].unproven_blocks,state[i].identity_blocks,state[i].stream_miss_blocks,state[i].alignment_frames,(double)state[i].alignment_correlation,path,error,format,
+            state[i].flat_built,state[i].flat_chunks,state[i].flat_ms,state[i].store_held,state[i].store_grant,state[i].store_need,
+            state[i].store_class,state[i].store_lead_ms,state[i].store_behind_ms,(unsigned long long)state[i].retained_stems_bytes,
+            state[i].stems_wait_ram?"true":"false");
         if(n<0||(size_t)n>=capacity-used)return 0;used+=(size_t)n;
     }
-    if(used+3>capacity)return 0;out[used++]=']';out[used++]='}';out[used]=0;return used;
+    if(used+2>capacity)return 0;out[used++]=']';out[used]=0;
+    /* The MASTER REC recorder and the recording tracklist (recorder_state.h, tracklist_runtime.h): counters and
+       state only, no track text. null when this runtime has neither. */
+    {
+        static const char *const names[2]={",\"recorder\":",",\"tracklist\":"};
+        size_t (*const parts[2])(char *,size_t)={xz_recorder_status_json,xz_tracklist_status_json};
+        for(int i=0;i<2;i++){
+            size_t head=strlen(names[i]);
+            if(used+head+5>capacity)return 0;
+            memcpy(out+used,names[i],head);used+=head;
+            size_t part=parts[i]?parts[i](out+used,capacity-used):0;
+            if(!part){if(used+5>capacity)return 0;memcpy(out+used,"null",5);part=4;}
+            used+=part;
+        }
+    }
+    if(used+2>capacity)return 0;out[used++]='}';out[used]=0;return used;
 }
 
 static enum xz_ui_usb_reason usb_stem_reason(const struct xz_audio_status *state){
@@ -547,8 +629,13 @@ int xz_ui_runtime_stock_source_key(int which, int run) {
 static int modern_browse_columns;
 static struct { int modern_wave_color, wave_position, key_display, wave_zoom, usb_colors, hidden_parts; }
     modern_display = {2,0,0,3,0,0};
+/* RECORDING TRACKLIST lives in model.enabled (XZ_UI_TRACKLIST, an ENABLE row). Sets the bit and the feature. */
+static void tracklist_apply_locked(int on) {
+    if (on) model.enabled |= XZ_UI_TRACKLIST; else model.enabled &= ~(uint32_t)XZ_UI_TRACKLIST;
+    if (xz_tracklist_set_enabled) xz_tracklist_set_enabled(!!on);
+}
 static struct xz_settings settings_snapshot(void) {
-    return (struct xz_settings){.stems=requested_stems,
+    return (struct xz_settings){.recording_tracklist=!!(model.enabled & XZ_UI_TRACKLIST),.ableton_link=model.ableton_link,.pro_dj_link_decks=model.pro_dj_link_decks,.network_dhcp=saved_network_dhcp,.stems=requested_stems,
         .gate=!!(model.enabled & XZ_UI_GATE), .smart=!!(model.enabled & XZ_UI_SMART), .theme=model.theme,
         .ui_interface=model.ui_interface, .classic_theme=model.classic_theme, .modern_theme=model.modern_theme,
         .stem_page=model.stem_page, .shift_pages=model.shift_pages, .pad_feedback=model.pad_feedback, .shift_keysync=model.shift_keysync,
@@ -566,6 +653,12 @@ static struct xz_settings settings_snapshot(void) {
 }
 /* Profile values that only the UI owns. The backend already rejects invalid profiles. */
 static void browse_settings(const struct xz_settings *saved) {
+    saved_network_dhcp=saved->network_dhcp;
+    if(xz_net_runtime_set_dhcp)xz_net_runtime_set_dhcp(saved_network_dhcp);
+    model.pro_dj_link_decks=!!saved->pro_dj_link_decks;
+    if(xz_djlink_runtime_set_enabled)xz_djlink_runtime_set_enabled(model.pro_dj_link_decks);
+    model.ableton_link=saved->ableton_link==XZ_ABLETON_LINK_SEND?XZ_ABLETON_LINK_SEND:XZ_ABLETON_LINK_OFF;
+    if(xz_link_runtime_set_enabled)xz_link_runtime_set_enabled(model.ableton_link);
     if (xz_key_browser_columns_valid(saved->browse_columns))
         memcpy(model.browse_columns, saved->browse_columns, sizeof(model.browse_columns));
     model.browse_preview = !!saved->browse_preview;
@@ -732,7 +825,7 @@ static void settings_queue(void) {
     settings_request.usb_writable=(selected<0||selected==settings_slot)&&((settings_target_empty&&!settings_owner_valid)||settings_owner_matches_locked());
     settings_request.slot=settings_slot;
     model.settings_status = settings_profile.root[0]&&settings_request.usb_writable ? "SAVING SETTINGS TO USB" : "SAVING SETTINGS ON THIS XZ";
-    settings_pending = 1; pthread_cond_signal(&settings_changed);
+    settings_pending = 1; xz_wake_set(&settings_changed);
 }
 /* Shows the save result in the MODS footer for a few seconds on every page. */
 static void settings_report(const char *status) {
@@ -824,9 +917,7 @@ static void *settings_writer(void *unused) {
             }
         }
         if(settings_running&&!settings_pending) {
-            struct timeval now; gettimeofday(&now,NULL);
-            struct timespec until={now.tv_sec+1,now.tv_usec*1000};
-            pthread_cond_timedwait(&settings_changed,&ui_mutex,&until);
+            xz_wake_wait_locked(&settings_changed,&ui_mutex,1000);
         }
     }
     pthread_mutex_unlock(&ui_mutex); return NULL;
@@ -835,7 +926,7 @@ static void *settings_writer(void *unused) {
 
 /* PC STEM HOST BINDING V1. Source and gestures stay separate from local audio. */
 static struct xz_pc_stems pc_stems;
-static pthread_mutex_t pc_mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t pc_mutex=XZ_MUTEX_INITIALIZER;
 static int pc_observing,pc_present,pc_map_confirmed[4],pc_setup_step[2],pc_last_link;
 static void inline_layout_publish(void) {
     if((touch.visible||model.ui_interface==XZ_UI_INTERFACE_MODERN||(model.fb_takeover&&model.connection.connected))&&
@@ -843,7 +934,8 @@ static void inline_layout_publish(void) {
     if((touch.visible||model.ui_interface==XZ_UI_INTERFACE_MODERN||(model.fb_takeover&&model.connection.connected))&&
        xz_classic_mixer_runtime_hide)xz_classic_mixer_runtime_hide();
     int layout=(unsigned)model.stems_overlay<XZ_STEM_LAYOUT_COUNT?model.stems_overlay:XZ_STEM_LAYOUT_HIDDEN;
-    __atomic_store_n(&inline_requested,(requested_stems||pc_present)&&!touch.visible?layout:XZ_STEM_LAYOUT_HIDDEN,__ATOMIC_RELEASE);
+    int shell_owned=!xz_ui_runtime_native_wave_visible();
+    __atomic_store_n(&inline_requested,(requested_stems||pc_present)&&!touch.visible&&!shell_owned?layout:XZ_STEM_LAYOUT_HIDDEN,__ATOMIC_RELEASE);
 }
 /* ---- MODS ----
    One menu, this panel, in both interfaces: MODERN draws it in the FLAGSHIP skin over the shell (the shell is
@@ -1051,9 +1143,17 @@ static _Thread_local struct {
     uint32_t scene,colors[3];
     struct xz_ui_transient_notice notice;
     int dv,dv_view,dv_ready,dv_open,dv_tile,dv_focus,dv_pair; /* the DECK VIEW button and picker badge() painted */
+    struct xz_rec_reading rec; /* the REC mark's last reading, in xz_game_milliseconds() */
 } badge_frame_cache;
+/* The stock pixels under the REC mark on CLASSIC's band (ui/rec_mark.h), restored when it stops. */
+static _Thread_local struct xz_rec_band_pixels rec_band;
 static struct xz_ui_transient_notice async_notice;
 static _Thread_local struct xz_ui_notice_pixels notice_pixels;
+/* CLASSIC's play-screen notice in the top bar's METRICS columns (ui/play_notice.h), never over the lanes: what it
+   covered, and the sentence badge() last drew, which a busy frame repeats for at most 250 ms. */
+static _Thread_local struct xz_play_notice_pixels play_notice_pixels;
+static _Thread_local struct { char text[XZ_NATIVE_PLAY_NOTICE_BYTES]; uint32_t at; int theme; } play_notice_cache;
+#pragma weak xz_native_play_notice
 /* A STEMS button notice where the DJ is looking: the shell's own notice in MODERN, the badge in CLASSIC or over
    MODS. Under ui_mutex. */
 static void stems_notice_locked(const char *text){
@@ -1104,7 +1204,7 @@ static int key_sync_end(int deck,void *player,int reset) {
     strip_error_until[deck]=0;return 1;
 }
 static uint32_t key_notice_seen[2];
-static pthread_mutex_t key_projection_mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t key_projection_mutex=XZ_MUTEX_INITIALIZER;
 static struct { struct xz_deck_key master;int deck,format,feedback,traffic;uint32_t at; } key_projection;
 void xz_key_project_extra(struct xz_extra_decks *extra){
     struct xz_deck_key master;int md,format,feedback,traffic;uint32_t at;
@@ -1330,7 +1430,7 @@ static void sdk_start(void) {
         .stage_root = XZ_SDK_UI_STAGE_ROOT, .autoload_enabled = 1,
         .apply_profile = sdk_apply_profile, .display_available = sdk_display_available };
     memcpy(config.roots, roots, sizeof(config.roots));
-    int ok = xz_sdk_host_start && xz_sdk_host_start(&config) == 0;
+    int ok = XZ_GAMES_ON() && xz_sdk_host_start && xz_sdk_host_start(&config) == 0;   /* the app host is part of the optional games */
     pthread_mutex_lock(&ui_mutex);
     sdk_started = ok; memset(&sdk_session, 0, sizeof(sdk_session));
     model.sdk.host = ok ? XZ_SDK_UI_RUNNING : XZ_SDK_UI_ABSENT; model.sdk.roots = count; model.sdk.extra_root = extra;
@@ -1351,7 +1451,9 @@ static void sdk_stop(void) {
 
 static void ram_refresh(int deck) {
     struct xz_ram_status s;memset(&s,0,sizeof(s));
-    if(xz_ram_deck_status)xz_ram_deck_status((unsigned)deck,&s);
+    /* This runs for every frame: never wait for a RAM worker. A busy lock keeps the previous model. */
+    if(xz_ram_deck_status_try){if(!xz_ram_deck_status_try((unsigned)deck,&s))return;}
+    else if(xz_ram_deck_status)xz_ram_deck_status((unsigned)deck,&s);
     else if(deck<2)xz_ram_status(deck,&s);
     struct xz_ui_ram *r=&model.deck[deck].ram;
     switch(s.state){
@@ -1368,8 +1470,9 @@ static void ram_refresh(int deck) {
     s.message[sizeof(s.message)-1]=0;snprintf(r->message,sizeof(r->message),"%s",s.message);
     if(deck<2&&(s.state==XZ_RAM_READY||s.state==XZ_RAM_DETACHED)){
         struct xz_audio_status audio={0};xz_audio_get_status(deck,&audio);
-        r->retained_stems_bytes=audio.retained_stems_bytes;
-        snprintf(r->message,sizeof(r->message),"ORIGINAL IN RAM / %s",audio.retained_stems_bytes?"PREPARED STEMS IN RAM":"STEMS STILL NEED USB");
+        /* A store holding part of a track still builds from the stick: only stems that need it no more count here. */
+        r->retained_stems_bytes=audio.stems_whole?audio.retained_stems_bytes:0;
+        snprintf(r->message,sizeof(r->message),"ORIGINAL IN RAM / %s",r->retained_stems_bytes?"PREPARED STEMS IN RAM":"STEMS STILL NEED USB");
     }
 }
 
@@ -1397,6 +1500,10 @@ static void network_refresh(void) {
     enum xz_net_result result=xz_net_runtime_read?xz_net_runtime_read(&fresh):XZ_NET_NEEDS_BACKEND;
     if(result==XZ_NET_OK)model.network=fresh;
     else if(result==XZ_NET_NEEDS_BACKEND){model.network.result=result;model.network.phase=XZ_NET_NEEDS_SETUP;snprintf(model.network.detail,sizeof model.network.detail,"Start the network worker in this RAM loader, then detect again");}
+    struct xz_djlink_status djlink;
+    if(xz_djlink_runtime_status&&xz_djlink_runtime_status(&djlink))model.djlink=djlink;
+    struct xz_link_status ablink;
+    if(xz_link_runtime_status&&xz_link_runtime_status(&ablink))model.ablink=ablink;
 }
 static void network_apply(const struct xz_ui_action *a) {
     if(a->phase!=XZ_UI_PRESS)return;
@@ -1412,6 +1519,12 @@ static void network_apply(const struct xz_ui_action *a) {
     else return;
     enum xz_net_result result=xz_net_runtime_submit?xz_net_runtime_submit(&command):XZ_NET_NEEDS_BACKEND;
     if(result!=XZ_NET_OK)snprintf(ui.notice,sizeof ui.notice,"%s",xz_net_result_text(result));
+    else if(a->kind==XZ_UI_NETWORK_REVERT||a->kind==XZ_UI_NETWORK_APPLY){
+        int dhcp=0;
+        if(a->kind==XZ_UI_NETWORK_APPLY)for(unsigned i=0;i<command.body.apply.policy.count;i++)
+            if(command.body.apply.policy.order[i].mode==XZ_NET_DHCP)dhcp=1;
+        saved_network_dhcp=dhcp;if(xz_net_runtime_set_dhcp)xz_net_runtime_set_dhcp(dhcp);settings_queue();
+    }
 }
 static void support_refresh(void) {
     if (xz_support_read) xz_support_read(&model.support, 0);
@@ -1450,13 +1563,32 @@ static void support_apply(const struct xz_ui_action *a) {
 }
 static void deck_view_apply(int view);
 static void apply(void *context, const struct xz_ui_action *actions, size_t count) {
+    if(count){__atomic_add_fetch(&xz_mods_touch_diagnostic_v1.actions,(uint32_t)count,__ATOMIC_RELAXED);
+        __atomic_store_n(&xz_mods_touch_diagnostic_v1.last_action,(uint32_t)actions[count-1].kind,__ATOMIC_RELAXED);}
+
     (void)context;
     for (size_t i = 0; i < count; i++) {
         const struct xz_ui_action *a = &actions[i];
+        if(a->kind==XZ_UI_PRO_DJ_LINK){
+            model.pro_dj_link_decks=a->value!=0;
+            if(xz_djlink_runtime_set_enabled)xz_djlink_runtime_set_enabled(model.pro_dj_link_decks);
+            settings_queue();continue;
+        }
+        if(a->kind==XZ_UI_ABLETON_LINK){
+            model.ableton_link=a->value!=0?XZ_ABLETON_LINK_SEND:XZ_ABLETON_LINK_OFF;
+            if(xz_link_runtime_set_enabled)xz_link_runtime_set_enabled(model.ableton_link);
+            settings_queue();continue;
+        }
         if(xz_ui_network_kind(a->kind)){network_apply(a);continue;}
         if(xz_ui_support_kind(a->kind)){support_apply(a);continue;}
         if (xz_sdk_ui_kind(a->kind)) { sdk_apply(a); continue; }
         if (sdk_refuses_game(a)) continue;
+        /* Games are an optional extra (games_gate.h). Not installed: say so, start nothing. */
+        if(!XZ_GAMES_ON()&&(a->kind==XZ_UI_GAME_SELECT||a->kind==XZ_UI_MYHOUSE_CHECK||a->kind==XZ_UI_GLYPH_RUN_OPEN||
+           a->kind==XZ_UI_RHYTHM_LAB_OPEN||a->kind==XZ_UI_WAVE_RIDER_OPEN||a->kind==XZ_UI_ARCADE_OPEN||a->kind==XZ_UI_WAD_SCAN||
+           a->kind==XZ_UI_DOOM_CHECK||a->kind==XZ_UI_DOOM_START||a->kind==XZ_UI_MYHOUSE_START)){
+            snprintf(ui.notice,sizeof(ui.notice),"GAMES ARE NOT INSTALLED");
+        }else
         switch (a->kind) {
         case XZ_UI_ROUTE_RESCAN:
             /* Wakes the connector only (D10); its status says SCANNING at once, so the menus show it now. */
@@ -1666,6 +1798,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             ram_action(a);
             break;
         case XZ_UI_ENABLE:
+            if (a->index == XZ_UI_TRACKLIST) { tracklist_apply_locked(a->value != 0); break; }
             if (a->index == XZ_UI_GATE || a->index == XZ_UI_SMART ||
                 (a->index == XZ_UI_STEM && audio_available)) {
                 uint32_t next = a->value != 0 ? model.enabled | (uint32_t)a->index : model.enabled & ~(uint32_t)a->index;
@@ -1938,6 +2071,9 @@ static void game_to_menu_locked(enum game g){
     else{xz_arcade_key(&arcade,0,XZ_ARCADE_PAUSE_KEY,xz_game_milliseconds());arcade_to_dj();}
 }
 
+static unsigned shell_ui_refresh_pending;
+static uint32_t shell_ui_owner_ms;
+static unsigned shell_ui_owner_seen;
 static uint32_t shell_ui_refreshed_ms; /* last UI model refresh while the shell owned the screen */
 /* The last frame input built under ui_mutex. Only the presenter thread renders, so it alone reads and
    writes this: a frame whose UI lock is busy reuses it instead of skipping a vblank. */
@@ -1974,6 +2110,8 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
     for(int d=0;d<2;d++){in->stem_level_known[d]=in->stem_muted_known[d];for(int i=0;i<3;i++)in->stem_level[d][i]=model.deck[d].levels[i];}
     /* DJ profiles for the shell's MY SETTINGS panel, copied (the view changes under this lock). */
     if(model.dj){
+        if(xz_shell_runtime_dj_logo)for(int slot=0;slot<2;slot++)
+            xz_shell_runtime_dj_logo(slot,model.dj->usb_logo_revision[slot],model.dj->usb_logo[slot]);
         in->dj_known=1;in->dj_count=model.dj->count<XZ_SHELL_RUNTIME_DJ?model.dj->count:XZ_SHELL_RUNTIME_DJ;
         for(int i=0;i<in->dj_count;i++){
             const struct xz_ui_dj_entry *e=&model.dj->entry[i];struct xz_shell_runtime_dj *o=&in->dj[i];
@@ -2089,6 +2227,7 @@ static int shell_touch_locked(void *self,const struct xz_touch_status *status,co
 static void (*stock_global_key)(void *,const void *);
 /* REKORDBOX (key code 0x202): the press decided at the onKey hook, for the handler hook that follows it. */
 #define REKORDBOX_KEY_CODE 0x202u
+#define LINK_KEY_CODE 0x205u
 static struct { int valid, action; uint32_t at; } rekordbox_latch;
 static int rekordbox_shift_native(void){
     for(int deck=0;deck<2;deck++){
@@ -2264,6 +2403,9 @@ static void menu_back_key_hook(void *self,const void *input){
         if(consumed&&rekordbox_press)rekordbox_latch.valid=0;
         shell_ui_requests_locked();
         pthread_mutex_unlock(&ui_mutex);
+        /* MODERN's LINK opens its SOURCE screen and stock's LINK handler (whose hook switches the VJ.Tools screen
+           when MODS gives LINK that job) does not run: switch it here, once per press, as that hook would. */
+        if(consumed&&key==LINK_KEY_CODE&&operation==0)xz_ui_runtime_on_source_key(0);
         if(consumed)return;
     }
     if(key==0x4208){
@@ -2409,18 +2551,28 @@ static int encoder_rotate_hook(int delta) {
     return stock_encoder_rotate?stock_encoder_rotate(delta):0;
 }
 static int (*stock_encoder_push)(void *,void *,void *,void *);
+/* A pass the mods take: the state goes back as stock's own handler leaves it (encoder_push.h). Only into
+   stock's entry for the selector (kind 8 of the table at 0x22518e0); host tests point this at their own. */
+static uintptr_t push_entry_address=0x22518e0u+8u*16u;
+static void push_entry_taken(void *entry,const struct xz_push_step *step,uint32_t state){
+    if(entry&&(uintptr_t)entry==push_entry_address&&step->state!=state)memcpy((unsigned char *)entry+8,&step->state,sizeof(step->state));
+}
 static int encoder_push_hook(void *arg0,void *arg1,void *arg2,void *arg3) {
     if(stock_dialog_up())return stock_encoder_push(arg0,arg1,arg2,arg3);
     if(__atomic_load_n(&started,__ATOMIC_ACQUIRE)){
+        /* arg0 is stock's browse key entry {flags, 0, state, handler}; encoder_push.h reads its phases. Stock
+           calls this on the press, the hold and the release (and on later passes while the state stays set).
+           The panel, games, Doom and DECK VIEW act on the press only and swallow the rest; the shell gets
+           every phase. A taken pass writes the state back, or the next press would start no pass and be
+           lost until a turn cleared it. A contact whose press the mods took stays theirs to the release. */
+        uint32_t flags=1,state=0;
+        if(arg0){memcpy(&flags,arg0,sizeof(flags));memcpy(&state,(const unsigned char *)arg0+8,sizeof(state));}
+        struct xz_push_step step=xz_push_read(flags,state);
+        int press=step.phase==XZ_PUSH_DOWN;
         pthread_mutex_lock(&ui_mutex);
-        if(play_key.open){pthread_mutex_unlock(&ui_mutex);return 1;}
+        if(play_key.open){push_entry_taken(arg0,&step,state);pthread_mutex_unlock(&ui_mutex);return 1;}
         int owned=menu_owns_keys_locked(),shell=0;
-        /* Stock calls this for the press, the hold, the release and again on later key passes while the
-           entry's state stays set: the panel, games and Doom act on the press phase (flags 1) only, and
-           still swallow the rest, or one click activates the focused control twice. */
-        uint32_t flags=1;if(arg0)memcpy(&flags,arg0,sizeof(flags));
-        int press=flags==1;
-        if(deck_view_encoder_locked(0,1,press)){pthread_mutex_unlock(&ui_mutex);return 1;}
+        if(deck_view_encoder_locked(0,1,press)){push_entry_taken(arg0,&step,state);pthread_mutex_unlock(&ui_mutex);return 1;}
         if(owned){
             if(press){
                 struct xz_ui_action actions[XZ_UI_ACTIONS];
@@ -2430,13 +2582,15 @@ static int encoder_push_hook(void *arg0,void *arg1,void *arg2,void *arg3) {
             }
         }
         else if(game_locked()!=GAME_NONE){owned=1;if(press)game_push_locked(game_locked());}
-        else if(!touch.visible&&arg0&&xz_shell_runtime_encoder_push&&shell_eligible_locked()){
-            /* pushKey entry {flags, 0, state, handler}: the shell reads the press and hold phases from it. */
-            uint32_t entry[3];memcpy(entry,arg0,sizeof(entry));
-            shell=xz_shell_runtime_encoder_push(1,model.theme,entry[0],entry[2]);
+        else if(!touch.visible&&arg0&&xz_shell_runtime_selector_push&&shell_eligible_locked()){
+            shell=xz_shell_runtime_selector_push(1,model.theme,(int)step.phase);
             if(!shell)owned=press?xz_doom_nav(XZ_GAME_NAV_ENTER):xz_doom_running();
         }
         else if(!touch.visible)owned=press?xz_doom_nav(XZ_GAME_NAV_ENTER):xz_doom_running();
+        /* The press went to the mods and the screen changed owner since: the rest of the contact is still
+           theirs, never a half contact for stock's hidden browser. */
+        if(!owned&&!shell&&xz_push_marked(state))owned=1;
+        if(owned||shell)push_entry_taken(arg0,&step,state);
         if(shell)shell_ui_requests_locked();
         pthread_mutex_unlock(&ui_mutex);
         if(shell){
@@ -2690,11 +2844,27 @@ static void ram_debug_refresh(void){
 }
 static void refresh(void){network_refresh();sdk_refresh();pc_refresh_locked();refresh_local();ram_debug_refresh();if(model.metrics_enabled&&xz_metrics_snapshot)xz_metrics_snapshot(&model.metrics);}
 
+/* Native event owner only, after the shell owner command pass has released its mutex.
+   Coalesce display requests and never wait behind a UI action. 200 ms is the existing
+   maximum model age; the display keeps that synchronous fallback if this hook stalls. */
+void xz_ui_runtime_owner_tick(void){
+    if(!__atomic_load_n(&started,__ATOMIC_ACQUIRE))return;
+    uint32_t now=xz_game_milliseconds();
+    __atomic_store_n(&shell_ui_owner_ms,now,__ATOMIC_RELEASE);
+    __atomic_store_n(&shell_ui_owner_seen,1,__ATOMIC_RELEASE);
+    if(!__atomic_load_n(&shell_ui_refresh_pending,__ATOMIC_ACQUIRE)||pthread_mutex_trylock(&ui_mutex))return;
+    if(__atomic_load_n(&started,__ATOMIC_ACQUIRE)&&shell_owns_locked()){
+        refresh();shell_ui_refreshed_ms=now?now:1;
+    }
+    __atomic_store_n(&shell_ui_refresh_pending,0,__ATOMIC_RELEASE);
+    pthread_mutex_unlock(&ui_mutex);
+}
 static int inline_enabled(void) { return __atomic_load_n(&started,__ATOMIC_ACQUIRE)?__atomic_load_n(&inline_requested,__ATOMIC_ACQUIRE):XZ_STEM_LAYOUT_HIDDEN; }
 static int render_inline(void *context,uint16_t *pixels,size_t count,size_t stride,int width,int height) {
     (void)context;
     static _Thread_local uint16_t cached[536*XZ_WAVE_INLINE_HEIGHT];
     static _Thread_local int cached_valid,cached_height,cached_layout;
+    if(!xz_ui_runtime_native_wave_visible())return 0;
     if (!pixels || width!=536 || (height!=XZ_WAVE_INLINE_HEIGHT&&height!=XZ_WAVE_HALF_CONTROL_HEIGHT*2) || stride<536 || stride>count/(size_t)height) return 0;
     if (pthread_mutex_trylock(&ui_mutex) != 0) {
         if (!cached_valid || cached_layout!=inline_enabled() || cached_height!=height) return 0;
@@ -3232,7 +3402,7 @@ static int pair_touch(const struct xz_touch_status *status,int previous_down){
     return 1;
 }
 static int stock_dialog_contact;
-static void touch_hook(void *self, const struct xz_touch_status *status, const void *mode) {
+static void touch_hook_impl(void *self, const struct xz_touch_status *status, const void *mode) {
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE)) { stock_touch(self, status, mode); return; }
     unsigned counter_mask=stock_counter_mask(NULL);int counter_touch=0;
     if(counter_mask){
@@ -3436,6 +3606,32 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
     if(pc_redraw||four_repaint)xz_native_skin_request_repaint();
 }
 
+static void touch_hook(void *self,const struct xz_touch_status *status,const void *mode){
+ if(!__atomic_load_n(&started,__ATOMIC_ACQUIRE)){touch_hook_impl(self,status,mode);return;}
+ struct xz_touch_diagnostic *d=&xz_mods_touch_diagnostic_v1;
+ uint32_t words[3],previous;memcpy(words,status,sizeof words);memcpy(&previous,(const unsigned char *)self+4,4);
+ __atomic_add_fetch(&xz_mods_touch_words_v1[2],1,__ATOMIC_RELAXED);
+ __atomic_or_fetch(&xz_mods_touch_words_v1[3],words[0],__ATOMIC_RELAXED);
+ __atomic_store_n(&xz_mods_touch_words_v1[4],words[0],__ATOMIC_RELAXED);
+ __atomic_store_n(&xz_mods_touch_words_v1[5],previous,__ATOMIC_RELAXED);
+ __atomic_store_n(&xz_mods_touch_words_v1[6],words[1],__ATOMIC_RELAXED);
+ __atomic_store_n(&xz_mods_touch_words_v1[7],words[2],__ATOMIC_RELAXED);
+ __atomic_store_n(&xz_mods_touch_words_v1[8],(uint32_t)(uintptr_t)mode,__ATOMIC_RELAXED);
+ __atomic_add_fetch(&d->received,1,__ATOMIC_RELAXED);
+ __atomic_add_fetch(status->down?&d->downs:&d->ups,1,__ATOMIC_RELAXED);
+ __atomic_store_n(&d->last_down,!!status->down,__ATOMIC_RELAXED);
+ __atomic_store_n(&d->last_x,status->x,__ATOMIC_RELAXED);__atomic_store_n(&d->last_y,status->y,__ATOMIC_RELAXED);
+ uint32_t start=xz_game_milliseconds();touch_hook_impl(self,status,mode);
+ uint32_t elapsed=xz_game_milliseconds()-start,maximum=__atomic_load_n(&d->max_ms,__ATOMIC_RELAXED);
+ while(elapsed>maximum&&!__atomic_compare_exchange_n(&d->max_ms,&maximum,elapsed,0,__ATOMIC_RELAXED,__ATOMIC_RELAXED)){}
+ __atomic_store_n(&d->last_ms,elapsed,__ATOMIC_RELAXED);__atomic_add_fetch(&d->completed,1,__ATOMIC_RELEASE);
+}
+
+int xz_ui_runtime_native_wave_visible(void){
+    if(!__atomic_load_n(&started,__ATOMIC_ACQUIRE))return 1;
+    return !__atomic_load_n(&visible,__ATOMIC_ACQUIRE)&&!takeover_on_screen()&&
+        !(xz_shell_runtime_owns&&xz_shell_runtime_owns());
+}
 /* The receiver treats a shell-owned screen exactly like the open panel. */
 __attribute__((visibility("default"))) int xz_mods_visible_v1(void) {
     if(stock_dialog_up())return 0;
@@ -3513,6 +3709,9 @@ static int shortcut_touch(void *self, const struct xz_touch_status *status, cons
 }
 static void badge(uint16_t *pixels, uint32_t stride) {
     int shown=takeover_on_screen();
+    /* The REC mark's last paint comes off first, so nothing else this frame is compared against it. */
+    xz_rec_band_restore(&rec_band,pixels,stride);
+    xz_play_notice_restore(&play_notice_pixels,pixels,stride);
     __atomic_store_n(&xz_mods_key_feedback_proof_v1.enabled,!!model.key_feedback,__ATOMIC_RELAXED);
     shortcut_wave(pixels, stride);
     int play=xz_native_play_visible();
@@ -3546,6 +3745,14 @@ static void badge(uint16_t *pixels, uint32_t stride) {
     if(!shown)xz_ui_notice_badge(pixels,stride,model.theme,&async_notice,xz_game_milliseconds(),&notice_pixels);
     xz_metrics_draw(pixels,stride,model.theme,model.metrics_enabled,&model.metrics,xz_game_milliseconds());
     struct xz_extra_decks extra;int have_extra=play_key_extra_locked(&extra);
+    {   /* CLASSIC play: the route-up or players' notice over the METRICS readout, not over the lanes. */
+        char said[XZ_NATIVE_PLAY_NOTICE_BYTES];uint32_t now=xz_game_milliseconds();
+        const char *text=play&&!shown&&model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&xz_native_play_notice?
+            xz_native_play_notice(have_extra?&extra:NULL,now,said):NULL;
+        snprintf(play_notice_cache.text,sizeof play_notice_cache.text,"%s",text?text:"");
+        play_notice_cache.at=now;play_notice_cache.theme=model.theme;
+        xz_play_notice_draw(pixels,stride,model.theme,text,&play_notice_pixels);
+    }
     xz_classic_key_render(&classic_keys,&model,classic_key_extra(&extra,have_extra),play&&!shown,
         xz_native_four_order(),pixels,stride);
     dv.painted=0;badge_frame_cache.dv=0;
@@ -3563,13 +3770,21 @@ static void badge(uint16_t *pixels, uint32_t stride) {
         badge_frame_cache.dv=1;badge_frame_cache.dv_view=view;badge_frame_cache.dv_ready=ready;badge_frame_cache.dv_pair=pair;
         badge_frame_cache.dv_open=dv.open;badge_frame_cache.dv_tile=dv.tile;badge_frame_cache.dv_focus=dv.focus==DV_FOCUS_BUTTON;
     }
+    /* REC, last on the band, on every stock-drawn screen and over the VJ screen too: left of DECKS's column, after
+       VJ.TOOLS while it shows (ui/rec_mark.h). Drawn on the frames stock presents; it asks for none. */
+    {
+        uint32_t now=xz_game_milliseconds();
+        badge_frame_cache.rec=xz_recorder_reading(now);
+        struct xz_rec_view v=xz_rec_view_at(&badge_frame_cache.rec,now);
+        xz_rec_band_draw(pixels,stride,model.theme,model.connection.enabled&&model.connection.connected&&(shown||play),&v,&rec_band);
+    }
     /* A busy frame can replay the key strip but not a slot's own tile: only painted slots keep the frame back. */
     __atomic_store_n(&classic_key_visible,!!classic_keys.painted,__ATOMIC_RELEASE);
 }
 
 void xz_ui_runtime_profile_usb(unsigned slot) {
     if (slot < 2 && __atomic_exchange_n(&profile_slot,slot,__ATOMIC_RELAXED)!=slot)
-        pthread_cond_signal(&settings_changed);
+        xz_wake_set(&settings_changed);
 }
 int xz_ui_runtime_profile_selected(void) {
     unsigned slot = __atomic_load_n(&profile_slot, __ATOMIC_RELAXED);
@@ -3610,6 +3825,7 @@ static void profile_apply_locked(const struct xz_settings *saved,const char *ori
     modern_display.usb_colors=saved->usb_colors;modern_display.hidden_parts=saved->hidden_parts;
     xz_runtime_set_cues(saved->gate, saved->smart);
     model.enabled = xz_runtime_cue_flags();performance_publish_locked();
+    tracklist_apply_locked(saved->recording_tracklist);
     if (audio_available) { xz_audio_set_enabled(saved->stems); if (saved->stems) model.enabled |= XZ_UI_STEM; }
     model.fb_takeover=xz_sdk_ui_session_profile(&sdk_session,saved->fb_takeover);
     __atomic_store_n(&fb_takeover_active,model.fb_takeover,__ATOMIC_RELEASE);
@@ -3662,8 +3878,8 @@ static void counter_errors_locked(void){
         model.counter_error[d]=(struct xz_ui_counter_error){a.code,a.text};
     }
 }
-static int render_mods_frame(uint16_t *pixels, uint32_t width,
-        uint32_t height, uint32_t stride, const struct xz_vj_connection_v1 *connection) {
+static int render_mods_frame_mode(uint16_t *pixels, uint32_t width,
+        uint32_t height, uint32_t stride, const struct xz_vj_connection_v1 *connection,int full_only) {
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE) || !pixels || width != 800 || height != 480 || stride < 800 || stride > 16384)
         return 0;
     if(stock_dialog_up())return 0;
@@ -3678,11 +3894,14 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
             shell_input_cache.cached=1;
             return xz_shell_runtime_frame(pixels,stride,&shell_input_cache)>0;
         }
+        if(full_only)return 0;
         if(!__atomic_load_n(&visible,__ATOMIC_ACQUIRE)&&
            !takeover_on_screen()&&!(xz_shell_runtime_owns&&xz_shell_runtime_owns())) {
             int drawn=0;
             uint32_t scene;
             if(badge_frame_cache.valid&&!xz_read_memory(0x3c6fc7c,&scene,4)&&scene==badge_frame_cache.scene) {
+                xz_rec_band_restore(&rec_band,pixels,stride); /* first, as badge() */
+                xz_play_notice_restore(&play_notice_pixels,pixels,stride);
                 if(badge_frame_cache.shortcut)
                     xz_ui_render_shortcut_wave(pixels,stride,badge_frame_cache.selected,badge_frame_cache.colors);
                 xz_ui_notice_restore(&notice_pixels,pixels,stride);
@@ -3690,6 +3909,8 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
                     badge_frame_cache.vj,badge_frame_cache.takeover);
                 xz_ui_notice_badge(pixels,stride,badge_frame_cache.theme,&badge_frame_cache.notice,xz_game_milliseconds(),&notice_pixels);
                 xz_metrics_draw(pixels,stride,badge_frame_cache.theme,badge_frame_cache.metrics_enabled,&badge_frame_cache.metrics,xz_game_milliseconds());
+                if(play_notice_cache.text[0]&&xz_game_milliseconds()-play_notice_cache.at<250u)
+                    xz_play_notice_draw(pixels,stride,play_notice_cache.theme,play_notice_cache.text,&play_notice_pixels);
                 if(badge_frame_cache.dv){
                     struct xz_canvas c={pixels,stride,800,480,badge_frame_cache.theme};
                     xz_deck_view_button_draw(c,&xz_deck_view_classic,badge_frame_cache.dv_view,badge_frame_cache.dv_ready,badge_frame_cache.dv_pair,
@@ -3699,6 +3920,10 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
                 }
                 if(__atomic_load_n(&xz_mods_ram_debug_v1.enabled,__ATOMIC_ACQUIRE))
                     xz_ui_render_ram_debug(pixels,stride,badge_frame_cache.theme,badge_frame_cache.ram_debug&&!badge_frame_cache.metrics_enabled,badge_frame_cache.ram_valid,badge_frame_cache.ram_free_mib);
+                {   /* The REC mark from the cached reading: no seam read while the UI lock is busy. */
+                    struct xz_rec_view v=xz_rec_view_at(&badge_frame_cache.rec,xz_game_milliseconds());
+                    xz_rec_band_draw(pixels,stride,badge_frame_cache.theme,badge_frame_cache.vj,&v,&rec_band);
+                }
                 drawn=1;
             }
             if(__atomic_load_n(&xz_mods_key_feedback_proof_v1.enabled,__ATOMIC_ACQUIRE))
@@ -3713,20 +3938,23 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
     model.ram_asset_bytes=ram_usage.assets_pending+ram_usage.assets_held;
     /* Between shell frames there is nothing to refresh or draw; the receiver keeps the last frame. */
     int shell_path=xz_shell_runtime_frame&&shell_owns_locked();
+    if(full_only&&(!shell_path||play_key.open||touch.visible||takeover_on_screen())){pthread_mutex_unlock(&ui_mutex);return 0;}
     if(!play_key_source_valid_locked()){
         play_key.open=0;play_key_dirty=1;__atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);
     }
     if(shell_path){classic_keys.shown=classic_keys.painted=0;__atomic_store_n(&classic_key_visible,0,__ATOMIC_RELEASE);}
     if(shell_path&&!play_key.open&&!play_key_dirty&&xz_shell_runtime_idle&&xz_shell_runtime_idle()){pthread_mutex_unlock(&ui_mutex);return 0;}
-    /* The shell draws from its own model and reads only the key snapshots from this one, so while it
-       owns the screen the UI model refreshes at 10 Hz instead of on every 60 Hz frame. */
+    /* MODERN requests the broad model on the native event owner, then renders its
+       copied input. Missing/stalled owners retain the previous 200 ms refresh bound. */
     {
-        uint32_t now=xz_game_milliseconds();
-        /* While the shell owns the screen: 10 Hz, and not in a frame where the shell refreshes its model
-           (both together could outlast a vblank); never more than 200 ms apart. */
-        uint32_t age=now-shell_ui_refreshed_ms;
-        int due=!shell_ui_refreshed_ms||age>=200u||(age>=100u&&!(xz_shell_runtime_will_refresh&&xz_shell_runtime_will_refresh()));
-        if(!shell_path||due){refresh();shell_ui_refreshed_ms=now?now:1;}
+        uint32_t now=xz_game_milliseconds(),age=now-shell_ui_refreshed_ms;
+        uint32_t owner=__atomic_load_n(&shell_ui_owner_ms,__ATOMIC_ACQUIRE);
+        int owner_stale=!__atomic_load_n(&shell_ui_owner_seen,__ATOMIC_ACQUIRE)||now-owner>=200u;
+        int fallback_due=age>=100u&&!(xz_shell_runtime_will_refresh&&xz_shell_runtime_will_refresh());
+        if(!shell_path||!shell_ui_refreshed_ms||age>=200u||(owner_stale&&fallback_due)){
+            refresh();shell_ui_refreshed_ms=now?now:1;
+            __atomic_store_n(&shell_ui_refresh_pending,0,__ATOMIC_RELEASE);
+        }else if(age>=100u)__atomic_store_n(&shell_ui_refresh_pending,1,__ATOMIC_RELEASE);
     }
     if (connection && connection->version == 1 && connection->size == sizeof(*connection)) {
         memcpy(device_ip, connection->ipv4, sizeof(device_ip)); device_ip[15] = 0;
@@ -3755,7 +3983,7 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
         struct xz_shell_runtime_frame_input in;shell_frame_input_locked(&in);
         shell_input_cache=in;shell_input_cached=1;
         struct xz_play_key key_frame=play_key;struct xz_play_key_view key_view;
-        play_key_view_locked(&key_view);play_key_dirty=0;
+        if(key_frame.open)play_key_view_locked(&key_view);play_key_dirty=0;
         pthread_mutex_unlock(&ui_mutex);
         int drawn=xz_shell_runtime_frame(pixels,stride,&in);
         if(drawn){
@@ -3772,6 +4000,7 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
             }
             return drawn>0;
         }
+        if(full_only)return 0;
         if(pthread_mutex_trylock(&ui_mutex)!=0)return 0;
     }
     int result,shell=0,classic=0;
@@ -3795,7 +4024,7 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
         xz_arcade_proof_v1.live=arcade.live;xz_arcade_proof_v1.deck=arcade.clock_deck;
         xz_arcade_proof_v1.bpm=arcade.bpm;xz_arcade_proof_v1.x=arcade.x;xz_arcade_proof_v1.y=arcade.y;
     }
-    else if (touch.visible) { model.clock_ms = xz_game_milliseconds(); counter_errors_locked(); result = xz_ui_render(&ui, &model, pixels, (size_t)stride * height, stride); }
+    else if (touch.visible) { model.clock_ms = xz_game_milliseconds(); model.recorder = xz_recorder_reading(model.clock_ms); counter_errors_locked(); result = xz_ui_render(&ui, &model, pixels, (size_t)stride * height, stride); }
     else if (xz_shell_runtime_frame&&(shell=xz_shell_runtime_frame(pixels,stride,&shell_input))!=0) result = shell>0;
     else {
         xz_key_frame_cache_store(&key_frame_cache,model.theme,model.key_feedback,takeover_on_screen(),key_strip);
@@ -3831,7 +4060,7 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
 /* The receiver supplies the stock backbuffer before any overlay/suppressed flip.
    A presenter frame can start from video pixels, so its native warning region
    must come from this capture, never from a previously composited mod frame. */
-static pthread_mutex_t stock_counter_mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t stock_counter_mutex=XZ_MUTEX_INITIALIZER;
 static uint16_t stock_counter_pixels[2][XZ_STOCK_COUNTER_W*XZ_STOCK_COUNTER_H];
 static uint32_t stock_counter_cached_ids[2];
 static unsigned stock_counter_valid;
@@ -3848,6 +4077,19 @@ __attribute__((visibility("default"))) void xz_mods_native_frame_v1(const uint16
     }
     pthread_mutex_unlock(&stock_counter_mutex);
 }
+static int render_mods_frame(uint16_t *pixels,uint32_t width,uint32_t height,uint32_t stride,const struct xz_vj_connection_v1 *connection){return render_mods_frame_mode(pixels,width,height,stride,connection,0);}
+__attribute__((visibility("default"))) int xz_mods_pipeline_eligible_v1(void){
+ /* A shell-owned MODERN frame makes stock_dialog_up false by contract; avoid its native poll on the consumer. */
+ return __atomic_load_n(&started,__ATOMIC_ACQUIRE)&&xz_shell_pipeline_allowed&&!__atomic_load_n(&stock_counter_classic,__ATOMIC_ACQUIRE)&&!__atomic_load_n(&visible,__ATOMIC_ACQUIRE)&&!takeover_on_screen()&&!__atomic_load_n(&play_key_visible,__ATOMIC_ACQUIRE)&&!__atomic_load_n(&classic_key_visible,__ATOMIC_ACQUIRE)&&xz_shell_pipeline_allowed();
+}
+__attribute__((visibility("default"))) int xz_mods_pipeline_epoch_v1(uint32_t epoch,int active,int lost){return xz_shell_pipeline_epoch?xz_shell_pipeline_epoch(epoch,active,lost):0;}
+__attribute__((visibility("default"))) int xz_mods_pipeline_prepare_v1(uint16_t *pixels,uint32_t width,uint32_t height,uint32_t stride,const struct xz_vj_connection_v1 *connection,const struct xz_pipeline_request_v1 *request){
+ if(!pixels||width!=800||height!=480||stride<800||stride>16384||!request||request->version!=1||request->size!=sizeof *request||!request->token||!xz_shell_pipeline_begin||!xz_shell_pipeline_end||!xz_mods_pipeline_eligible_v1())return 0;
+ xz_shell_pipeline_begin(request->token,request->epoch,request->target_wall_us);
+ int drawn=render_mods_frame_mode(pixels,width,height,stride,connection,1),staged=xz_shell_pipeline_end();
+ return drawn&&staged&&xz_mods_pipeline_eligible_v1();
+}
+__attribute__((visibility("default"))) int xz_mods_pipeline_accept_v1(uint32_t token,uint32_t epoch,uint64_t mono){return xz_shell_pipeline_accept&&xz_mods_pipeline_eligible_v1()&&xz_shell_pipeline_accept(token,epoch,mono);}
 __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels,uint32_t width,
         uint32_t height,uint32_t stride,const struct xz_vj_connection_v1 *connection){
     if(!__atomic_load_n(&started,__ATOMIC_ACQUIRE))return 0;
@@ -3892,6 +4134,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     settings_usb[0] = 0; settings_pending = settings_created = 0; settings_flash_at = 0;
     memset(&settings_profile,0,sizeof(settings_profile)); settings_slot=-1;
     __atomic_store_n(&profile_slot,~0u,__ATOMIC_RELAXED);
+    receiver_vj_content = (int (*)(void))dlsym(RTLD_DEFAULT, "xz_receiver_vj_content_v1");
     forward_touch = (void (*)(int,int,int))dlsym(RTLD_DEFAULT, "xz_vj_touch_v1");
     if (!forward_touch) { xz_log("UI unavailable: receiver does not expose the optional display bridge"); return -1; }
     if(xz_classic_mixer_runtime_start&&xz_classic_mixer_runtime_start())
@@ -3926,6 +4169,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     master_tempo_down=master_tempo_owned=0;
     model.enabled = xz_runtime_cue_flags();
     if (audio_ready && stems_enabled) model.enabled |= XZ_UI_STEM;
+    tracklist_apply_locked(XZ_RECORDING_TRACKLIST_DEFAULT);
     int restored = 0;
     if (xz_settings_internal_load) {
         struct xz_settings remembered, merged = settings_snapshot(); unsigned present = 0;
@@ -3938,6 +4182,9 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     const char *usb = getenv("XZ_MODS_SETTINGS_USB");
     if(!usb||!usb[0])usb=getenv("XZ_MODS_USB");
     if(usb&&usb[0])settings_restore_usb_locked(usb,restored);
+    if(xz_net_runtime_set_dhcp)xz_net_runtime_set_dhcp(saved_network_dhcp);
+    if(xz_djlink_runtime_set_enabled)xz_djlink_runtime_set_enabled(model.pro_dj_link_decks);
+    if(xz_link_runtime_set_enabled)xz_link_runtime_set_enabled(model.ableton_link);
     settings_readonly = !xz_mods_may_write();
     if (settings_readonly) model.settings_status = "CHANGES LAST UNTIL REBOOT";
     performance_publish_locked();wave_configure();
@@ -3980,7 +4227,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     if (xz_hook_arm(0xe0a50, rekordbox_guard, (void *)uikey_rekordbox_hook, (void **)&stock_uikey_rekordbox) != 0)
         xz_log("Source key REKORDBOX hook unavailable");
     settings_running = 1;
-    if (pthread_create(&settings_thread,NULL,settings_writer,NULL)) {
+    if (XZ_WORKER_CREATE(&settings_thread,settings_writer,NULL)) {
         settings_running = 0; model.settings_status = "SETTINGS SAVE UNAVAILABLE";
     } else settings_created=1;
     if(xz_dj_runtime_start&&!xz_dj_runtime_start(&ui_mutex,&dj_view))model.dj=&dj_view;
@@ -4022,6 +4269,8 @@ void xz_ui_runtime_stop(void) {
     xz_native_skin_stop();
     xz_native_led_stop();
     __atomic_store_n(&started, 0, __ATOMIC_RELEASE);
+    __atomic_store_n(&shell_ui_owner_seen,0,__ATOMIC_RELEASE);
+    __atomic_store_n(&shell_ui_refresh_pending,0,__ATOMIC_RELEASE);
     __atomic_store_n(&visible, 0, __ATOMIC_RELEASE);
     if(xz_classic_mixer_runtime_stop)xz_classic_mixer_runtime_stop();
     pthread_mutex_lock(&ui_mutex);
@@ -4029,7 +4278,7 @@ void xz_ui_runtime_stop(void) {
     xz_wave_rider_close();arcade_input_publish_locked();
     xz_rhythm_lab_close();arcade_input_publish_locked();
     int join = settings_created; settings_created=0;
-    settings_running = 0; pthread_cond_signal(&settings_changed);
+    settings_running = 0; xz_wake_set(&settings_changed);
     int dj = model.dj!=NULL; model.dj=NULL; ui.profile_open=0;
     pthread_mutex_unlock(&ui_mutex);
     if (join) pthread_join(settings_thread,NULL);

@@ -25,7 +25,11 @@
     50,
     56,
     57,
-    58
+    58,
+    59,
+    60,
+    61,
+    62
   ],
   "fields": [
     {
@@ -1577,6 +1581,56 @@
       "max": 14,
       "kind": "number",
       "readonly": false
+    },
+    {
+      "key": "network_dhcp",
+      "label": "DHCP on at startup",
+      "group": "advanced",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "pro_dj_link_decks",
+      "label": "PRO DJ LINK DECKS 3/4",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "ableton_link",
+      "label": "ABLETON LINK",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "DISABLED"
+        },
+        {
+          "value": 1,
+          "label": "ENABLED / SESSION FOLLOWS THIS UNIT'S TEMPO MASTER"
+        }
+      ]
+    },
+    {
+      "key": "recording_tracklist",
+      "label": "RECORDING TRACKLIST",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
     }
   ],
   "wire_order": [
@@ -1637,7 +1691,11 @@
     "usb_colors",
     "hidden_parts",
     "modern_browse_columns",
-    "controller_locale"
+    "controller_locale",
+    "network_dhcp",
+    "pro_dj_link_decks",
+    "ableton_link",
+    "recording_tracklist"
   ],
   "retired_fields": {
     "jump_shift_page": {

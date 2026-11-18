@@ -11,6 +11,7 @@
 #include "shell_settings.h"
 #include "shell_help.h"
 #include "shell_browse.h"
+#include "../ui/tempo_text.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -392,6 +393,7 @@ static void render_mini_overview(const struct xz_shell *u, const struct xz_shell
  int loaded=sh_has(d,XZ_SHELL_F_LOADED)&&d->loaded;
  int32_t e=loaded?xz_shell_elapsed_now(m,deck):-1;
  int ph=e>=0&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0?r.x+(int)((int64_t)e*(r.w-1)/d->total_ms):-1;
+ if(ph>=0&&deck<2){int64_t us=(int64_t)(xz_shell_elapsed_precise(m,deck)*1000+.5);if(us<0)us=0;ph=r.x+(int)(us*(r.w-1)/((int64_t)d->total_ms*1000));}
  xz_rect(c,r.x,r.y,r.w,r.h,SH_BLACK);
  if(loaded)sh_deck_overview(c,(struct xz_shell_rect){r.x,r.y,r.w,r.h-1},u,m,d,ph);
  xz_rect(c,r.x,r.y+r.h-1,r.w,1,SH_RAIL);
@@ -431,11 +433,8 @@ static void render_status_deck(const struct xz_shell *u, const struct xz_shell_m
   int rw=sh_text_width(s,text,SH_SMALL)+8;
   xz_rect(s,tx,7,rw,13,SH_RED);sh_text(s,tx+4,9,text,SH_SMALL,SH_WHITE);
  }
- if(sh_has(d,XZ_SHELL_F_TEMPO)){
-  int32_t t=d->tempo_x100,a=t<0?-t:t;
-  if(a>9999)a=9999;
-  snprintf(text,sizeof text,"%s%d.%02d",t>0?"+":t<0?"-":"",(int)(a/100),(int)(a%100));
- }else snprintf(text,sizeof text,"--.--");
+ if(sh_has(d,XZ_SHELL_F_TEMPO))xz_tempo_text(text,sizeof text,d->tempo_x100,sh_has(d,XZ_SHELL_F_TEMPO_RANGE),d->tempo_range);
+ else snprintf(text,sizeof text,"--.--");
  int known_tempo=sh_has(d,XZ_SHELL_F_TEMPO),pw=sh_text_width(s,"%",SH_SMALL);
  char shown_tempo[32];int tw=fit(text,SH_TEXT,bx-6-tx-pw-2,shown_tempo,sizeof shown_tempo);
  sh_text(s,tx,27,shown_tempo,SH_TEXT,known_tempo?SH_WHITE:SH_DIM);

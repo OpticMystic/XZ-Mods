@@ -27,7 +27,12 @@ struct xz_anlz_extra {
  struct xz_extra_cue hot_cue[XZ_EXTRA_HOT_CUES];
  struct xz_extra_beat *grid; uint32_t grid_count; int32_t grid_bpm_x100;
 };
-/* Reads dir/ANLZ0000.EXT for hot cues, falling back to dir/ANLZ0000.DAT, and the DAT's grid. Worker
+/* dir names a track's analysis either as its folder (files ANLZ0000.*) or as the analysis file without its
+   extension (".../ANLZ0000"); both forms reach the players. xz_anlz_named: 1 for the second form.
+   xz_anlz_file: the path of that analysis file with the given extension ("DAT", "EXT", "2EX"); 1 = written. */
+int xz_anlz_named(const char *dir);
+int xz_anlz_file(char *out, size_t cap, const char *dir, const char *extension);
+/* Reads the track's .EXT for hot cues, falling back to its .DAT, and the DAT's grid. Worker
    thread only (file IO). Always fills *out; missing parts stay empty. */
 void xz_anlz_extra_load(const char *dir, struct xz_anlz_extra *out);
 void xz_anlz_extra_free(struct xz_anlz_extra *);

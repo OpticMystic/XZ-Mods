@@ -161,6 +161,41 @@ class LayoutTests(unittest.TestCase):
             writer.check_waveform(output / "stems-drums-waveform.2EX", fixture.FRAMES + 640)
 
 
+class SampleRateTests(unittest.TestCase):
+    """44.1 kHz roles draw the same 150-columns-per-second waveforms as 96 kHz roles of the same audio."""
+
+    @staticmethod
+    def three_bands(rate, seconds=3):
+        t = np.arange(rate * seconds) / rate
+        return stereo(0.3 * (np.sin(2 * np.pi * 60 * t) + np.sin(2 * np.pi * 1000 * t) + np.sin(2 * np.pi * 10000 * t)))
+
+    def test_44k1_columns_match_96k_for_the_same_audio(self):
+        self.assertEqual((waves.column_frames(44100), writer.waveform_column_frames(44100)), (294, 294))
+        self.assertEqual((waves.column_frames(96000), writer.waveform_column_frames(96000)), (640, 640))
+        results = {rate: waves.analyse(self.three_bands(rate), 1 / 65536, rate) for rate in (44100, 96000)}
+        (detail_44, overview_44), (detail_96, overview_96) = results[44100], results[96000]
+        self.assertEqual((len(detail_44), len(detail_96)), (450, 450))
+        expected = round(0.3 * waves.DETAIL_FULL)
+        for band in range(3):
+            self.assertTrue((abs(detail_44[INTERIOR, band].astype(int) - expected) <= 1).all(), band)
+        self.assertLessEqual(int(np.abs(detail_44[INTERIOR].astype(int) - detail_96[INTERIOR]).max()), 1)
+        self.assertLessEqual(int(np.abs(overview_44[INTERIOR].astype(int) - overview_96[INTERIOR]).max()), 1)
+
+    def test_44k1_files_pass_the_writer_check_only_at_their_rate(self):
+        with tempfile.TemporaryDirectory() as temp:
+            pcm = self.three_bands(44100, seconds=2)[:88200 - 5]
+            waves.write({stem: pcm for stem in waves.STEMS}, 1.0, Path(temp), 44100)
+            for name in writer.WAVEFORM_FILES:
+                self.assertEqual(writer.check_waveform(Path(temp) / name, len(pcm), 44100)["columns"], 300)
+                with self.assertRaises(ValueError):
+                    writer.check_waveform(Path(temp) / name, len(pcm))
+            self.assertTrue(writer.waveforms_present(Path(temp), len(pcm), 44100))
+            self.assertFalse(writer.waveforms_present(Path(temp), len(pcm)))
+            self.assertEqual(sum(p.stat().st_size for p in Path(temp).iterdir()), waves.bytes_for_frames(len(pcm), 44100))
+        with self.assertRaises(ValueError):
+            waves.columns(100, 48000)
+
+
 class WriterTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

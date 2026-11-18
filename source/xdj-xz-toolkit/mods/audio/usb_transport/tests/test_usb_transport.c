@@ -192,6 +192,9 @@ static void test_clock_position_and_failure(void) {
     assert(t->live.deck[0].completed_frames == 256 && t->live.deck[0].source_after_completed == 96000);
     publish(t, 0); xz_usb_position position;
     assert(xz_usb_transport_position(t, &position) == XZ_USB_OK && position.deck[0].completed_frames == 256);
+    assert(position.wire_observed_at_us == t->last_output && position.wire_observed_at_us);
+    uint64_t stamp=position.wire_observed_at_us;f.time+=10000;
+    assert(xz_usb_transport_position(t,&position)==XZ_USB_OK&&position.wire_observed_at_us==stamp);
     pthread_mutex_lock(&t->snapshot_lock);
     assert(xz_usb_transport_position(t, &position) == XZ_USB_AGAIN && position.state == XZ_USB_RUNNING);
     publish(t, 0); /* writer also never waits for this lock */

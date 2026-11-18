@@ -12,24 +12,36 @@
 #ifdef NDEBUG
 #error Assertions required
 #endif
+static const char *test_interface="fixture0";
 struct fake {
     struct xz_net_snapshot state;
     uint64_t ms;
-    int adds,deletes,routes,child,starts,stops,polls,route_exists,fail_route,fail_delete,change_native,no_lease,hold,fail_inventory,ack_timeout,renew;
+    int adds,deletes,routes,child,starts,stops,polls,route_exists,fail_route,fail_delete,change_native,no_lease,hold,fail_inventory,ack_timeout,renew,slow_inventory;
     struct xz_net_ipv4 gateway;
     unsigned metric;
 };
 int __real_clock_gettime(clockid_t,struct timespec *);
 int __wrap_clock_gettime(clockid_t clock,struct timespec *out){assert(clock==CLOCK_MONOTONIC);return __real_clock_gettime(clock,out);}
 long __real_syscall(long,...);
-long __wrap_syscall(long number,...){assert(number==SYS_clock_gettime);va_list ap;va_start(ap,number);int clock=va_arg(ap,int);void *out=va_arg(ap,void *);va_end(ap);assert(clock==CLOCK_MONOTONIC);return __real_syscall(number,clock,out);}
+long __wrap_syscall(long number,...){
+    va_list ap;va_start(ap,number);
+    if(number==SYS_futex){
+        /* xz_wake (the worker's wake-up): private wait with a relative limit, which the kernel measures on the
+           monotonic clock, or private wake. Nothing else. */
+        void *word=va_arg(ap,void *);int op=va_arg(ap,int);unsigned value=va_arg(ap,unsigned);void *limit=va_arg(ap,void *);va_end(ap);
+        assert(op==128||op==129);assert(op==129||limit);
+        return __real_syscall(number,word,op,value,limit,NULL,0);
+    }
+    assert(number==SYS_clock_gettime);int clock=va_arg(ap,int);void *out=va_arg(ap,void *);va_end(ap);assert(clock==CLOCK_MONOTONIC);return __real_syscall(number,clock,out);}
 static uint64_t clock_ms(void *p){return __atomic_load_n(&((struct fake *)p)->ms,__ATOMIC_ACQUIRE);}
 static enum xz_net_result inventory(void *p,const struct xz_net_control *c,struct xz_net_snapshot *out,struct xz_net_error *e){
-    (void)c;(void)e;struct fake *f=p;if(__atomic_exchange_n(&f->fail_inventory,0,__ATOMIC_ACQ_REL))return XZ_NET_NEEDS_BACKEND;
+    (void)e;struct fake *f=p;if(__atomic_exchange_n(&f->fail_inventory,0,__ATOMIC_ACQ_REL))return XZ_NET_NEEDS_BACKEND;
+    /* A worker that was kept waiting: the read takes this long on the clock, and the OS boundary reports its deadline. */
+    int slow=__atomic_load_n(&f->slow_inventory,__ATOMIC_ACQUIRE);if(slow){__atomic_add_fetch(&f->ms,(uint64_t)slow,__ATOMIC_RELAXED);if(xz_net_control_expired(c))return XZ_NET_TIMEOUT;}
     *out=f->state;out->adapter[0].owned_dhcp_enabled=f->child?XZ_NET_YES:XZ_NET_NO;return XZ_NET_OK;
 }
 static enum xz_net_result address(void *p,int add,const struct xz_net_identity *id,const struct xz_net_address *a,const struct xz_net_control *c){
-    (void)c;struct fake *f=p;assert(!strcmp(id->name,"fixture0"));struct xz_net_adapter *s=&f->state.adapter[0];
+    (void)c;struct fake *f=p;assert(!strcmp(id->name,test_interface));struct xz_net_adapter *s=&f->state.adapter[0];
     if(add){for(unsigned i=0;i<s->address_count;i++)if(!memcmp(s->address[i].ip.octet,a->ip.octet,4))return XZ_NET_CONFLICT;assert(s->address_count<4);s->address[s->address_count++]=*a;f->adds++;if(f->change_native)s->address[0].ip.octet[3]=77;if(f->ack_timeout)return XZ_NET_TIMEOUT;}
     else{if(f->fail_delete)return XZ_NET_VERIFY_FAILED;int found=0;for(unsigned i=0;i<s->address_count;i++)if(s->address[i].prefix==a->prefix&&!memcmp(s->address[i].ip.octet,a->ip.octet,4)){memmove(s->address+i,s->address+i+1,(s->address_count-i-1)*sizeof *s->address);memset(&s->address[--s->address_count],0,sizeof *s->address);found=1;break;}assert(found);f->deletes++;}return XZ_NET_OK;
 }
@@ -37,14 +49,14 @@ static enum xz_net_result route(void *p,int add,const struct xz_net_identity *id
     (void)id;(void)c;struct fake *f=p;if(f->fail_route)return XZ_NET_VERIFY_FAILED;f->routes++;f->route_exists=add;f->gateway=gateway;f->metric=metric;return XZ_NET_OK;
 }
 static int route_present(void *p,const struct xz_net_identity *id,struct xz_net_ipv4 gateway,unsigned metric){(void)id;struct fake *f=p;return f->route_exists&&metric==f->metric&&!memcmp(gateway.octet,f->gateway.octet,4);}
-static enum xz_net_result start(void *p,const struct xz_net_identity *id,uint64_t *token,const struct xz_net_control *c){(void)c;assert(!strcmp(id->name,"fixture0"));struct fake *f=p;assert(!f->child);f->child=1;f->starts++;*token=123;return XZ_NET_OK;}
+static enum xz_net_result start(void *p,const struct xz_net_identity *id,uint64_t *token,const struct xz_net_control *c){(void)c;assert(!strcmp(id->name,test_interface));struct fake *f=p;assert(!f->child);f->child=1;f->starts++;*token=123;return XZ_NET_OK;}
 static enum xz_net_result poll_client(void *p,uint64_t token,struct xz_net_lease *lease,unsigned wait,const struct xz_net_control *c){
     (void)c;struct fake *f=p;assert(token==123);f->polls++;
     if(__atomic_load_n(&f->hold,__ATOMIC_ACQUIRE)){struct timespec t={0,1000000};nanosleep(&t,NULL);return XZ_NET_PENDING;}
     __atomic_add_fetch(&f->ms,wait?wait:1,__ATOMIC_RELAXED);
     int renew=__atomic_exchange_n(&f->renew,0,__ATOMIC_ACQ_REL);
     if(!renew&&(f->no_lease||f->polls>1))return XZ_NET_PENDING;
-    memset(lease,0,sizeof *lease);lease->kind=renew?XZ_NET_LEASE_RENEW:XZ_NET_LEASE_BOUND;strcpy(lease->interface,"fixture0");lease->address.prefix=24;assert(!xz_net_parse_ipv4(renew?"192.0.2.81":"192.0.2.80",&lease->address.ip));lease->seconds=3600;return XZ_NET_OK;
+    memset(lease,0,sizeof *lease);lease->kind=renew?XZ_NET_LEASE_RENEW:XZ_NET_LEASE_BOUND;strcpy(lease->interface,test_interface);lease->address.prefix=24;assert(!xz_net_parse_ipv4(renew?"192.0.2.81":"192.0.2.80",&lease->address.ip));lease->seconds=3600;return XZ_NET_OK;
 }
 static enum xz_net_result stop(void *p,uint64_t token,const struct xz_net_control *c){(void)c;struct fake *f=p;assert(token==123);f->child=0;f->stops++;return XZ_NET_OK;}
 static void init(struct fake *f){
@@ -73,7 +85,7 @@ static void scenario(unsigned which){
     struct xz_net_linux_io io={&f,clock_ms,inventory,address,route,route_present,start,poll_client,stop};struct xz_net_linux *linux;struct xz_net_backend b;assert(!xz_net_linux_create(&linux,&b,&io));
     struct xz_net_service *service;assert(!xz_net_service_start(&service,&b));assert(!f.adds&&!f.starts);
     struct xz_net_command c={.kind=XZ_NET_CMD_DETECT,.request_id=1};submit(service,&c);struct xz_net_view v=wait_request(service,1);assert(v.actual.count==2&&!f.adds&&!f.starts);assert(v.actual.adapter[0].dhcp_enabled==XZ_NET_UNKNOWN);
-    c=(struct xz_net_command){.kind=XZ_NET_CMD_APPLY_TRIAL,.request_id=2};c.body.apply=trial(&v,which==3||which==4||which==6||which==7||which==8||which==9||which==13?XZ_NET_DHCP:XZ_NET_STATIC);
+    c=(struct xz_net_command){.kind=XZ_NET_CMD_APPLY_TRIAL,.request_id=2};c.body.apply=trial(&v,which==3||which==4||which==6||which==7||which==8||which==9||which==13||which==14?XZ_NET_DHCP:XZ_NET_STATIC);
     if(which==12){struct xz_net_preference swap=c.body.apply.policy.order[0];c.body.apply.policy.order[0]=c.body.apply.policy.order[1];c.body.apply.policy.order[1]=swap;}
     if(which==1)c.body.apply.policy.order[0].static_ip.gateway_mode=XZ_NET_GATEWAY_SET,assert(!xz_net_parse_ipv4("192.0.2.1",&c.body.apply.policy.order[0].static_ip.gateway));
     if(which==7)__atomic_store_n(&f.hold,1,__ATOMIC_RELEASE);
@@ -90,6 +102,17 @@ static void scenario(unsigned which){
         assert(v.applied_known&&v.advertised.ip.octet[3]==80);__atomic_store_n(&f.renew,1,__ATOMIC_RELEASE);
         for(unsigned i=0;i<2000;i++){if(!xz_net_service_try_read(service,&v)&&v.advertised.ip.octet[3]==81)break;struct timespec t={0,1000000};nanosleep(&t,NULL);}assert(v.applied_known&&v.advertised.ip.octet[3]==81&&f.adds==2&&f.deletes==1);
         c=(struct xz_net_command){.kind=XZ_NET_CMD_REVERT,.request_id=3,.body.trial_id=2};submit(service,&c);v=wait_request(service,3);assert(v.result==XZ_NET_ROLLED_BACK&&f.deletes==2&&f.stops==1);
+    }else if(which==14){
+        /* Four decks loading keep this normal-priority worker waiting, so its once-a-second look at the interfaces
+           runs past its 250 ms. Late is not lost: the owned client, its address and the trial stay. */
+        assert(v.result==XZ_NET_OK&&v.applied_known&&f.child&&f.starts==1&&f.state.adapter[0].address_count==2);
+        __atomic_store_n(&f.slow_inventory,400,__ATOMIC_RELEASE);
+        for(unsigned round=0;round<6;round++){__atomic_add_fetch(&f.ms,6000,__ATOMIC_RELEASE);struct timespec t={0,150000000};nanosleep(&t,NULL);}
+        assert(!xz_net_service_try_read(service,&v));assert(v.applied_known&&f.child&&f.starts==1&&!f.stops&&f.state.adapter[0].address_count==2);
+        /* A lease that really ran out is still given up, late check or not. */
+        __atomic_add_fetch(&f.ms,3600u*1000u+6000u,__ATOMIC_RELEASE);
+        for(unsigned i=0;i<2000;i++){if(!xz_net_service_try_read(service,&v)&&!v.applied_known&&v.phase==XZ_NET_FAILED)break;struct timespec t={0,1000000};nanosleep(&t,NULL);}
+        assert(!v.applied_known&&v.phase==XZ_NET_FAILED&&v.result==XZ_NET_TIMEOUT&&!f.child&&f.stops==1&&f.state.adapter[0].address_count==1);
     }else if(which==10){
         assert(v.result==XZ_NET_ROLLBACK_FAILED&&v.rollback_available&&f.adds==1&&!f.deletes&&f.state.adapter[0].address_count==2);
         f.state.adapter[0].address_count=1;memset(&f.state.adapter[0].address[1],0,sizeof f.state.adapter[0].address[1]);
@@ -121,4 +144,27 @@ static void validation(void){
     struct xz_net_identity id={.name="-bad",.ifindex=1,.identity_epoch=1};assert(xz_net_validate_identity(&id));strcpy(id.name,"a;reboot");assert(xz_net_validate_identity(&id));
     struct xz_net_lease l={.kind=XZ_NET_LEASE_BOUND,.interface="fixture0",.address={.ip={{192,0,2,55}},.prefix=24},.seconds=100};unsigned char wire[64];assert(!xz_net_lease_encode(&l,wire));struct xz_net_lease b;assert(!xz_net_lease_decode(wire,&b));wire[63]=1;assert(xz_net_lease_decode(wire,&b));
 }
-int main(void){validation();for(unsigned i=0;i<14;i++)scenario(i);puts("PASS real service/Linux backend: additive apply, priority advertisement, native preservation/conflict, conditional rollback failure/retry, lost ACK retained truthfully, DHCP lease/renewal/timeout/missing client, periodic stale-state invalidation, failed live VERIFY/DETECT cleanup, reserved cancellation, monotonic waits, strict boundaries");}
+static void automatic(void){
+    struct fake f;init(&f);f.no_lease=1;test_interface="eth0";strcpy(f.state.adapter[0].id.name,test_interface);
+    struct xz_net_linux_io io={&f,clock_ms,inventory,address,route,route_present,start,poll_client,stop};
+    struct xz_net_linux *linux;struct xz_net_backend backend;assert(!xz_net_linux_create(&linux,&backend,&io));
+    struct xz_net_service *service;assert(!xz_net_service_start(&service,&backend));
+    xz_net_service_set_dhcp(service,1);
+    struct xz_net_view v=wait_request(service,(UINT64_C(1)<<63)+1);
+    assert(!v.applied_known&&!f.adds&&f.starts==1&&f.stops==1&&f.state.adapter[0].address_count==1);
+    /* No server leaves baseline intact, then backoff retries through the same transaction. */
+    f.no_lease=0;f.polls=0;__atomic_add_fetch(&f.ms,61000,__ATOMIC_RELEASE);
+    v=wait_request(service,(UINT64_C(1)<<63)+2);
+    assert(v.applied_known&&f.adds==1&&f.starts==2&&f.state.adapter[0].address_count==2);
+    xz_net_service_set_dhcp(service,0);v=wait_request(service,(UINT64_C(1)<<63)+3);
+    assert(!v.applied_known&&f.stops==2&&f.deletes==1&&f.state.adapter[0].address_count==1);
+    __atomic_store_n(&f.hold,1,__ATOMIC_RELEASE);xz_net_service_set_dhcp(service,1);
+    for(unsigned i=0;i<2000;i++){if(!xz_net_service_try_read(service,&v)&&v.phase==XZ_NET_APPLYING)break;struct timespec pause={0,1000000};nanosleep(&pause,NULL);}
+    assert(v.phase==XZ_NET_APPLYING);xz_net_service_set_dhcp(service,0);
+    v=wait_request(service,(UINT64_C(1)<<63)+4);assert(!v.applied_known);
+    __atomic_store_n(&f.hold,0,__ATOMIC_RELEASE);f.polls=0;xz_net_service_set_dhcp(service,1);
+    v=wait_request(service,(UINT64_C(1)<<63)+5);assert(v.applied_known);
+    xz_net_service_set_dhcp(service,0);v=wait_request(service,(UINT64_C(1)<<63)+6);assert(!v.applied_known);
+    assert(!xz_net_service_stop(service,clock_ms(&f)+10000));xz_net_linux_destroy(linux);test_interface="fixture0";
+}
+int main(void){automatic();validation();for(unsigned i=0;i<15;i++)scenario(i);puts("PASS real service/Linux backend: additive apply, priority advertisement, native preservation/conflict, conditional rollback failure/retry, lost ACK retained truthfully, DHCP lease/renewal/timeout/missing client, periodic stale-state invalidation, a late periodic check keeps the lease and an expired lease is given up, failed live VERIFY/DETECT cleanup, reserved cancellation, monotonic waits, strict boundaries");}

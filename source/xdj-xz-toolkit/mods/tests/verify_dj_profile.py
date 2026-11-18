@@ -37,7 +37,21 @@ OLD_FIXTURES = first([ROOT.parents[1] / 'creative-graph' / 'fixtures' / 'dj-prof
                       ROOT.parent / 'builder' / 'tests' / 'fixtures' / 'dj-profile'], ['cases.json', 'stick-two-profiles'])
 SPEC = first([ROOT.parents[2] / 'spec' / 'djprofile', os.environ.get('XZ_MODS') and Path(os.environ['XZ_MODS']) / 'spec' / 'djprofile',
               ROOT.parents[3] / 'XZ-Mods' / 'spec' / 'djprofile'], ['tools/check_djprofile.py', 'examples'])
-MONOREPO_CASES = ROOT.parents[1] / 'creative-graph' / 'fixtures' / 'dj-profile' / 'v1' / 'cases'
+
+
+def skip_missing_inputs():
+    """Inputs from outside this repository: name them and return 77 ("skipped" for run_all_host.py)."""
+    needs = []
+    if not SPEC:
+        needs.append('spec/djprofile of the main XZ-Mods repository (tools/check_djprofile.py, examples); '
+                     'set XZ_MODS=<that repository>')
+    if not OLD_FIXTURES:
+        needs.append('the pre-1.0 dj-profile fixtures (cases.json, stick-two-profiles) under builder/tests/fixtures')
+    print('SKIPPED: needs ' + '; and '.join(needs))
+    return 77
+
+
+MONOREPO_CASES =ROOT.parents[1] / 'creative-graph' / 'fixtures' / 'dj-profile' / 'v1' / 'cases'
 
 
 def build(name, sources, temporary, extra=()):
@@ -247,8 +261,7 @@ def compare(binary, sticks, check):
 
 def main():
     if not OLD_FIXTURES or not SPEC:
-        print(f'fixtures not found (pre-1.0: {OLD_FIXTURES}, spec: {SPEC})')
-        return 1
+        return skip_missing_inputs()
     with tempfile.TemporaryDirectory(prefix='xz-dj-profile-') as temporary:
         temporary = Path(temporary)
         binary = build('test_dj_profile', ['tests/test_dj_profile.c', *READER], temporary)

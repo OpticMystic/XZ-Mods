@@ -283,6 +283,11 @@ int xz_extra_lamp(const struct xz_extra_deck *d,uint32_t id){
 _Static_assert(sizeof(void*)==4,"XZ LED pointer ABI");
 typedef void (*xz_stock_led_fn)(void *,void *);
 static xz_stock_led_fn original_led;
+/* MASTER/SYNC with DECK 3/4 (../master_lights.h): the UI master number, and records for lit DECK 3/4 lamps. */
+extern int xz_master_lights_start(void) __attribute__((weak));
+extern void xz_master_lights_stop(void) __attribute__((weak));
+extern void xz_master_lights_ui_tick(void) __attribute__((weak));
+extern int xz_master_lights_insert(void *,unsigned,const struct xz_extra_deck *) __attribute__((weak));
 static int enabled;
 /* Bounded diagnostic counters; no input-thread logging or packet retention. */
 __attribute__((visibility("default"))) uint32_t xz_mods_led_trace_v1[12] = {1};
@@ -321,6 +326,7 @@ static void led_hook(void *player,void *packet) {
  memcpy(&innards,(const unsigned char*)player+0x138,4);
  if(!innards||(innards&3)||innards>UINT32_MAX-0x84){TRACE(3);return;}
  if(((const unsigned char*)(uintptr_t)innards)[0x26]!=channel){TRACE(4);return;}
+ if(channel==1&&xz_master_lights_ui_tick)xz_master_lights_ui_tick();
  memcpy(&mode,(const unsigned char*)(uintptr_t)innards+0x80,4);
  xz_ui_runtime_pad_native_page((int)channel-1,mode==0?0:(mode>=2&&mode<=4?(int)mode-1:-1));
  memcpy(&dimmer,p+0,4);memcpy(&now_ms,p+4,4);
@@ -350,6 +356,11 @@ static void led_hook(void *player,void *packet) {
                       :!!(extra.control_revision&(channel==1?1u:2u));
   if(on_extra){
    extra_side=(int)channel-1;color=extra_pad_color;
+   /* A lit DECK 3/4 SYNC or MASTER needs a record even when the stock deck underneath has that lamp off. */
+   if(snap_ok&&xz_master_lights_insert&&xz_master_lights_insert(packet,channel,&extra.deck[extra_side])>0){
+    memcpy(&count,p+8,2);
+    if(count>XZ_LED_MAX_RECORDS||pointer>UINT32_MAX-(uint32_t)count*XZ_LED_RECORD_BYTES)return;
+   }
    if(snap_ok)changed+=xz_native_led_sync_master_apply_at(&sync_master_owner[extra_side],
      (void *)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,count,channel,&extra.deck[extra_side],now_ms);
    changed+=xz_native_led_extra_deck((void*)(uintptr_t)pointer,
@@ -370,7 +381,11 @@ int xz_native_led_start(void) {
   if(xz_read_memory(0x27f074,actual,sizeof(actual))||memcmp(actual,guard,sizeof(guard)))return -1;
   if(xz_hook_slot(0x478d3c,0x27f074,(void*)led_hook,(void**)&original_led))return -1;
  }
+ if(xz_master_lights_start)(void)xz_master_lights_start();
  __atomic_store_n(&enabled,1,__ATOMIC_RELEASE);return 0;
 }
-void xz_native_led_stop(void) {__atomic_store_n(&enabled,0,__ATOMIC_RELEASE);}
+void xz_native_led_stop(void) {
+ __atomic_store_n(&enabled,0,__ATOMIC_RELEASE);
+ if(xz_master_lights_stop)xz_master_lights_stop();
+}
 #endif

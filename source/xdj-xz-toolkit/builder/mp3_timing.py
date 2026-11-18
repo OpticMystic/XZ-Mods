@@ -84,8 +84,12 @@ def probe(path):
     return result
 
 
-def latency_pad_frames(mp3, source_rate, target_rate=96000):
-    """Frames of encoder-side latency at the start of the stored roles, on the 96 kHz timeline."""
+def latency_pad_frames(mp3, source_rate, target_rate):
+    """Frames of encoder-side latency at the start of the stored roles, counted at the roles' rate.
+
+    The helper keeps these decoded frames; nothing is inserted. 96 kHz manifests record this value. The
+    44.1 kHz profile records 0 under ``decoded-timeline/1``, as FORMAT.md defines that field.
+    """
     if not mp3 or not mp3.get('lame_tag'):
         return 0
     return round(int(mp3['delay_frames']) * target_rate / int(source_rate))

@@ -6,6 +6,9 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <pthread.h>
+#include "xz_thread.h"
+#include "xz_mutex.h"
+#include "xz_wake.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -82,17 +85,24 @@ int xz_cues_apply(struct xz_saved_cues *s,const struct xz_cue_edit *e){
 
 struct cue_job {int deck;struct xz_extra_track track;uint64_t generation;int32_t duration;struct xz_saved_cues base;struct xz_cue_edit edit;};
 static struct {
- pthread_mutex_t lock;pthread_cond_t ready;pthread_t thread;int started,quit;
+ /* ready wakes the writer (normal priority). The DECK 3/4 threads enqueue at real-time priority:
+    never a condition variable, see xz_wake.h. */
+ pthread_mutex_t lock;struct xz_wake ready;pthread_t thread;int started,quit;
  struct cue_job queue[CUE_JOBS];unsigned head,count;
  int (*resolve)(int,uint32_t,uint64_t,struct xz_extra_track *);void (*notice)(const char *);
  char root[2][PATH_MAX];
-} writer={.lock=PTHREAD_MUTEX_INITIALIZER,.ready=PTHREAD_COND_INITIALIZER};
+} writer={.lock=XZ_MUTEX_INITIALIZER};
 /* Resolve from an allowed removable-media root, then open each directory without
    following links. The held descriptor pins all subsequent file operations. */
 static int directory(const struct xz_extra_track *t){
  if(t->source<1||t->source>2||!t->anlz_dir[0])return -1;
- char root[PATH_MAX],path[PATH_MAX];
- if(!realpath(writer.root[t->source-1],root)||!realpath(t->anlz_dir,path))return -1;
+ char root[PATH_MAX],path[PATH_MAX],folder[sizeof t->anlz_dir];
+ /* anlz_dir may name the analysis file without its extension (".../ANLZ0000"): its folder is one level up. */
+ snprintf(folder,sizeof folder,"%s",t->anlz_dir);
+ char *base=strrchr(folder,'/');
+ if(base&&strlen(base+1)==8&&!strncmp(base+1,"ANLZ",4)&&base[5]>='0'&&base[5]<='9'&&base[6]>='0'&&base[6]<='9'&&
+    base[7]>='0'&&base[7]<='9'&&base[8]>='0'&&base[8]<='9')*base=0;
+ if(!realpath(writer.root[t->source-1],root)||!realpath(folder,path))return -1;
  size_t length=strlen(root);if(strncmp(path,root,length)||path[length]!='/')return -1;
  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);if(fd<0)return -1;
  char *save=NULL;for(char *part=strtok_r(path+length+1,"/",&save);part;part=strtok_r(NULL,"/",&save)){
@@ -110,7 +120,7 @@ static void *save_worker(void *unused){
  (void)unused;
  for(;;){
   pthread_mutex_lock(&writer.lock);
-  while(!writer.count&&!writer.quit)pthread_cond_wait(&writer.ready,&writer.lock);
+  while(!writer.count&&!writer.quit)xz_wake_wait_locked(&writer.ready,&writer.lock,1000);
   if(!writer.count&&writer.quit){pthread_mutex_unlock(&writer.lock);return NULL;}
   struct cue_job j=writer.queue[writer.head];writer.head=(writer.head+1)%CUE_JOBS;writer.count--;pthread_mutex_unlock(&writer.lock);
   int ok=0;
@@ -129,12 +139,12 @@ int xz_cues_worker_start(int (*resolve)(int,uint32_t,uint64_t,struct xz_extra_tr
  if(writer.started)return 0;
  if(!a||!b||strlen(a)>=PATH_MAX||strlen(b)>=PATH_MAX)return -1;
  strcpy(writer.root[0],a);strcpy(writer.root[1],b);writer.resolve=resolve;writer.notice=notice;writer.quit=0;writer.head=writer.count=0;
- if(pthread_create(&writer.thread,NULL,save_worker,NULL))return -1;
+ if(XZ_WORKER_CREATE(&writer.thread,save_worker,NULL))return -1;
  writer.started=1;return 0;
 }
 void xz_cues_worker_stop(void){
  if(!writer.started)return;
- pthread_mutex_lock(&writer.lock);writer.quit=1;pthread_cond_signal(&writer.ready);pthread_mutex_unlock(&writer.lock);
+ pthread_mutex_lock(&writer.lock);writer.quit=1;pthread_mutex_unlock(&writer.lock);xz_wake_set(&writer.ready);
  pthread_join(writer.thread,NULL);writer.started=0;
 }
 int xz_cues_restore(const struct xz_extra_track *t,uint64_t generation,int32_t duration,struct xz_saved_cues *out){
@@ -146,6 +156,6 @@ int xz_cues_enqueue(int deck,const struct xz_extra_track *t,uint64_t generation,
  if(!writer.started||!generation||!t||!s||!e||!xz_mods_may_write())return 0;
  pthread_mutex_lock(&writer.lock);
  int ok=!writer.quit&&writer.count<CUE_JOBS;
- if(ok){writer.queue[(writer.head+writer.count)%CUE_JOBS]=(struct cue_job){deck,*t,generation,duration,*s,*e};writer.count++;pthread_cond_signal(&writer.ready);}
- pthread_mutex_unlock(&writer.lock);return ok;
+ if(ok){writer.queue[(writer.head+writer.count)%CUE_JOBS]=(struct cue_job){deck,*t,generation,duration,*s,*e};writer.count++;}
+ pthread_mutex_unlock(&writer.lock);if(ok)xz_wake_set(&writer.ready);return ok;
 }

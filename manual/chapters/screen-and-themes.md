@@ -72,8 +72,8 @@ To switch without opening MODS, press the button above [[LINK]]. Out of the box 
 
 ```figure modern:play-full MODERN play screen {modern}
 The MODERN play screen with two decks, 3-BAND waveforms and the playing key shown.
-1 @ 165,34 Mode lamps | SINGLE or CONTINUE, A. HOT CUE and A. CUE. Hide them in LAMPS AND TITLES.
-2 @ 243,300 QUANTIZE lamp | Red while QUANTIZE is on, with its beat value. Hide it in LAMPS AND TITLES.
+1 @ 104,40 Mode lamps | SINGLE or CONTINUE, A. HOT CUE and A. CUE. Hide them in LAMPS AND TITLES.
+2 @ 178,315 QUANTIZE lamp | Red while QUANTIZE is on, with its beat value. Hide it in LAMPS AND TITLES.
 3 @ 70,105 Playing key | The key the track plays in now. ORIGINAL below it is the key it was analysed in.
 4 @ 690,60 Scrolling waveform | Coloured by WAVEFORM COLOURS.
 5 @ 713,34 STEMS and MODS | STEMS steps the stem buttons through their places, or shows and hides them in 4 DECKS. MODS opens the MODS menu.

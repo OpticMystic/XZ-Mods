@@ -70,6 +70,9 @@ def main():
     run([binary, clean, "fuzz"])
     run([binary, corrupt, "corrupt"])
     run([binary, large])
+    saturated = build / "saturated-cache.pdb"
+    saturated.write_bytes(make(metadata_stress=True))
+    run([binary, saturated])
     negative = subprocess.run(list(map(str, common + ["-DNDEBUG", "-c", ROOT / "test_pdb.c", "-o", build / "ndebug.o"])),
                               capture_output=True, text=True)
     assert negative.returncode and "PDB acceptance requires active assertions" in negative.stderr

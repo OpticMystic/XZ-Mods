@@ -2,6 +2,8 @@
 #include "stock_dialog.h"
 #include "runtime.h"
 #include "ui/native_skin_runtime.h"
+#include <pthread.h>
+#include "xz_mutex.h"
 #include <stdio.h>
 #include <string.h>
 #pragma weak xz_native_skin_request_repaint
@@ -55,13 +57,19 @@ unsigned xz_stock_usb_hub_at(xz_stock_dialog_read read,uint32_t text){
    top buttons flickered and the button above LINK went to the player at random). A new window is an ordinary
    window until its text proves the hub warning, as before. Several threads observe; a spin lock guards the pair. */
 static struct { uint32_t window; unsigned hub; } judged[2];
-static unsigned judged_lock;
+/* These two were spinlocks: while(exchange(&lock,1)); with no wait. The display thread reads the window text
+   for every frame at a higher real-time priority than the stock interface thread that writes it. Whenever the
+   reader preempted the writer inside its critical section on the same core, the reader spun for ever, the writer
+   never ran again, and normal-priority kernel work on that core stopped with it: the screen froze and USB
+   removal hung in flush_work. Measured on the unit: display thread 100% in xz_stock_window_text for 11 minutes.
+   A priority-inheriting mutex makes the waiter sleep and lends its priority to the holder. */
+static pthread_mutex_t judged_mutex=XZ_MUTEX_INITIALIZER,window_mutex=XZ_MUTEX_INITIALIZER;
 static unsigned judge(unsigned family,uint32_t window,int seen){
- while(__atomic_exchange_n(&judged_lock,1u,__ATOMIC_ACQUIRE));
+ pthread_mutex_lock(&judged_mutex);
  if(judged[family].window!=window){judged[family].window=window;judged[family].hub=0;}
  if(window&&seen!=TEXT_UNCLEAR)judged[family].hub=(unsigned)seen;
  unsigned hub=judged[family].hub;
- __atomic_store_n(&judged_lock,0u,__ATOMIC_RELEASE);
+ pthread_mutex_unlock(&judged_mutex);
  return hub;
 }
 int xz_stock_dialog_snapshot(xz_stock_dialog_read read,struct xz_stock_dialog_state *s){
@@ -125,7 +133,7 @@ static void unknown(uint32_t id){
 static unsigned shown_hub;
 /* The live window's text, copied under a spin lock: one 64-byte copy each way. A poll that finds the lock taken
    leaves the copy for the next poll. */
-static unsigned window_lock;static char window_text[XZ_STOCK_WINDOW_TEXT];
+static char window_text[XZ_STOCK_WINDOW_TEXT];
 static size_t ascii_text(const uint16_t *u,size_t n,char out[XZ_STOCK_WINDOW_TEXT]){
  size_t k=0;
  for(size_t i=0;i<n&&u[i]&&k<XZ_STOCK_WINDOW_TEXT-1;i++){
@@ -143,17 +151,17 @@ static void publish_window(const struct xz_stock_dialog_state *s){
   if(!s->text_at||xz_read_memory(s->text_at,a,sizeof a)||xz_read_memory(s->text_at,b,sizeof b)||memcmp(a,b,sizeof a)||!ascii_text(a,32,t))
    snprintf(t,sizeof t,"%s",XZ_STOCK_WINDOW_UNREAD);
  }
- if(__atomic_exchange_n(&window_lock,1u,__ATOMIC_ACQUIRE))return;
+ if(pthread_mutex_trylock(&window_mutex))return;
  int changed=strcmp(window_text,t)!=0;
  if(changed)memcpy(window_text,t,sizeof t);
- __atomic_store_n(&window_lock,0u,__ATOMIC_RELEASE);
+ pthread_mutex_unlock(&window_mutex);
  void (*log)(const char*)=xz_log;
  if(changed&&log){char line[120];snprintf(line,sizeof line,"STOCK_DIALOG: window %s; shown by mods",t[0]?t:"cleared");log(line);}
 }
 size_t xz_stock_window_text(char out[XZ_STOCK_WINDOW_TEXT]){
- while(__atomic_exchange_n(&window_lock,1u,__ATOMIC_ACQUIRE));
+ pthread_mutex_lock(&window_mutex);
  memcpy(out,window_text,XZ_STOCK_WINDOW_TEXT);
- __atomic_store_n(&window_lock,0u,__ATOMIC_RELEASE);
+ pthread_mutex_unlock(&window_mutex);
  out[XZ_STOCK_WINDOW_TEXT-1]=0;return strlen(out);
 }
 static struct xz_stock_dialog_state poll_state(void){

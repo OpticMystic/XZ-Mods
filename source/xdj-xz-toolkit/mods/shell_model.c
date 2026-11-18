@@ -58,7 +58,7 @@ struct xz_shell_model_storage {
     struct deck_storage deck[XZ_SHELL_NATIVE_DECKS];
     uint32_t caution, guard_failures[4], fx_failures, holds;
     /* Code bytes never change once they matched, so a verified guard is not read again. */
-    unsigned guard_ok, fx_guard_ok, slip_guard_ok;
+    unsigned guard_ok, fx_guard_ok, slip_guard_ok, loop_edit_guard_ok;
     unsigned char fx_raw[12];int fx_raw_ok;
 };
 struct native_deck { unsigned char frame[FRAME_BYTES], total[TOTAL_BYTES]; };
@@ -131,13 +131,14 @@ static int settings_head(xz_shell_read_fn read,uint32_t head[3]){
         word(read,head[0]+0x164,head+1)&&word(read,head[0]+0x16c,head+2)&&
         head[2]<=SETTINGS_CAP&&(!head[2]||pointer(head[1],(size_t)head[2]*0x8c));
 }
-/* Reads the list in bulk, SETTINGS_CHUNK entries per read, each chunk twice: about 2 * n/29 reads
-   instead of 2 * n word reads (each read is one pread of /proc/self/mem on the deck). */
+/* Each pass snapshots only semantic id/value pairs. settings() compares two complete
+   passes and brackets their root/list/count, so unrelated entry padding is not a
+   stability condition. No storage is retained across refreshes. */
 static int settings_pass(xz_shell_read_fn read,uint32_t list,uint32_t n,struct setting_pair *out){
-    unsigned char a[SETTINGS_CHUNK*SETTING_BYTES],b[SETTINGS_CHUNK*SETTING_BYTES];
+    unsigned char a[SETTINGS_CHUNK*SETTING_BYTES];
     for(uint32_t first=0;first<n;first+=SETTINGS_CHUNK){
         uint32_t count=n-first<SETTINGS_CHUNK?n-first:SETTINGS_CHUNK;size_t length=(size_t)count*SETTING_BYTES;
-        if(!stable(read,list+first*SETTING_BYTES,a,b,length))return 0;
+        if(!bytes(read,list+first*SETTING_BYTES,a,length))return 0;
         for(uint32_t i=0;i<count;i++){out[first+i].id=u32(a+i*SETTING_BYTES);out[first+i].value=u32(a+i*SETTING_BYTES+0x88);}
     }
     return 1;
@@ -178,10 +179,38 @@ static void slip_fields(struct xz_shell_deck *d,const struct native_deck *n,uint
     uint32_t ghost=u32(f+0x258);
     if(d->slip&&(f[0x3c]&8)&&ghost<=INT32_MAX){d->slip_ms=(int32_t)ghost;d->slip_at_ms=now_ms?now_ms:1;d->known|=K(SLIP_POSITION);}
 }
+/* LOOP IN / OUT ADJUST (XZ manual pp.47-48) from the same per-deck frame, at the bytes the stock getters read:
+   StatWatcher::getPlayLoopInAdjustOn 0x249ad0 (+0x2e bit 3), getPlayLoopOutAdjustOn 0x249b1c (+0x2e bit 4) and
+   getPlayAdjustTime 0x249a44 (+0x10). PlayerInnards::getStat 0x28a378 fills the bits from DjEngineIF::
+   isLoopInAdjustMode / isLoopOutAdjustMode and +0x10 from getLoopAdjustTime: the point under the jog in ms
+   (PlayEngine::getLoopAdjustTime 0x4ad50 scales the sample position by 1000/44100). The stock main display shows
+   that time while either bit is set (ComputeDispTime 0xee82c), and its 10 s LoopAdjustTimer ends adjustment on
+   the same bits. The guard is each getter's load. */
+static const struct { uint32_t at; unsigned char code[16]; } loop_edit_loads[3]={
+    {0x249b04,{0x2e,0x00,0xd3,0xe5,0xd0,0x01,0xe0,0xe7,0x1e,0xff,0x2f,0xe1,0x2e,0x00,0xd0,0xe5}},
+    {0x249b50,{0x2e,0x00,0xd3,0xe5,0x50,0x02,0xe0,0xe7,0x1e,0xff,0x2f,0xe1,0x2e,0x00,0xd0,0xe5}},
+    {0x249a60,{0x00,0x00,0x51,0xe3,0x10,0x00,0x93,0x05,0x1e,0xff,0x2f,0x01,0x01,0x00,0x51,0xe3}}};
+static int loop_edit_guards(xz_shell_read_fn read){
+    unsigned char b[16];
+    for(unsigned i=0;i<3;i++)if(!bytes(read,loop_edit_loads[i].at,b,16)||memcmp(b,loop_edit_loads[i].code,16))return 0;
+    return 1;
+}
+/* One edge at a time; both bits, or a time past the int range, publish nothing. The loop's edge follows the
+   moving point at once, so the band and the focus never disagree while the jog turns. */
+static void loop_edit_fields(struct xz_shell_deck *d,const struct native_deck *n){
+    const unsigned char *f=n->frame;unsigned bits=f[0x2e]&0x18u;uint32_t at=u32(f+0x10);
+    if((bits!=0x08u&&bits!=0x10u)||at>INT32_MAX)return;
+    d->loop_edit.endpoint=bits==0x10u;d->loop_edit.ms=(int32_t)at;d->known|=K(LOOP_EDIT);
+    if((d->known&K(LOOP))&&d->loop.active){
+        if(!d->loop_edit.endpoint&&d->loop_edit.ms<d->loop.out_ms)d->loop.in_ms=d->loop_edit.ms;
+        if(d->loop_edit.endpoint&&d->loop_edit.ms>d->loop.in_ms)d->loop.out_ms=d->loop_edit.ms;
+    }
+}
 static void frame_fields(struct xz_shell_deck *d,struct deck_storage *storage,const struct native_deck *n,uint32_t now_ms){
     const unsigned char *f=n->frame;uint32_t value;
     value=u32(f+8);if(value<=INT32_MAX){d->total_ms=(int32_t)value;d->known|=K(TOTAL);}
-    value=u32(f+0xc);if(value<=INT32_MAX){d->elapsed_ms=(int32_t)value;d->elapsed_at_ms=now_ms?now_ms:1;d->known|=K(ELAPSED);}
+    int32_t elapsed;memcpy(&elapsed,f+0xc,sizeof elapsed);
+    if(elapsed>=-XZ_SHELL_PREROLL_LIMIT_MS){d->elapsed_ms=elapsed;d->elapsed_at_ms=now_ms?now_ms:1;d->known|=K(ELAPSED);}
     value=u32(f+0x14);if(value<=INT32_MAX){d->bpm_x100=(int32_t)value;d->known|=K(BPM);}
     value=u32(f+0x18);if(value<=INT32_MAX){d->track_bpm_x100=(int32_t)value;d->known|=K(TRACK_BPM);}
     unsigned rate=u16(f+0x22);d->tempo_x100=rate&0x8000?(int32_t)rate-65536:(int32_t)rate;
@@ -369,6 +398,17 @@ int32_t xz_shell_model_master_bpm(xz_shell_read_fn read){
     }
     return 0;
 }
+int xz_shell_model_title(xz_shell_read_fn read,unsigned deck,char *out,size_t cap){
+    /* The same R5 guard (guards[2]) and record as the refresh. */
+    uint32_t failures=0;char text[TITLE_BYTES];
+    if(!read||!out||!cap||deck>=XZ_SHELL_NATIVE_DECKS||!guard(read,addresses[2],guards[2],&failures))return 0;
+    int state=title(read,deck,text);
+    if(state!=1)return state;
+    size_t n=strlen(text);
+    if(n>=cap){n=cap-1;while(n&&((unsigned char)text[n]&0xc0)==0x80)n--;}
+    memcpy(out,text,n);out[n]=0;
+    return 1;
+}
 int xz_shell_model_quantize_grid(xz_shell_read_fn read,unsigned *denominator){
     struct setting_pair list[SETTINGS_CAP];uint32_t count=0,value=0,failures=0;
     if(denominator)*denominator=0;
@@ -386,6 +426,7 @@ unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_s
         if(ok[i])s->guard_ok|=1u<<i;
     }
     if(read)fx_fields(&m->fx,s,read);
+    if(read&&ok[0]&&!s->loop_edit_guard_ok)s->loop_edit_guard_ok=loop_edit_guards(read);
     unsigned char caution[4],again[4];
     /* Legacy raw-ID diagnostics use UINT32_MAX for an unavailable observation.
      * This value is not a visibility gate; stock_dialog.c owns the fail-open window policy. */
@@ -414,6 +455,7 @@ unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_s
                 d->auto_cue=auto_value[deck];d->known|=K(AUTO_CUE);
                 if(!s->slip_guard_ok)s->slip_guard_ok=slip_guards(read);
                 if(s->slip_guard_ok)slip_fields(d,&n,now_ms);
+                if(s->loop_edit_guard_ok)loop_edit_fields(d,&n);
             }
         }
         /* Identity must be settled, with a delivered title and sane total.

@@ -22,6 +22,7 @@ struct xz_shlib_track {
  uint32_t id, artist_id, album_id, genre_id, key_id, bpm_x100, duration_ms, bitrate;
  uint8_t rating, color_id;
  uint32_t title, artist, album, genre, label, key, file_name, date_added; /* offsets into the text pool */
+ uint32_t analysis_path; /* database path of the track analysis file */
  uint32_t file_path;   /* the full path below the USB root, e.g. /Contents/Artist/Album/track.mp3 */
 };
 /* The track filter, applied on the worker over the whole list (tracks only; folders stay). Zero = none. */
@@ -36,6 +37,7 @@ struct xz_shlib_filter {
 int xz_shlib_open(const char *path, size_t arena_size, struct xz_shlib **out);
 void xz_shlib_free(struct xz_shlib *);
 uint32_t xz_shlib_track_count(const struct xz_shlib *);
+const struct xz_shlib_track *xz_shlib_track_at(const struct xz_shlib *, uint32_t index);
 const struct xz_shlib_track *xz_shlib_track(const struct xz_shlib *, uint32_t id);
 const char *xz_shlib_text(const struct xz_shlib *, uint32_t offset);
 

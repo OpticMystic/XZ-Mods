@@ -105,7 +105,7 @@ def main():
         work = args.output or Path(temporary)
         work.mkdir(parents=True, exist_ok=True)
         binary = work / "test-foreign.exe"
-        sources = ["foreign_stems.c", "stem_media.c", "stem_mp3.c", "stem_decode.c", "overcue_file.c", "overcue_stream.c",
+        sources = ["foreign_stems.c", "stem_media.c", "stem_mp3.c", "stem_decode.c", "overcue_file.c", "overcue_stream.c", "stem_pool.c",
                    "vendor/miniz/miniz_tinfl.c", "vendor/sha256/sha256.c", "tests/test_foreign_stems.c"]
         subprocess.run([str(Path(args.zig).resolve()), "cc", "-std=c11", "-O2", "-UNDEBUG", "-Wall", "-Wextra", "-Werror",
                         "-Wno-misleading-indentation", "-DMINIZ_NO_ARCHIVE_APIS", "-DMINIZ_NO_DEFLATE_APIS",

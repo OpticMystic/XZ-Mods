@@ -3,6 +3,7 @@
 #include "native_window_keys.h"
 #include "../runtime.h"
 #include <pthread.h>
+#include "../xz_mutex.h"
 #include <string.h>
 #include <stddef.h>
 #include "ram_notice.h"
@@ -29,7 +30,7 @@ static uint16_t hub_stock[HUB_STOCK_PIXELS];
 static struct marker cache[CACHE_COUNT];
 static struct transaction pending;
 static _Alignas(64) uint16_t alert_scratch[1024*480];
-static pthread_mutex_t registry_mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t registry_mutex=XZ_MUTEX_INITIALIZER;
 static _Thread_local int repainting;
 static int (*original_lock)(void *,void **,int *);
 static int (*original_unlock)(void *);

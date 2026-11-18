@@ -59,13 +59,14 @@ for name in ['ram/budget.c', 'ram/cache.c', 'ram/file.c', 'ram/extra.c',
     obj = out / (Path(name).stem + '.o')
     run('compile-' + obj.stem, flags + ['-c', linux(ROOT / name), '-o', linux(obj)])
     objects.append(linux(obj))
-for name, inputs in [('budget', objects[:1]), ('extra', objects)]:
+for name, inputs in [('budget', objects[:1]), ('cache', objects[1:2]), ('extra', objects)]:
     binary = out / ('test-' + name)
     run('link-' + name, flags + [linux(ROOT / 'ram' / ('test_' + name + '.c')), *inputs,
-                               *(['-Wl,--wrap=close', '-Wl,--wrap=pread64'] if name == 'extra' else []), '-lm', '-o', linux(binary)])
+                               *(['-Wl,--wrap=close', '-Wl,--wrap=dup2', '-Wl,--wrap=pread64'] if name == 'extra' else []), '-lm', '-o', linux(binary)])
 negative = run('assertions-disabled', flags + ['-DNDEBUG', '-c', linux(ROOT / 'ram/test_budget.c'), '-o', linux(out / 'negative.o')], True)
 assert b'RAM acceptance requires active assertions' in negative.stderr
 run('budget', [linux(out / 'test-budget')])
+run('cache', [linux(out / 'test-cache')])
 if args.suite in ('all', 'codecs'):
     run('link-file-faults', flags + [linux(ROOT / 'ram/test_file.c'), objects[0], objects[1], *objects[4:],
                                    '-lm', '-o', linux(out / 'test-file')])

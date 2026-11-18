@@ -19,7 +19,7 @@ class QuietJob:
         pass
 
 
-def render_roles(folder, frames, seed=0):
+def render_roles(folder, frames, seed=0, rate=96000):
     """Stand-in for overcue_roles.py output: seven raw s16le roles plus result.json."""
     folder.mkdir()
     roles = {}
@@ -27,7 +27,7 @@ def render_roles(folder, frames, seed=0):
         data = bytes((i * (number + 3) + seed) % 251 for i in range(frames * 4))
         (folder / f"{role}.s16le").write_bytes(data)
         roles[role] = {"file": f"{role}.s16le", "sha256": hashlib.sha256(data).hexdigest()}
-    (folder / "result.json").write_text(json.dumps({"frames": frames, "sample_rate": 96000, "channels": 2,
+    (folder / "result.json").write_text(json.dumps({"frames": frames, "sample_rate": rate, "channels": 2,
         "format": "s16le", "headroom_gain": 0.5, "roles": roles}))
     return roles
 
@@ -75,6 +75,43 @@ class PackTests(unittest.TestCase):
         self.assertEqual(writer.bundle_name(digests), hashlib.sha256(text.encode()).hexdigest()[:16])
         self.assertEqual(writer.ROLES, ("vocal", "instrumental", "drums", "harmonics",
                                         "vocals-drums", "vocals-harmonics", "full-mix"))
+
+
+class SampleRateTests(unittest.TestCase):
+    def test_requests_default_to_44k1_and_may_ask_for_96k(self):
+        self.assertEqual(writer.DEFAULT_SAMPLE_RATE, 44100)
+        for request, rate in (({}, 44100), ({"stem_sample_rate": None}, 44100), ({"stem_sample_rate": 44100}, 44100),
+                              ({"stem_sample_rate": 96000}, 96000)):
+            self.assertEqual(writer.requested_rate(request), rate)
+        for value in ("96000", 48000, 96000.0, True):
+            with self.assertRaisesRegex(ValueError, "44100 or 96000"):
+                writer.requested_rate({"stem_sample_rate": value})
+
+    def test_profiles_follow_the_published_format(self):
+        self.assertEqual(writer.PROFILES[44100]["entry"], {"sample_rate": 44100, "preparation_profile": "cdj2000-44k1/1",
+                                                            "source_timing_policy": "decoded-timeline/1"})
+        self.assertEqual((writer.PROFILES[44100]["page_codec"], writer.PROFILES[44100]["magic"],
+                          writer.PROFILES[44100]["manifest_schema"]), ("flac-44k1", b"OVPGZ004", "overcue-stems/5"))
+        # 96 kHz entries stay unlabelled, exactly as before.
+        self.assertEqual(writer.PROFILES[96000]["entry"], {})
+        self.assertEqual(writer.PROFILES[96000]["manifest_schema"], "overcue-stems/4")
+
+    def test_44k1_roles_need_flac_pages_and_write_nothing_without_them(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            render_roles(root / "roles", 4000, rate=44100)
+            with self.assertRaisesRegex(ValueError, "FLAC pages"):
+                writer.publish(root / "USB", "/Contents/a.wav", 1, "0" * 64, "wav", root / "roles", "m", "v", QuietJob())
+            self.assertFalse((root / "USB").exists())
+
+    def test_role_magic_must_match_the_rate(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "role.pgz"
+            for magic, rate, message in ((b"OVPGZ004", 96000, "not at 96000"), (b"OVPGZ003", 44100, "not at 44100"),
+                                         (b"OVPGZ001", 44100, "invalid header")):
+                path.write_bytes(magic + struct.pack(">IIQ", 131072, 1, 400) + bytes(48))
+                with self.assertRaisesRegex(ValueError, message):
+                    writer.verify_role(path, "0" * 64, 100, rate)
 
 
 class MergeTests(unittest.TestCase):
@@ -254,7 +291,7 @@ class PublishTests(unittest.TestCase):
             {"schema": "overcue-index/1", "keyed_by": "export.pdb", "tracks": {"3": foreign}, "future": 1}))
         roles, receipt = self.publish("roles")
         bundle = writer.bundle_name({role: roles[role]["sha256"] for role in writer.ROLES})
-        self.assertEqual(receipt, {"bundle": bundle, "frames": 40000, "reused": False, "replaced_previous": False, "verified": True, "page_codec": "zlib", "waveforms": False})
+        self.assertEqual(receipt, {"bundle": bundle, "frames": 40000, "reused": False, "replaced_previous": False, "verified": True, "page_codec": "zlib", "sample_rate": 96000, "waveforms": False})
         index = json.loads((self.root / "CDJMODS/index.json").read_text())
         self.assertEqual((index["future"], index["tracks"]["3"]), (1, foreign))
         entry = index["tracks"]["12"]
@@ -280,9 +317,47 @@ class PublishTests(unittest.TestCase):
         _, replaced = self.publish("replacement", seed=9)
         self.assertTrue(replaced["replaced_previous"])
         self.assertNotEqual(replaced["bundle"], bundle)
-        self.assertTrue((self.root / "CDJMODS/stems" / bundle).is_dir())
+        # The replaced bundle was XZ Mods' own and nothing names it any more, so its folder is gone.
+        self.assertEqual(replaced["removed_previous"], [bundle])
+        self.assertEqual(sorted(p.name for p in (self.root / "CDJMODS/stems").iterdir()), [replaced["bundle"]])
         index = json.loads((self.root / "CDJMODS/index.json").read_text())
         self.assertEqual((index["tracks"]["12"]["bundle"], index["tracks"]["3"]), (replaced["bundle"], foreign))
+
+    def test_replaced_bundle_another_entry_still_names_is_kept(self):
+        _, first = self.publish("first")
+        # A second exported copy of the same audio shares the bundle.
+        index_path = self.root / "CDJMODS/index.json"
+        index = json.loads(index_path.read_text())
+        index["tracks"]["40"] = dict(index["tracks"]["12"], file_path="/Contents/copy.wav")
+        index_path.write_text(json.dumps(index))
+        _, second = self.publish("second", seed=4)
+        self.assertNotIn("removed_previous", second)
+        self.assertTrue((self.root / "CDJMODS/stems" / first["bundle"]).is_dir())
+
+    def test_remove_replaced_keeps_foreign_unknown_and_named_folders(self):
+        stems = self.root / "CDJMODS/stems"
+        def bundle(name, writer_name):
+            (stems / name).mkdir(parents=True)
+            (stems / name / "overcue-manifest.json").write_text(json.dumps({"writer": {"name": writer_name}}))
+        bundle("1" * 16, "XZ Mods")
+        bundle("2" * 16, "OverCue")
+        bundle("3" * 16, "XZ Mods")
+        (stems / ("4" * 16)).mkdir()
+        index = {"tracks": {"7": {"bundle": "3" * 16}}}
+        removed = writer.remove_replaced(stems, index, {"1" * 16, "2" * 16, "3" * 16, "4" * 16, "../x", None})
+        self.assertEqual(removed, ["1" * 16])
+        self.assertEqual(sorted(p.name for p in stems.iterdir()), ["2" * 16, "3" * 16, "4" * 16])
+
+    def test_interrupted_removal_leaves_a_leftover_the_next_publish_sweeps(self):
+        _, first = self.publish("first")
+        with patch.object(writer.shutil, "rmtree", side_effect=OSError("unplugged")):
+            _, second = self.publish("second", seed=5)
+        self.assertEqual(second["removed_previous"], [first["bundle"]])
+        leftovers = [p.name for p in (self.root / "CDJMODS/stems").iterdir() if p.name.startswith(writer.STAGING)]
+        self.assertEqual(len(leftovers), 1)
+        self.assertFalse((self.root / "CDJMODS/stems" / first["bundle"]).exists())
+        self.publish("third", seed=5)
+        self.assertEqual(sorted(p.name for p in (self.root / "CDJMODS/stems").iterdir()), [second["bundle"]])
 
     def test_refuses_foreign_track_without_writing(self):
         foreign = self.root / "CDJMODS/stems/aaaaaaaaaaaaaaaa"

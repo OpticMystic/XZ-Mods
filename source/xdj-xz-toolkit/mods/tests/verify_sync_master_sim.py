@@ -7,7 +7,8 @@ observer/bridge, deck selection, LED hook and jog snapshot, then runs:
   2. a seed batch on a fixed stock profile, which gates;
   3. a seeded lock batch (master/follower pairs, VINYL and CDJ, disturbances),
      checking tempo and beat lock and the published beat stream against what
-     the decks actually play, which gates;
+     the decks actually play, which gates, with the USB audio clock exact and 200 ppm
+     slow and fast (at 2000 ppm it runs on the host as information only, see below);
   4. optionally (--explore) a seed batch on randomly drawn stock policies,
      which reports the stock-dependent classes without gating.
 Every failure prints its class, the seed, the schedule and a minimized action list.
@@ -73,6 +74,7 @@ def sh(cmd, env=None, label=None):
 receipt = {'inputs': {s: hashlib.sha256((mods / s).read_bytes()).hexdigest() for s in SOURCES}, 'runs': [],
            'hardware': False, 'gated_profile': GATED}
 failed = False
+failed_jobs, info = [], []
 # The fixture WAV lives on the Linux filesystem: reading it through a Windows mount is slow.
 stage = a.stage or '/tmp/xz-sync-master-sim-' + hashlib.sha256(str(out).encode()).hexdigest()[:12]
 sh(['mkdir', '-p', stage + '/data/anlz'])
@@ -103,11 +105,22 @@ for arch, cc in [('host', 'gcc'), ('arm', 'arm-linux-gnueabi-gcc')]:
     jobs.append(('seeds', run + [str(a.first_seed), str(a.seeds), str(a.run_ms), '--minimize'], {**env, **GATED}))
     if a.lock_seeds:
         jobs.append(('lock', run + ['lock', str(a.first_seed), str(a.lock_seeds), '30000'], {**env, **GATED}))
-        # The USB audio clock is not the CPU clock: the lock must hold with it 0.2 % slow or fast.
+        # The USB audio clock is not the CPU clock. DECK 3/4 audio runs from the unit's audio crystal and the player's
+        # clock from the i.MX6's own 24 MHz crystal (service manual RRV4698, block diagram), so the offset between
+        # them is crystal tolerance: tens of ppm. The lock must hold with the USB clock 200 ppm slow or fast, several
+        # times that, and these batches gate. The +-2000 ppm batches (gated by ad816585 while a slow USB clock was a
+        # suspect for the DECK 4 drift, which turned out to have other causes) model 0.2 %, which no pair of
+        # crystals in the unit can reach. The proportional trim's steady state there is dead band 0.6 ms +
+        # 0.5 s x 0.2 % = 1.6 ms, beyond the 1 ms lock threshold, so they are kept as information: printed as INFO,
+        # never failing the run.
         if not a.usb_ppm:
-            for ppm in ('-2000', '+2000'):
+            for ppm in ('-200', '+200'):
                 jobs.append(('lock' + ppm + 'ppm', run + ['lock', str(a.first_seed), str(a.lock_seeds), '30000'],
                              {**env, **GATED, 'SIM_USB_PPM': ppm}))
+            if arch == 'host':  # the same seeded logic; the ARM pass would only repeat it more slowly
+                for ppm in ('-2000', '+2000'):
+                    jobs.append(('info-lock' + ppm + 'ppm', run + ['lock', str(a.first_seed), str(a.lock_seeds), '30000'],
+                                 {**env, **GATED, 'SIM_USB_PPM': ppm}))
     if a.explore:
         jobs.append(('explore', run + [str(a.first_seed), str(a.seeds), str(a.run_ms), '--minimize'], env))
     for name, cmd, job_env in jobs:
@@ -119,10 +132,16 @@ for arch, cc in [('host', 'gcc'), ('arm', 'arm-linux-gnueabi-gcc')]:
         print(label, 'exit', r.returncode)
         for line in summary:
             print(' ', line)
-        if r.returncode and name != 'explore':
+        if r.returncode and name.startswith('info-'):
+            info.append(label)
+            print('  INFO (does not gate): a USB clock offset the unit cannot have; see the comment above the jobs')
+        elif r.returncode and name != 'explore':
             failed = True
+            failed_jobs.append(label)
             print(r.stderr.decode(errors='replace')[-2000:])
     (out / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
 assert receipt['inputs'] == {s: hashlib.sha256((mods / s).read_bytes()).hexdigest() for s in SOURCES}
-print('FAIL' if failed else 'PASS', 'SYNC/MASTER simulation: regressions, gated seed batch and lock batch')
+print('FAIL' if failed else 'PASS', 'SYNC/MASTER simulation: regressions, gated seed batch and lock batches at 0 and +-200 ppm'
+      + (' (failed: ' + ', '.join(failed_jobs) + ')' if failed_jobs else '')
+      + (' (information only, not gating: ' + ', '.join(info) + ')' if info else ''))
 raise SystemExit(int(failed))

@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <pthread.h>
+#include "../xz_mutex.h"
 #include <sched.h>
 #include <signal.h>
 #include <stdio.h>
@@ -20,7 +21,7 @@
 #include <sys/vfs.h>
 #include <time.h>
 #include <unistd.h>
-static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mutex=XZ_MUTEX_INITIALIZER;
 static struct xz_kart_host host;
 static struct xz_kart_wire inert;
 static pthread_t worker;

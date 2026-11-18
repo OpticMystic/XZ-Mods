@@ -204,7 +204,7 @@ def inventory(resources):
                     _archive(source, label=record['label'], channel=record['channel'], description=record['description'])
             preferred = catalog.get('preferred_id')
         native = _payload(resources)
-        bundled = _archive(resources, label='Included development build ' + native['runtime_sha256'][:8], channel='development',
+        bundled = _archive(resources, label='Included build ' + native['runtime_sha256'][:8], channel='release',
                            description='Mod runtime included with this app. Physical controller stability is not certified.')
         choice = root / 'selection.json'
         if not choice.exists():

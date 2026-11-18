@@ -19,7 +19,7 @@ const batchLimit=100,batchFormat='xz-stem-batch/1';
 let stemSelection=new Map(),stemSelectionKey=null,stemBatch=null;
 let stemPhase='idle',stemBusy=false,stemDrives=[],stemVolume=null,stemFilter='all',stemQuery='',stemSearchTimer=null,stemConfirm=null,stemEngine=null;
 const stemOpen=new Set(),stemChecks=new Map(),stemFresh=new Set();
-let stemRowsById=new Map(),eng=null,imp=null;
+let stemRowsById=new Map(),eng=null,imp=null,stemRates=new Map(),playersDraft=null;
 let usbInspection=null;
 // Library repair: the inspection is the only basis for a repair or undo, and it is dropped whenever the chosen USB changes.
 let repairInspection=null,repairDiscovery=null;
@@ -233,7 +233,7 @@ $('ota-detect').onclick=async()=>{
 $('ota-usb-setup').onclick=()=>showPage('setup');
 $('ota-start').onclick=async()=>{
   const origin=$('ota-start'),address=$('ota-network').value;if(!address){showError('Detect adapters and choose the XZ network adapter first.',origin);return;}
-  $('ota-status').textContent=XZText('Starting on ')+address+XZText('. On the XZ, open Extras → Network updates.');
+  $('ota-status').textContent=XZText('Starting on ')+address+XZText('. On the XZ, open MODS › CONNECT › UPDATES.');
   await run({method:'serve_runtime_updates',address},'Serving signed XZ updates',origin);
 };
 $('verify-inputs').onclick=async()=>{const origin=$('verify-inputs');if(!required(['firmware'],origin))return;const result=await run({method:'inspect_firmware',firmware:$('firmware').value},'Checking firmware',origin);if(result?.ok)$('input-result').textContent=result.result.key_verified_against_input?XZText('XZ 1.26 firmware and boot support verified.'):XZText('XZ 1.26 application verified. Choose the firmware 1.26 file to verify complete boot support.');};
@@ -286,7 +286,7 @@ $('edit-selected-usb').onclick=()=>{if(usbInspection)openSetupFor(usbInspection)
 
 function renderReleaseNotes(holder,notes,version){
   const entry=node('div',undefined,'release-entry');if(version)entry.append(node('h2','Version '+version));
-  for(const [key,title] of [['features','New features'],['fixes','Bug fixes'],['changes','Other changes']]){
+  for(const [key,title] of [['features','New features'],['fixes','Bug fixes'],['changes','Other changes'],['requirements','Known issues and setup']]){
     if(!notes[key]?.length)continue;entry.append(node('h3',title));const list=node('ul');for(const text of notes[key])list.append(node('li',text));entry.append(list);
   }
   holder.append(entry);
@@ -339,6 +339,8 @@ async function loadAppInformation(){
     // Windows and Mac both update in the app; .win-only marks the Windows-only installer and portable ZIP downloads.
     document.documentElement.dataset.platform=info.platform;
     document.documentElement.dataset.updateChannel=info.update_channel||'stable';
+    // The Beta badge beside the version shows only on a beta build (a version with a pre-release tag); a full release has none.
+    $('beta-badge').classList.toggle('hidden',info.update_channel!=='beta');
     $('update-channel-note').textContent=(info.update_channel==='beta'?XZText('Beta channel. Checks for beta updates automatically at launch.'):XZText('Stable channel. Checks for updates automatically at launch.'));
     if(info.release_page)$('app-downloads').href=info.release_page;
     if(info.portable_url)$('portable-downloads').href=info.portable_url;
@@ -362,10 +364,18 @@ const ST={
   'action.cancel':'Cancel','action.retryFailed':'Retry {n} failed','action.prepareRemaining':'Prepare {n} remaining','action.continue':'Continue','action.chooseFewer':'Choose fewer tracks','action.import':'Import stems',
   'engine.ready':'Engine: {preset} on {device}','engine.readyCpu':'Engine: {preset} on this processor','engine.change':'Change','engine.missing':'Stem engine not set up yet · a few minutes, once',
   'engine.unsupportedHost':'Making stems needs a Windows computer or an Apple silicon Mac. You can still import stems here.',
+  'players.line':'Stems for {players}','players.xz':'XDJ-XZ','players.both':'XDJ-XZ and OverCue players','players.title':'Which players will use this USB?',
+  'players.xz.line':'Smaller stems, made for the XZ. Players running OverCue play these tracks without stems.','players.xz.detail':'44.1 kHz, the rate the XZ plays at',
+  'players.both.line':'For a USB you also play on players running OverCue. Stems take about 40% more space.','players.both.detail':'96 kHz, the rate OverCue players use',
+  'players.found':'OverCue has set this USB up for its players, so XZ Mods chose both.',
+  'players.mixed':'{n} tracks on this USB have stems for the XDJ-XZ only. Select them in the list and choose Prepare to make them for both.',
+  'players.mixedOne':'1 track on this USB has stems for the XDJ-XZ only. Select it in the list and choose Prepare to make it for both.',
+  'players.note':'XZ Mods remembers this for {usb}. It applies to stems you prepare or import from now on. Stems already on the USB stay as they are.','players.save':'Save',
   'search.placeholder':'Search title or artist','filter.all':'All','filter.missing':'Missing','filter.ready':'Ready','filter.cant':'Can\'t prepare','filter.selected':'Selected','pager':'Showing {from} to {to} of {total}',
   'pill.missing':'Missing','pill.ready':'Ready','pill.verified':'Verified','pill.new':'New','pill.damaged':'Damaged','pill.unavailable':'No audio file','pill.unsupported':'Not yet','pill.error':'Can\'t read',
   'pill.queued':'Queued','pill.running':'Preparing {pct}%','pill.failed':'Failed','pill.cancelled':'Cancelled','pill.notStarted':'Not started',
   'sub.unavailable':'Export it to the USB again','sub.unsupported':'{format} support is coming','sub.reused':'Reused existing stems','sub.damaged':'The check failed',
+  'sub.xzOnly':'XDJ-XZ only','drawer.forXz':'Made for the XDJ-XZ. Players running OverCue play this track without stems.','drawer.forBoth':'Made for the XDJ-XZ and players running OverCue.',
   'size.estimateTitle':'Estimated, between {low} and {high}','size.unsupportedTitle':'What it would need once {format} is supported',
   'stage.decode':'Reading the track','stage.load-model':'Loading the stem engine','stage.separate-vocals':'Separating vocals','stage.separate-drums':'Separating drums','stage.postprocess':'Balancing the parts',
   'stage.render':'Mixing the 7 stem mixes','stage.pack':'Writing to the USB','stage.verify':'Checking the result',
@@ -377,7 +387,8 @@ const ST={
   'drawer.byXz':'Prepared by XZ Mods on {date} · {preset} · {bytes}','drawer.byOther':'Prepared outside XZ Mods · {bytes}','drawer.unchecked':'Not checked yet. Verify reads every audio page and does not change your USB.',
   'sub.regenerate':'Prepare again · MP3 timing',
   'drawer.regenerate':'Made from an MP3 before XZ Mods 0.3.0-preview.2, so these stems start 25 ms early against the player. The XDJ-XZ lines them up live; the stem waveforms and other players do not. Prepare again fixes it.',
-  'drawer.compat':'Also works with stems prepared by OverCue Desktop.','drawer.unavailable':'The audio file for this track is not on the USB. Export it to this USB again from your DJ software, then check again.',
+  'drawer.compat':'Also works with stems prepared by OverCue Desktop.','drawer.overcueRate':'There, choose the 44.1 kHz FLAC stems in Settings. The XZ has them ready sooner and does less work while it plays.',
+  'drawer.unavailable':'The audio file for this track is not on the USB. Export it to this USB again from your DJ software, then check again.',
   'drawer.unsupported':'{format} tracks cannot be prepared or imported yet. To use stems with this track, export it as WAV, AIFF, FLAC or MP3. It would need about {bytes}.','drawer.running':'{stage}. Step {k} of 8, started {elapsed} ago.',
   'drawer.replaceAsk':'Replace the stems for {title}? The current stems stay until the new ones pass their check.','drawer.replace':'Replace','drawer.keep':'Keep',
   'drawer.verify':'Verify','drawer.verifyAgain':'Verify again','drawer.importReplace':'Import stems to replace','drawer.prepareAgain':'Prepare again','drawer.importElsewhere':'Import stems made elsewhere',
@@ -439,7 +450,9 @@ const ROW_STATES={
   missing:{pill:'missing',word:'pill.missing',select:true},ready:{pill:'ready',word:'pill.ready',done:true},verified:{pill:'ready',word:'pill.ready',tag:'pill.verified',done:true},
   damaged:{pill:'damaged',word:'pill.damaged',select:true,tone:'bad'},unavailable:{pill:'unavailable',word:'pill.unavailable',tone:'warn'},unsupported:{pill:'unsupported',word:'pill.unsupported'},
   error:{pill:'error',word:'pill.error',tone:'bad'},queued:{pill:'queued',word:'pill.queued',select:true,locked:true},running:{pill:'running',word:'pill.running',select:true,locked:true,tone:'run'},
-  new:{pill:'ready',word:'pill.ready',tag:'pill.new',done:true},reused:{pill:'ready',word:'pill.ready',done:true},failed:{pill:'failed',word:'pill.failed',select:true,tone:'bad'},
+  new:{pill:'ready',word:'pill.ready',tag:'pill.new',done:true},reused:{pill:'ready',word:'pill.ready',done:true},
+  // Ready on the XZ, but this USB is set for players running OverCue too: selectable so a batch can make them for both.
+  xzonly:{pill:'ready',word:'pill.ready',select:true,tone:'warn'},failed:{pill:'failed',word:'pill.failed',select:true,tone:'bad'},
   cancelled:{pill:'cancelled',word:'pill.cancelled',select:true},notStarted:{pill:'cancelled',word:'pill.notStarted',select:true}
 };
 
@@ -450,6 +463,7 @@ const stemsApi={
     return {raw:data,key:libraryKey(data),volume:data.volume,identity:data.identity,total:data.total,matched:data.matched,offset:data.offset,pageSize:data.page_size,
       free:data.free_bytes,size:data.total_bytes,indexBytes:data.index_bytes||0,stemsBytes:data.summary?.stems_bytes??null,counts:data.summary?.counts||null,
       observations:data.size_model?.learned?data.size_model.observations:0,indexError:data.index_error||null,readOnly:data.read_only===true,loaderOk:data.loader_ok,
+      sizeRate:data.size_model?.sample_rate||44100,rates:data.summary?.stem_sample_rates||null,overcueIndex:data.summary?.overcue_index_v2===true,
       tracks:data.tracks.map(stemsApi.track)};
   },
   track(row){
@@ -458,7 +472,7 @@ const stemsApi={
       status:row.stem_status,detail:row.detail||'',canGenerate:Boolean(row.can_generate),canVerify:Boolean(row.can_verify),format:formatOf(row.file_path),
       sampleRate:row.sample_rate||null,bitrate:row.bitrate||null,estimate:{bytes:estimate.bytes??row.estimated_bytes??0,low:estimate.low_bytes??0,high:estimate.high_bytes??0},
       storedBytes:row.stored_bytes??null,producer:row.producer||null,preparedAt:row.prepared_at||null,preset:row.preset||null,
-      timeline:row.timeline||null,needsRegeneration:row.needs_regeneration===true};
+      timeline:row.timeline||null,needsRegeneration:row.needs_regeneration===true,stemRate:row.stem_sample_rate??null};
   },
   noLibrary(state){return state.error_code==='no_library'||/^No exported music library/.test(state.error||'');},
   progress(state){
@@ -517,6 +531,13 @@ function presetName(id){return PRESETS[id]?.name||id||'';}
 function stemWorkLocked(){return stemBusy||activeJob!==null||appUpdating||!invoke;}
 function engineReady(){return Boolean(stemEngine?.supported&&stemEngine.installed);}
 function stemsSupported(){return stemEngine?.supported!==false;}
+// Which players a USB's stems are made for: 'xz' (44.1 kHz) or 'both' (also players running OverCue, 96 kHz). The choice
+// belongs to the USB, so it is remembered per volume serial. Until the DJ chooses, a USB with OverCue's index-v2 gets both.
+function playersKey(lib){const id=lib?.identity||{};return 'xz-stem-players:'+(id.serial?id.filesystem+':'+id.serial:String(id.path||lib?.volume||''));}
+function storedPlayers(lib){try{const value=localStorage.getItem(playersKey(lib));return value==='xz'||value==='both'?value:null;}catch{return null;}}
+function stemPlayers(lib=stemLibrary){return storedPlayers(lib)||(lib?.overcueIndex?'both':'xz');}
+function stemRate(lib=stemLibrary){return stemPlayers(lib)==='both'?96000:44100;}
+function xzOnly(track){return stemRate()===96000&&track.stemRate===44100&&track.producer==='xz-mods'&&track.canGenerate;}
 function driveName(volume){
   const drive=stemDrives.find(item=>item.volume===volume),short=String(volume||'').replace(/[\\/]+$/,'');
   return drive?.label&&drive.label!==volume&&drive.label!==short?drive.label+' ('+short+')':short;
@@ -545,7 +566,7 @@ function emphasis(text,value){const [before,after]=text.split('\u0000');return [
 function libraryKey(data){return data?data.volume+'\n'+JSON.stringify(data.identity):null;}
 function plural(count,word){return count+' '+word+(count===1?'':'s');}
 function plainButton(label,action,options={}){
-  return el('button',{type:'button',class:options.primary?'primary':options.text?'text-button':'secondary',id:options.id,text:label,disabled:options.disabled,title:options.title,dataset:{key:options.key||label},onclick:action});
+  return el('button',{type:'button',class:options.danger?'danger':options.primary?'primary':options.text?'text-button':'secondary',id:options.id,text:label,disabled:options.disabled,title:options.title,dataset:{key:options.key||label},onclick:action});
 }
 
 function selectionSummary(){
@@ -564,17 +585,19 @@ function rowState(track){
   const key=stemSelectionKey+'\n'+track.id,check=stemChecks.get(key),item=stemBatch?.key===stemSelectionKey?stemBatch.byId.get(track.id):null;
   if(track.status==='present'&&check&&!check.ok)return 'damaged';
   if(track.status==='present'&&stemFresh.has(key))return 'new';
-  if(track.status==='present'&&check)return 'verified';
+  if(track.status==='present'&&check&&!(item&&xzOnly(track)))return 'verified';
   if(item){
     if(item.state==='running')return stemBatch.running?'running':'cancelled';
     if(item.state==='queued')return stemBatch.running?'queued':'notStarted';
     if(item.state==='prepared')return 'new';
     if(item.state in ROW_STATES)return item.state;
   }
-  if(track.status==='present')return 'ready';
+  if(track.status==='present')return xzOnly(track)?'xzonly':'ready';
   return ROW_STATES[track.status]?track.status:'error';
 }
 function canSelect(track,state){return stemsSupported()&&Boolean(ROW_STATES[state].select)&&(state!=='missing'||track.canGenerate);}
+// Rows Select all picks: tracks without stems, and stems that play on the XZ only when this USB is set for both players.
+function needsStems(track){const state=rowState(track);return (state==='missing'||state==='xzonly')&&canSelect(track,state);}
 function batchItem(id){return stemBatch?.key===stemSelectionKey?stemBatch.byId.get(id):null;}
 function stageLabel(item){return ST['stage.'+item?.stage]||item?.message||'';}
 function trackPct(id){return Math.round((stemBatch?.fractions.get(id)||0)*100);}
@@ -625,6 +648,11 @@ function engineLine(){
   return el('span',{class:'st-engine'},...emphasis(t(cpu?'engine.readyCpu':'engine.ready',{preset:'\u0000',device}),presetName(stemEngine.installed)),' · ',
     plainButton(ST['engine.change'],()=>openEngineWizard('choose'),{text:true,key:'engine-change',title:XZText('Opens setup at Choose quality'),disabled:stemWorkLocked()}));
 }
+function playersLine(){
+  const name=stemPlayers()==='both'?ST['players.both']:ST['players.xz'];
+  return el('span',{class:'st-engine',dataset:{key:'players-line'}},...emphasis(t('players.line',{players:'\u0000'}),name),' · ',
+    plainButton(ST['engine.change'],openPlayersDialog,{key:'players-change',text:true,disabled:stemWorkLocked()}));
+}
 function selectPrimary(sel){
   if(stemEngine&&!engineReady())return {label:ST['action.setupEngine'],action:()=>openEngineWizard('check',sel.n?prepareSelection:null,{label:sel.n?preparePrimary(sel).label:null})};
   return preparePrimary(sel);
@@ -667,7 +695,7 @@ function renderStemBar(){
   $('st-bar').replaceChildren(
     el('div',{class:'st-bar-main'},el('div',{class:'st-drive'},select,el('span',{class:'st-count',text:counts}),el('span',{class:'st-free'},free[0],el('b',{text:gb(lib.free)}),free[1])),
       stemMeter(lib,selectionSummary(),model.meterSelection),model.line),
-    el('div',{class:'st-act'},primary,engineLine()));
+    el('div',{class:'st-act'},primary,engineLine(),playersLine()));
 }
 function renderStemTabs(){
   const lib=stemLibrary,counts=lib.counts,locked=stemWorkLocked();
@@ -685,7 +713,7 @@ function visibleStemTracks(){
 }
 function sizeCell(track,state){
   const estimate=track.estimate,cell=(text,kind,title)=>el('td',{class:'st-size',dataset:{kind},title,text});
-  if(ROW_STATES[state].done||state==='damaged')return track.storedBytes!==null?cell(mb(track.storedBytes)):cell('≈ '+mb(estimate.bytes),'estimate');
+  if(ROW_STATES[state].done||state==='damaged'||state==='xzonly')return track.storedBytes!==null?cell(mb(track.storedBytes)):cell('≈ '+mb(estimate.bytes),'estimate');
   if(state==='unsupported')return cell('≈ '+mb(estimate.bytes),'none',t('size.unsupportedTitle',{format:track.format}));
   if(state==='unavailable'||state==='error')return cell('–','none');
   return cell('≈ '+mb(estimate.bytes),'estimate',t('size.estimateTitle',{low:mb(estimate.low),high:mb(estimate.high)}));
@@ -693,7 +721,7 @@ function sizeCell(track,state){
 function rowSub(track,state){
   const item=batchItem(track.id);
   const text={damaged:ST['sub.damaged'],unavailable:ST['sub.unavailable'],unsupported:t('sub.unsupported',{format:track.format}),
-    error:track.detail,running:stageLabel(item),reused:ST['sub.reused'],failed:item?.error||'',missing:track.canGenerate?'':track.detail}[state];
+    error:track.detail,running:stageLabel(item),reused:ST['sub.reused'],failed:item?.error||'',missing:track.canGenerate?'':track.detail,xzonly:ST['sub.xzOnly']}[state];
   if(!text&&ROW_STATES[state].done&&track.needsRegeneration)return el('span',{class:'st-sub',dataset:{tone:'warn'},text:ST['sub.regenerate']});
   return text?el('span',{class:'st-sub',dataset:{tone:ROW_STATES[state].tone},text}):null;
 }
@@ -715,8 +743,11 @@ function stemDrawer(track,state){
   if(state==='missing'||state==='queued'||state==='cancelled'||state==='notStarted'){
     facts.push(path,el('p',{text:t('drawer.source',{format:sourceText(track),bytes:mb(estimate.bytes),low:mb(estimate.low),high:mb(estimate.high)})}),track.format==='MP3'?el('p',{text:ST['drawer.mp3']}):null);
     if(state==='missing')actions.push(withAction(action('drawer.importElsewhere','import'),'import'));
-  }else if(ROW_STATES[state].done||state==='damaged'){
-    facts.push(el('p',{text:provenance(track)}),check?verifyChips(check):el('p',{text:ST['drawer.unchecked']}),el('p',{class:'st-compat',text:ST['drawer.compat']}));
+  }else if(ROW_STATES[state].done||state==='damaged'||state==='xzonly'){
+    // Only a USB set for both players needs to know which stems serve which: the XZ plays both kinds.
+    const players=stemRate()!==96000?null:track.stemRate===44100?ST['drawer.forXz']:track.stemRate===96000?ST['drawer.forBoth']:null;
+    facts.push(el('p',{text:provenance(track)}),players?el('p',{class:state==='xzonly'?'st-regen':null,text:players}):null,
+      check?verifyChips(check):el('p',{text:ST['drawer.unchecked']}),el('p',{class:'st-compat',text:ST['drawer.compat']}),el('p',{class:'st-compat',text:ST['drawer.overcueRate']}));
     if(track.needsRegeneration)facts.splice(1,0,el('p',{class:'st-regen',text:ST['drawer.regenerate']}));
     if(track.canVerify&&state!=='damaged')actions.push(withAction(action(check?'drawer.verifyAgain':'drawer.verify','verify'),'verify'));
     actions.push(withAction(action('drawer.importReplace','import'),'import'));
@@ -749,7 +780,7 @@ function renderStemTable(){
   const tracks=visibleStemTracks(),lib=stemLibrary,body=$('stem-tracks'),locked=stemWorkLocked();
   stemRowsById=new Map(tracks.map(track=>[track.id,track]));
   body.replaceChildren(...(tracks.length?tracks.flatMap(stemRow):[el('tr',{},el('td',{colspan:'7',class:'st-none',text:XZText('No tracks match your search.')}))]));
-  const missing=tracks.filter(track=>rowState(track)==='missing'&&canSelect(track,'missing')),picked=missing.filter(track=>stemSelection.has(track.id)).length;
+  const missing=tracks.filter(needsStems),picked=missing.filter(track=>stemSelection.has(track.id)).length;
   const all=$('st-select-all');all.checked=Boolean(missing.length)&&picked===missing.length;all.indeterminate=picked>0&&picked<missing.length;
   all.disabled=locked||!missing.length;$('st-select-all-label').classList.toggle('hidden',!stemsSupported());
   const paged=stemFilter!=='selected';$('st-pager-text').textContent=paged&&lib.matched?t('pager',{from:lib.offset+1,to:Math.min(lib.offset+lib.pageSize,lib.matched),total:lib.matched}):'';
@@ -785,13 +816,13 @@ function renderStemLibrary(data){stemDrives=stemDrives.some(drive=>drive.volume=
 function applyStemLibrary(lib){
   if(lib.key!==stemSelectionKey){stemSelection.clear();stemOpen.clear();stemConfirm=null;stemSelectionKey=lib.key;}
   for(const track of lib.tracks)if(stemSelection.has(track.id))stemSelection.set(track.id,track);
-  stemLibrary=lib;stemPhase=lib.indexError?'badlib':lib.total===0?'empty':'ready';
+  stemLibrary=lib;stemPhase=lib.indexError?'badlib':lib.total===0?'empty':'ready';stemRates.set(lib.volume,stemRate(lib));
   if(stemBatch&&!stemBatch.running&&stemBatch.key===lib.key){stemBatch.refreshed=true;if(stemBatch.ending?.kind==='wrongUsb')stemBatch.ending.kind='unplugged';}
 }
 function resetStemView(){stemFilter='all';stemQuery='';$('stem-search').value='';stemOpen.clear();stemConfirm=null;}
-async function browseStemLibrary(volume,offset=0){
+async function browseStemLibrary(volume,offset=0,again=false){
   if(!volume||stemLibraryLoading||activeJob!==null||appUpdating)return;
-  stemLibraryLoading=true;const query=stemQuery,request={method:stemsApi.methods.browse,volume,offset:Math.max(0,offset),query};
+  stemLibraryLoading=true;const query=stemQuery,request={method:stemsApi.methods.browse,volume,offset:Math.max(0,offset),query,stem_sample_rate:stemRates.get(volume)||44100};
   if(FILTER_STATUS[stemFilter])request.status=FILTER_STATUS[stemFilter];
   try{
     const result=await run(request,'Reading USB music');
@@ -799,6 +830,8 @@ async function browseStemLibrary(volume,offset=0){
     stemVolume=volume;
     if(result.ok)applyStemLibrary(stemsApi.library(result.result));else{stemLibrary=null;stemPhase=stemsApi.noLibrary(result)?'nolib':'badlib';}
   }finally{stemLibraryLoading=false;renderStems();}
+  // Sizes are estimated at the rate this USB's stems are made at, which is known once its identity has been read.
+  if(!again&&stemLibrary?.volume===volume&&stemLibrary.sizeRate!==stemRate())return browseStemLibrary(volume,stemLibrary.offset,true);
   if(query!==stemQuery&&stemLibrary&&stemFilter!=='selected')await browseStemLibrary(stemLibrary.volume,0);
 }
 async function loadStemEngine(){
@@ -844,7 +877,7 @@ async function startStemBatch(entries){
   stemBatch={key:lib.key,volume:lib.volume,items,byId:new Map(items.map(item=>[item.id,item])),running:true,cancelRequested:false,refreshed:false,dismissed:false,ending:null,
     started:Date.now(),stemsBefore:lib.stemsBytes,floor:0,eta:null,etaAt:0,firstId:null,since:new Map(),fractions:new Map()};
   renderStems();
-  const batch=stemBatch,state=await run({method:stemsApi.methods.batch,volume:lib.volume,expected_identity:lib.identity,track_ids:items.map(item=>item.id),preset:stemEngine.installed},
+  const batch=stemBatch,state=await run({method:stemsApi.methods.batch,volume:lib.volume,expected_identity:lib.identity,track_ids:items.map(item=>item.id),preset:stemEngine.installed,stem_sample_rate:stemRate()},
     'Preparing stems for '+plural(items.length,'track'),$('st-primary'),applyStemBatchState);
   if(!state){stemBatch=null;renderStems();return;}
   applyStemBatchState(state);batch.running=false;batch.cancelRequested=false;
@@ -900,7 +933,7 @@ function applyStemBatchState(state){
 }
 async function continueStemBatch(){
   const batch=stemBatch,remaining=batch.items.filter(item=>item.state!=='prepared'&&item.state!=='reused');
-  const result=await run({method:stemsApi.methods.browse,volume:batch.volume,offset:0,query:''},'Reading USB music');
+  const result=await run({method:stemsApi.methods.browse,volume:batch.volume,offset:0,query:'',stem_sample_rate:stemRates.get(batch.volume)||44100},'Reading USB music');
   if(!result?.ok)return;
   stemVolume=batch.volume;resetStemView();applyStemLibrary(stemsApi.library(result.result));
   if(stemLibrary.key===batch.key)await startStemBatch(remaining);else{batch.ending={...batch.ending,kind:'wrongUsb'};batch.dismissed=false;renderStems();}
@@ -917,7 +950,7 @@ async function verifyStemTrack(track,origin){
 }
 async function prepareStemsAgain(track,origin){
   if(!engineReady()){openEngineWizard('check',()=>prepareStemsAgain(track,origin),{label:ST['drawer.prepareAgain']});return;}
-  const lib=stemLibrary,result=await run({method:stemsApi.methods.single,volume:lib.volume,expected_identity:lib.identity,file_path:track.filePath,preset:stemEngine.installed},'Preparing stems: '+track.title,origin);
+  const lib=stemLibrary,result=await run({method:stemsApi.methods.single,volume:lib.volume,expected_identity:lib.identity,file_path:track.filePath,preset:stemEngine.installed,stem_sample_rate:stemRate()},'Preparing stems: '+track.title,origin);
   if(!result?.ok)return;
   stemConfirm=null;stemChecks.delete(lib.key+'\n'+track.id);stemFresh.add(lib.key+'\n'+track.id);
   await browseStemLibrary(lib.volume,lib.offset);
@@ -938,7 +971,7 @@ $('stem-tracks').onclick=event=>{
 $('stem-tracks').onchange=event=>{const box=event.target.closest('[data-pick]');if(box)toggleStemSelection(stemRowsById.get(box.dataset.pick),box.checked);};
 $('st-select-all').onchange=()=>{
   if(stemWorkLocked())return renderStems();
-  const tracks=visibleStemTracks().filter(track=>rowState(track)==='missing'&&canSelect(track,'missing'));
+  const tracks=visibleStemTracks().filter(needsStems);
   if(tracks.length&&tracks.every(track=>stemSelection.has(track.id)))for(const track of tracks)stemSelection.delete(track.id);
   else for(const track of tracks){if(stemSelection.size>=batchLimit)break;stemSelection.set(track.id,track);}
   dismissEnding();renderStems();
@@ -957,6 +990,40 @@ $('stem-next').onclick=()=>{if(stemLibrary)browseStemLibrary(stemLibrary.volume,
 $('st-import').onclick=()=>openImportWizard(null);
 
 // Connect a USB: find, choose, check. Same shape as the repair page's connect wizard.
+// Which players will use this USB: one choice per USB, used by every prepare, batch and import on it.
+function openPlayersDialog(){
+  if(!stemLibrary||stemWorkLocked())return;
+  playersDraft=stemPlayers();renderPlayersDialog();$('st-players').showModal();
+}
+function renderPlayersDialog(){
+  const lib=stemLibrary,dialog=$('st-players'),focused=dialog.contains(document.activeElement)?document.activeElement.dataset.key:null;
+  const option=(id,name,line,detail)=>el('label',{class:'st-preset'},
+    el('input',{type:'radio',name:'st-players',value:id,checked:playersDraft===id,dataset:{key:'players:'+id},onchange:()=>{playersDraft=id;renderPlayersDialog();}}),
+    el('strong',{text:name}),el('span',{text:line}),el('small',{text:detail}));
+  const xzOnlyCount=Number(lib.rates?.['44100'])||0;
+  dialog.replaceChildren(...[el('h2',{id:'st-players-title',text:ST['players.title']}),
+    el('div',{class:'st-presets',role:'radiogroup','aria-labelledby':'st-players-title'},
+      option('xz',ST['players.xz'],ST['players.xz.line'],ST['players.xz.detail']),
+      option('both',ST['players.both'],ST['players.both.line'],ST['players.both.detail'])),
+    lib.overcueIndex&&!storedPlayers(lib)?el('p',{text:ST['players.found']}):null,
+    playersDraft==='both'&&xzOnlyCount?el('p',{class:'st-regen',text:xzOnlyCount===1?ST['players.mixedOne']:t('players.mixed',{n:xzOnlyCount})}):null,
+    el('p',{class:'fine',text:t('players.note',{usb:driveName(lib.volume)})}),
+    el('div',{class:'st-foot'},plainButton(ST['action.cancel'],()=>dialog.close(),{key:'players-cancel'}),
+      plainButton(ST['players.save'],savePlayers,{primary:true,key:'players-save'}))].filter(Boolean));
+  const target=focused&&dialog.querySelector('[data-key="'+CSS.escape(focused)+'"]');if(target)target.focus({preventScroll:true});
+}
+function savePlayers(){
+  const lib=stemLibrary,dialog=$('st-players');dialog.close();
+  if(!lib||!playersDraft)return;
+  const changed=playersDraft!==stemPlayers(lib);
+  try{localStorage.setItem(playersKey(lib),playersDraft);}catch{}
+  stemRates.set(lib.volume,stemRate(lib));
+  // A remembered choice that matches the USB's default still counts: the default no longer applies to it.
+  if(!changed){renderStems();return;}
+  for(const track of [...stemSelection.values()])if(track.status==='present')stemSelection.delete(track.id);
+  dismissEnding();browseStemLibrary(lib.volume,lib.offset);
+}
+
 function openStemConnect(){
   $('stem-connect-found').textContent=stemVolume?'Selected: '+driveName(stemVolume):XZText('Nothing selected yet.');
   $('stem-connect-result').textContent='';$('stem-connect').showModal();renderStems();
@@ -1138,7 +1205,7 @@ function importMatches(){
     plainButton(track.title+(track.artist?' · '+track.artist:''),()=>{imp.track=track;renderImportWizard();},{key:'imp-match:'+track.id}));
 }
 async function searchImportTracks(){
-  const result=await run({method:stemsApi.methods.browse,volume:stemLibrary.volume,offset:0,query:imp.query},'Reading USB music');
+  const result=await run({method:stemsApi.methods.browse,volume:stemLibrary.volume,offset:0,query:imp.query,stem_sample_rate:stemRate()},'Reading USB music');
   if(result?.ok&&imp){imp.matches=stemsApi.library(result.result).tracks;$('st-imp-matches')?.replaceChildren(...importMatches());}
 }
 function importPicker(){
@@ -1212,12 +1279,12 @@ function importCheckView(){
 }
 function importWriteRequest(){
   const plan=imp.plan,lib=stemLibrary,files=plan.files.map((file,index)=>({path:file.path,group:imp.groups[index]})).filter(file=>file.group&&file.group!=='mix');
-  return {method:stemsApi.methods.write,...plan.request,files,volume:lib.volume,expected_identity:lib.identity,file_path:imp.track.filePath,title:imp.track.title,fit_length:plan.fitLength,accept_weak_alignment:imp.weak};
+  return {method:stemsApi.methods.write,...plan.request,files,volume:lib.volume,expected_identity:lib.identity,file_path:imp.track.filePath,title:imp.track.title,fit_length:plan.fitLength,accept_weak_alignment:imp.weak,stem_sample_rate:stemRate()};
 }
 async function planImport(){
   imp.step='planning';imp.planError='';imp.progress=null;renderImportWizard();
   const lib=stemLibrary,track=imp.track;
-  const state=await run({method:stemsApi.methods.plan,volume:lib.volume,expected_identity:lib.identity,file_path:track.filePath,title:track.title,files:imp.files.map(path=>({path}))},
+  const state=await run({method:stemsApi.methods.plan,volume:lib.volume,expected_identity:lib.identity,file_path:track.filePath,title:track.title,files:imp.files.map(path=>({path})),stem_sample_rate:stemRate()},
     'Checking stems',$('st-imp-primary'),update=>{if(imp){imp.progress=update;renderImportWizard();}});
   if(!imp)return;
   if(state?.ok){imp.plan=stemsApi.importPlan(state.result);imp.groups=imp.plan.files.map(file=>file.group);imp.weak=false;imp.step='check';}
@@ -1682,7 +1749,7 @@ function renderQuadSetup(){
  $('quad-state').textContent=capability.supported?XZText('The exact saved build has a verified quad profile. Controller acceptance is separate.'):XZText('The saved build does not have a verified quad profile. Choose and save the included quad build to prepare four decks.');
  $('quad-use').disabled=included?.quad_supported!==true||activeJob!==null;$('quad-save').disabled=!modDirty()||activeJob!==null;
 }
-const quadButton=node('button',XZText('Set up four decks'),'primary');quadButton.id='quad-open';quadButton.type='button';$('mod-version').append(quadButton);
+const quadButton=node('button',XZText('Set up four decks'),'secondary');quadButton.id='quad-open';quadButton.type='button';$('mod-version').append(quadButton);
 // The dialog's cable picture plays while it is open (a still with reduced motion) and stops when it closes.
 const quadVideo=$('quad-video');
 quadButton.onclick=()=>{renderQuadSetup();$('quad-setup').showModal();if(!matchMedia('(prefers-reduced-motion: reduce)').matches){quadVideo.muted=true;quadVideo.play?.().catch(()=>{});}};

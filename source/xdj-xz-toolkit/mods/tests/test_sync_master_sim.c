@@ -18,6 +18,7 @@
 #undef main
 #include "sync_master_sim.h"
 #include "../sync_link_runtime.h"
+#include "stock_link_beat_gate.h"
 #include "../deck_select.h"
 #include "../jog_display_runtime.h"
 #include "../jog_display.h"
@@ -145,6 +146,10 @@ static void nc_publish(void){
    int bending=n->bend!=0&&(int32_t)(n->bend_until-(uint32_t)(sim_us/1000u))>0;
    s.bpm=(float)n->bpm;s.nominal_bpm=(float)n->bpm;s.speed=1;
    s.bar_phase=(float)fmod(n->beats,4.);
+   /* The engine's frame index runs on with the platter (sync_native.c copies it from the stock engine); the
+      player takes a phase only from samples whose position advanced (native_phase_ready). One beat is
+      22050 frames here, as in the engine fixture (test_extra_player.c copy_sim_native). */
+   s.position_frames=(uint32_t)llround(n->beats*22050.);
    s.playing=n->playing&&!n->touch&&!(n->brake&&!policy.brake_reports_playing);s.manual=n->touch||bending;
    s.evidence=XZ_SYNC_NATIVE_MASTER_OBSERVED|XZ_SYNC_NATIVE_TRACK_OBSERVED;
    if(s.playing&&!s.manual)s.playing_native_mask=1u<<m;
@@ -310,6 +315,12 @@ static uint64_t consume_us;           /* when mono_wire was last advanced */
 static uint32_t act_jumps[2],act_jump_ms[2]; /* playback discontinuities (snaps, jumps) */
 static double decode_sample(const float *s){
  double lo=(double)s[0]*32768.+2048.,hi=(double)s[1]*32768.+2048.;
+ /* Interpolated between the last frame of one 4096-frame block (lo 4095) and the first of the next (lo 0), a
+    sample reads hi = H + f and lo = 4095 (1 - f); within a block hi is exact. Rounding hi to a block, as
+    within one, misplaces such a sample by 4096 x min(f, 1 - f) frames: 2.9 frames for f = 0.9993 (seed 149 at
+    -200 ppm), which the discontinuity test below counts twice and took for a jump. Read it from both channels. */
+ double H=floor(hi),f=hi-H;
+ if(f>0&&fabs(lo-4095.*(1.-f))<=1.)return H*4096.+4095.+(1.-lo/4095.);
  double h=floor(hi+.5);
  if(fabs(hi-h)>1e-3||lo<-1e-3||lo>=4096.)return NAN;
  return h*4096.+lo;
@@ -495,7 +506,10 @@ enum fail {
     hands over at once; M5 a load on the master hands over; M6 the engine never names a native deck while
     a loaded DECK 3/4 stays the chosen master; S2 SYNC off does not step the speed; S4 a kept offset
     flashes the SYNC lamp and the view says so. */
- F_MASTER_NOTICE,F_PAUSE_NOT_HANDED,F_LOAD_NOT_HANDED,F_MASTER_UNCHOSEN,F_SYNC_OFF_STEP,F_SYNC_LAMP_FLASH,F_OFFSET_FLAG,F_COUNT
+ F_MASTER_NOTICE,F_PAUSE_NOT_HANDED,F_LOAD_NOT_HANDED,F_MASTER_UNCHOSEN,F_SYNC_OFF_STEP,F_SYNC_LAMP_FLASH,F_OFFSET_FLAG,
+ /* What DECK 3/4 publishes as master must open the stock beat-sync gate (stock_link_beat_gate.h), or a stock
+    deck synced to it takes the tempo and never its beat (owner, 2026-11-17). */
+ F_PUB_NO_BEAT_SYNC,F_COUNT
 };
 static const char *fail_name[]={"none","sync-lamp-dark","sync-lamp-stuck-on","master-lamp-dark","master-lamp-false",
  "native-lamp-overwritten","foreign-forced-row-modified","jog-sync-indicator","duplicate-master","view-master-disagrees",
@@ -503,7 +517,7 @@ static const char *fail_name[]={"none","sync-lamp-dark","sync-lamp-stuck-on","ma
  "sync-tempo-mismatch","sync-phase-not-acquired","sync-phase-drift","sync-unprompted-snap","sync-silent","sync-lock-flag-wrong",
  "publish-phase-error","publish-tempo-error","publish-while-stopped","publish-gap-while-playing","hold-not-handed-over","handoff-tempo-changed","master-detour",
  "first-play-not-master","master-requested-notice","pause-not-handed-over","load-not-handed-over","master-named-unchosen",
- "sync-off-speed-step","sync-lamp-not-flashing","sync-offset-flag-wrong"};
+ "sync-off-speed-step","sync-lamp-not-flashing","sync-offset-flag-wrong","publish-no-beat-sync"};
 _Static_assert(sizeof fail_name/sizeof fail_name[0]==F_COUNT,"one name per class");
 static int fail_class,keep_running;
 static uint64_t fail_mask;static uint32_t fail_at,class_at[F_COUNT];
@@ -526,6 +540,35 @@ static int held(struct since *s,int cond,uint32_t bound){
  if(!cond){s->on=0;return 0;}
  if(!s->on){s->on=1;s->at=now32();}
  return (uint32_t)(now32()-s->at)>bound;
+}
+/* How long a synced follower may read unlocked when its own beat error explains it. The engine closes an error
+   beyond a 0.6 ms dead band with a 0.5 s time constant, at most 1 % (10 ms a second), and proves lock at 1 ms
+   or less (extra_player.c: sync_trim_for and the lock count); an error beyond 25 ms is jumped, not trimmed
+   (XZ_XP_SYNC_CREEP_LIMIT_S). From a peak error of e ms that takes
+     T(e) = max(0, e - 5.6) / 10 + 0.5 ln((min(e, 5.6) - 0.6) / 0.4) s,
+   about 1.4 s after a 13 % step of a stock master's tempo (7 ms). One second more covers the base rate catching
+   up with the step, the three completions that prove lock and the +-0.5 ms scatter of whole-millisecond beat
+   grids near the 1 ms threshold: over 503 unlocks in the 0 and +-200 ppm lock batches the longest took 0.8 s
+   more than T. An unlock the engine's error does not explain (peak 1 ms or less) keeps the caller's bound.
+   The constants follow the engine's; change them together. */
+#define LOCK_TRIM_DEADBAND_MS 0.6
+#define LOCK_TRIM_TAU_S 0.5
+#define LOCK_TRIM_CAP_MS_PER_S 10.
+#define LOCK_PROVE_MS 1.
+#define LOCK_TRIM_LIMIT_MS 25.
+#define LOCK_RELOCK_MARGIN_MS 1000.
+static uint32_t unlock_peak_us[2];
+static uint32_t relock_bound_ms(int i,const struct xz_extra_deck *d,uint32_t bound){
+ if(d->sync.locked){unlock_peak_us[i]=0;return bound;}
+ uint32_t e=(uint32_t)labs((long)d->sync.phase_error_us);
+ if(e>unlock_peak_us[i])unlock_peak_us[i]=e;
+ double peak=fmin(unlock_peak_us[i]/1000.,LOCK_TRIM_LIMIT_MS);
+ if(peak<=LOCK_PROVE_MS)return bound;
+ double knee=LOCK_TRIM_DEADBAND_MS+LOCK_TRIM_CAP_MS_PER_S*LOCK_TRIM_TAU_S;
+ double t=fmax(0.,peak-knee)/LOCK_TRIM_CAP_MS_PER_S+
+  LOCK_TRIM_TAU_S*log((fmin(peak,knee)-LOCK_TRIM_DEADBAND_MS)/(LOCK_PROVE_MS-LOCK_TRIM_DEADBAND_MS));
+ uint32_t design=(uint32_t)llround(t*1000.+LOCK_RELOCK_MARGIN_MS);
+ return design>bound?design:bound;
 }
 static struct since unloaded_bad;
 /* Documented order after a software master stops: from 3, DECK 4 then native; from 4, native then DECK 3. */
@@ -763,7 +806,7 @@ static void check_world(void){
   if(sig!=lock_signature[i]){lock_signature[i]=sig;lock_signature_at[i]=now;}
   int settled=follow&&(uint32_t)(now-lock_signature_at[i])>2500&&quiet;
   if(settled){cov_lock++;if(d->sync.locked)cov_locked++;}
-  if(held(&lock_bad[i],settled&&!d->sync.locked,1500))
+  if(held(&lock_bad[i],settled&&!d->sync.locked,relock_bound_ms(i,d,1500)))
    fail(F_SYNC_NOT_LOCKED,"deck=%d engine=%d reason=%d master_deck=%d source=%d tempo_matched=%d observed=%d",i+3,m,d->sync.reason,d->sync.master_deck,d->sync.source,d->sync.tempo_matched,v.master_actual.deck);
   if(held(&wrong_bad[i],settled&&d->sync.locked&&d->sync.master_deck!=m,300))
    fail(F_SYNC_WRONG_MASTER,"deck=%d engine=%d locked-to=%d",i+3,m,d->sync.master_deck);
@@ -982,7 +1025,9 @@ static void check_lock(void){
   /* Leaving a kept offset is a chase (the trim closing it), which stock does not do (S4, S7, S8). */
   if(held(&s->drift_bad,s->acquired&&!ok,1300))
    fail(F_PHASE_DRIFT,"deck=%d master=%d phase=%.1fms kept=%.1fms tol=%.1f since=%u reason=%d locked=%d trim=%dppm",i+3,m+1,err,s->expect_ms,tol,since,d->sync.reason,d->sync.locked,d->sync.correction_ppm);
-  if(held(&s->silent_bad,since>LOCK_SILENT_MS&&!d->sync.locked,500))
+  /* A side nudge is no disturbance here, but after one (on this deck or its master) the engine proves lock again,
+     and an offset of 2 ms or less is not kept but trimmed back first (sync_offset_take): the relock time applies. */
+  if(held(&s->silent_bad,since>LOCK_SILENT_MS&&!d->sync.locked,relock_bound_ms(i,d,500)))
    fail(F_SYNC_SILENT,"deck=%d master=%d SYNC on, never locked: reason=%d source=%d matched=%d phase=%.1fms",i+3,m+1,d->sync.reason,d->sync.source,d->sync.tempo_matched,err);
   if(held(&s->flag_bad,since>LOCK_PHASE_SETTLE_MS&&d->sync.locked&&fabs(rel)>3*tol,200))
    fail(F_LOCK_FLAG,"deck=%d master=%d reads LOCKED at phase %.1fms (kept %.1fms)",i+3,m+1,err,s->expect_ms);
@@ -1049,6 +1094,9 @@ static void check_publication(int id,const unsigned char *status,int status_rc,c
   return;
  }
  pub_gap_bad[i].on=0;cov_pub_served++;
+ if(!stock_link_beat_sync_allowed(status,id-1))
+  fail(F_PUB_NO_BEAT_SYNC,"deck=%d status sync_stat=0x%02x enable=0x%02x: a stock deck synced to it cannot snap to its beat",
+   i+3,status[4],status[5]);
  if(held(&pub_stopped_bad[i],!moving,120))fail(F_PUB_STOPPED,"deck=%d published as playing while stopped",i+3);
  if(!steady||!b||isnan(s))return;
  cov_pub_checked++;
@@ -1089,6 +1137,7 @@ static void reset_world(void){
  memset(lamp_master_false,0,sizeof lamp_master_false);memset(jog_bad,0,sizeof jog_bad);
  memset(lamp_flash_bad,0,sizeof lamp_flash_bad);memset(jog_flash_bad,0,sizeof jog_flash_bad);memset(lamp_flip_at,0,sizeof lamp_flip_at);memset(lamp_prev,0,sizeof lamp_prev);memset(&dup_bad,0,sizeof dup_bad);
  memset(view_bad,0,sizeof view_bad);memset(lock_bad,0,sizeof lock_bad);memset(wrong_bad,0,sizeof wrong_bad);
+ memset(unlock_peak_us,0,sizeof unlock_peak_us);
  memset(&none_bad,0,sizeof none_bad);memset(&first_bad,0,sizeof first_bad);memset(&pause_bad,0,sizeof pause_bad);memset(&unchosen_bad,0,sizeof unchosen_bad);
  load_pending=0;chosen_live=0;chosen_epoch=0;memset(&unloaded_bad,0,sizeof unloaded_bad);order_pending=0;memset(prev_playing,0,sizeof prev_playing);press_next[0]=press_next[1]=-9;
  memset(pause_press_at,0,sizeof pause_press_at);memset(play_press_at,0,sizeof play_press_at);native_transport_at=0;memset(master_seen_at,0,sizeof master_seen_at);memset(&handoff_bad,0,sizeof handoff_bad);memset(native_bad,0,sizeof native_bad);
@@ -1489,6 +1538,10 @@ static const struct scenario scenarios[]={
   14000,0,{N1(12800,12000),SW(4,1),{700,ACT_TEMPO,0,0,V(-1500)},{1000,ACT_PLAY,0,0},{1500,ACT_SYNC,0,0},{6000,ACT_NATIVE_TOUCH,0,0,V(250)}},0,{1}},
  {"vinyl-native-master-hold","as vinyl-native-master-touch with a 2.5 s hold: master passes to synced DECK 3 within 2 s at the shared synced BPM (stock M4, M6)",
   14000,0,{N1(12800,12000),SW(4,1),{700,ACT_TEMPO,0,0,V(-1500)},{1000,ACT_PLAY,0,0},{1500,ACT_SYNC,0,0},{6000,ACT_NATIVE_TOUCH,0,0,V(2500)}},0,{1}},
+ /* Minimized from lock seed 23: the hold's first samples after release were taken for a capture gap, so the
+    kept offset blocked the jump and the deck closed 120 ms at 1 % (about 12 s). */
+ {"vinyl-native-master-touch-kept-offset","as s4-follower-nudge-keeps-offset, then the DJ holds DECK 2's platter 120 ms (VINYL): DECK 4 finds the beat again within 4 s, not 1%-off for seconds",
+  15000,0,{N2(12000,12800),SW(1,4),{1000,ACT_PLAY,1,0},{1500,ACT_SYNC,1,0},{6000,ACT_NUDGE,1,1,V(30)},{9000,ACT_NATIVE_TOUCH,1,0,V(120)}},0,{1}},
  {"native-follow-worker-3ms","DECK 4 follows native DECK 2 with workers passing every 3 ms and the USB position published every 8 ms (hardware-like): the lock holds, no trim flutter",
   14000,0,{N2(12000,13210),SW(1,4),{700,ACT_TEMPO,1,0,V(-1500)},{1000,ACT_PLAY,1,0},{1500,ACT_SYNC,1,0}},0,{1,0,0,0,0,3,8}},
  {"software-handoff-keeps-tempo","natives loaded, DECK 1 stopped at 128 BPM; DECK 3 follows DECK 4 (122 BPM track, +2%); DECK 4 pauses (VINYL): DECK 3 takes MASTER at its tempo, never DECK 1's",

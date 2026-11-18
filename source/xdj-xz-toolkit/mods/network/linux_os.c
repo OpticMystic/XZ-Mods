@@ -3,6 +3,7 @@
 #include "linux.h"
 #include "proc_parse.h"
 #include "../clock_compat.h"
+#include "../xz_spawn.h"
 #include <arpa/inet.h>
 #include <dirent.h>
 #include <errno.h>
@@ -294,7 +295,11 @@ static enum xz_net_result client_start(void *p,const struct xz_net_identity *id,
     char parent[32];snprintf(parent,sizeof parent,"%ld",(long)getpid());
     char *argv[]={o->event_path,"--run",parent,(char *)id->name,NULL};
     char *env[]={"PATH=/usr/sbin:/usr/bin:/sbin:/bin",XZ_NET_EVENT_ENV,NULL};pid_t pid=0;
-    if(!r)r=posix_spawn(&pid,o->event_path,&actions,NULL,argv,env);
+    /* vfork, never fork: a fork of the player stalls every one of its threads for about 350 ms (xz_spawn.h). */
+    posix_spawnattr_t attributes;int with_attributes=!r&&!posix_spawnattr_init(&attributes);
+    if(!r&&(!with_attributes||xz_spawn_without_copy(&attributes)))r=ENOSYS;
+    if(!r)r=posix_spawn(&pid,o->event_path,&actions,&attributes,argv,env);
+    if(with_attributes)posix_spawnattr_destroy(&attributes);
     if(initialized)posix_spawn_file_actions_destroy(&actions);close(pipes[1]);close(life[0]);if(r){close(pipes[0]);close(life[1]);return XZ_NET_NEEDS_DHCP_CLIENT;}
     int flags=fcntl(pipes[0],F_GETFL);fcntl(pipes[0],F_SETFL,flags|O_NONBLOCK);
     o->pid=pid;o->pipe=pipes[0];o->lifetime=life[1];memcpy(o->client_interface,id->name,16);o->partial_bytes=0;o->token=++o->serial;*token=o->token;return XZ_NET_OK;

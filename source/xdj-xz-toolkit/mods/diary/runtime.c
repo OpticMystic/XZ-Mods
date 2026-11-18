@@ -2,6 +2,8 @@
 #define _GNU_SOURCE
 #include "../writes.h"
 #include "runtime.h"
+#include "../recorder_state.h"
+#pragma weak xz_recorder_state
 #include "store.h"
 #include "../clock_compat.h"
 #include "../extra_decks.h"
@@ -59,10 +61,17 @@ void xz_diary_notice(unsigned component,unsigned notice){
  if(component<XZ_DIARY_COMPONENTS&&notice>0&&notice<XZ_DIARY_NOTICES)
   __atomic_fetch_or(&notices[component],1u<<notice,__ATOMIC_RELAXED);
 }
+/* The stock MASTER REC writes to the stick in USB 2: the diary stays off that stick while it records, so a
+   recording never shares the stick's writeback and FAT updates with the diary's appends and fsyncs. */
+static int recording_on_usb2(void){
+ struct xz_recorder_state r;
+ return xz_recorder_state&&xz_recorder_state(&r)==0&&r.recording;
+}
 static int safe(void *opaque,const struct xz_diary_store *s){
  struct mount *m=opaque;
  if(!__atomic_load_n(&running,__ATOMIC_ACQUIRE)||xz_settings_mount_id(s->root)!=s->mount_id)return -1;
  if(__atomic_load_n(&busy[m->slot-1],__ATOMIC_RELAXED)||!m->disk_safe)return 0;
+ if(m->slot==2&&recording_on_usb2())return 0;
  return 1;
 }
 static int slot_of(const char *p){

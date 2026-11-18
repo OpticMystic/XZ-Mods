@@ -45,11 +45,12 @@ static void test_ruler_and_icons(void){
    int x=98+700/2+48; /* One source-grid beat ahead at zoom 3. */
    assert(pixels[(tag.y+1)*804+x]==rgb565(xz_blend(SH_BLACK,SH_WHITE,112)));
    assert(pixels[(tag.y+20)*804+x]==rgb565(SH_WHITE));
-   if(sh_control_active(&m,d)){
-    int right=d&1,head=30+(right?19:7),tail=30+(right?7:19);
-    assert(pixels[(tag.y+3)*804+head]==rgb565(SH_WHITE));
-    assert(pixels[(tag.y+3)*804+tail]==rgb565(SH_BLACK));
-    assert(pixels[(tag.y+5)*804+30+(right?26:0)]==rgb565(SH_BLACK));
+   /* Four lanes: the side mark's own wheel in the black unit box, white while the side drives the deck and mid
+      grey while the side is on its other deck (test_side_mark.c). */
+   if(count==4){
+    int wheel=d&1?54:37,other=d&1?37:54;
+    assert(pixels[(tag.y+tag.h/2)*804+wheel]==rgb565(sh_side_of(&view,d)==SH_SIDE_DRIVES?SH_WHITE:SH_WHEEL_DIM));
+    assert(pixels[(tag.y+tag.h/2)*804+other]==rgb565(SH_BLACK));
    }
   }
   assert(xz_shell_restore_setting(&u,XZ_SHELL_ITEM_WAVE_TITLES,1));render(&u,&m);
@@ -82,4 +83,4 @@ static void test_title_clip(void){
  }
  puts("PASS long waveform titles leave playhead and future beats clear in both positions/views");
 }
-int main(void){fx_track_build(&track,7);test_setting();test_ruler_and_icons();test_title_clip();puts("PASS title SHOW/HIDE, full upper beat alignment, selected pairs/orders and black-outlined control arrows");}
+int main(void){fx_track_build(&track,7);test_setting();test_ruler_and_icons();test_title_clip();puts("PASS title SHOW/HIDE, full upper beat alignment, selected pairs/orders and the four-lane side mark");}

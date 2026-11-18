@@ -119,6 +119,310 @@
   {
    "glob": "modern:*-unknown-and-odd",
    "why": "Values the runtime has not read yet."
+  },
+  {
+   "glob": "modern:play-2deck-fx-*-calm",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-2deck-fx-*-idle",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-2deck-fx-*-long",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-2deck-fx-*-long-dark",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-2deck-fx-*-ten",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-2deck-fx-*-no-clock",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-4deck-fx-*-calm",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-4deck-fx-*-idle",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-4deck-fx-*-long",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-4deck-fx-*-long-dark",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-4deck-fx-*-ten",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-4deck-fx-*-no-clock",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-nolamps-fx-*",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-mixer-calm",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-mixer-idle",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-mixer-long",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-mixer-long-dark",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-mixer-ten",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-mixer-no-clock",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-pair32-*",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-stems-calm",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-stems-idle",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-stems-long",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-stems-long-dark",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-stems-ten",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-stems-no-clock",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-waiting-calm",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-waiting-idle",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-waiting-long",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-waiting-long-dark",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-waiting-ten",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:play-waiting-no-clock",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:browse-idle",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:browse-long",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:browse-long-dark",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:browse-ten",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:browse-no-clock",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:info-calm",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:info-idle",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:info-long",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:info-long-dark",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:info-ten",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:info-no-clock",
+   "why": "A state of the REC mark preview (ui/rec_mark.h, shell/preview_rec.c): every scenario in every recorder state. play-screen.md, The REC mark, shows the states on the two-deck play screen, once with four decks and once on BROWSE; the mark looks the same in the other scenarios."
+  },
+  {
+   "glob": "modern:four-1-2-focus3",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:four-1-4",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:four-waiting",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:mixer-1-2",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:mixer-1-4",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:mixer-3-4",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:two-1-2",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:two-1-2-focus2",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:two-1-4",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:two-3-2",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:two-3-4",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:route-down",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:route-down-focus2",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:stems-route-down",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:stems-two-1-2",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:stems-two-3-2",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:browse-1-2",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:info-1-2",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:info-3-2",
+   "why": "A scenario of the side mark preview (shell/preview_deck_tile.c). four-decks.md, The side mark, shows the marks in number and mixer order with the sides on each pair; 2 DECKS and the cable-down views draw no mark, and the other pairs repeat the same two wheel states."
+  },
+  {
+   "glob": "modern:source-02-cable-in-link",
+   "why": "The LINK tile highlighted with the loopback cable in. browse.md, SOURCE, shows the same state with the library link highlighted (source-03), which carries the same REAR USB IN USE mark."
+  },
+  {
+   "glob": "modern:source-07-no-cable-link",
+   "why": "The LINK tile highlighted with no cable. browse.md, SOURCE, shows the no-cable state (source-06) and LINK highlighted (source-stock-link)."
+  },
+  {
+   "glob": "modern:source-10-no-four-decks",
+   "why": "FOR A COMPUTER, the bar on a USB loader without four decks. browse.md, SOURCE, explains it in the REAR USB table; the picture differs from source-06 only in the bar."
+  },
+  {
+   "glob": "modern:source-full",
+   "why": "A host fixture that shows LINK or the library link as a browsable READY source with a track count. The player never reports them so in this version (shell_runtime.c fill_source marks both as the deck's own screen), so a picture of it would mislead. browse.md, SOURCE, shows the real states."
+  },
+  {
+   "glob": "modern:source-cursor-computer",
+   "why": "A host fixture that shows LINK or the library link as a browsable READY source with a track count. The player never reports them so in this version (shell_runtime.c fill_source marks both as the deck's own screen), so a picture of it would mislead. browse.md, SOURCE, shows the real states."
+  },
+  {
+   "glob": "modern:source-loading-current",
+   "why": "A host fixture that shows LINK or the library link as a browsable READY source with a track count. The player never reports them so in this version (shell_runtime.c fill_source marks both as the deck's own screen), so a picture of it would mislead. browse.md, SOURCE, shows the real states."
+  },
+  {
+   "glob": "modern:source-long-strings",
+   "why": "A host fixture that shows LINK or the library link as a browsable READY source with a track count. The player never reports them so in this version (shell_runtime.c fill_source marks both as the deck's own screen), so a picture of it would mislead. browse.md, SOURCE, shows the real states."
+  },
+  {
+   "glob": "modern:source-4deck",
+   "why": "A host fixture that shows LINK or the library link as a browsable READY source with a track count. The player never reports them so in this version (shell_runtime.c fill_source marks both as the deck's own screen), so a picture of it would mislead. browse.md, SOURCE, shows the real states."
+  },
+  {
+   "glob": "modern:browse-unknown",
+   "why": "Meant to show BROWSE before its list is read, but since Beta.3 the host preview draws the list already read (the shell keeps what it last showed). browse.md shows the unread state with screen-browse (LIST NOT READ YET)."
+  },
+  {
+   "glob": "modern:info-unknown",
+   "why": "Meant to show INFO before the track is read, but since Beta.3 the host preview draws the track already read (the shell keeps what it last showed). browse.md shows the unread state with screen-info."
+  },
+  {
+   "glob": "modern:cable-01-before-two-decks",
+   "why": "The 2 DECKS play screen before the loopback cable goes in, the same view as deckview-01-two-decks. four-decks.md shows the connected state (cable-02) and says the rest in text."
+  },
+  {
+   "glob": "modern:cable-03-picker-closed-after-8s",
+   "why": "4 DECKS in mixer order once the cable's picker has closed, the same view as deckview-04-four-3124-ready, which four-decks.md shows."
+  },
+  {
+   "glob": "modern:cable-04-pulled-two-decks",
+   "why": "2 DECKS after the cable was pulled, the same view as deckview-01-two-decks. four-decks.md, With the loopback cable in, says what happens in text."
+  },
+  {
+   "glob": "modern:deckview-06-two-decks-ready-notice",
+   "why": "MODERN no longer raises this hint (451ae5f): with two decks on screen it switches to 4 DECKS and opens the picker instead (cable-02, shown in four-decks.md). The host preview still draws the old hint; four-decks.md names the CLASSIC hint in text."
   }
  ],
  "settings_not_documented": [

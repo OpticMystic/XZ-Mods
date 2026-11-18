@@ -4,12 +4,14 @@
 #include "route_card.h"
 #include "deck_colour.h"
 
-/* Design section 4. MODERN: the button at (504,0,120,26) answers y 0..43 like the other top-bar
-   controls; the picker sits under the top bar's right half, like the shell's notice box. CLASSIC: the
+/* Design section 4. MODERN: the compact button at (576,0,54,26), deck numbers and triangle, answers
+   y 0..43 like the other top-bar controls; the room it gave up (it was 120 wide at x 504) holds the REC
+   mark while the unit records (shell_play.c). The picker sits under the top bar's right half, like the
+   shell's notice box. CLASSIC: the
    button fills the empty black between VJ.TOOLS and the METRICS readout; its touch reaches y 39, the
    corner of the top lane under it holding only cue flags and beat ticks. */
 const struct xz_deck_view_style xz_deck_view_modern={
- .classic=0,.theme=XZ_THEME_FLAGSHIP,.button={504,0,120,26},.button_touch_h=44,.picker={296,30,500,206},
+ .classic=0,.compact=1,.theme=XZ_THEME_FLAGSHIP,.button={XZ_DECK_VIEW_MODERN_X,0,XZ_DECK_VIEW_MODERN_W,26},.button_touch_h=44,.picker={296,30,500,206},
  .button_fill=0x191919,.button_edge=0x8c8c8c,.button_open_fill=0x3c3c3c,.button_open_edge=0xffffff,
  .ink=0xffffff,.dim=0xa4a4a4,.off=0x5a5a5a,.amber=0xffa82e,.green=0x28e028,.accent=0x007de1,
  .panel_fill=0x282828,.panel_edge=0x646465,.tile_fill=0x191919,.tile_sel_fill=0x0c2a48,.tile_edge=0x191919,
@@ -74,21 +76,9 @@ static void ring_box(struct xz_canvas c, int x, int y, int w, int h, int width, 
  for(int i=0;i<width;i++)xz_border(c,x+i,y+i,w-2*i,h-2*i,color);
 }
 
-void xz_deck_view_button_draw(struct xz_canvas c, const struct xz_deck_view_style *s, int view, int ready, int pair, int open, int focused) {
- view=xz_deck_view_valid(view);c=face(c,s);
- const struct xz_dv_rect b=s->button;
- int x=b.x,y=b.y,w=b.w,h=b.h;
- uint32_t fill=open?s->button_open_fill:s->button_fill,edge=open?s->button_open_edge:s->button_edge;
- if(s->classic){xz_rect(c,x,y,w,h,fill);xz_border(c,x,y,w,h,edge);}
- else{xz_rect(c,x,y,w,2,0x191919);xz_rect(c,x,y+h-2,w,2,0x191919);xz_rect(c,x,y+2,w,h-4,fill);xz_border(c,x,y+2,w,h-4,edge);}
- if(focused){if(s->classic)ring_box(c,x,y,w,h,2,s->accent);else ring_box(c,x,y+2,w,h-4,2,s->focus);}
- /* The lane glyph: two or four lanes, decks 3 and 4 grey while they are not ready. */
- unsigned char lanes[4];int n=xz_deck_view_lanes(view,lanes);
- if(view==XZ_LAYOUT_TWO&&ready){if(pair&1)lanes[0]=3;if(pair&2)lanes[1]=4;}
- int gy=y+(h-12)/2,pitch=12/n;
- for(int i=0;i<n;i++)xz_rect(c,x+6,gy+i*pitch,14,pitch-1,lanes[i]<=2||ready?s->ink:s->off);
- int ty=y+(h-9)/2,tx=x+26;
- xz_text(c,tx,ty,xz_l10n_authored("DECKS"),1,99,s->dim);tx+=xz_text_width(c,xz_l10n_authored("DECKS"),1,99)+5;
+/* The deck numbers in screen order from tx: DECK 3 and 4 in their badges, and every number in a badge on a
+   four-deck view (deck_colour.h). Returns where the run ends. */
+static int deck_numbers(struct xz_canvas c, const struct xz_deck_view_style *s, int view, int ready, const unsigned char *lanes, int n, int tx, int ty, uint32_t fill) {
  for(int i=0;i<n;i++){
   char digit[2]={(char)('0'+lanes[i]),0};
   int live=lanes[i]<=2||ready;
@@ -99,7 +89,39 @@ void xz_deck_view_button_draw(struct xz_canvas c, const struct xz_deck_view_styl
   else xz_text(c,tx,ty,digit,1,99,live?s->ink:0x6a6a6a);
   tx+=dw+4;
  }
- triangle_down(c,x+w-10,y+h/2-1,4,s->ink);
+ return tx;
+}
+static int numbers_width(struct xz_canvas c, const unsigned char *lanes, int n) {
+ int w=0;
+ for(int i=0;i<n;i++){char digit[2]={(char)('0'+lanes[i]),0};w+=xz_text_width(c,digit,1,99)+(i?4:0);}
+ return w;
+}
+void xz_deck_view_button_draw(struct xz_canvas c, const struct xz_deck_view_style *s, int view, int ready, int pair, int open, int focused) {
+ view=xz_deck_view_valid(view);c=face(c,s);
+ const struct xz_dv_rect b=s->button;
+ int x=b.x,y=b.y,w=b.w,h=b.h;
+ uint32_t fill=open?s->button_open_fill:s->button_fill,edge=open?s->button_open_edge:s->button_edge;
+ if(s->classic){xz_rect(c,x,y,w,h,fill);xz_border(c,x,y,w,h,edge);}
+ else{xz_rect(c,x,y,w,2,0x191919);xz_rect(c,x,y+h-2,w,2,0x191919);xz_rect(c,x,y+2,w,h-4,fill);xz_border(c,x,y+2,w,h-4,edge);}
+ if(focused){if(s->classic)ring_box(c,x,y,w,h,2,s->accent);else ring_box(c,x,y+2,w,h-4,2,s->focus);}
+ unsigned char lanes[4];int n=xz_deck_view_lanes(view,lanes);
+ if(view==XZ_LAYOUT_TWO&&ready){if(pair&1)lanes[0]=3;if(pair&2)lanes[1]=4;}
+ int ty=y+(h-9)/2;
+ if(s->compact){
+  /* The numbers centred between the left edge and the triangle's column (the last 13 px); the triangle
+     sits two pixels further right than on the wide button, so four badges keep 3 px clear of it. */
+  int room=w-2-13,nw=numbers_width(c,lanes,n);
+  deck_numbers(c,s,view,ready,lanes,n,x+2+(room-nw)/2,ty,fill);
+  triangle_down(c,x+w-8,y+h/2-1,4,s->ink);
+ }else{
+  /* The lane glyph: two or four lanes, decks 3 and 4 grey while they are not ready. */
+  int gy=y+(h-12)/2,pitch=12/n;
+  for(int i=0;i<n;i++)xz_rect(c,x+6,gy+i*pitch,14,pitch-1,lanes[i]<=2||ready?s->ink:s->off);
+  int tx=x+26;
+  xz_text(c,tx,ty,xz_l10n_authored("DECKS"),1,99,s->dim);tx+=xz_text_width(c,xz_l10n_authored("DECKS"),1,99)+5;
+  deck_numbers(c,s,view,ready,lanes,n,tx,ty,fill);
+ }
+ if(!s->compact)triangle_down(c,x+w-10,y+h/2-1,4,s->ink);
  if(view!=XZ_LAYOUT_TWO&&!ready)xz_disc(c,x+w-4,y+5,3,s->amber);
 }
 int xz_deck_view_button_hit(const struct xz_deck_view_style *s, int x, int y) {
@@ -181,6 +203,9 @@ void xz_deck_view_mini_screen(struct xz_canvas c, const struct xz_deck_view_styl
 }
 
 void xz_deck_view_picker_draw(struct xz_canvas c, const struct xz_deck_view_style *s, int view, int ready, int focus) {
+ xz_deck_view_picker_draw_line(c,s,view,ready,focus,NULL);
+}
+void xz_deck_view_picker_draw_line(struct xz_canvas c, const struct xz_deck_view_style *s, int view, int ready, int focus, const char *line) {
  view=xz_deck_view_valid(view);c=face(c,s);
  const struct xz_dv_rect p=s->picker;
  if(s->classic){xz_rect(c,p.x-1,p.y-1,p.w+2,p.h+2,0x000000);round_box(c,p.x,p.y,p.w,p.h,8,s->panel_fill,s->panel_edge,1);}
@@ -190,7 +215,8 @@ void xz_deck_view_picker_draw(struct xz_canvas c, const struct xz_deck_view_styl
   xz_rect(c,p.x,p.y,p.w,3,s->accent);
  }
  xz_text(c,p.x+12,p.y+11,xz_l10n_authored("DECK VIEW"),1,99,s->ink);
- text_right(c,p.x+p.w-12,p.y+11,"WHAT THE PLAY SCREEN SHOWS",1,s->dim);
+ if(line)text_right(c,p.x+p.w-12,p.y+11,line,1,s->green);
+ else text_right(c,p.x+p.w-12,p.y+11,"WHAT THE PLAY SCREEN SHOWS",1,s->dim);
  for(int i=0;i<XZ_DECK_VIEW_TILES;i++){
   struct xz_dv_rect t=xz_deck_view_tile(s,i);
   int selected=i==view,focused=i==focus;

@@ -58,6 +58,8 @@ from shell_sources import SHELL_SOURCES
 controls = [ROOT / n for n in ['key/music.c', 'key/control.c', 'key/browser.c', 'key/catalog.c', 'key/traffic.c', 'settings.c', 'usb_profile.c', 'doom/native_bridge.c', 'doom/wad_catalog.c', 'ota/native_update.c', 'audio/vendor/sha256/sha256.c', 'pc_control/stems.c', 'kart/xz_kart_input.c', 'kart/xz_kart_runtime.c']]
 controls += [ROOT / 'ui' / n for n in UI_SOURCES + ['native_touch.c', 'stem_pads.c', 'beat_jump.c', 'wave_viewport.c']]
 controls += [ROOT / 'arcade' / n for n in ['arcade.c', 'render.c', 'input.c', 'clock.c', 'native_clock.c']]
+# The REC mark reads the recorder through the shared poller; on the host the stand-in state.
+controls += [ROOT / n for n in ['recorder_poll.c', 'recorder_state_stub.c']]
 groups = {
     'load': [*player[1:], 'tests/test_key_load.c'],
     'alignment': ['key/test_alignment.c'],

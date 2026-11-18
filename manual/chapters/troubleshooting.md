@@ -64,18 +64,18 @@ Every state on both interfaces, with pictures, is in [Stems](stems).
 
 ## Notices on the play screen {modern}
 
-A notice is a short message in the middle of the lanes. It clears on its own after a few seconds, and the deck keeps playing.
+A notice is a short message in the top bar, where the BEAT FX readout is. It never covers the waveforms, clears on its own after a few seconds, and the deck keeps playing.
 
 ```nav b-notice-load-recovery Notices on the play screen {modern}
 ```
 
 ```figure modern:play-notice MODERN · Play screen {modern}
-A notice over the lanes.
-1 @ 560,231 Notice | What happened. Nothing else on the screen changes.
+A notice in the top bar.
+1 @ 374,40 Notice | What happened. Nothing else on the screen changes.
 ```
 
 ```gallery {modern}
-modern:play-notice-long A long notice wraps onto two lines
+modern:play-notice-long The longest notice takes two lines in the top bar
 ```
 
 | Notice | What to do |
@@ -88,11 +88,13 @@ modern:play-notice-long A long notice wraps onto two lines
 | OPEN A TRACK LIST TO LOAD, NO USB TRACK LIST TO LOAD FROM | Open a track list on a USB, then load |
 | LOAD FROM THIS LIST IS OFF | Loading from this list is switched off. See [Browsing and loading](browse) |
 | THIS ROW CANNOT BE LOADED, THAT DECK CANNOT LOAD THIS TRACK | Choose another track or another deck |
+| LOAD LOCK: DECK 1 IS PLAYING (or DECK 2, 3, 4) | LOAD LOCK is on in UTILITY and that deck plays. Pause the deck, or turn LOAD LOCK off |
+| USB STARTING / DECK 1 LOADS WHEN READY (or DECK 2) | The stick went in less than a minute ago and the player is not ready to load from it. Wait: the track loads by itself |
 | TAG LIST IS FULL: 100 TRACKS | Remove a track from the tag list first |
 | MATCHING NEEDS A MASTER DECK | Set a master deck, then use MATCHING |
 | NO MASTER DECK: BPM FILTER OFF, NO MASTER KEY: KEY FILTER OFF | The filter has nothing to compare with. Set a master deck |
 | COMPUTER BROWSING IS NOT AVAILABLE YET, LINK BROWSING IS NOT AVAILABLE YET | Browse a USB instead. These sources come in a later version |
-| LINK DID NOT OPEN, EXPORT MODE DID NOT OPEN | Try again. The player's own screen did not open |
+| LINK DID NOT OPEN, EXPORT MODE DID NOT OPEN | Try again. The player's own screen for LINK or the library link did not open |
 | MODS DID NOT OPEN: PUSH AGAIN | Push again |
 | TOUCH CANNOT OPEN THIS YET: PUSH THE ENCODER | Use the encoder for this item |
 | THAT SETTING CANNOT CHANGE HERE | Change it in the player's own UTILITY. Hold [[MENU]] |
@@ -210,7 +212,7 @@ XZ Mods keeps a short diagnostic diary in `VJ.Tools/XZ-Mods-diary/` on each moun
 
 The diary records the XZ Mods version, settings fingerprint, USB slots, interface, deck view, state changes and fixed notice codes. It also records available CPU, memory, audio, SYNC, key-processing and USB-read measurements. It never records track titles, music paths, serial numbers or network identities. A missing measurement stays unknown.
 
-Each stick holds at most 4 MiB of diary files. Older segments are replaced first, and the previous session's latest segment is kept when a new session starts. Writing pauses during track loads, RAM copies and heavy USB reads. No diary is created on a read-only stick or when less than 64 MiB of free space plus a small write reserve remains. Read-only test sessions save nothing. Normal USB-loader sessions write diary entries when these conditions allow it. Long busy periods and removal can leave gaps.
+While the player records, the diary writes nothing to the stick in USB 2, where the recording goes. Each stick holds at most 4 MiB of diary files. Older segments are replaced first, and the previous session's latest segment is kept when a new session starts. Writing pauses during track loads, RAM copies and heavy USB reads. No diary is created on a read-only stick or when less than 64 MiB of free space plus a small write reserve remains. Read-only test sessions save nothing. Normal USB-loader sessions write diary entries when these conditions allow it. Long busy periods and removal can leave gaps.
 
 The diary stays on the sticks. Nothing is sent until you choose to include it in a report.
 

@@ -369,6 +369,51 @@ static void test_slip_vinyl(void){
  assert(m.deck[0].slip&&!(m.deck[0].known&K(SLIP_POSITION)));
  release(&s);puts("PASS SLIP and VINYL: guarded getter bytes, slip on, slipping ghost position, vinyl mode");
 }
+/* LOOP IN / OUT ADJUST: the stock getters' bytes guard +0x2e bits 3/4 and the adjust time at +0x10. */
+static void map_loop_edit_guards(void){
+ static const struct { uint32_t at; unsigned char code[16]; } loads[3]={
+  {0x249b04,{0x2e,0x00,0xd3,0xe5,0xd0,0x01,0xe0,0xe7,0x1e,0xff,0x2f,0xe1,0x2e,0x00,0xd0,0xe5}},
+  {0x249b50,{0x2e,0x00,0xd3,0xe5,0x50,0x02,0xe0,0xe7,0x1e,0xff,0x2f,0xe1,0x2e,0x00,0xd0,0xe5}},
+  {0x249a60,{0x00,0x00,0x51,0xe3,0x10,0x00,0x93,0x05,0x1e,0xff,0x2f,0x01,0x01,0x00,0x51,0xe3}}};
+ for(unsigned i=0;i<3;i++)memcpy(map(loads[i].at,16),loads[i].code,16);
+}
+static void test_loop_edit(void){
+ /* Fixture loop: 2200..4400 ms on both decks, active. */
+ fixture();struct guarded_storage s=allocate();struct xz_shell_model m={0};
+ *at(frame(0)+0x2e,1)|=0x10;put32(frame(0)+0x10,3100);
+ xz_shell_model_refresh(&m,s.storage,read_memory,1);
+ assert(!(m.deck[0].known&K(LOOP_EDIT))&&m.deck[0].loop.out_ms==4400); /* no guard bytes: nothing */
+ release(&s);
+ fixture();map_loop_edit_guards();s=allocate();
+ /* OUT ADJUST on deck 1: the OUT edge follows the adjust time at once. */
+ *at(frame(0)+0x2e,1)|=0x10;put32(frame(0)+0x10,3100);
+ xz_shell_model_refresh(&m,s.storage,read_memory,2);
+ assert((m.deck[0].known&K(LOOP_EDIT))&&m.deck[0].loop_edit.endpoint==1&&m.deck[0].loop_edit.ms==3100);
+ assert(m.deck[0].loop.active&&m.deck[0].loop.in_ms==2200&&m.deck[0].loop.out_ms==3100);
+ assert(!(m.deck[1].known&K(LOOP_EDIT))&&m.deck[1].loop.out_ms==4400);
+ /* The jog keeps moving it: each refresh follows. */
+ put32(frame(0)+0x10,2207);xz_shell_model_refresh(&m,s.storage,read_memory,3);
+ assert(m.deck[0].loop_edit.ms==2207&&m.deck[0].loop.out_ms==2207);
+ /* IN ADJUST on deck 2. */
+ *at(frame(0)+0x2e,1)&=(unsigned char)~0x18;*at(frame(1)+0x2e,1)|=0x08;put32(frame(1)+0x10,2000);
+ xz_shell_model_refresh(&m,s.storage,read_memory,4);
+ assert(!(m.deck[0].known&K(LOOP_EDIT))&&m.deck[0].loop.out_ms==4400);
+ assert((m.deck[1].known&K(LOOP_EDIT))&&m.deck[1].loop_edit.endpoint==0&&m.deck[1].loop_edit.ms==2000&&m.deck[1].loop.in_ms==2000);
+ /* An IN at or past OUT never inverts the loop. */
+ put32(frame(1)+0x10,4400);xz_shell_model_refresh(&m,s.storage,read_memory,5);
+ assert(m.deck[1].loop_edit.ms==4400&&m.deck[1].loop.in_ms==2200&&m.deck[1].loop.out_ms==4400);
+ /* Both bits, or a time past the int range: nothing. */
+ *at(frame(1)+0x2e,1)|=0x18;xz_shell_model_refresh(&m,s.storage,read_memory,6);assert(!(m.deck[1].known&K(LOOP_EDIT)));
+ *at(frame(1)+0x2e,1)&=(unsigned char)~0x10;put32(frame(1)+0x10,0x80000000u);
+ xz_shell_model_refresh(&m,s.storage,read_memory,7);assert(!(m.deck[1].known&K(LOOP_EDIT)));
+ release(&s);
+ /* A different firmware (one guard byte off): nothing, with the adjust bit set. */
+ fixture();map_loop_edit_guards();at(0x249b50,16)[5]^=1;s=allocate();
+ *at(frame(0)+0x2e,1)|=0x10;put32(frame(0)+0x10,3100);
+ xz_shell_model_refresh(&m,s.storage,read_memory,8);
+ assert(!(m.deck[0].known&K(LOOP_EDIT))&&m.deck[0].loop.out_ms==4400);
+ release(&s);puts("PASS LOOP IN / OUT ADJUST: guarded getter bytes, edge follows the adjust time, one edge at a time, firmware mismatch fails closed");
+}
 static void test_settings_bulk(void){
  fixture();struct guarded_storage s=allocate();struct xz_shell_model m={0};
  map(0x3204000,0x8c*40);put32(0x3200164,0x3204000);put32(0x320016c,40);
@@ -402,8 +447,20 @@ static void test_master_bpm(void){
     assert(xz_shell_model_master_bpm(NULL)==0);
     puts("PASS master BPM for DECK 3 / 4 SYNC: master deck, none, implausible, guard, torn and failed reads");
 }
+static void test_native_negative_time(void){
+ struct xz_shell_model m;fixture();struct guarded_storage s=allocate();
+ xz_shell_model_refresh(&m,s.storage,read_memory,100);
+ const int32_t times[]={-1,-100,-16000,-96000,0,100};
+ for(unsigned i=0;i<sizeof times/sizeof *times;i++){
+  put32(frame(0)+0xc,(uint32_t)times[i]);
+  assert(!xz_shell_model_refresh(&m,s.storage,read_memory,101+i));
+  assert((m.deck[0].known&K(ELAPSED))&&m.deck[0].elapsed_ms==times[i]);
+  assert((m.deck[0].known&K(LOADED))&&m.deck[0].loaded);
+ }
+ release(&s);puts("PASS signed native pre-start time preserves loaded identity");
+}
 int main(void){
- test_valid_and_input();test_guards();test_torn_and_pointers();test_identity_and_waves();test_flag_encodings();test_hot_cue_sentinels();test_invalid_data();
- test_fx();test_slip_vinyl();test_settings_bulk();test_master_bpm();
+ test_native_negative_time();test_valid_and_input();test_guards();test_torn_and_pointers();test_identity_and_waves();test_flag_encodings();test_hot_cue_sentinels();test_invalid_data();
+ test_fx();test_slip_vinyl();test_loop_edit();test_settings_bulk();test_master_bpm();
  puts("shell_model: all host acceptance tests passed; no hardware/device/network access");return 0;
 }

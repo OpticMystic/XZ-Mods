@@ -41,6 +41,18 @@ static inline void fx_model_four(struct xz_shell_model *m, const struct fx_track
  m->deck_count=4;
  fx_deck_three(&m->deck[2],t);fx_deck_four(&m->deck[3],t);
 }
+/* DECK 3 and 4 without stems, as the runtime publishes them: map_deck (shell_runtime_core.c) never sets a
+   stem layer or stem mute, level or bypass state for them, and xz_shrt_extra_caps turns their stem
+   controls off. So a four-deck view shows stem buttons on decks 1 and 2 only. */
+static inline void fx_extra_decks_no_stems(struct xz_shell_model *m) {
+ for(int d=2;d<4;d++){
+  struct xz_shell_deck *k=&m->deck[d];
+  k->known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_WAVE)|XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_MUTE)
+   |XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_GAIN)|XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_BYPASS));
+  k->stems=(struct xz_shell_wave){0};k->stem_muted=0;k->stem_bypass=0;memset(k->stem_gain,0,sizeof k->stem_gain);
+  k->caps_off|=XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN|XZ_SHELL_CAP_STEM_BYPASS;
+ }
+}
 /* Software players: LOAD/SEEK on screen, physical performance controls, and known range/MT/vinyl state.
    Time mode, sync latch, quantize and memory-cue controls remain native-only. */
 #define FX_EXTRA_DECK_CAPS (XZ_SHELL_CAP_SET_SETTING|XZ_SHELL_CAP_GRID|XZ_SHELL_CAP_GRID_EDIT|XZ_SHELL_CAP_TAG_TRACK\

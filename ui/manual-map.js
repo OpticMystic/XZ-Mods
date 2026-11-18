@@ -458,14 +458,14 @@
     const sc = Math.min((W - 12) / b.w, (H - 12) / b.h), ox = (W - b.w * sc) / 2, oy = (H - b.h * sc) / 2;
     c.bounds = { x: -ox / sc, y: -oy / sc, s: sc };
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = '#0b0c0dee'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#0b0b0bee'; ctx.fillRect(0, 0, W, H);
     for (const screen of g.screens) {
       if (screen.card.hidden || !screen.at) continue;
-      ctx.fillStyle = screen === m.selected ? '#f3e900' : screen.depth === 0 ? '#9aa19c' : '#4a5150';
+      ctx.fillStyle = screen === m.selected ? '#ffffff' : screen.depth === 0 ? '#999999' : '#4a4a4a';
       ctx.fillRect(ox + screen.at.x * sc, oy + screen.at.y * sc, Math.max(2, screen.size.w * sc), Math.max(2, screen.size.h * sc));
     }
     const v = viewSize();
-    ctx.strokeStyle = '#fff98a'; ctx.lineWidth = 1.2;
+    ctx.strokeStyle = '#dadada'; ctx.lineWidth = 1.2;
     ctx.strokeRect(ox + (-m.cam.x / m.cam.k) * sc, oy + (-m.cam.y / m.cam.k) * sc, v.w / m.cam.k * sc, v.h / m.cam.k * sc);
   }
 

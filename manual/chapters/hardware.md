@@ -39,7 +39,7 @@ The XDJ-XZ from above: the browse section with the touch screen at the top centr
 | [[PUSH]] Rotary selector, push | Opens or changes the highlighted item in MODS. |
 | [[BUTTON ABOVE LINK]] | Does what you chose in MODS > PLAY > BUTTON ABOVE LINK. The default is INTERFACE. |
 | [[SHIFT]] + [[BUTTON ABOVE LINK]] | Hold [[SHIFT]] on either deck and press it. Does the second choice on the same page. The default is ITS OWN JOB. |
-| [[LINK]] | Its normal job. With the screen switch key set to LINK it also switches the VJ.Tools view on and off. |
+| [[LINK]] | In CLASSIC, its normal job. In MODERN, the first press opens SOURCE with the LINK tile highlighted, and a second press opens the player's own LINK screen. With the screen switch key set to LINK it also switches the VJ.Tools view on and off. |
 | [[SHORTCUT]] | Opens the SHORTCUT screen. In MODERN this is MODERN's own SHORTCUT screen. |
 | [[LOAD]] | Loads the highlighted track into the deck that side controls: deck 1 or 3, deck 2 or 4. |
 | [[TIME MODE]], [[DECK QUANTIZE]] | Their normal job on decks 1 and 2. For decks 3 and 4, see [Quantize](performance#quantize) and [Four decks](four-decks). |
@@ -73,7 +73,7 @@ Both slots at their defaults. A press switches the interface, and SHIFT + press 
 | INTERFACE | Switches between MODERN and CLASSIC, with the same notice as MODS > SCREEN. |
 | VJ.TOOLS SCREEN | Switches the VJ.Tools screen on and off. Without an enabled, connected VJ.Tools link it says so instead. |
 | STEMS | Does what the STEMS button on the screen does: steps the stem buttons through their places in 2 DECKS, and shows or hides them in MODERN's 4 DECKS. |
-| DECK VIEW | Steps DECK VIEW: 2 DECKS, 4 DECKS in number order 1 2 3 4, 4 DECKS in mixer order 3 1 2 4, then 2 DECKS again. It saves the choice and shows the new view in a short notice. |
+| DECK VIEW | Steps DECK VIEW: 2 DECKS, 4 DECKS in number order 1 2 3 4, 4 DECKS in mixer order 3 1 2 4, then 2 DECKS again. It saves the choice, and the play screen shows the new view at once. |
 | NOTHING | The button does nothing. |
 
 > **Tip.** With the default INTERFACE on a plain press, you can always get back to MODS without touching the screen: press [[MENU]] on the play screen, or switch interface with the button above [[LINK]] and press [[MENU]] there.

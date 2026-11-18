@@ -89,6 +89,7 @@ size_t xz_ui_section_controls(const struct xz_ui *u, const struct xz_ui_model *m
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_KEY_SETUP,0,xz_l10n_authored("KEYS"));
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_RAM_SETUP,0,xz_l10n_authored("RAM TRACKS"));
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BUTTONS,0,xz_l10n_authored("BUTTON ABOVE LINK"));
+  add(w,&n,XZ_UI_ENABLE,XZ_UI_TRACKLIST,0,xz_l10n_authored("RECORDING TRACKLIST"));
   break;}
  case XZ_UI_STEM_SECTION:
   if(xz_ui_usb_engine(m))add(w,&n,XZ_UI_ENABLE,XZ_UI_STEM,0,xz_l10n_authored("USB STEMS"));
@@ -224,6 +225,7 @@ void xz_ui_section_place(const struct xz_ui *u, const struct xz_ui_model *m, str
    else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_KEY_SETUP)left(a,176);
    else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_RAM_SETUP)right(a,176);
    else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_BUTTONS)full(a,240);
+   else if(a->kind==XZ_UI_ENABLE&&k==XZ_UI_TRACKLIST)left(a,304);
    break;
   case XZ_UI_STEM_SECTION:
    if(a->kind==XZ_UI_ENABLE||a->kind==XZ_UI_LOCAL_STEM_SETUP_OPEN)left(a,64);
@@ -590,6 +592,7 @@ void xz_ui_section_render(const struct xz_ui_scene *sc){
  case XZ_UI_HOME:home(sc,&s);break;
  case XZ_UI_PLAY:
   caption(c,&s,X0,48,CW,xz_l10n_authored("PADS AND CUES"));caption(c,&s,X0,160,CW,xz_l10n_authored("KEYS AND MEMORY"));caption(c,&s,X0,224,CW,xz_l10n_authored("BUTTONS"));
+  caption(c,&s,X0,288,CW,xz_l10n_authored("MASTER REC"));
   list_values(sc,&s);break;
  case XZ_UI_STEM_SECTION:
   caption(c,&s,X0,48,CW,xz_l10n_authored("STEM AUDIO"));caption(c,&s,X0,112,CW,xz_l10n_authored("PADS"));caption(c,&s,X0,176,CW,xz_l10n_authored("STEM BUTTONS ON SCREEN"));

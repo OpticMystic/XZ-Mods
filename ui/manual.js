@@ -255,8 +255,8 @@
     if (focus) view.querySelector('.m-start-title').focus({ preventScroll: true });
   }
   function ring(share) {
-    return svgEl('svg', { class: 'm-ring-small', viewBox: '0 0 34 34', 'aria-hidden': 'true' }, svgEl('circle', { class: 'm-ring-track', cx: 17, cy: 17, r: 14, fill: 'none', stroke: '#26292a', 'stroke-width': 4 }),
-      svgEl('circle', { cx: 17, cy: 17, r: 14, fill: 'none', stroke: '#f3e900', 'stroke-width': 4, 'stroke-linecap': 'round', 'stroke-dasharray': '87.96', 'stroke-dashoffset': String(87.96 * (1 - share)) }));
+    return svgEl('svg', { class: 'm-ring-small', viewBox: '0 0 34 34', 'aria-hidden': 'true' }, svgEl('circle', { class: 'm-ring-track', cx: 17, cy: 17, r: 14, fill: 'none', stroke: '#2a2a2a', 'stroke-width': 4 }),
+      svgEl('circle', { cx: 17, cy: 17, r: 14, fill: 'none', stroke: '#f2f2f2', 'stroke-width': 4, 'stroke-linecap': 'round', 'stroke-dasharray': '87.96', 'stroke-dashoffset': String(87.96 * (1 - share)) }));
   }
 
   async function openChapter(slug, anchor, options = {}) {

@@ -340,11 +340,18 @@ static void test_notice(void) {
    plain=m;plain.notice=NULL;
    render_checked(&u,&plain,buffer_b);
    render_checked(&u,&m,buffer_a);
-   assert(!differs_outside(frame(buffer_a),frame(buffer_b),r));
+   /* PLAY: the top bar's BEAT FX strip, not the centred box (test_notice_place.c covers it in every view). */
+   struct xz_shell_rect box=sh_notice_place(&u,&m,texts[t],NULL);
+   uint32_t fill=screen==XZ_SHELL_PLAY?0x2b1d00:SH_ROW_ALT;
+   int inset=screen==XZ_SHELL_PLAY?4:1;
+   if(screen==XZ_SHELL_PLAY)assert(box.y+box.h<=26&&box.x>=8&&box.x+box.w<=498);
+   else assert(box.x==r.x&&box.y==r.y&&box.w==r.w&&box.h==r.h);
+   assert(!differs_outside(frame(buffer_a),frame(buffer_b),box));
    assert(memcmp(buffer_a,buffer_b,sizeof buffer_a));
    /* Text stays inside the box: its edge columns are border, never ink. */
-   for(int y=r.y+3;y<r.y+r.h-1;y++)for(int x=r.x+1;x<r.x+12;x++)assert(at(frame(buffer_a),x,y)==rgb565(SH_ROW_ALT));
-   for(int y=r.y+3;y<r.y+r.h-1;y++)for(int x=r.x+r.w-12;x<r.x+r.w-1;x++)assert(at(frame(buffer_a),x,y)==rgb565(SH_ROW_ALT));
+   int top=screen==XZ_SHELL_PLAY?box.y+1:box.y+3;
+   for(int y=top;y<box.y+box.h-1;y++)for(int x=box.x+inset;x<box.x+(screen==XZ_SHELL_PLAY?8:12);x++)assert(at(frame(buffer_a),x,y)==rgb565(fill));
+   for(int y=top;y<box.y+box.h-1;y++)for(int x=box.x+box.w-(screen==XZ_SHELL_PLAY?8:12);x<box.x+box.w-1;x++)assert(at(frame(buffer_a),x,y)==rgb565(fill));
    m.clock_ms=7000+XZ_SHELL_NOTICE_MS;plain.clock_ms=m.clock_ms;
    render_checked(&u,&m,buffer_a);render_checked(&u,&plain,buffer_b);
    assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a));
@@ -354,7 +361,7 @@ static void test_notice(void) {
  int lines;sh_notice_rect("DECK 1 DID NOT LOAD THE TRACK",&lines);assert(lines==1);
  sh_notice_rect("SELECT A TRACK, THEN PRESS LOAD",&lines);assert(lines==1);
  sh_notice_rect(texts[2],&lines);assert(lines==2);
- puts("PASS notice toast: timing, wrap, every screen, inside its box, under the header");
+ puts("PASS notice toast: timing, wrap, every screen, inside its box, under the header; on PLAY in the top bar");
 }
 /* Held MENU opens MODS > UTILITY and remains there on another hold; a short
    MENU on PLAY does nothing. The runtime's key probe reads exactly this: an effect without HAND_OFF

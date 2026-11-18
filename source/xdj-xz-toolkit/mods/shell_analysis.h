@@ -19,6 +19,9 @@ struct xz_shana;
 /* root: the folder that holds PIONEER (e.g. /media/usb1/sda2). Returns 0 and *out (possibly with no
    entries when the stick has no USBANLZ). *files: DAT/EXT files read. */
 int xz_shana_build(const char *root, struct xz_shana **out, uint32_t *files);
+struct xz_shana_path { const char *track, *analysis_file; };
+/* Build from the export database without opening any waveform files. Lookups still verify PPTH. */
+int xz_shana_build_paths(const char *root,const struct xz_shana_path *paths,size_t count,struct xz_shana **out);
 void xz_shana_free(struct xz_shana *);
 const char *xz_shana_root(const struct xz_shana *);
 uint32_t xz_shana_count(const struct xz_shana *);

@@ -132,7 +132,10 @@ class ZipTests(Environment):
 
 @unittest.skipIf(np is None, AUDIO_MISSING)
 class ImportTests(Environment):
-    """Pages are zlib and verified in Python unless XZ_OVERCUE_CHECK names the native checker for FLAC pages."""
+    """Pages are zlib and verified in Python unless XZ_OVERCUE_CHECK names the native checker for FLAC pages.
+
+    zlib pages exist only in the 96 kHz profile, so without the checker the imports ask for 96 kHz; with it they
+    use the 44.1 kHz default."""
     TRACK = '/Contents/Artist/Midnight Drive.wav'
 
     def setUp(self):
@@ -146,6 +149,7 @@ class ImportTests(Environment):
         patchers = [patch.object(stem_import, 'import_python', lambda job, resources: Path(sys.executable)),
                     patch('builder.managed_usb.check_target')]
         checker = os.environ.get('XZ_OVERCUE_CHECK')
+        self.rate = 44100 if checker else 96000
         if checker:
             shutil.copyfile(checker, self.resources / Path(checker).name)
         else:
@@ -156,7 +160,8 @@ class ImportTests(Environment):
             self.addCleanup(patcher.stop)
 
     def request(self, files, **extra):
-        return {'volume': str(self.usb), 'expected_identity': {}, 'file_path': self.TRACK, 'files': files, **extra}
+        rate = {} if self.rate == 44100 else {'stem_sample_rate': self.rate}
+        return {'volume': str(self.usb), 'expected_identity': {}, 'file_path': self.TRACK, 'files': files, **rate, **extra}
 
     def suno_zip(self, delay=1105, mp3=True):
         v, d, b = (self.parts[name] for name in ('vocals', 'drums', 'bass'))
@@ -196,7 +201,8 @@ class ImportTests(Environment):
         self.assertEqual(separation['alignment']['verdict'], 'aligned')
         self.assertLessEqual(separation['alignment']['residual_db'], -20)
         self.assertEqual(separation['alignment']['offset_samples'], plan['alignment']['offset_samples'])
-        self.assertEqual(self.manifest(receipt)['schema'], 'overcue-stems/4')
+        self.assertEqual(self.manifest(receipt)['schema'], 'overcue-stems/5' if self.rate == 44100 else 'overcue-stems/4')
+        self.assertEqual((receipt['sample_rate'], self.manifest(receipt)['runtime']['sample_rate']), (self.rate, self.rate))
         self.assertEqual(list(stem_import.extraction_root().iterdir()), [])
 
     def test_two_stem_set_splits_the_instrumental(self):
@@ -281,7 +287,7 @@ class DawExportImportTests(Environment):
             path = self.root / f'My Song ({part}){suffix}'
             sf.write(path, self.parts[part], 48000, format=container, subtype='PCM_24')
             files.append({'path': str(path), 'group': group})
-        request = {'volume': str(usb), 'expected_identity': {}, 'file_path': track, 'files': files}
+        request = {'volume': str(usb), 'expected_identity': {}, 'file_path': track, 'files': files, 'stem_sample_rate': 96000}
         plan = stem_import.plan(request, ProcessJob(), self.resources)
         self.assertEqual(plan['alignment']['verdict'], 'aligned', plan['warnings'])
         self.assertEqual(plan['track_frames'], -(-len(self.mix) * 44100 // 48000))

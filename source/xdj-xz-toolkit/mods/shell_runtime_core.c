@@ -1,9 +1,11 @@
+#include "extra_timeline_projection.h"
 #include "key/view.h"
 /* SPDX-License-Identifier: MIT */
 /* Pure parts of the FLAGSHIP shell runtime. No device, threads or allocation. */
 #include "shell_runtime.h"
 #include "shell/shell_settings.h"
 #include "shell/shell_browse.h"
+#include "encoder_push.h"
 #include "settings.h"
 #include "ui/deck_view.h"
 #include "ui/extra_lane.h"
@@ -21,10 +23,12 @@ static const struct xz_shrt_key_map keys[]={
  {0x203,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE_USB1,-1,-1},
  {0x204,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE_USB2,-1,-1},
  {0x420d,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TRACK_FILTER,-1,-1},
- /* LINK opens stock's media and connection screen (linked players' media, CONTROL MODE for LOAD 1/2): the
-    shell steps aside until stock is back on PLAY. REKORDBOX does what MODS > CONTROLS > BUTTONS assigns
-    (xz_shrt_rekordbox_verdict); its stock action hands off the same way. */
- {0x205,0,XZ_SHRT_HAND_OFF,-1,-1,-1},{0x202,0,XZ_SHRT_ASSIGNED,-1,-1,-1},
+ /* LINK: MODERN's SOURCE screen with the LINK tile highlighted (what the rear USB port holds, the linked
+    players and DJ software ways in). Pressed again there (or the tile pushed), stock's media and connection
+    screen opens (linked players' media, CONTROL MODE for LOAD 1/2) with a visible hand-off: the shell's
+    stick() hands off when SOURCE already shows LINK. REKORDBOX does what MODS > CONTROLS > BUTTONS assigns
+    (xz_shrt_rekordbox_verdict); its stock action hands off. */
+ {0x205,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE_LINK,-1,-1},{0x202,0,XZ_SHRT_ASSIGNED,-1,-1,-1},
  {0x420c,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_TRACK,-1,-1},
  {0x4208,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_BACK,XZ_SHELL_KEY_BACK_HOLD,-1},
  {0x430f,1,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_LOAD,-1,0},{0x430f,2,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_LOAD,-1,1},
@@ -37,6 +41,10 @@ const struct xz_shrt_key_map *xz_shrt_key_lookup(uint16_t code, unsigned channel
  return NULL;
 }
 enum xz_shrt_phase xz_shrt_phase_of(unsigned op) { return op==0?XZ_SHRT_PRESS:op==1?XZ_SHRT_HOLD:XZ_SHRT_RELEASE; }
+int xz_shrt_key_reclaims(const struct xz_shrt_key_map *k) {
+ return k&&k->rule==XZ_SHRT_ON_PRESS&&(k->key==XZ_SHELL_KEY_SOURCE_USB1||k->key==XZ_SHELL_KEY_SOURCE_USB2||
+  k->key==XZ_SHELL_KEY_SOURCE_LINK||k->key==XZ_SHELL_KEY_SOURCE_COMPUTER);
+}
 
 /* Runs one key on a copy of the shell. Only sh_key runs for these keys, and it
    writes nothing but the shell struct, so the copy keeps the probe side-effect free. */
@@ -99,7 +107,7 @@ int xz_shrt_key_for_phase(const struct xz_shrt_key_map *k, enum xz_shrt_phase p,
  return -1;
 }
 
-void xz_shrt_contact_press(struct xz_shrt_contacts *c, uint16_t code, unsigned channel, int swallow) {
+void xz_shrt_contact_press(struct xz_shrt_contacts *c, uint16_t code, unsigned channel, int swallow, uint32_t now) {
  int slot=-1;
  for(int i=0;i<XZ_SHRT_CONTACTS;i++){
   if(c->c[i].used&&c->c[i].code==code&&c->c[i].channel==channel){slot=i;break;}
@@ -107,7 +115,19 @@ void xz_shrt_contact_press(struct xz_shrt_contacts *c, uint16_t code, unsigned c
  }
  if(slot<0)slot=0; /* more than eight keys held: reuse the oldest slot */
  c->c[slot].code=code;c->c[slot].channel=(uint8_t)channel;c->c[slot].used=1;
- c->c[slot].swallow=(uint8_t)!!swallow;c->c[slot].held=0;
+ c->c[slot].swallow=(uint8_t)!!swallow;c->c[slot].held=0;c->c[slot].at=now;
+}
+uint32_t xz_shrt_hold_ms(uint16_t code) { return code==0x209||code==0x20b?330u:code==0x4208?500u:0u; }
+const struct xz_shrt_key_map *xz_shrt_contact_due(struct xz_shrt_contacts *c, uint32_t now) {
+ for(int i=0;i<XZ_SHRT_CONTACTS;i++){
+  if(!c->c[i].used||!c->c[i].swallow||c->c[i].held)continue;
+  uint32_t hold=xz_shrt_hold_ms(c->c[i].code);
+  const struct xz_shrt_key_map *k=xz_shrt_key_lookup(c->c[i].code,c->c[i].channel);
+  if(!hold||!k||k->rule!=XZ_SHRT_ON_RELEASE||k->hold<0||(uint32_t)(now-c->c[i].at)<hold)continue;
+  c->c[i].held=1;
+  return k;
+ }
+ return NULL;
 }
 int xz_shrt_load_duplicate(const struct xz_shrt_contacts *c,const struct xz_shrt_key_map *map,enum xz_shrt_phase phase) {
  if(!c||!map||map->key!=XZ_SHELL_KEY_LOAD||phase!=XZ_SHRT_PRESS)return -1;
@@ -153,12 +173,19 @@ struct xz_shrt_touch_step xz_shrt_touch_route(struct xz_shrt_touch *t, int owns,
  return s;
 }
 
-int xz_shrt_push_event(struct xz_shrt_push *p, uint32_t flags, uint32_t state) {
- /* The stock handler runs for every key pass while its state is set, so only
-    the press phase (flags 1) and the first long state count as events. */
- if(flags==1){p->down=1;p->held=0;return XZ_SHELL_ENCODER_PUSH;}
- if(p->down&&!p->held&&state==3){p->held=1;return XZ_SHELL_ENCODER_HOLD;}
- return -1;
+int xz_shrt_push_event(struct xz_shrt_push *p, int phase) {
+ switch((enum xz_push_phase)phase){
+ case XZ_PUSH_DOWN:p->down=1;p->held=0;return -1;
+ case XZ_PUSH_HOLD:
+  if(p->held)return -1;
+  p->down=1;p->held=1;return XZ_SHELL_ENCODER_HOLD;
+ case XZ_PUSH_UP:case XZ_PUSH_UP_HELD:{
+  int click=phase==XZ_PUSH_UP&&!p->held;
+  p->down=p->held=0;
+  return click?XZ_SHELL_ENCODER_PUSH:-1;
+ }
+ default:return -1;
+ }
 }
 
 void xz_shrt_handoff_begin(struct xz_shrt_handoff *h, uint32_t now) {
@@ -256,6 +283,19 @@ int xz_shrt_setting_command(const struct xz_shell_action *a, uint32_t now, struc
 }
 
 uint32_t xz_shrt_frame_period_ms(enum xz_shell_screen s, int any_moving) { return s==XZ_SHELL_PLAY&&any_moving?XZ_SHRT_FRAME_LIVE_MS:XZ_SHRT_FRAME_IDLE_MS; }
+struct xz_shell_ableton xz_shrt_ableton(const struct xz_link_glance *g) {
+ struct xz_shell_ableton a={0};
+ if(!g)return a;
+ a.known=1;a.enabled=!!g->enabled;
+ switch(g->state){
+ case XZ_LINK_RUN_OFF:a.state=XZ_SHELL_ABLETON_OFF;break;
+ case XZ_LINK_RUN_STARTING:a.state=XZ_SHELL_ABLETON_STARTING;break;
+ case XZ_LINK_RUN_ENABLED:case XZ_LINK_RUN_NO_MASTER:a.state=XZ_SHELL_ABLETON_ON;a.peers=g->peers;break;
+ case XZ_LINK_RUN_NO_HELPER:case XZ_LINK_RUN_FAILED:a.state=XZ_SHELL_ABLETON_FAILED;break;
+ default:a.known=0;a.enabled=0;break; /* a state this build does not know draws nothing */
+ }
+ return a;
+}
 unsigned xz_shrt_moving_decks(const struct xz_shell_model *m) {
  unsigned bits=0;int count=m->deck_count==4?4:2;
  for(int i=0;i<count;i++){
@@ -276,9 +316,10 @@ int xz_shrt_motion_step(struct xz_shrt_motion *m, int32_t elapsed_ms, uint32_t r
 
 void xz_shrt_position_reset(struct xz_shrt_position *p) { memset(p,0,sizeof *p); }
 int32_t xz_shrt_rate_from_tempo(int32_t tempo_x100) { return 1000000+tempo_x100*100; }
-int xz_shrt_position_step(struct xz_shrt_position *p, int playing, int32_t elapsed_ms, uint32_t read_at,
+static int position_step_us(struct xz_shrt_position *p, int playing, int64_t elapsed_us, uint32_t read_at,
                           int32_t rate, int measure, int32_t *out_ms, uint32_t *out_at) {
- int64_t rate_ppm=rate<250000?250000:rate>4000000?4000000:rate;
+ int32_t elapsed_ms=(int32_t)(elapsed_us/1000);
+ int64_t rate_ppm=rate<0?0:rate;
  int fresh=read_at!=p->read_at||elapsed_ms!=p->read_ms;
  /* Observed speed from two readings of a precise source. */
  if(fresh&&measure&&playing&&p->have_last&&read_at!=p->last_at){
@@ -290,25 +331,25 @@ int xz_shrt_position_step(struct xz_shrt_position *p, int playing, int32_t elaps
    int regular=off*1000000<=(int64_t)XZ_SHRT_RATE_TOLERANCE_PPM*rate_ppm;
    if(!regular){p->following=1;p->regular_run=0;}
    else if(p->following&&++p->regular_run>=XZ_SHRT_REGULAR_RUNS){
-    p->following=0;p->regular_run=0;p->base_us=(int64_t)elapsed_ms*1000;p->base_at=read_at;
+    p->following=0;p->regular_run=0;p->base_us=elapsed_us;p->base_at=read_at;
     p->read_at=read_at;p->read_ms=elapsed_ms;p->last_ms=elapsed_ms;p->last_at=read_at;
-    *out_ms=elapsed_ms<0?0:elapsed_ms;*out_at=read_at;return 0;
+    *out_ms=elapsed_ms;*out_at=read_at;return 0;
    }
   }
  }
  if(fresh&&measure){p->have_last=1;p->last_ms=elapsed_ms;p->last_at=read_at;}
  if(!measure||!playing){p->following=0;p->regular_run=0;}
  if(p->following){
-  p->valid=1;p->base_us=(int64_t)elapsed_ms*1000;p->base_at=read_at;p->read_at=read_at;p->read_ms=elapsed_ms;
-  *out_ms=elapsed_ms<0?0:elapsed_ms;*out_at=0;return 1;
+  p->valid=1;p->base_us=elapsed_us;p->base_at=read_at;p->read_at=read_at;p->read_ms=elapsed_ms;
+  *out_ms=elapsed_ms;*out_at=0;return 1;
  }
  if(!p->valid||!playing){
-  p->valid=1;p->base_us=(int64_t)elapsed_ms*1000;p->base_at=read_at;
+  p->valid=1;p->base_us=elapsed_us;p->base_at=read_at;
  }else if(fresh){
   /* A repeated reading (a held snapshot) carries no information and changes nothing. */
   int64_t predicted=p->base_us+(int64_t)(int32_t)(read_at-p->base_at)*rate_ppm/1000;
-  int64_t error=(int64_t)elapsed_ms*1000-predicted;
-  if(error>XZ_SHRT_POSITION_SNAP_MS*1000||error< -XZ_SHRT_POSITION_SNAP_MS*1000)p->base_us=(int64_t)elapsed_ms*1000;
+  int64_t error=elapsed_us-predicted;
+  if(error>XZ_SHRT_POSITION_SNAP_MS*1000||error< -XZ_SHRT_POSITION_SNAP_MS*1000){p->base_us=elapsed_us;}
   else{
    int64_t nudge=error/8;
    if(nudge>XZ_SHRT_POSITION_NUDGE_MS*1000)nudge=XZ_SHRT_POSITION_NUDGE_MS*1000;
@@ -318,9 +359,93 @@ int xz_shrt_position_step(struct xz_shrt_position *p, int playing, int32_t elaps
   p->base_at=read_at;
  }
  p->read_at=read_at;p->read_ms=elapsed_ms;
- int64_t ms=(p->base_us+500)/1000;
- *out_ms=ms<0?0:ms>INT32_MAX?INT32_MAX:(int32_t)ms;*out_at=p->base_at?p->base_at:1;
+ int64_t ms=(p->base_us+(p->base_us<0?-500:500))/1000;
+ *out_ms=ms<INT32_MIN?INT32_MIN:ms>INT32_MAX?INT32_MAX:(int32_t)ms;*out_at=p->base_at?p->base_at:1;
  return 0;
+}
+
+int xz_shrt_position_step(struct xz_shrt_position *p,int playing,int32_t ms,uint32_t at,int32_t rate,int measure,int32_t *out_ms,uint32_t *out_at){
+ return position_step_us(p,playing,(int64_t)ms*1000,at,rate,measure,out_ms,out_at);
+}
+
+int xz_shrt_native_position_step_us(struct xz_shrt_position *p,int playing,int64_t us,uint32_t at,
+                                int32_t rate,int32_t *out_ms,uint32_t *out_at){
+ int32_t ms=(int32_t)(us/1000);
+ if(!playing||rate<=0){p->native_seen=0;p->native_count=0;return position_step_us(p,0,us,at,rate,0,out_ms,out_at);}
+ if(p->native_seen&&(int32_t)(at-p->native_poll_at)<=0){
+  *out_ms=(int32_t)((p->base_us+(p->base_us<0?-500:500))/1000);
+  *out_at=p->following?0:(p->base_at?p->base_at:1);return p->following;
+ }
+ if(!p->native_seen)p->valid=0;
+ int changed=!p->native_seen||us!=p->native_us;
+ int rate_changed=p->native_seen&&p->native_rate!=rate;
+ if(p->native_seen&&!rate_changed){
+  int64_t jump=us-p->native_us-(int64_t)(uint32_t)(at-p->native_poll_at)*rate/1000;
+  if(jump>XZ_SHRT_POSITION_SNAP_MS*1000||jump< -XZ_SHRT_POSITION_SNAP_MS*1000)p->display.valid=0;
+ }
+ int reverse=p->native_seen&&us<p->native_us;
+ if(!p->native_seen||p->native_rate!=rate)p->native_count=p->native_head=0;
+ if(changed)p->native_progress_at=at;
+ if(reverse){p->display.valid=0;p->native_count=p->native_head=0;p->following=1;p->regular_run=0;}
+ if(!p->native_seen||at!=p->native_poll_at){
+  while(p->native_count&&(uint32_t)(at-p->native_sample[p->native_head].at)>500u){p->native_head=(p->native_head+1)%32;p->native_count--;}
+  if(p->native_count==32){p->native_head=(p->native_head+1)%32;p->native_count--;}
+  unsigned tail=(p->native_head+p->native_count++)%32;
+  p->native_sample[tail].at=at;p->native_sample[tail].us=us;
+ }
+ if(p->native_count>=2&&(uint32_t)(at-p->native_sample[p->native_head].at)>=250u&&!reverse){
+  double sx=0,sy=0,sxx=0,sxy=0;uint32_t origin=p->native_sample[p->native_head].at;
+  int64_t source=p->native_sample[p->native_head].us;
+  for(unsigned i=0;i<p->native_count;i++){
+   unsigned j=(p->native_head+i)%32;double x=(uint32_t)(p->native_sample[j].at-origin),y=(double)p->native_sample[j].us-source;
+   sx+=x;sy+=y;sxx+=x*x;sxy+=x*y;
+  }
+  double n=p->native_count,den=n*sxx-sx*sx;
+  double observed=den>0?(n*sxy-sx*sy)*1000./den:0;
+  p->observed_ppm=observed>INT32_MAX?INT32_MAX:observed<INT32_MIN?INT32_MIN:(int32_t)observed;
+  int regular=fabs(observed-rate)*1000000.<=XZ_SHRT_RATE_TOLERANCE_PPM*(double)rate;
+  if(!regular){p->following=1;p->regular_run=0;}
+  else if(p->following&&++p->regular_run>=XZ_SHRT_REGULAR_RUNS){p->following=0;p->regular_run=0;p->valid=0;}
+ }
+ p->native_seen=1;p->native_poll_at=at;p->native_us=us;p->native_rate=rate;
+ if((uint32_t)(at-p->native_progress_at)>XZ_SHRT_NATIVE_PROGRESS_MS){p->following=1;p->regular_run=0;}
+ if(p->following){
+  p->valid=1;p->base_us=us;p->base_at=at;p->read_at=at;p->read_ms=ms;
+  *out_ms=ms;*out_at=0;return 1;
+ }
+ if(changed||!p->valid)return position_step_us(p,1,us,at,rate,0,out_ms,out_at);
+ int64_t base=(p->base_us+(p->base_us<0?-500:500))/1000;
+ *out_ms=(int32_t)base;*out_at=p->base_at?p->base_at:1;return 0;
+}
+
+/* Preserve the clock estimate across a tempo step. A previously displayed forecast
+   cannot be undone; recover its phase against actual forward source progress.
+   This does not modify source observations or extend either prediction deadline. */
+int64_t xz_shrt_native_display_step(struct xz_shrt_position *p,uint32_t target){
+ uint32_t age=p->native_poll_at-p->native_progress_at;
+ uint32_t limit=age<XZ_SHRT_NATIVE_PROGRESS_MS?XZ_SHRT_NATIVE_PROGRESS_MS-age:0;
+ if(limit>XZ_SHELL_TIMELINE_EXTRAPOLATE_MS)limit=XZ_SHELL_TIMELINE_EXTRAPOLATE_MS;
+ int32_t ahead=(int32_t)(target-p->native_poll_at);
+ if(ahead<0)ahead=0;if((uint32_t)ahead>limit)ahead=(int32_t)limit;
+ target=p->native_poll_at+(uint32_t)ahead;
+ int32_t display_rate=p->following?0:p->native_rate;
+ int64_t raw=p->base_us+(int64_t)(int32_t)(target-p->base_at)*display_rate/1000;
+ if(!p->display.valid){p->display.valid=1;p->display.phase_us=0;}
+ else {
+  int32_t dt=(int32_t)(target-p->display.at);
+  if(dt<=0)return p->display.shown_us;
+  if(display_rate!=p->display.rate)
+   p->display.phase_us=p->display.shown_us+(int64_t)dt*display_rate/1000-raw;
+  else {
+   int64_t progress=raw-p->display.raw_us;
+   if(progress>0){
+    if(p->display.phase_us>0)p->display.phase_us-=progress<p->display.phase_us?progress:p->display.phase_us;
+    else if(p->display.phase_us<0)p->display.phase_us+=progress< -p->display.phase_us?progress: -p->display.phase_us;
+   }
+  }
+ }
+ p->display.at=target;p->display.rate=display_rate;p->display.raw_us=raw;
+ p->display.shown_us=raw+p->display.phase_us;return p->display.shown_us;
 }
 
 void xz_shrt_frame_mark(struct xz_shrt_frames *f, uint64_t now_us) {
@@ -366,12 +491,13 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
   const struct xz_extra_timeline *t=&s->timeline;
   d->elapsed_at_ms=0; /* unknown observed rate must not fall back to the nominal fader */
   if(t->flags&XZ_EXTRA_TIMELINE_MOTION){d->moving=!!t->moving;d->known|=SK(MOTION);}
-  uint32_t age=mono_now-t->at_ms;
-  if((t->flags&XZ_EXTRA_TIMELINE_ANCHOR)&&t->source_rate&&t->at_ms&&(int32_t)age>=0&&age<=250u&&
-     t->source_frame<=(uint64_t)INT32_MAX*t->source_rate/1000u){
-   d->elapsed_ms=(int32_t)(t->source_frame*1000u/t->source_rate);d->known|=SK(ELAPSED);
+  double projected;
+  if(xz_extra_project_ms_precise(s,mono_now,&projected)){
+   d->elapsed_ms=(int32_t)projected;d->elapsed_fraction_ms=projected-d->elapsed_ms;d->known|=SK(ELAPSED);
+   uint32_t age=mono_now-t->at_ms;d->playback_projection_age_ms=age>50u?50u:age;
+   /* This model is already projected to mono_now, including the fractional tag. */
    if(t->flags&XZ_EXTRA_TIMELINE_RATE){
-    d->elapsed_at_ms=model_now-age;if(!d->elapsed_at_ms)d->elapsed_at_ms=1;
+    d->elapsed_at_ms=model_now?model_now:1;
     d->playback_rate_ppm=t->rate_ppm;d->known|=SK(PLAYBACK_RATE);
    }
   }
@@ -423,6 +549,10 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
   d->loop.active=!!s->loop.active;d->loop.in_ms=s->loop.in_ms;d->loop.out_ms=s->loop.out_ms;
   if(EK(BPM))loop_beats(&d->loop,s->loop.out_ms-s->loop.in_ms,s->track_bpm_x100);
   d->known|=SK(LOOP);
+  /* LOOP IN / OUT ADJUST: the edge the jog moves, drawn as on the stock decks (shell.h XZ_SHELL_F_LOOP_EDIT). */
+  if(s->loop.active&&(s->loop.edit==1||s->loop.edit==2)){
+   d->loop_edit.endpoint=s->loop.edit==2;d->loop_edit.ms=s->loop.edit==2?s->loop.out_ms:s->loop.in_ms;d->known|=SK(LOOP_EDIT);
+  }
  }
  if(EK(GRID)&&p->grid&&p->grid_n){d->grid=p->grid;d->grid_count=p->grid_n;d->known|=SK(GRID);}
  if(EK(WAVE)&&p->scroll&&p->scroll_n&&p->span_ms){
@@ -502,6 +632,23 @@ const char *xz_shrt_pair_notice(struct xz_shrt_pair_seen *seen, const struct xz_
  if(seen->valid&&now_ms-seen->at_ms<1000u&&deck_view==XZ_LAYOUT_TWO)text=xz_deck_view_pair_notice(seen->pair,pair);
  seen->valid=1;seen->pair=pair;seen->at_ms=now_ms;
  return text;
+}
+unsigned xz_shrt_cable_step(struct xz_shrt_cable *c, const struct xz_shrt_cable_in *in) {
+ if(!c||!in)return 0;
+ if(!c->seen){memset(c,0,sizeof *c);c->seen=1;c->up=!!in->route_up;return 0;}
+ unsigned act=0;
+ if(in->route_up){
+  c->dropping=0;
+  if(!c->up){c->up=1;c->pending=1;c->layout_revision=in->layout_revision;}
+ }else if(c->up){
+  if(!c->dropping){c->dropping=1;c->dropped_at=in->now_ms;}
+  else if(in->now_ms-c->dropped_at>=XZ_SHRT_CABLE_DROP_MS){c->up=0;c->dropping=0;c->pending=0;act|=XZ_SHRT_CABLE_BACK_TO_TWO;}
+ }
+ if(c->pending&&c->up&&!c->dropping){
+  if(in->view!=XZ_LAYOUT_TWO||in->layout_revision!=c->layout_revision)c->pending=0;
+  else if(in->ready){c->pending=0;act|=XZ_SHRT_CABLE_SHOW_FOUR;}
+ }
+ return act;
 }
 int xz_shrt_extra_notice(uint32_t *seen, const struct xz_extra_decks *s, uint32_t mono_now) {
  if(!s||s->notice_seq==*seen)return 0;

@@ -17,7 +17,7 @@
 #define ROUTE_EVENT_SAFETY_MS 5000
 #endif
 #define ROUTE_EVENT_MASK (IN_CREATE|IN_MOVED_TO|IN_CLOSE_WRITE|IN_DELETE|IN_ATTRIB|IN_DELETE_SELF|IN_MOVE_SELF)
-static struct { int fd,parent,wake[2]; } route_events={-1,-1,{-1,-1}};
+static struct { int fd,parent,wake[2],wd[16],count; } route_events={-1,-1,{-1,-1},{0},0};
 
 static int route_fd_flags(int fd) {
  int flags=fcntl(fd,F_GETFL);
@@ -35,7 +35,7 @@ static void route_events_fallback(const char *operation) {
 static void route_events_close(void) {
  if(route_events.fd>=0)close(route_events.fd);
  for(int i=0;i<2;i++)if(route_events.wake[i]>=0)close(route_events.wake[i]);
- route_events.fd=route_events.parent=route_events.wake[0]=route_events.wake[1]=-1;
+ route_events.fd=route_events.parent=route_events.wake[0]=route_events.wake[1]=-1;route_events.count=0;
 }
 static void route_events_init(void) {
  route_events.fd=inotify_init(); /* inotify_init1 requires GLIBC_2.9. */
@@ -50,7 +50,7 @@ static void route_events_init(void) {
  }
 }
 static void route_signal_locked(void) {
- pthread_cond_signal(&route_wake_cond);
+ xz_wake_set(&route_wake);
  if(route_events.wake[1]>=0) {
   char byte=1;ssize_t n;
   do{n=write(route_events.wake[1],&byte,1);}while(n<0&&errno==EINTR);
@@ -60,6 +60,11 @@ static void route_signal_locked(void) {
 static int route_watch(const char *path) {
  int wd=inotify_add_watch(route_events.fd,path,ROUTE_EVENT_MASK);
  if(wd<0&&errno!=ENOENT&&errno!=ENOTDIR)route_events_fallback("inotify_add_watch failed");
+ if(wd>=0&&route_events.fd>=0) {
+  int known=0;
+  for(int i=0;i<route_events.count;i++)if(route_events.wd[i]==wd)known=1;
+  if(!known&&route_events.count<16)route_events.wd[route_events.count++]=wd;
+ }
  return wd;
 }
 static void route_events_refresh(void) {
@@ -117,6 +122,15 @@ static int route_events_drain(void) {
   }
  }
  return relevant;
+}
+/* The route is up: nothing reads this queue until it goes down again, and on this kernel an unread event
+   keeps the file it names alive after deletion (every released /dev/shm file stayed in RAM). So no watches
+   while up; route_events_refresh() adds them again when the route is down. */
+static void route_events_unwatch(void) {
+ if(route_events.fd<0)return;
+ for(int i=0;i<route_events.count;i++)inotify_rm_watch(route_events.fd,route_events.wd[i]);
+ route_events.count=0;route_events.parent=-1;
+ (void)route_events_drain();
 }
 static void route_events_wait(void) {
  if(route_events.fd<0){rest(POLL_DOWN_MS);return;}

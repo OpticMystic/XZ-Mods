@@ -208,11 +208,22 @@ static void describe(void *p,struct xz_net_backend_ticket *t,struct xz_net_view 
     (void)p;v->advertised_known=1;v->advertised_adapter=t->advertised_adapter;v->advertised=t->advertised;
     char ip[16];xz_net_ipv4_text(t->advertised.ip,ip);snprintf(v->detail,sizeof v->detail,"ADVERTISE %s %s/%u; MODS DHCP %s; native DHCP unknown",t->advertised_adapter.name,ip,t->advertised.prefix,t->client_started?"ON":"OFF");
 }
+/* The periodic check's own time ran out while the lease is still good. */
+static int late(struct xz_net_linux *l,const struct xz_net_backend_ticket *t,const struct xz_net_control *c){
+    return xz_net_control_expired(c)&&!(t->client_started&&os_now(l)>=t->expires);
+}
 static enum xz_net_result maintain(void *p,struct xz_net_backend_ticket *t,const struct xz_net_control *c,struct xz_net_view *v){
     struct xz_net_linux *l=p;struct xz_net_error periodic_error={0};
     if(!t->client_started&&v->phase!=XZ_NET_TRIAL_READY)return XZ_NET_PENDING;
-    if(os_now(l)>=t->checked_at+1000){enum xz_net_result checked=verify(l,t,c,&v->actual,&periodic_error);if(checked){snprintf(v->detail,sizeof v->detail,"%s",periodic_error.detail);return checked;}describe(l,t,v);}
-    if(!t->client_started)return XZ_NET_PENDING;
+    if(os_now(l)>=t->checked_at+1000){enum xz_net_result checked=verify(l,t,c,&v->actual,&periodic_error);
+        /* A check that ran out of its own 250 ms says nothing about the network: this normal-priority worker was
+           kept waiting (four decks loading). Treating that as a lost lease tore the trial down and started a
+           new DHCP client about once a minute under load (seen on the unit, r75). Look again in five seconds,
+           so a busy unit is not asked every second; a lease that really ran out is still reported. */
+        if(checked==XZ_NET_TIMEOUT&&late(l,t,c)){t->checked_at=os_now(l)+4000;return XZ_NET_PENDING;}
+        if(checked){snprintf(v->detail,sizeof v->detail,"%s",periodic_error.detail);return checked;}describe(l,t,v);}
+    /* Out of time after a slow but good check: the client's report is read next round, not called a failure. */
+    if(!t->client_started||late(l,t,c))return XZ_NET_PENDING;
     struct xz_net_lease lease={0};enum xz_net_result r=l->io.client_poll(l->io.context,t->client,&lease,0,c);struct xz_net_error e={0};
     if(r==XZ_NET_OK){
         if(lease.kind==XZ_NET_LEASE_DECONFIG||lease.kind==XZ_NET_LEASE_FAILURE){snprintf(v->detail,sizeof v->detail,"Owned DHCP lease lost; baseline retained");return XZ_NET_VERIFY_FAILED;}

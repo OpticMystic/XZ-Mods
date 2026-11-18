@@ -2,6 +2,7 @@
 #define _FILE_OFFSET_BITS 64
 #define _POSIX_C_SOURCE 200809L
 #include "foreign_stems.h"
+#include "../xz_cloexec.h"
 #include "stem_media.h"
 #include <dirent.h>
 #include <limits.h>
@@ -150,6 +151,14 @@ void xz_foreign_close(struct xz_foreign_stems *s) {
     for(unsigned r=0;r<4;r++){xz_stem_media_close(s->role[r]);if(s->pcm[r].file)fclose(s->pcm[r].file);}
     free(s);
 }
+void xz_foreign_release_audio(struct xz_foreign_stems *s) {
+    if(!s)return;
+    xz_stem_media_close(s->reference);s->reference=NULL;
+    for(unsigned r=0;r<4;r++){
+        xz_stem_media_close(s->role[r]);s->role[r]=NULL;
+        if(s->pcm[r].file){fclose(s->pcm[r].file);s->pcm[r].file=NULL;}
+    }
+}
 uint32_t xz_foreign_rate(const struct xz_foreign_stems *s) {return s?s->rate:0;}
 uint64_t xz_foreign_frames(const struct xz_foreign_stems *s) {return s?s->frames:0;}
 unsigned xz_foreign_stem_count(const struct xz_foreign_stems *s) {return s?s->count:3;}
@@ -287,7 +296,7 @@ static int rx3_package(const char *path,const unsigned char source_digest[32],st
     for(unsigned i=0;i<parts;i++){
         struct foreign_pcm pcm={0};
         if(pcm_header(f,le64(entries[i]+8),le64(entries[i]+16),frames,&pcm,1))goto done;
-        pcm.file=fopen(path,"rb");if(!pcm.file)goto done;s->pcm[map[i]]=pcm;
+        pcm.file=fopen(path,XZ_FOPEN_READ_CLOEXEC);if(!pcm.file)goto done;s->pcm[map[i]]=pcm;
     }
     s->format=XZ_FOREIGN_RX3;s->rate=44100;s->frames=frames;s->count=parts+1;rc=1;
 done: fclose(f);return rc;
@@ -346,7 +355,7 @@ static int open_rx3(struct xz_foreign_stems *s,const char *root,const char *sour
 }
 
 struct xz_foreign_stems *xz_foreign_open(const char *source,char *error,size_t cap) {
-    char root[4096];snprintf(error,cap,"NO VERIFIED FOUR-STEM SET");
+    char root[4096];snprintf(error,cap,"NO MATCHING PREPARED STEMS");
     if(!source||strlen(source)>=sizeof(root)||!regular(source))return NULL;
     strcpy(root,source);for(char *p=root;*p;p++)if(*p=='\\')*p='/';
     char *contents=strstr(root,"/Contents/");if(!contents)return NULL;*contents=0;
