@@ -1,4 +1,6 @@
 import importlib.util
+import os
+from unittest.mock import patch
 from pathlib import Path
 import struct
 import tempfile
@@ -39,8 +41,20 @@ class CacheTests(unittest.TestCase):
 
     def test_incompatible_and_truncated_audio(self):
         self.assertEqual(cache.inspect_audio(self.source)["frames"], 20000)
-        for changes in ({"rate": 48000}, {"channels": 1}, {"width": 3}, {"frames": 0}):
-            fixture(self.source, **changes)
+        with patch.dict(os.environ, {"XZ_AUDIO_HELPER": ""}):
+            # Without the native helper only plain 44.1 kHz 16-bit stereo WAV is readable.
+            for changes in ({"rate": 48000}, {"channels": 1}, {"width": 3}, {"frames": 0}):
+                fixture(self.source, **changes)
+                with self.assertRaises(ValueError):
+                    cache.inspect_audio(self.source)
+        if os.environ.get("XZ_AUDIO_HELPER"):
+            fixture(self.source, rate=48000)
+            self.assertEqual(cache.inspect_audio(self.source)["frames"], cache.frames_at_44100(20000, 48000))
+            fixture(self.source, channels=1)
+            self.assertEqual(cache.inspect_audio(self.source)["source_channels"], 1)
+            fixture(self.source, width=3)
+            self.assertEqual(cache.inspect_audio(self.source)["source_bits"], 24)
+            fixture(self.source, frames=0)
             with self.assertRaises(ValueError):
                 cache.inspect_audio(self.source)
         fixture(self.source)

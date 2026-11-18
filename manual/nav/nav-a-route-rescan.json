@@ -1,0 +1,33 @@
+{
+  "section": "four-decks#set-up-four-decks",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 201
+    },
+    {
+      "tap": "DECKS"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "tap": "RESCAN"
+    },
+    {
+      "fixture": 204
+    },
+    {
+      "fixture": 205
+    }
+  ],
+  "requires_effects": [
+    [
+      "shell",
+      31
+    ]
+  ]
+}

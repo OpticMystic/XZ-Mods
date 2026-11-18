@@ -28,6 +28,52 @@ static int read_memory(void *context,uint32_t address,void *out,size_t n){
     for(unsigned i=0;i<sizeof(regions)/sizeof(regions[0]);i++)if(address>=regions[i].base&&address-regions[i].base+n<=regions[i].size){memcpy(out,(const char*)regions[i].data+address-regions[i].base,n);return 0;}
     return -1;
 }
+struct read_fault {uint32_t address;size_t bytes;};
+static int fail_memory_read(void *context,uint32_t address,void *out,size_t n){
+    const struct read_fault *fault=context;
+    return address==fault->address&&n==fault->bytes?-1:read_memory(NULL,address,out,n);
+}
+static void test_partial_clock_evidence(void){
+    int (*readers[])(xz_arcade_memory_read,void *,unsigned,struct xz_arcade_track_clock *)={
+        xz_arcade_native_clock_read,xz_music_native_clock_read};
+    const double zero=0,bend=.02;
+    for(unsigned i=0;i<sizeof readers/sizeof readers[0];i++){
+        struct xz_arcade_track_clock out;
+        struct read_fault later[]={{0x35000,8},{0x20ec8,24}};
+        memcpy(tempo+0x38,&bend,8);
+        for(unsigned j=0;j<sizeof later/sizeof later[0];j++){
+            assert(!readers[i](fail_memory_read,&later[j],0,&out));
+            assert((out.observed&XZ_ARCADE_CLOCK_MANUAL)&&out.manual);
+            assert(!out.phase_valid&&!out.bpm&&!out.speed);
+        }
+        put(grid,0x24,0);
+        int tempo_valid=readers[i](read_memory,NULL,0,&out);
+        assert(tempo_valid==(i==1));
+        assert((out.observed&XZ_ARCADE_CLOCK_MANUAL)&&out.manual&&!out.phase_valid);
+        if(i==1)assert(fabsf(out.bpm-132)<.001f&&fabsf(out.speed-1.1f)<.0001f);
+        put(grid,0x24,1);memcpy(tempo+0x38,&zero,8);
+        player[0xe66]=0;player[0xe77]=0;
+        assert(!readers[i](read_memory,NULL,0,&out));
+        assert((out.observed&XZ_ARCADE_CLOCK_STATE)&&!out.playing&&!out.manual);
+        player[0xea4]=1;
+        assert(!readers[i](read_memory,NULL,0,&out));
+        assert((out.observed&XZ_ARCADE_CLOCK_STATE)&&out.manual&&!out.playing);
+        player[0xe66]=1;player[0xe77]=1;player[0xea4]=0;
+        put(manager,0,0);
+        assert(!readers[i](read_memory,NULL,0,&out));
+        assert(out.observed&XZ_ARCADE_CLOCK_BOUNDARY);
+        put(manager,0,0x20000);
+        struct read_fault missing[]={{0x20e64,0x44},{0x33000,0x28},{0x35000,8}};
+        for(unsigned j=0;j<sizeof missing/sizeof missing[0];j++){
+            assert(!readers[i](fail_memory_read,&missing[j],0,&out));
+            assert(!(out.observed&XZ_ARCADE_CLOCK_BOUNDARY)&&!out.manual);
+            assert(!out.phase_valid&&!out.bpm&&!out.speed);
+            if(!j)assert(!out.observed);
+        }
+        assert(readers[i](read_memory,NULL,0,&out)&&out.phase_valid&&out.playing&&!out.manual);
+    }
+    puts("PASS partial clock evidence: observed manual/stop/identity survives later rejection; missing reads invent no boundary");
+}
 int main(void){
     put(engine,12,0x10100);put(engine,16,0x10104);put(players,0,0x20000);
     put(player,0xc8,0x30000);put(reader,4,0x31000);put(impl,0x6a0,0x32000);
@@ -37,8 +83,23 @@ int main(void){
     put(grid,0x24,1);put(grid,0x34,0x35000);put(grid,0x38,0x35020);
     for(unsigned i=0;i<4;i++){units[i*8]=(unsigned char)(i+1);units[i*8+2]=0xe0;units[i*8+3]=0x2e;put(units,i*8+4,1000+i*500);}
     double pitch=.10;memcpy(tempo+0x30,&pitch,8);
+    test_partial_clock_evidence();
     assert(xz_arcade_native_clock_valid(read_memory,NULL));struct xz_arcade_track_clock out;
     assert(xz_arcade_native_clock_read(read_memory,NULL,0,&out));assert(fabsf(out.bpm-132)<.001f&&fabsf(out.bar_phase-.75f)<.001f&&out.playing);
+    for(unsigned i=0;i<4;i++){units[i*8+2]=0x50;units[i*8+3]=0x46;put(units,i*8+4,1000+i*333);}
+    pitch=.5;memcpy(tempo+0x30,&pitch,8);put(player,0xe78,55125);
+    assert(!xz_arcade_native_clock_read(read_memory,NULL,0,&out));
+    assert(xz_music_native_clock_read(read_memory,NULL,0,&out)&&fabsf(out.bpm-270)<.001f);
+    pitch=-.9;memcpy(tempo+0x30,&pitch,8);
+    assert(!xz_arcade_native_clock_read(read_memory,NULL,0,&out));
+    assert(xz_music_native_clock_read(read_memory,NULL,0,&out)&&out.speed>0&&out.speed<.25f);
+    pitch=4.;memcpy(tempo+0x30,&pitch,8);
+    assert(!xz_arcade_native_clock_read(read_memory,NULL,0,&out));
+    assert(xz_music_native_clock_read(read_memory,NULL,0,&out)&&out.speed==5);
+    double invalid[]={NAN,INFINITY,-1.,-2.,1e300};
+    for(unsigned i=0;i<sizeof invalid/sizeof invalid[0];i++){memcpy(tempo+0x30,&invalid[i],8);assert(!xz_music_native_clock_read(read_memory,NULL,0,&out));}
+    for(unsigned i=0;i<4;i++){units[i*8+2]=0xe0;units[i*8+3]=0x2e;put(units,i*8+4,1000+i*500);}
+    pitch=.1;memcpy(tempo+0x30,&pitch,8);put(player,0xe78,60637);
     player[0xe77]=0;put(pause_queue,8,4);
     assert(xz_arcade_native_clock_read(read_memory,NULL,0,&out));assert(!out.playing&&fabsf(out.bar_phase-.5f)<.001f);
     assert(!xz_arcade_native_clock_read(read_memory,NULL,1,&out));

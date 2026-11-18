@@ -1,8 +1,25 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#[path="../../spec/generated/support_contract.rs"]
+#[allow(dead_code)]
+mod support_contract;
+mod support;
+mod support_store;
+mod support_tracking;
+mod controller_identity;
+#[cfg(not(windows))] mod private_storage;
+mod controller_queue;
+mod controller_notify;
 mod app_updates;
+mod eject;
 mod host;
+mod translation;
+mod live_stream;
+mod screen_protocol;
+mod screen_transport;
+mod stream_privacy;
+mod window_fit;
 use serde_json::{json, Value};
-use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Command, Stdio}, sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Mutex}};
+use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Command, Stdio}, sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Arc, Mutex}, time::{Duration, Instant}};
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
@@ -18,7 +35,8 @@ async fn pick_path(app:tauri::AppHandle,kind:String)->Result<Option<String>,Stri
         let dialog=app.dialog().file();
         let selected=match kind.as_str(){
             "folder"=>dialog.blocking_pick_folder(),
-            "audio"=>dialog.add_filter("Compatible audio",&["wav","flac"]).blocking_pick_file(),
+            "audio"=>dialog.add_filter("Compatible audio",&["wav","aif","aiff","flac","mp3"]).blocking_pick_file(),
+            "image"=>dialog.add_filter("PNG or JPEG",&["png","jpg","jpeg"]).blocking_pick_file(),
             "file"=>dialog.blocking_pick_file(),
             _=>return Err("Unknown file picker".to_string()),
         };
@@ -28,7 +46,7 @@ async fn pick_path(app:tauri::AppHandle,kind:String)->Result<Option<String>,Stri
 
 #[tauri::command]
 async fn pick_stem_files(app:tauri::AppHandle)->Result<Vec<String>,String>{
-    tauri::async_runtime::spawn_blocking(move||Ok(app.dialog().file().add_filter("Audio stems",&["wav","flac","aif","aiff","ogg","mp3"]).blocking_pick_files().unwrap_or_default().into_iter().map(|p|p.to_string()).collect())).await.map_err(|e|e.to_string())?
+    tauri::async_runtime::spawn_blocking(move||Ok(app.dialog().file().add_filter("Audio stems or a ZIP",&["wav","flac","aif","aiff","ogg","mp3","zip"]).blocking_pick_files().unwrap_or_default().into_iter().map(|p|p.to_string()).collect())).await.map_err(|e|e.to_string())?
 }
 
 fn resource_root(app: &tauri::AppHandle) -> Result<PathBuf,String> {
@@ -36,9 +54,35 @@ fn resource_root(app: &tauri::AppHandle) -> Result<PathBuf,String> {
     app.path().resource_dir().map(|p|p.join("resources")).map_err(|e|e.to_string())
 }
 
+// Report collection reads removable media. Python checks its budget between reads, but a blocked filesystem
+// call cannot see that, so the host enforces the deadline: after the deadline or a cancel, it waits a short
+// grace for the partial result, then ends the child. A stalled drive never holds the single job slot.
+const SUPPORT_DEADLINE:Duration=Duration::from_secs(20);
+const SUPPORT_GRACE:Duration=Duration::from_millis(2500);
+struct Finished(Arc<AtomicBool>);
+impl Drop for Finished{fn drop(&mut self){self.0.store(true,Ordering::Release);}}
+fn watchdog(child:Arc<Mutex<std::process::Child>>,finished:Arc<AtomicBool>,stalled:Arc<AtomicBool>,cancel:PathBuf,limit:Duration){
+    std::thread::spawn(move||{
+        let started=Instant::now();let mut stopping:Option<Instant>=None;
+        while !finished.load(Ordering::Acquire){
+            if stopping.is_none(){
+                if started.elapsed()>=limit{let _=std::fs::write(&cancel,b"cancel");stopping=Some(Instant::now());}
+                else if cancel.exists(){stopping=Some(Instant::now());}
+            }
+            if stopping.is_some_and(|t|t.elapsed()>=SUPPORT_GRACE){
+                stalled.store(true,Ordering::Release);
+                if let Ok(mut child)=child.lock(){let _=child.kill();}
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    });
+}
+
 #[tauri::command]
-fn start_job(app: tauri::AppHandle, request: Value) -> Result<u64,String> {
+fn start_job(app: tauri::AppHandle, mut request: Value) -> Result<u64,String> {
     if !request.is_object(){return Err("Expected a builder operation".into());}
+    if request["method"].as_str().is_some_and(|m|m.starts_with("controller_")) || request.as_object().is_some_and(|o|o.keys().any(|k|k.starts_with('_'))) {return Err("Internal builder operation refused".into());}
     let root=resource_root(&app)?;
     let state=app.state::<Jobs>();
     let mut entries=state.entries.lock().map_err(|_|"Job state unavailable")?;
@@ -48,12 +92,13 @@ fn start_job(app: tauri::AppHandle, request: Value) -> Result<u64,String> {
     let folder=app.path().app_local_data_dir().map_err(|e|e.to_string())?.join("jobs");
     std::fs::create_dir_all(&folder).map_err(|e|e.to_string())?;
     let cancel=folder.join(format!("{}-{id}.cancel",std::process::id()));
+    let deadline=matches!(request["method"].as_str(),Some("support_sources"|"support_collect")).then_some(SUPPORT_DEADLINE);
     entries.insert(id,(json!({"running":true,"stage":"starting","message":"Starting operation"}),cancel.clone()));
     drop(entries);
     std::thread::spawn(move || {
         let result=(|| -> Result<(),String> {
-            let backend=root.join("backend").join(host::executable("xz-mods-service"));
-            let mut command=Command::new(backend);
+            if matches!(request["method"].as_str(),Some("prepare_usb"|"build_usb"|"update_usb")) {controller_queue::prepare_loader(&app,&mut request)?;}
+            let mut command=host::backend_command(&root);
             command.env("XZ_BUILDER_RESOURCES",&root).env("XZ_BUILDER_CANCEL_FILE",&cancel)
                 .env("XZ_BUILDER_DATA",app.path().app_local_data_dir().map_err(|e|e.to_string())?)
                 .env("XZ_AUDIO_HELPER",root.join(host::executable("xz-audio-helper")))
@@ -61,8 +106,13 @@ fn start_job(app: tauri::AppHandle, request: Value) -> Result<u64,String> {
             #[cfg(windows)] {use std::os::windows::process::CommandExt;command.creation_flags(0x08000000);}
             let mut child=command.spawn().map_err(|e|format!("Builder backend is unavailable: {e}"))?;
             child.stdin.take().ok_or("Backend input unavailable")?.write_all(&serde_json::to_vec(&request).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
+            let stdout=child.stdout.take().ok_or("Backend output unavailable")?;
+            let child=Arc::new(Mutex::new(child));
+            let (finished,stalled)=(Arc::new(AtomicBool::new(false)),Arc::new(AtomicBool::new(false)));
+            let _finished=Finished(finished.clone());
+            if let Some(limit)=deadline{watchdog(child.clone(),finished,stalled.clone(),cancel.clone(),limit);}
             let mut final_event:Option<Value>=None;
-            for line in BufReader::new(child.stdout.take().ok_or("Backend output unavailable")?).lines(){
+            for line in BufReader::new(stdout).lines(){
                 let line=line.map_err(|e|e.to_string())?;
                 if line.len()>65536{continue;}
                 if let Ok(mut event)=serde_json::from_str::<Value>(&line){
@@ -71,9 +121,12 @@ fn start_job(app: tauri::AppHandle, request: Value) -> Result<u64,String> {
                     if done{final_event=Some(event.clone());}
                 }
             }
-            let exit=child.wait().map_err(|e|e.to_string())?;
-            let Some(mut event)=final_event else{return Err("Builder backend ended without a result".into());};
+            let exit=child.lock().map_err(|_|"Backend state unavailable")?.wait().map_err(|e|e.to_string())?;
+            let Some(mut event)=final_event else{
+                return Err(if stalled.load(Ordering::Acquire){"Collection stopped: a drive did not answer in time".into()}else{"Builder backend ended without a result".into()});
+            };
             if !exit.success(){return Err("Builder backend exited unexpectedly after its result".into());}
+            controller_queue::finish_loader(&app,&request,&event)?;
             event["running"]=json!(false);
             app.state::<Jobs>().entries.lock().map_err(|_|"Job state unavailable")?.insert(id,(event,cancel.clone()));
             Ok(())
@@ -98,7 +151,9 @@ fn cancel_job(app:tauri::AppHandle,id:u64)->Result<(),String>{
     Ok(())
 }
 // The webview can only ask for these exact pages, so page content can never make the shell open an arbitrary URL.
-const LINKS:[&str;5]=[app_updates::RELEASE_PAGE,app_updates::PORTABLE_URL,"https://vj.tools","https://overcue.gg","https://github.com/OverCue-gg/overcue-stems-format"];
+// Every URL the UI may open. The About page's links come last; tools/verify_setup_wizard.mjs checks each one is here.
+const LINKS:&[&str]=&["https://cash.app/$FireAtWill42",app_updates::RELEASE_PAGE,app_updates::PORTABLE_URL,app_updates::BETA_PAGE,app_updates::BETA_PORTABLE_URL,"https://www.vj.tools","https://overcue.gg","https://github.com/OverCue-gg/overcue-stems-format",
+    "https://github.com/OpticMystic/XZ-Mods","https://github.com/OpticMystic/XZ-Mods/issues","https://github.com/OpticMystic/XZ-Mods/releases","https://xzmods.com","https://vj.tools"];
 #[tauri::command]
 fn open_link(url:String)->Result<(),String>{
     let url=*LINKS.iter().find(|link|**link==url).ok_or("This link is not available in XZ Mods")?;
@@ -123,20 +178,43 @@ fn open_licenses(app:tauri::AppHandle)->Result<(),String>{
     #[cfg(not(any(windows,target_os="macos")))] let opener="xdg-open";
     Command::new(opener).arg(folder).spawn().map_err(|e|e.to_string())?;Ok(())
 }
+#[tauri::command]
+fn list_volumes()->Vec<String>{
+    // The drive-letter bitmask never touches media, so an empty card reader polled every few seconds cannot raise a "no disk" prompt.
+    #[cfg(windows)] let mut volumes:Vec<String>={
+        #[link(name="kernel32")] extern "system" {fn GetLogicalDrives()->u32;}
+        let mask=unsafe{GetLogicalDrives()};
+        (2u8..26).filter(|bit|mask&(1<<bit)!=0).map(|bit|format!("{}:\\",(b'A'+bit) as char)).collect()
+    };
+    #[cfg(target_os="macos")] let mut volumes:Vec<String>=std::fs::read_dir("/Volumes").map(|entries|entries.flatten()
+        .filter(|entry|std::fs::symlink_metadata(entry.path()).map(|meta|meta.is_dir()).unwrap_or(false))
+        .map(|entry|entry.path().to_string_lossy().into_owned()).collect()).unwrap_or_default();
+    #[cfg(not(any(windows,target_os="macos")))] let mut volumes:Vec<String>=Vec::new();
+    volumes.sort();
+    volumes
+}
 fn main(){
-    tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(Jobs::default()).manage(app_updates::Updates::default())
-        .invoke_handler(tauri::generate_handler![start_job,job_status,cancel_job,pick_path,pick_stem_files,open_link,open_licenses,app_updates::app_information,app_updates::acknowledge_release_notes,app_updates::app_update_status,app_updates::check_app_update,app_updates::install_app_update])
+    tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(support::Support::default()).manage(controller_queue::Queue::default()).manage(Jobs::default()).manage(translation::Translation::default()).manage(app_updates::Updates::default()).manage(live_stream::LiveStream::default())
+        .invoke_handler(tauri::generate_handler![translation::translation_action,controller_queue::support_pending_details,controller_queue::support_pending_reports,controller_queue::support_poll_pending,controller_queue::support_loader_identities,controller_queue::support_complete_pending,controller_queue::support_dismiss_pending,controller_queue::support_revoke_loader,controller_notify::support_notify_pending,support::support_send,support::support_export,support::support_cancel,support::support_connect,support::support_owner_status,support::support_inbox,support::support_inbox_page,support_store::support_reports,support_store::support_report_seen,support_store::support_forget,support_tracking::support_check_statuses,support_tracking::support_tracking_link,support_tracking::support_open_tracking,support_tracking::support_revoke_links,start_job,job_status,cancel_job,pick_path,pick_stem_files,open_link,open_licenses,list_volumes,eject::eject_volume,app_updates::app_information,app_updates::acknowledge_release_notes,app_updates::app_update_status,app_updates::check_app_update,app_updates::install_app_update,live_stream::live_stream_start,live_stream::live_stream_status,live_stream::live_stream_stop,live_stream::live_stream_detect,live_stream::live_stream_privacy])
         .on_window_event(|window,event|{
             if matches!(event,tauri::WindowEvent::CloseRequested{..}) {
+                window.state::<controller_queue::Queue>().stopping.store(true,Ordering::Release);
+                let _=translation::translation_action(window.app_handle().clone(),"cancel".into(),String::new(),String::new());
+                let _=live_stream::stop(&window.state::<live_stream::LiveStream>());
                 if let Ok(entries)=window.state::<Jobs>().entries.lock(){
                     for(value,path) in entries.values(){if value["running"]==true{let _=std::fs::write(path,b"cancel");}}
                 }
             }
         })
         .setup(|app|{
+            controller_queue::start(app.handle().clone());
+            #[cfg(feature="updater-test")] app_updates::autoinstall_for_test(app.handle());
             let config=app.config().app.windows[0].clone();
-            tauri::WebviewWindowBuilder::from_config(app,&config)?
-                .visible(std::env::var_os("XZ_BUILDER_HIDDEN").is_none()).build()?;
+            // Built hidden, then sized to fit the screen it opens on and shown, so it never opens past the screen edge.
+            let window=tauri::WebviewWindowBuilder::from_config(app,&config)?.visible(false).build()?;
+            let smallest=(config.min_width.unwrap_or(config.width),config.min_height.unwrap_or(config.height));
+            if let Err(error)=window_fit::place(app,&window,(config.width,config.height),smallest){eprintln!("Window size left as configured: {error}");}
+            if std::env::var_os("XZ_BUILDER_HIDDEN").is_none(){window.show()?;}
             Ok(())
         }).run(tauri::generate_context!()).expect("XZ Mods failed to start");
 }

@@ -1,7 +1,9 @@
 #define _GNU_SOURCE
 #include "native_skin_runtime.h"
+#include "../key/browser.h"
 #include "native_palette.h"
 #include "native_lcars_wave.h"
+#include "native_flagship_wave.h"
 #include "native_wave_style.h"
 #include "native_asset_theme.h"
 #include "native_asset_view.h"
@@ -12,6 +14,9 @@
 #include "native_window_keys.h"
 #include "../runtime.h"
 #include <pthread.h>
+#include "../xz_thread.h"
+#include "../xz_mutex.h"
+#include "../xz_wake.h"
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,17 +32,23 @@ struct skin_proof {
 };
 __attribute__((visibility("default"))) struct skin_proof xz_mods_native_skin_v1={.version=1};
 #define INC(field) __atomic_fetch_add(&xz_mods_native_skin_v1.field,1,__ATOMIC_RELAXED)
-static pthread_mutex_t cache_mutex=PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t changed=PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t cache_mutex=XZ_MUTEX_INITIALIZER;
+/* Wakes the skin worker (nice 10). The stock interface thread (RR 24) signals it from its event hook while it
+   holds cache_mutex, which its draw hooks also take: never a condition variable, see xz_wake.h. */
+static struct xz_wake changed;
 static pthread_t worker_thread,owner_thread;
 static atomic_int running,owner_ready,active_theme,status_code;
+static atomic_int repaint_pending;
 static unsigned request_generation;
 static int requested_theme,started,worker_started;
+static uint32_t requested_band_rgb[3];
 static unsigned char *original_pack;
 static size_t pack_size;
 static uint32_t original_base,backend_table[4];
 static struct skin_snapshot *active_snapshot,*pending_snapshot,*retired;
 static _Thread_local unsigned event_depth,wstring_depth,packing_exponent;
+static _Thread_local uint32_t key_prefix_color;
+static void (*stock_list_text)(unsigned,unsigned);
 static _Thread_local int native_owner;
 static _Thread_local int text_key_state;
 static _Thread_local uint16_t text_key;
@@ -165,6 +176,7 @@ void xz_native_skin_wave_pixels(uint16_t *pixels,unsigned width,unsigned height,
  if(!pixels||!((width==536&&height==268&&deck==-1)||(width==300&&height==34&&(deck==0||deck==1))))return;
  const uint16_t *lut=active_map();if(!lut)return;
  if(current_theme()==XZ_THEME_LCARS&&active_snapshot->wave_lut)xz_lcars_wave_mapped(pixels,width,height,width,deck,lut,active_snapshot->wave_lut);
+ else if(current_theme()==XZ_THEME_FLAGSHIP&&active_snapshot->wave_lut)xz_flagship_wave_mapped(pixels,width,height,width,deck,lut,active_snapshot->wave_lut);
  else if(active_snapshot->wave_lut){
   xz_native_wave_style_apply(pixels,width,height,width,deck,lut,active_snapshot->wave_lut,NULL);
   INC(pixels);
@@ -172,6 +184,7 @@ void xz_native_skin_wave_pixels(uint16_t *pixels,unsigned width,unsigned height,
  else xz_mods_native_pixels_v1(pixels,width*height);
 }
 static uint32_t argb_pixel(uint32_t coverage,uint32_t color,uint8_t *dest,uint32_t opaque){
+ if(key_prefix_color){uint32_t rgba=(color&0xff000000u)|((key_prefix_color>>16)&255)|(key_prefix_color&0xff00)|((key_prefix_color&255)<<16);return ((xz_native_text_pixel_fn)(uintptr_t)0x157c60)(coverage,rgba,dest,opaque);}
  const uint16_t *lut=active_map();
  struct xz_native_text_map m={lut,NULL,NULL};
  if(lut&&title_ink==1){
@@ -183,6 +196,7 @@ static uint32_t argb_pixel(uint32_t coverage,uint32_t color,uint8_t *dest,uint32
  return result;
 }
 static uint32_t clut_pixel(uint32_t coverage,uint32_t color,uint8_t *dest,uint32_t opaque){
+ if(key_prefix_color){uint32_t rgba=(color&0xff000000u)|((key_prefix_color>>16)&255)|(key_prefix_color&0xff00)|((key_prefix_color&255)<<16);return ((xz_native_text_pixel_fn)(uintptr_t)0x157bb8)(coverage,rgba,dest,opaque);}
  const uint16_t *lut=active_map();
  uint32_t mapped=lut?rgba_map_keyed(color,lut,text_key_state,text_key):color;
  if(lut&&title_ink==1)mapped=xz_native_title_rgba(color,title_foreground,text_key_state,text_key);
@@ -190,7 +204,7 @@ static uint32_t clut_pixel(uint32_t coverage,uint32_t color,uint8_t *dest,uint32
 }
 static xz_native_text_pixel_fn gamma_hook(uint32_t a,uint32_t b,uint32_t c,uint32_t d){
  xz_native_text_pixel_fn result=stock_gamma(a,b,c,d);
- if(!current_theme()||!wstring_depth||text_key_state<0)return result;
+ if((!current_theme()&&!key_prefix_color)||!wstring_depth||text_key_state<0)return result;
  INC(gamma);
  if((uintptr_t)result==0x157c60)return argb_pixel;
  if((uintptr_t)result==0x157bb8)return clut_pixel;
@@ -207,6 +221,11 @@ static uint32_t wstring_hook(void *window,void *font,const uint16_t *text,uint32
   if(core){uint32_t surface;memcpy(&surface,(void*)(uintptr_t)(core+0x1c),4);text_key_state=xz_native_window_key(surface,&text_key);}
  }
  if(current_theme())INC(text);
+ /* Stock text passes through unchanged. Browse rows and the play key line are set by
+    deferred setters (ui_ListBrowse_SetText 0x236270 -> ui_com_SetListDispText), so a
+    setter-scoped rewrite never reached the drawn glyphs, and packing extra fields into
+    the title cell is not a table column. Key and header UI is drawn on the final frame
+    by ui/key_strip.c instead. */
  uint32_t result=stock_wstring(window,font,text,meta,a,b,clip,x,y,flags,language);
  wstring_depth--;packing_exponent=saved;text_key_state=saved_key_state;text_key=saved_key;title_ink=saved_ink;title_background=saved_background;title_foreground=saved_foreground;return result;
 }
@@ -243,7 +262,7 @@ static uint32_t image_hook(void *core,const void *descriptor,const void *point){
   uint32_t asset_offset=xz_asset_u32((const unsigned char*)descriptor+12)-original_base;unsigned asset_id=0,asset_hi=PACK_COUNT;
   while(asset_id<asset_hi){unsigned mid=asset_id+(asset_hi-asset_id)/2;if(xz_asset_u32(original_pack+mid*44+32)<asset_offset)asset_id=mid+1;else asset_hi=mid;}
   if(xz_native_title_deck(asset_id,xz_asset_u16(local+4),xz_asset_u16(local+6))>=0)native_title_record_core(core,asset_id);
-  owned_mask=s->theme==XZ_THEME_LCARS&&xz_lcars_asset_owned(asset_id,xz_asset_u16(local+4),xz_asset_u16(local+6));
+  owned_mask=xz_native_asset_owned(s->theme,asset_id,xz_asset_u16(local+4),xz_asset_u16(local+6));
   int deck=s->theme==XZ_THEME_LCARS?native_title_deck_for_core(core):-1;
   if(s->theme==XZ_THEME_LCARS&&point){
    uint32_t cw,ch;memcpy(&cw,core,4);memcpy(&ch,(unsigned char*)core+4,4);memcpy(placed,point,8);
@@ -257,14 +276,14 @@ static uint32_t image_hook(void *core,const void *descriptor,const void *point){
    }
   }
   int state=xz_native_window_key(surface,&key);
-  if(state<0||(s->theme==XZ_THEME_LCARS&&xz_lcars_asset_owned(asset_id,xz_asset_u16(local+4),xz_asset_u16(local+6))&&!xz_lcars_mask_allowed(xz_asset_u32(local+24),state,key)))mapped=0;
+  if(state<0||(owned_mask&&!xz_lcars_mask_allowed(xz_asset_u32(local+24),state,key)))mapped=0;
   else if((state>0&&key!=0xf81f)||deck==1){
    unsigned width=xz_asset_u16(local+4),height=xz_asset_u16(local+6);size_t count=(size_t)width*height;
    if(count>800u*480u)mapped=0;
    else{
     uint32_t offset=xz_asset_u32((const unsigned char*)descriptor+12)-original_base;
     const uint16_t *source=(const uint16_t*)(original_pack+offset),*themed=(const uint16_t*)(s->pack+offset);
-    int owned=s->theme==XZ_THEME_LCARS&&xz_lcars_asset_owned(asset_id,(int)width,(int)height);
+    int owned=xz_native_asset_owned(s->theme,asset_id,(int)width,(int)height);
     for(size_t i=0;i<count;i++){
      uint16_t p=xz_lcars_deck_tint(themed[i],deck);
      keyed_image[i]=state>0&&source[i]==key&&!owned?key:state>0&&p==key&&themed[i]!=key?(uint16_t)(key^1):p;
@@ -285,7 +304,7 @@ static int consume_pending(void){
  pthread_mutex_lock(&cache_mutex);
  if(pending_snapshot&&pending_snapshot->generation!=request_generation){
   struct skin_snapshot *stale=pending_snapshot;pending_snapshot=NULL;
-  stale->next=retired;retired=stale;pthread_cond_signal(&changed);
+  stale->next=retired;retired=stale;xz_wake_set(&changed);
  }
  if(pending_snapshot){
   int initial_stock=!active_snapshot&&pending_snapshot->theme==0;
@@ -294,7 +313,7 @@ static int consume_pending(void){
   atomic_store_explicit(&active_theme,active_snapshot->theme,memory_order_release);
   __atomic_store_n(&xz_mods_native_skin_v1.active,(uint32_t)active_snapshot->theme,__ATOMIC_RELAXED);
   if(old){old->next=retired;retired=old;}
-  INC(epochs);repaint=!initial_stock;pthread_cond_signal(&changed);
+  INC(epochs);repaint=!initial_stock;xz_wake_set(&changed);
  }
  pthread_mutex_unlock(&cache_mutex);
  return repaint;
@@ -304,7 +323,37 @@ static void native_repaint(void){
  ((int(*)(void*))(uintptr_t)0x1852c4)(NULL);
  ((void(*)(void))(uintptr_t)0x1432e8)();
 }
-static void owner_epoch(void (*repaint)(void)){if(consume_pending())repaint();}
+void xz_native_skin_request_repaint(void){atomic_store_explicit(&repaint_pending,1,memory_order_release);}
+static void owner_epoch(void (*repaint)(void)){
+ int requested=atomic_exchange_explicit(&repaint_pending,0,memory_order_acq_rel);
+ if(consume_pending()||requested)repaint();
+}
+/* Weak so skin tests link without the runtime. */
+extern void xz_ui_runtime_profile_usb(unsigned slot) __attribute__((weak));
+/* The FLAGSHIP shell runs its native-UI-thread commands from this owner (shell_runtime.c). */
+extern void xz_shell_runtime_owner_tick(void) __attribute__((weak));
+/* Display bridge: a short rest for the stock interface thread when it has not slept recently. */
+extern void xz_stock_breath(void) __attribute__((weak));
+extern void xz_ui_runtime_owner_tick(void) __attribute__((weak));
+static void list_text_hook(unsigned column,unsigned row){
+ /* Remote Link/PC libraries have their own key metadata. A local USB index
+    must never label their same-named tracks. These getters are stock 1.26. */
+ const uint32_t *media=((const uint32_t*(*)(unsigned))(uintptr_t)0xd946c)(2);
+ unsigned own=((unsigned(*)(unsigned))(uintptr_t)0x139370)(0);
+ int local=media&&media[1]==own;
+ xz_mods_key_browser_proof_v1.column=column;xz_mods_key_browser_proof_v1.local=(uint32_t)local;
+ xz_mods_key_browser_proof_v1.source_player=media?media[1]:UINT32_MAX;
+ xz_mods_key_browser_proof_v1.source_slot=media?media[2]:UINT32_MAX;xz_mods_key_browser_proof_v1.own_player=own;
+ int format=local&&((int(*)(void))(uintptr_t)0xd49fc)()?XZ_KEY_CAMELOT:XZ_KEY_CLASSIC;
+ xz_mods_key_browser_proof_v1.format=(uint32_t)format;
+ /* UiKey_Usb1/Usb2 pass device 3/2 respectively to ChangeBrowseDevice. */
+ unsigned device=((unsigned(*)(void))(uintptr_t)0xd9498)();
+ int usb=device==3?0:device==2?1:-1;
+ /* The settings worker follows the selected local USB; PC/LINK never adopts a profile. No I/O here. */
+ if(local&&usb>=0&&xz_ui_runtime_profile_usb)xz_ui_runtime_profile_usb((unsigned)usb);
+ if(local&&usb>=0&&column==0)xz_key_browser_list_drawn();
+ xz_key_browser_scope(1,column==0&&local,format,usb);stock_list_text(column,row);xz_key_browser_scope(0,0,0,-1);
+}
 static int event_hook(void *self){
  uintptr_t caller=(uintptr_t)__builtin_return_address(0);
  if(caller!=0x18ab20||(uintptr_t)self!=0x1b2cc84||*(const uint32_t*)self!=0x3ea424||event_depth)
@@ -313,7 +362,12 @@ static int event_hook(void *self){
   owner_thread=pthread_self();atomic_store_explicit(&owner_ready,1,memory_order_release);
  }
  if(!owner())return stock_event(self);
- event_depth++;INC(eventcalls);owner_epoch(native_repaint);
+ if(xz_stock_breath)xz_stock_breath();
+ event_depth++;INC(eventcalls);
+ if(xz_shell_runtime_owner_tick)xz_shell_runtime_owner_tick();
+ if(xz_ui_runtime_owner_tick)xz_ui_runtime_owner_tick();
+ owner_epoch(native_repaint);
+ if(xz_key_browser_repaint())native_repaint();
  int result=stock_event(self);event_depth--;return result;
 }
 static void free_snapshot(struct skin_snapshot *s){if(s){free(s->wave_lut);free(s->lut);free(s->pack);free(s);}}
@@ -361,6 +415,9 @@ static struct skin_snapshot *prepare(int theme,unsigned generation){
  s->lut=malloc(65536u*sizeof(*s->lut));s->pack=malloc(pack_size);
  if(!s->lut||!s->pack){free_snapshot(s);return NULL;}
  if(theme==XZ_THEME_LCARS){s->wave_lut=malloc(2u*65536u*sizeof(*s->wave_lut));if(!s->wave_lut){free_snapshot(s);return NULL;}xz_lcars_wave_maps(s->wave_lut);}
+ else if(theme==XZ_THEME_FLAGSHIP){s->wave_lut=malloc(65536u*sizeof(*s->wave_lut));if(!s->wave_lut){free_snapshot(s);return NULL;}uint32_t band_rgb[3];pthread_mutex_lock(&cache_mutex);
+  memcpy(band_rgb,requested_band_rgb,sizeof band_rgb);pthread_mutex_unlock(&cache_mutex);
+  xz_flagship_wave_band_maps(s->wave_lut,band_rgb);}
  else if(xz_native_wave_style_has_paper(theme)){
   s->wave_lut=malloc(65536u*sizeof(*s->wave_lut));
   if(!s->wave_lut){free_snapshot(s);return NULL;}
@@ -398,7 +455,7 @@ static void *worker(void *unused){
  while(atomic_load(&running)){
   pthread_mutex_lock(&cache_mutex);
   unsigned gen=request_generation;int theme=requested_theme;
-  if(gen==built&&!retired){pthread_cond_wait(&changed,&cache_mutex);pthread_mutex_unlock(&cache_mutex);continue;}
+  if(gen==built&&!retired){xz_wake_wait_locked(&changed,&cache_mutex,1000);pthread_mutex_unlock(&cache_mutex);continue;}
   pthread_mutex_unlock(&cache_mutex);
   release_retired(take_retired());
   if(gen==built)continue;
@@ -409,10 +466,18 @@ static void *worker(void *unused){
  }
  return NULL;
 }
+void xz_native_skin_band_colors(const uint32_t rgb[3]){
+ pthread_mutex_lock(&cache_mutex);
+ if(memcmp(requested_band_rgb,rgb,sizeof requested_band_rgb)){
+  memcpy(requested_band_rgb,rgb,sizeof requested_band_rgb);request_generation++;
+  xz_wake_set(&changed);
+ }
+ pthread_mutex_unlock(&cache_mutex);
+}
 void xz_native_skin_request(int theme){
  theme=xz_theme_id(theme);pthread_mutex_lock(&cache_mutex);
  requested_theme=theme;request_generation++;__atomic_store_n(&xz_mods_native_skin_v1.requested,(uint32_t)theme,__ATOMIC_RELAXED);
- pthread_cond_signal(&changed);pthread_mutex_unlock(&cache_mutex);
+ xz_wake_set(&changed);pthread_mutex_unlock(&cache_mutex);
 }
 const char *xz_native_skin_status(void){
  int state=atomic_load(&status_code);
@@ -434,6 +499,7 @@ int xz_native_skin_start(int theme){
  const unsigned char fill_rect_guard[8]={0xf0,0x41,0x2d,0xe9,0x08,0xd0,0x4d,0xe2};
  const unsigned char draw_text_guard[8]={0xf0,0x45,0x2d,0xe9,0x14,0xd0,0x4d,0xe2};
  const unsigned char gamma_guard[8]={0x02,0x20,0x42,0xe2,0x07,0x00,0x52,0xe3};
+ const unsigned char list_guard[8]={0xf0,0x4f,0x2d,0xe9,0x01,0x60,0xa0,0xe1};
  if(xz_read_memory(0x1852c4,actual,16)||memcmp(actual,dirty,16)||
     xz_read_memory(0x1432e8,actual,16)||memcmp(actual,refresh,16))goto fail;
  if(xz_native_window_keys_start())goto fail;
@@ -444,14 +510,15 @@ int xz_native_skin_start(int theme){
     xz_hook_arm(0x207a70,glyph_guard,(void*)glyph_hook,(void**)&stock_glyph)||
     xz_hook_arm(0x157cc0,gamma_guard,(void*)gamma_hook,(void**)&stock_gamma)||
     xz_hook_slot(0x3ea45c,0x18194c,(void*)event_hook,(void**)&stock_event))goto fail;
+ if(xz_hook_arm(0x236270,list_guard,(void*)list_text_hook,(void**)&stock_list_text))xz_log("Key browser text hook unavailable");
  started=1;atomic_store(&running,1);atomic_store(&status_code,1);xz_native_skin_request(theme);
- if(pthread_create(&worker_thread,NULL,worker,NULL)){atomic_store(&running,0);goto fail;}worker_started=1;
+ if(XZ_WORKER_CREATE(&worker_thread,worker,NULL)){atomic_store(&running,0);goto fail;}worker_started=1;
  return 0;
 fail:INC(errors);atomic_store(&status_code,3);return -1;
 }
 void xz_native_skin_stop(void){
  if(!started)return;
- atomic_store(&running,0);pthread_mutex_lock(&cache_mutex);pthread_cond_broadcast(&changed);pthread_mutex_unlock(&cache_mutex);
+ atomic_store(&running,0);pthread_mutex_lock(&cache_mutex);xz_wake_set(&changed);pthread_mutex_unlock(&cache_mutex);
  if(worker_started){pthread_join(worker_thread,NULL);worker_started=0;}atomic_store(&status_code,0);
  struct skin_snapshot *stock=calloc(1,sizeof(*stock));
  if(stock){

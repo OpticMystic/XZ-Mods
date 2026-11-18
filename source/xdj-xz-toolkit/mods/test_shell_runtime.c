@@ -1,0 +1,1017 @@
+/* SPDX-License-Identifier: MIT */
+/* Host test for the FLAGSHIP shell runtime's pure parts (shell_runtime_core.c)
+   and the library lists (shell_library.c) on the generated pdb fixture.
+   Usage: test_shell_runtime FIXTURE.pdb */
+#ifdef NDEBUG
+#error Shell runtime acceptance requires active assertions
+#endif
+#include "shell_runtime.h"
+#include "encoder_push.h"
+#include "shell/shell_source.h"
+#include "ui/deck_layout.h"
+#include "settings.h"
+#include "shell_library.h"
+#include "shell/fixtures.h"
+#include "shell/shell_browse.h"
+#include "shell/shell_settings.h"
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static struct fx_track track;
+static struct xz_shell_browse_model browse_slot;
+static struct xz_shell_settings_model settings_slot;
+
+static void key_table(void) {
+ static const struct { uint16_t code; unsigned channel; int rule, key, hold; } expect[]={
+  {0x209,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_BROWSE,XZ_SHELL_KEY_BROWSE_HOLD},{0x20a,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_LIST,-1},
+  {0x206,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_INFO,-1},{0x20b,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_MENU,XZ_SHELL_KEY_MENU_HOLD},
+  {0x20e,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SHORTCUT,-1},{0x203,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE_USB1,-1},
+  {0x204,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE_USB2,-1},{0x420c,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_TRACK,-1},
+  {0x4208,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_BACK,XZ_SHELL_KEY_BACK_HOLD},
+  {0x430f,1,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_LOAD,-1},{0x430f,2,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_LOAD,-1},{0x430b,1,XZ_SHRT_STOCK,-1,-1},{0x430c,2,XZ_SHRT_STOCK,-1,-1},
+ };
+ for(size_t i=0;i<sizeof expect/sizeof *expect;i++){
+  const struct xz_shrt_key_map *k=xz_shrt_key_lookup(expect[i].code,expect[i].channel);
+  assert(k&&k->rule==expect[i].rule&&k->key==expect[i].key&&k->hold==expect[i].hold);
+ }
+ /* Deck keys and the jog are not in the table; LOAD on a third channel is not either. */
+ assert(!xz_shrt_key_lookup(0x4305,1)&&!xz_shrt_key_lookup(0x4101,1));
+ /* USB1/USB2 (0x204 is UiKey_Usb2 in the binary) and TRACK FILTER: shell keys on press. */
+ for(unsigned i=0;i<3;i++){
+  static const uint16_t codes[3]={0x203,0x204,0x420d};
+  static const int expect[3]={XZ_SHELL_KEY_SOURCE_USB1,XZ_SHELL_KEY_SOURCE_USB2,XZ_SHELL_KEY_TRACK_FILTER};
+  const struct xz_shrt_key_map *k=xz_shrt_key_lookup(codes[i],0);
+  assert(k&&k->rule==XZ_SHRT_ON_PRESS&&xz_shrt_key_for_phase(k,XZ_SHRT_PRESS,0)==expect[i]);
+ }
+ /* LINK opens SOURCE on its tile (the shell hands off to stock's LINK screen when pressed there again);
+    REKORDBOX does what it is assigned and delivers no table key in any phase. */
+ const struct xz_shrt_key_map *link=xz_shrt_key_lookup(0x205,0),*rekordbox=xz_shrt_key_lookup(0x202,0);
+ assert(link&&link->rule==XZ_SHRT_ON_PRESS&&xz_shrt_key_for_phase(link,XZ_SHRT_PRESS,0)==XZ_SHELL_KEY_SOURCE_LINK);
+ assert(xz_shrt_key_for_phase(link,XZ_SHRT_HOLD,0)==-1&&xz_shrt_key_for_phase(link,XZ_SHRT_RELEASE,0)==-1);
+ assert(rekordbox&&rekordbox->rule==XZ_SHRT_ASSIGNED);
+ for(int p=XZ_SHRT_PRESS;p<=XZ_SHRT_RELEASE;p++)assert(xz_shrt_key_for_phase(rekordbox,(enum xz_shrt_phase)p,0)==-1);
+ /* The source keys, and only they, end a hand-off to stock. */
+ for(uint16_t code=0x200;code<0x210;code++){
+  const struct xz_shrt_key_map *k=xz_shrt_key_lookup(code,0);
+  assert(xz_shrt_key_reclaims(k)==(code==0x203||code==0x204||code==0x205));
+ }
+ assert(!xz_shrt_key_reclaims(xz_shrt_key_lookup(0x4208,0))&&!xz_shrt_key_reclaims(xz_shrt_key_lookup(0x430f,1))&&!xz_shrt_key_reclaims(NULL));
+ /* REKORDBOX by assignment: the shell keeps only its own actions; stock's own is a visible hand-off. */
+ static const struct { int action; enum xz_shrt_verdict v; enum xz_shrt_rb_effect e; } rb[]={
+  {XZ_REKORDBOX_MODS,XZ_SHRT_SWALLOW,XZ_SHRT_RB_SHELL_MODS},{XZ_REKORDBOX_STOCK,XZ_SHRT_PASS_HAND_OFF,XZ_SHRT_RB_NONE},
+  {XZ_REKORDBOX_INTERFACE,XZ_SHRT_PASS,XZ_SHRT_RB_NONE},{XZ_REKORDBOX_VJ_SCREEN,XZ_SHRT_PASS,XZ_SHRT_RB_NONE},
+  {XZ_REKORDBOX_STEMS,XZ_SHRT_SWALLOW,XZ_SHRT_RB_STEMS},{XZ_REKORDBOX_NOTHING,XZ_SHRT_PASS,XZ_SHRT_RB_NONE},
+  {XZ_REKORDBOX_ACTIONS,XZ_SHRT_PASS_HAND_OFF,XZ_SHRT_RB_NONE},{-1,XZ_SHRT_PASS_HAND_OFF,XZ_SHRT_RB_NONE}};
+ for(size_t i=0;i<sizeof rb/sizeof *rb;i++){
+  enum xz_shrt_rb_effect e=(enum xz_shrt_rb_effect)99;
+  assert(xz_shrt_rekordbox_verdict(rb[i].action,&e)==rb[i].v&&e==rb[i].e);
+ }
+ assert(xz_shrt_rekordbox_verdict(XZ_REKORDBOX_MODS,NULL)==XZ_SHRT_SWALLOW);
+ assert(!xz_shrt_key_lookup(0x430f,3));
+ assert(xz_shrt_phase_of(0)==XZ_SHRT_PRESS&&xz_shrt_phase_of(1)==XZ_SHRT_HOLD&&xz_shrt_phase_of(2)==XZ_SHRT_RELEASE&&xz_shrt_phase_of(3)==XZ_SHRT_RELEASE);
+ const struct xz_shrt_key_map *menu=xz_shrt_key_lookup(0x20b,0),*info=xz_shrt_key_lookup(0x206,0);
+ assert(xz_shrt_key_for_phase(menu,XZ_SHRT_PRESS,0)==-1);
+ assert(xz_shrt_key_for_phase(menu,XZ_SHRT_HOLD,0)==XZ_SHELL_KEY_MENU_HOLD&&xz_shrt_key_for_phase(menu,XZ_SHRT_HOLD,1)==-1);
+ assert(xz_shrt_key_for_phase(menu,XZ_SHRT_RELEASE,0)==XZ_SHELL_KEY_MENU&&xz_shrt_key_for_phase(menu,XZ_SHRT_RELEASE,1)==-1);
+ assert(xz_shrt_key_for_phase(info,XZ_SHRT_PRESS,0)==XZ_SHELL_KEY_INFO&&xz_shrt_key_for_phase(info,XZ_SHRT_RELEASE,0)==-1);
+ const struct xz_shrt_key_map *browse=xz_shrt_key_lookup(0x209,0);
+ assert(xz_shrt_key_for_phase(browse,XZ_SHRT_PRESS,0)==-1);
+ assert(xz_shrt_key_for_phase(browse,XZ_SHRT_RELEASE,0)==XZ_SHELL_KEY_BROWSE);
+ assert(xz_shrt_key_for_phase(browse,XZ_SHRT_HOLD,0)==XZ_SHELL_KEY_BROWSE_HOLD);
+ assert(xz_shrt_key_for_phase(browse,XZ_SHRT_HOLD,1)==-1&&xz_shrt_key_for_phase(browse,XZ_SHRT_RELEASE,1)==-1);
+ assert(xz_shrt_key_for_phase(xz_shrt_key_lookup(0x430f,1),XZ_SHRT_PRESS,0)==XZ_SHELL_KEY_LOAD);
+ assert(xz_shrt_key_lookup(0x430f,1)->deck==0&&xz_shrt_key_lookup(0x430f,2)->deck==1);
+ puts("PASS R1 key table: codes, channels, stock keys, press/hold/release phases, REKORDBOX by assignment");
+}
+
+static void verdicts(void) {
+ struct xz_shell u;struct xz_shell_model m;
+ xz_shell_init(&u);fx_model_full(&m,&track);
+ m.browse=NULL;m.settings_screen=NULL;m.info=NULL;m.source=NULL;m.capabilities=0;
+ const struct xz_shrt_key_map *browse_key=xz_shrt_key_lookup(0x209,0),*menu=xz_shrt_key_lookup(0x20b,0),*back=xz_shrt_key_lookup(0x4208,0);
+ const struct xz_shrt_key_map *tag=xz_shrt_key_lookup(0x420c,0),*info=xz_shrt_key_lookup(0x206,0),*load=xz_shrt_key_lookup(0x430f,1);
+ struct xz_shell before=u;
+ /* Nothing the shell can open: the keys go to stock, which opens its own screens. */
+ assert(xz_shrt_key_verdict(&u,&m,browse_key)==XZ_SHRT_PASS_HAND_OFF);
+ assert(xz_shrt_key_verdict(&u,&m,info)==XZ_SHRT_PASS_HAND_OFF);
+ /* MENU stays with the shell even without its settings slot (the runtime always publishes UTILITY). */
+ assert(xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_SWALLOW);
+ /* Inert keys are swallowed, never passed to the hidden stock screen: stock would act on its own
+    browse cursor or deck state behind the shell. */
+ assert(xz_shrt_key_verdict(&u,&m,tag)==XZ_SHRT_PASS_HAND_OFF); /* TAG TRACK on PLAY: stock tags the loaded track */
+ /* TRACK FILTER opens the shell's FILTER panel: never stock's. */
+ assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x420d,0))!=XZ_SHRT_PASS);
+ assert(xz_shrt_key_verdict(&u,&m,back)==XZ_SHRT_SWALLOW); /* BACK on the bare PLAY screen */
+ assert(xz_shrt_key_verdict(&u,&m,load)==XZ_SHRT_SWALLOW); /* LOAD on PLAY would load stock's cursor */
+ assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x430b,0))==XZ_SHRT_PASS); /* deck keys stay stock's */
+ assert(!memcmp(&before,&u,sizeof u));                     /* probes never touch the shell */
+ /* Startup: the source picker exists while the USB catalog is still loading. */
+ {
+  struct xz_shell_source_model source={0};m.source=&source;m.capabilities=XZ_SHELL_CAP_SOURCE;
+  assert(xz_shrt_key_verdict(&u,&m,browse_key)==XZ_SHRT_SWALLOW);
+  struct xz_shell_event startup={XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_BROWSE,-1};
+  struct xz_shell_action actions[XZ_SHELL_ACTIONS];
+  assert(xz_shell_input(&u,&m,&startup,actions)==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE);
+  assert(xz_shell_input(&u,&m,&startup,actions)==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE);
+  startup.key=XZ_SHELL_KEY_BROWSE_HOLD;
+  assert(xz_shell_input(&u,&m,&startup,actions)==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE);
+  xz_shell_init(&u);m.source=NULL;
+ }
+ /* With BROWSE and the settings slot the shell keeps them; held MENU opens the shell's own UTILITY. */
+ m.browse=&browse_slot;m.settings_screen=&settings_slot;m.capabilities=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_SEARCH;
+ assert(xz_shrt_key_verdict(&u,&m,browse_key)==XZ_SHRT_SWALLOW);
+ assert(xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_SWALLOW);
+ struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_BROWSE,-1};struct xz_shell_action out[XZ_SHELL_ACTIONS];
+ xz_shell_input(&u,&m,&e,out);
+ assert(xz_shell_screen(&u)==XZ_SHELL_BROWSE);
+ assert(xz_shrt_key_verdict(&u,&m,back)==XZ_SHRT_SWALLOW); /* BACK below PLAY belongs to the shell */
+ assert(xz_shrt_key_verdict(&u,&m,tag)==XZ_SHRT_SWALLOW);  /* TAG TRACK on a list: never stock's hidden row */
+ /* On a list the short MENU opens the shell's MENU panel and the hold its UTILITY: the shell keeps the key. */
+ assert(xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_SWALLOW);
+ {struct xz_shell copy=u;e.key=XZ_SHELL_KEY_MENU;size_t n=xz_shell_input(&copy,&m,&e,out);
+  assert(n==0&&copy.panel.kind==XZ_SHELL_PANEL_MENU);} /* the shell's MENU panel (sort, columns) */
+ e.key=XZ_SHELL_KEY_MENU_HOLD;xz_shell_input(&u,&m,&e,out);
+ assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY&&xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_SWALLOW);
+ /* MENU is never passed to stock, whatever the shell's probe says. */
+ {struct xz_shell copy;xz_shell_init(&copy);struct xz_shell_model empty;memset(&empty,0,sizeof empty);
+  assert(xz_shrt_key_verdict(&copy,&empty,menu)==XZ_SHRT_SWALLOW);}
+ puts("PASS press-time verdicts: hand-off pass-through, inert keys swallowed, MENU to the shell's UTILITY, side-effect-free probes");
+}
+
+static void load_verdicts(void) {
+ struct xz_shell u;struct xz_shell_model m;struct xz_shell_action out[XZ_SHELL_ACTIONS];
+ struct xz_shell_browse_row row={0};row.kind=XZ_SHELL_ROW_TRACK;row.id=101;
+ struct xz_shell_browse_model b={0};
+ b.known=(1u<<XZ_SHELL_BF_TOTAL);b.total=1;b.window_count=1;b.rows=&row;
+ const enum xz_shell_screen screens[]={XZ_SHELL_BROWSE,XZ_SHELL_PLAYLIST,XZ_SHELL_TAG_LIST,XZ_SHELL_SEARCH};
+ for(size_t i=0;i<sizeof screens/sizeof *screens;i++)for(unsigned channel=1;channel<=2;channel++){
+  xz_shell_init(&u);xz_shell_browse_reset();fx_model_full(&m,&track);
+  u.depth=2;u.stack[1]=(struct xz_shell_view){screens[i],0,0,0};b.screen=screens[i];m.browse=&b;
+  const struct xz_shrt_key_map *k=xz_shrt_key_lookup(0x430f,channel);
+  struct xz_shell before=u;int touched=xz_shell_browse_touched();
+  /* Without the capability LOAD is inert in the shell (stock would load its own hidden cursor). */
+  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_SWALLOW);
+  m.capabilities|=XZ_SHELL_CAP_LOAD;
+  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_SWALLOW);
+  assert(!memcmp(&before,&u,sizeof u)&&xz_shell_browse_touched()==touched);
+  struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,(enum xz_shell_key)xz_shrt_key_for_phase(k,XZ_SHRT_PRESS,0),k->deck};
+  assert(xz_shell_input(&u,&m,&e,out)==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].id==101&&out[0].deck==(int)channel-1&&u.depth==1);
+  /* Once swallowed at press, HOLD/RELEASE stay swallowed after LOAD returns to PLAY. */
+  struct xz_shrt_contacts c={0};int held;
+  xz_shrt_contact_press(&c,0x430f,channel,1,0);
+  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_SWALLOW);
+  assert(xz_shrt_contact_follow(&c,0x430f,channel,XZ_SHRT_HOLD,&held)==1&&xz_shrt_key_for_phase(k,XZ_SHRT_HOLD,0)==-1);
+  assert(xz_shrt_contact_follow(&c,0x430f,channel,XZ_SHRT_RELEASE,&held)==1&&xz_shrt_key_for_phase(k,XZ_SHRT_RELEASE,1)==-1);
+  /* A folder row or an empty window: swallowed, and the shell's own LOAD input does nothing loadable. */
+  u=before;row.kind=XZ_SHELL_ROW_FOLDER;
+  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_SWALLOW);
+  row.kind=XZ_SHELL_ROW_TRACK;b.window_count=0;
+  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_SWALLOW);
+  e.kind=XZ_SHELL_KEY;size_t n=xz_shell_input(&u,&m,&e,out);
+  for(size_t j=0;j<n;j++)assert(out[j].kind!=XZ_SHELL_ACT_LOAD);
+  b.window_count=1;
+ }
+ const enum xz_shell_screen nonlists[]={XZ_SHELL_PLAY,XZ_SHELL_INFO,XZ_SHELL_SHORTCUT,XZ_SHELL_UTILITY,XZ_SHELL_SOURCE};
+ for(size_t i=0;i<sizeof nonlists/sizeof *nonlists;i++){
+  u.stack[u.depth-1].screen=nonlists[i];
+  assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x430f,1))==XZ_SHRT_SWALLOW);
+  assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x430f,2))==XZ_SHRT_SWALLOW);
+  /* ...and inert there: LOAD belongs only to list input. */
+  struct xz_shell copy=u;struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_LOAD,0};
+  assert(xz_shell_input(&copy,&m,&e,out)==0);
+ }
+ puts("PASS LOAD mapping and verdicts: both decks, list-only loads, hand-off, pure probes, contact pass-through");
+}
+static void contacts(void) {
+ struct xz_shrt_contacts c;memset(&c,0,sizeof c);int held;
+ assert(xz_shrt_contact_follow(&c,0x4208,0,XZ_SHRT_RELEASE,&held)==-1); /* release without its press */
+ xz_shrt_contact_press(&c,0x4208,0,1,0);
+ assert(xz_shrt_contact_follow(&c,0x4208,0,XZ_SHRT_HOLD,&held)==1&&!held);
+ assert(xz_shrt_contact_follow(&c,0x4208,0,XZ_SHRT_HOLD,&held)==1&&held);
+ assert(xz_shrt_contact_follow(&c,0x4208,0,XZ_SHRT_RELEASE,&held)==1&&held);
+ assert(xz_shrt_contact_follow(&c,0x4208,0,XZ_SHRT_RELEASE,&held)==-1);
+ xz_shrt_contact_press(&c,0x20b,0,0,0);xz_shrt_contact_press(&c,0x209,0,1,0);
+ assert(xz_shrt_contact_follow(&c,0x20b,0,XZ_SHRT_RELEASE,&held)==0);
+ assert(xz_shrt_contact_follow(&c,0x209,0,XZ_SHRT_RELEASE,&held)==1);
+ /* Channels are separate contacts. */
+ xz_shrt_contact_press(&c,0x430f,1,1,0);
+ assert(xz_shrt_contact_follow(&c,0x430f,2,XZ_SHRT_RELEASE,&held)==-1&&xz_shrt_contact_follow(&c,0x430f,1,XZ_SHRT_RELEASE,&held)==1);
+ for(int i=0;i<20;i++)xz_shrt_contact_press(&c,(uint16_t)(0x100+i),0,1,0);   /* overflow reuses a slot, never writes past */
+ puts("PASS key contacts: all three ops follow the press, unknown releases pass, channels and overflow");
+}
+
+static void touches(void) {
+ struct xz_shrt_touch t;memset(&t,0,sizeof t);struct xz_shrt_touch_step s;
+ s=xz_shrt_touch_route(&t,1,100,200,1,0);assert(s.event==XZ_SHELL_TOUCH_DOWN&&!s.to_stock&&s.x==100&&s.y==200);
+ s=xz_shrt_touch_route(&t,1,110,210,1,0);assert(s.event==XZ_SHELL_TOUCH_MOVE&&s.x==110);
+ /* The native release clears the coordinates; the shell gets the last point. */
+ s=xz_shrt_touch_route(&t,1,0,0,0,0);assert(s.event==XZ_SHELL_TOUCH_UP&&s.x==110&&s.y==210);
+ /* A shell contact stays the shell's after a hand-off, through its release. */
+ s=xz_shrt_touch_route(&t,1,5,5,1,0);assert(s.event==XZ_SHELL_TOUCH_DOWN);
+ s=xz_shrt_touch_route(&t,0,6,6,1,0);assert(s.event==XZ_SHELL_TOUCH_MOVE&&!s.to_stock);
+ s=xz_shrt_touch_route(&t,0,6,6,0,0);assert(s.event==XZ_SHELL_TOUCH_UP);
+ /* Not owning: stock gets the contact; the shell taking over mid-gesture releases it for stock once. */
+ s=xz_shrt_touch_route(&t,0,50,50,1,0);assert(s.to_stock&&s.event<0);
+ s=xz_shrt_touch_route(&t,1,51,51,1,1);assert(!s.to_stock&&s.release_stock&&s.event<0);
+ s=xz_shrt_touch_route(&t,1,52,52,1,0);assert(!s.to_stock&&!s.release_stock&&s.event<0);
+ s=xz_shrt_touch_route(&t,1,0,0,0,0);assert(!s.to_stock&&s.event<0);
+ /* Shell owns but stock still has a contact down (activation mid-touch): release it, swallow to the lift. */
+ s=xz_shrt_touch_route(&t,1,70,70,1,1);assert(s.release_stock&&s.event<0);
+ s=xz_shrt_touch_route(&t,1,70,70,0,0);assert(s.event<0&&!s.to_stock);
+ /* A stock contact ending while the shell owns ends at stock. */
+ s=xz_shrt_touch_route(&t,0,80,80,1,0);assert(s.to_stock);
+ s=xz_shrt_touch_route(&t,1,0,0,0,1);assert(s.to_stock&&!s.release_stock);
+ s=xz_shrt_touch_route(&t,0,0,0,0,0);assert(s.to_stock);
+ puts("PASS touch ownership: shell contacts, stock contacts, synthesized stock release, opening contact swallowed");
+}
+
+/* The selector's push as stock's browse key table carries it (encoder_push.h): every phase read once, the
+   state written back as stock's handler leaves it; then the shell's click-or-hold. */
+static void pushes(void) {
+ struct xz_push_step r=xz_push_read(1,2);assert(r.phase==XZ_PUSH_DOWN&&r.state==XZ_PUSH_MARK_DOWN);
+ r=xz_push_read(1,XZ_PUSH_MARK_DOWN);assert(r.phase==XZ_PUSH_NONE&&r.state==XZ_PUSH_MARK_DOWN);   /* the same contact again */
+ r=xz_push_read(0,XZ_PUSH_MARK_DOWN);assert(r.phase==XZ_PUSH_UP&&r.state==0);
+ r=xz_push_read(0,2);assert(r.phase==XZ_PUSH_UP&&r.state==0);                 /* a release whose press was not read */
+ r=xz_push_read(1,3);assert(r.phase==XZ_PUSH_HOLD&&r.state==XZ_PUSH_MARK_HELD);
+ r=xz_push_read(1,XZ_PUSH_MARK_HELD);assert(r.phase==XZ_PUSH_NONE);
+ r=xz_push_read(0,XZ_PUSH_MARK_HELD);assert(r.phase==XZ_PUSH_UP_HELD&&r.state==0);
+ r=xz_push_read(0,3);assert(r.phase==XZ_PUSH_UP_HELD&&r.state==0);
+ r=xz_push_read(0,0);assert(r.phase==XZ_PUSH_NONE&&r.state==0);
+ r=xz_push_read(1,0);assert(r.phase==XZ_PUSH_DOWN&&r.state==0);                /* not stock: a press, nothing marked */
+ r=xz_push_read(2,2);assert(r.phase==XZ_PUSH_NONE&&r.state==2);
+ assert(xz_push_marked(XZ_PUSH_MARK_DOWN)&&xz_push_marked(XZ_PUSH_MARK_HELD)&&!xz_push_marked(0)&&!xz_push_marked(2)&&!xz_push_marked(3));
+ /* A click acts on its release. */
+ struct xz_shrt_push p={0,0};
+ assert(xz_shrt_push_event(&p,XZ_PUSH_DOWN)==-1&&xz_shrt_push_event(&p,XZ_PUSH_NONE)==-1);
+ assert(xz_shrt_push_event(&p,XZ_PUSH_UP)==XZ_SHELL_ENCODER_PUSH);
+ /* A hold acts once, at the hold; its release does nothing, never a click as well. */
+ assert(xz_shrt_push_event(&p,XZ_PUSH_DOWN)==-1&&xz_shrt_push_event(&p,XZ_PUSH_HOLD)==XZ_SHELL_ENCODER_HOLD);
+ assert(xz_shrt_push_event(&p,XZ_PUSH_HOLD)==-1&&xz_shrt_push_event(&p,XZ_PUSH_UP_HELD)==-1);
+ assert(xz_shrt_push_event(&p,XZ_PUSH_DOWN)==-1&&xz_shrt_push_event(&p,XZ_PUSH_HOLD)==XZ_SHELL_ENCODER_HOLD);
+ assert(xz_shrt_push_event(&p,XZ_PUSH_UP)==-1);   /* a release the decoder read as short after a hold */
+ /* A release seen without its press (the press went to another owner) is one click; a held release
+    without its hold, nothing. */
+ assert(xz_shrt_push_event(&p,XZ_PUSH_UP)==XZ_SHELL_ENCODER_PUSH);
+ assert(xz_shrt_push_event(&p,XZ_PUSH_UP_HELD)==-1);
+ puts("PASS encoder push: stock entry phases read once and written back; a click on its release, a hold once, never both");
+}
+
+/* Holds of swallowed keys, timed with stock's KeyInput::getLongPressTime. */
+static void timed_holds(void) {
+ assert(xz_shrt_hold_ms(0x209)==330&&xz_shrt_hold_ms(0x20b)==330&&xz_shrt_hold_ms(0x4208)==500);
+ assert(xz_shrt_hold_ms(0x206)==0&&xz_shrt_hold_ms(0x430f)==0&&xz_shrt_hold_ms(0x4207)==0);
+ struct xz_shrt_contacts c;memset(&c,0,sizeof c);int held;
+ /* BROWSE swallowed at t=1000: nothing due before 330 ms, the hold once at 330, never again. */
+ xz_shrt_contact_press(&c,0x209,0,1,1000);
+ assert(!xz_shrt_contact_due(&c,1000)&&!xz_shrt_contact_due(&c,1329));
+ const struct xz_shrt_key_map *k=xz_shrt_contact_due(&c,1330);
+ assert(k&&k->code==0x209&&k->hold==XZ_SHELL_KEY_BROWSE_HOLD&&!xz_shrt_contact_due(&c,5000));
+ /* Its release is not also a short BROWSE. */
+ assert(xz_shrt_contact_follow(&c,0x209,0,XZ_SHRT_RELEASE,&held)==1&&held&&xz_shrt_key_for_phase(k,XZ_SHRT_RELEASE,held)==-1);
+ /* A short press releases first: no hold, the short key on release. */
+ xz_shrt_contact_press(&c,0x209,0,1,2000);
+ assert(!xz_shrt_contact_due(&c,2200));
+ assert(xz_shrt_contact_follow(&c,0x209,0,XZ_SHRT_RELEASE,&held)==1&&!held&&xz_shrt_key_for_phase(k,XZ_SHRT_RELEASE,held)==XZ_SHELL_KEY_BROWSE);
+ assert(!xz_shrt_contact_due(&c,9000));
+ /* A passed contact (stock times its own hold), a key without a hold and an ON_PRESS key are never timed. */
+ xz_shrt_contact_press(&c,0x209,0,0,3000);assert(!xz_shrt_contact_due(&c,9000));
+ xz_shrt_contact_follow(&c,0x209,0,XZ_SHRT_RELEASE,&held);
+ xz_shrt_contact_press(&c,0x206,0,1,3000);xz_shrt_contact_press(&c,0x430f,1,1,3000);assert(!xz_shrt_contact_due(&c,9000));
+ xz_shrt_contact_follow(&c,0x206,0,XZ_SHRT_RELEASE,&held);xz_shrt_contact_follow(&c,0x430f,1,XZ_SHRT_RELEASE,&held);
+ /* BACK at 500, MENU at 330; a stock hold arriving after the timed one delivers nothing. */
+ xz_shrt_contact_press(&c,0x4208,0,1,4000);xz_shrt_contact_press(&c,0x20b,0,1,4000);
+ k=xz_shrt_contact_due(&c,4330);assert(k&&k->code==0x20b&&!xz_shrt_contact_due(&c,4499));
+ k=xz_shrt_contact_due(&c,4500);assert(k&&k->code==0x4208&&k->hold==XZ_SHELL_KEY_BACK_HOLD);
+ assert(xz_shrt_contact_follow(&c,0x4208,0,XZ_SHRT_HOLD,&held)==1&&held&&xz_shrt_key_for_phase(k,XZ_SHRT_HOLD,held)==-1);
+ /* The clock wraps. */
+ memset(&c,0,sizeof c);xz_shrt_contact_press(&c,0x209,0,1,UINT32_MAX-100);
+ assert(!xz_shrt_contact_due(&c,100)&&xz_shrt_contact_due(&c,229));
+ puts("PASS timed holds: BROWSE/MENU 330 ms, BACK 500 ms, once, while down; the release after a hold is not a short press");
+}
+
+static void hand_off(void) {
+ struct xz_shrt_handoff h;memset(&h,0,sizeof h);
+ assert(!xz_shrt_handoff_yields(&h));
+ /* Stock never leaves its play screen (nothing to show): the grace period brings the shell back. */
+ xz_shrt_handoff_begin(&h,1000);assert(xz_shrt_handoff_yields(&h)&&h.count==1);
+ assert(!xz_shrt_handoff_step(&h,1100,1));
+ assert(!xz_shrt_handoff_step(&h,1600,1));
+ assert(!xz_shrt_handoff_step(&h,3400,1));
+ assert(xz_shrt_handoff_step(&h,3500,1)&&!h.handed&&h.resumes==1);
+ /* Stock opens its own screen, then returns: resume once it has been back for the stable time. */
+ xz_shrt_handoff_begin(&h,10000);
+ assert(!xz_shrt_handoff_step(&h,10050,0));
+ assert(!xz_shrt_handoff_step(&h,11000,1));
+ assert(!xz_shrt_handoff_step(&h,11300,1));
+ assert(!xz_shrt_handoff_step(&h,11350,0));   /* a flicker restarts the stable time */
+ assert(!xz_shrt_handoff_step(&h,11400,1));
+ assert(xz_shrt_handoff_step(&h,11800,1));
+ /* Unreadable play state never resumes; BACK held does. */
+ xz_shrt_handoff_begin(&h,20000);
+ assert(!xz_shrt_handoff_step(&h,30000,-1)&&!xz_shrt_handoff_step(&h,40000,-1)&&h.handed);
+ xz_shrt_handoff_end(&h);assert(!xz_shrt_handoff_yields(&h)&&h.resumes==3);
+ /* Cautions yield on their own and clear on their own; the unknown sentinel yields too. */
+ xz_shrt_handoff_caution(&h,0x144);assert(xz_shrt_handoff_yields(&h));
+ xz_shrt_handoff_caution(&h,0);assert(!xz_shrt_handoff_yields(&h));
+ xz_shrt_handoff_caution(&h,UINT32_MAX);assert(xz_shrt_handoff_yields(&h));
+ xz_shrt_handoff_caution(&h,0);
+ /* Begin twice counts one hand-off. */
+ xz_shrt_handoff_begin(&h,50000);xz_shrt_handoff_begin(&h,50010);assert(h.count==4);
+ /* A short MENU passed to stock: stock stays on PLAY, the shell is back 300 ms after the release
+    (plus the stable time), not after the full grace. Shortening never extends. */
+ xz_shrt_handoff_begin(&h,60000);assert(!xz_shrt_handoff_step(&h,60100,1));
+ xz_shrt_handoff_shorten(&h,60200,300);
+ assert(!xz_shrt_handoff_step(&h,60400,1)&&xz_shrt_handoff_step(&h,60600,1));
+ xz_shrt_handoff_begin(&h,70000);xz_shrt_handoff_shorten(&h,70000,2400);xz_shrt_handoff_shorten(&h,70010,5000);
+ assert(h.since==70000-100);
+ /* Stock left PLAY (UTILITY opened on a hold): shortening does nothing, the shell waits for its return. */
+ xz_shrt_handoff_begin(&h,80000);assert(!xz_shrt_handoff_step(&h,80100,0));xz_shrt_handoff_shorten(&h,80200,0);
+ assert(h.since==80000&&!xz_shrt_handoff_step(&h,80300,1)&&xz_shrt_handoff_step(&h,80700,1));
+ /* The unknown caution sentinel passes only after three refreshes in a row; real ids pass at once. */
+ struct xz_shrt_caution c;memset(&c,0,sizeof c);
+ assert(xz_shrt_caution_filter(&c,UINT32_MAX)==0&&xz_shrt_caution_filter(&c,UINT32_MAX)==0&&xz_shrt_caution_filter(&c,0)==0);
+ assert(xz_shrt_caution_filter(&c,UINT32_MAX)==0&&xz_shrt_caution_filter(&c,UINT32_MAX)==0&&xz_shrt_caution_filter(&c,UINT32_MAX)==UINT32_MAX);
+ assert(xz_shrt_caution_filter(&c,UINT32_MAX)==UINT32_MAX&&xz_shrt_caution_filter(&c,0x144)==0x144&&xz_shrt_caution_filter(&c,UINT32_MAX)==0x144);
+ /* BACK hold acknowledges a latched caution until it changes; a new caution yields again. */
+ memset(&c,0,sizeof c);assert(xz_shrt_caution_filter(&c,0x13f)==0x13f);xz_shrt_caution_ack(&c);
+ assert(xz_shrt_caution_filter(&c,0x13f)==0&&xz_shrt_caution_filter(&c,0x13f)==0);
+ assert(xz_shrt_caution_filter(&c,0x145)==0x145&&xz_shrt_caution_filter(&c,0x13f)==0x13f);
+ xz_shrt_caution_ack(&c);assert(xz_shrt_caution_filter(&c,0)==0&&xz_shrt_caution_filter(&c,0x13f)==0x13f);
+ for(int i=0;i<3;i++)xz_shrt_caution_filter(&c,UINT32_MAX);
+ xz_shrt_caution_ack(&c);assert(xz_shrt_caution_filter(&c,UINT32_MAX)==0);
+ puts("PASS hand-off: grace resume, leave-and-return resume, flicker, unknown state, BACK hold, cautions, short MENU, caution debounce");
+}
+
+/* The playhead the shell publishes must advance smoothly between and across readings. */
+static void playhead(void) {
+ struct xz_shrt_motion mo;memset(&mo,0,sizeof mo);
+ assert(!xz_shrt_motion_step(&mo,1000,0)&&!xz_shrt_motion_step(&mo,1000,33)); /* first readings: unknown -> stopped */
+ assert(xz_shrt_motion_step(&mo,1030,66)&&xz_shrt_motion_step(&mo,1030,300)&&!xz_shrt_motion_step(&mo,1030,366));
+ struct xz_shrt_position p;xz_shrt_position_reset(&p);int32_t ms;uint32_t at;
+ /* Paused: the raw reading. */
+ xz_shrt_position_step(&p,0,5000,100,0,0,&ms,&at);assert(ms==5000&&at==100);
+ /* Playing at +2.00 %: readings come every 33 ms but advance in 10 ms steps with up to 9 ms of lag.
+    The published line must stay within 10 ms of the truth, never step back between frames, and every
+    frame-to-frame advance must stay within 3 ms of the true 16.67 ms x 1.02. */
+ const int32_t tempo=xz_shrt_rate_from_tempo(200);double truth=5000;int64_t last_shown=-1;double worst=0,worst_step=0;
+ for(int frame=1;frame<=600;frame++){
+  uint32_t now=100+(uint32_t)(frame*50/3);   /* 60 fps clock in ms */
+  truth=5000+(now-100)*1.02;
+  if(frame%2==0){                            /* the model refreshes every other frame */
+   int32_t reading=(int32_t)(truth/10)*10;   /* coarse stat-frame value */
+   xz_shrt_position_step(&p,1,reading,now,tempo,0,&ms,&at);
+  }
+  double shown=ms+(double)(int32_t)(now-at)*1.02;
+  double error=shown-truth;if(error<0)error=-error;
+  if(frame>60&&error>worst)worst=error;
+  if(last_shown>=0&&frame>60){
+   double step=shown-(double)last_shown/1000;assert(step>0);
+   double off=step-16.67*1.02;if(off<0)off=-off;if(off>worst_step)worst_step=off;
+  }
+  last_shown=(int64_t)(shown*1000);
+ }
+ printf("  playhead: worst error %.1f ms, worst frame step deviation %.2f ms\n",worst,worst_step);
+ assert(worst<10&&worst_step<3);
+ /* A cue jump snaps at once; a held (repeated) reading changes nothing. */
+ xz_shrt_position_step(&p,1,1000,20000,tempo,0,&ms,&at);assert(ms==1000&&at==20000);
+ xz_shrt_position_step(&p,1,1000,20000,tempo,0,&ms,&at);assert(ms==1000&&at==20000);
+ /* Jog hold while the deck plays at -27 % pitch (the owner's log: the engine position stays at 374804
+    while the speed field says 730000 ppm). From the second frozen reading on, the published playhead is
+    the reading itself with elapsed_at_ms 0: no extrapolation, so no forward jitter and no snap back. */
+ xz_shrt_position_reset(&p);uint32_t t=1000;
+ for(int i=0;i<5;i++,t+=33){int32_t pos=374000+(int32_t)(i*33*73/100);xz_shrt_position_step(&p,1,pos,t,730000,1,&ms,&at);assert(at);}
+ int following=0;
+ for(int i=0;i<20;i++,t+=33){
+  following=xz_shrt_position_step(&p,1,374804,t,730000,1,&ms,&at);
+  if(i>=1)assert(following&&ms==374804&&at==0);
+ }
+ /* Released: two regular readings later it smooths and extrapolates again. */
+ int32_t pos=374804;
+ for(int i=0;i<3;i++){t+=33;pos+=24;following=xz_shrt_position_step(&p,1,pos,t,730000,1,&ms,&at);}
+ assert(!following&&at&&ms>=pos-2&&ms<=pos+2);
+ /* Scratch backwards and a vinyl-brake slowdown: the playhead follows the readings exactly. */
+ for(int i=0;i<10;i++){t+=33;pos-=20;following=xz_shrt_position_step(&p,1,pos,t,1000000,1,&ms,&at);if(i>=1)assert(following&&ms==pos&&at==0);}
+ for(int i=0;i<4;i++){t+=33;pos+=33;xz_shrt_position_step(&p,1,pos,t,1000000,1,&ms,&at);}
+ assert(at); /* normal speed again */
+ for(int i=0;i<6;i++){t+=33;pos+=33*(5-i)/10;following=xz_shrt_position_step(&p,1,pos,t,1000000,1,&ms,&at);if(i>=1)assert(following&&ms==pos&&!at);}
+ /* An imprecise source (the stat frame, 10 ms steps) never switches to following. */
+ xz_shrt_position_reset(&p);t=0;
+ for(int i=0;i<60;i++,t+=33)assert(!xz_shrt_position_step(&p,1,(int32_t)(t/10)*10,t,1000000,0,&ms,&at)&&at);
+ struct xz_shrt_frames f;memset(&f,0,sizeof f);
+ xz_shrt_frame_mark(&f,1000000);xz_shrt_frame_mark(&f,1016667);xz_shrt_frame_mark(&f,1050000);xz_shrt_frame_mark(&f,3000000);
+ assert(f.frames==4&&f.gap_max_us==33333&&f.late==1);
+ assert(f.hist[0]==0&&f.hist[1]==1&&f.hist[2]==0&&f.hist[3]==1&&f.hist[4]==0); /* the 1.95 s idle gap is not counted */
+ puts("PASS playhead: motion window, smoothed tempo-predicted position, snaps, held readings, jog hold, scratch, brake, frame gap statistics");
+}
+
+static void commands(void) {
+ struct xz_shrt_queue q;memset(&q,0,sizeof q);struct xz_shrt_command c,out;
+ struct xz_shell_action a={XZ_SHELL_ACT_SET_SETTING,1,XZ_SHELL_TIME_ELAPSED,XZ_SHELL_SET_TIME_MODE};
+ assert(xz_shrt_setting_command(&a,5,&c)&&c.kind==XZ_SHRT_CMD_TIME_MODE&&c.deck==1&&c.value==0&&c.at_ms==5);
+ a.value=XZ_SHELL_TIME_REMAIN;a.deck=-1;
+ assert(xz_shrt_setting_command(&a,5,&c)&&c.deck==-1&&c.value==1);
+ a.value=7;assert(!xz_shrt_setting_command(&a,5,&c));
+ /* QUANTIZE BEAT VALUE choices 1/8, 1/4, 1/2, 1 -> UiSetUtilQuantizeValue 3, 2, 1, 0. */
+ for(int i=0;i<4;i++){
+  a=(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,-1,i,XZ_SHELL_ITEM_QUANTIZE_BEAT};
+  assert(xz_shrt_setting_command(&a,0,&c)&&c.kind==XZ_SHRT_CMD_QUANTIZE_BEAT&&c.value==3-i);
+ }
+ a.value=4;assert(!xz_shrt_setting_command(&a,0,&c));
+ assert(xz_shrt_quantize_index(8)==0&&xz_shrt_quantize_index(1)==3&&xz_shrt_quantize_index(3)==-1);
+ assert(!strcmp(xz_shrt_quantize_choices[0],"1/8")&&!strcmp(xz_shrt_quantize_choices[3],"1"));
+ static const int refused[]={XZ_SHELL_SET_QUANTIZE,XZ_SHELL_SET_PLAY_MODE,XZ_SHELL_SET_AUTO_CUE,XZ_SHELL_SET_HOT_CUE_AUTO_LOAD,
+  XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_SET_WAVE_POSITION,XZ_SHELL_ITEM_LOAD_LOCK,XZ_SHELL_ITEM_LCD_BRIGHTNESS};
+ for(size_t i=0;i<sizeof refused/sizeof *refused;i++){
+  a=(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,0,1,refused[i]};assert(!xz_shrt_setting_command(&a,0,&c));
+  if(xz_shrt_setting_writable(a.id,1,1)&&xz_shrt_setting_command(&a,0,&c))assert(xz_shrt_queue_push(&q,&c));
+  assert(!q.count&&!xz_shrt_queue_pop(&q,&out));
+ }
+ a=(struct xz_shell_action){XZ_SHELL_ACT_LOAD,0,0,5};assert(!xz_shrt_setting_command(&a,0,&c));
+ /* Shell-owned display settings are stored and restored, never stock commands. */
+ assert(xz_shrt_shell_owned_setting(XZ_SHELL_SET_WAVE_COLOR)&&xz_shrt_shell_owned_setting(XZ_SHELL_SET_WAVE_POSITION)&&
+        xz_shrt_shell_owned_setting(XZ_SHELL_ITEM_KEY_DISPLAY)&&xz_shrt_shell_owned_setting(XZ_SHELL_ITEM_WAVE_ZOOM));
+ assert(!xz_shrt_shell_owned_setting(XZ_SHELL_SET_TIME_MODE)&&!xz_shrt_shell_owned_setting(XZ_SHELL_ITEM_QUANTIZE_BEAT));
+ {
+  struct xz_shell s;xz_shell_init(&s);
+  assert(xz_shell_restore_setting(&s,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_RGB)&&s.display.wave_color==XZ_SHELL_WAVE_RGB);
+  assert(xz_shell_restore_setting(&s,XZ_SHELL_ITEM_WAVE_ZOOM,5)&&s.zoom==5&&!xz_shell_restore_setting(&s,XZ_SHELL_SET_TIME_MODE,0));
+ }
+ /* Queue: FIFO, a repeated setting replaces its queued value, LOADs never merge, overflow drops. */
+ c=(struct xz_shrt_command){XZ_SHRT_CMD_TIME_MODE,0,1,0,0,1,0};assert(xz_shrt_queue_push(&q,&c));
+ c.value=0;assert(xz_shrt_queue_push(&q,&c)&&q.count==1&&q.coalesced==1);
+ c=(struct xz_shrt_command){XZ_SHRT_CMD_LOAD,0,0,101,2,2,1};assert(xz_shrt_queue_push(&q,&c)&&xz_shrt_queue_push(&q,&c)&&q.count==3);
+ assert(xz_shrt_queue_pop(&q,&out)&&out.kind==XZ_SHRT_CMD_TIME_MODE&&out.value==0);
+ assert(xz_shrt_queue_pop(&q,&out)&&out.kind==XZ_SHRT_CMD_LOAD&&xz_shrt_queue_pop(&q,&out)&&!xz_shrt_queue_pop(&q,&out));
+ for(int i=0;i<XZ_SHRT_QUEUE;i++){c=(struct xz_shrt_command){XZ_SHRT_CMD_LOAD,0,0,(uint32_t)i,2,0,1};assert(xz_shrt_queue_push(&q,&c));}
+ assert(!xz_shrt_queue_push(&q,&c)&&q.dropped==1);
+ for(int i=0;i<XZ_SHRT_QUEUE;i++){assert(xz_shrt_queue_pop(&q,&out)&&out.track_id==(uint32_t)i);}
+ assert(xz_shrt_frame_period_ms(XZ_SHELL_PLAY,1)==12&&xz_shrt_frame_period_ms(XZ_SHELL_PLAY,0)==100&&xz_shrt_frame_period_ms(XZ_SHELL_BROWSE,1)==100);
+ /* A 60 Hz caller with 2 ms of jitter is due on every tick at the live period. */
+ assert(XZ_SHRT_FRAME_LIVE_MS<=16-2&&XZ_SHRT_FRAME_LIVE_MS>1000/90);
+ puts("PASS commands: C3 setting mapping, refusals, coalescing queue, overflow, frame periods");
+}
+
+static void writable_settings(void) {
+ for(int time=0;time<2;time++)for(int quantize=0;quantize<2;quantize++){
+  for(int id=0;id<XZ_SHELL_ITEM_ID_END;id++)
+   assert(xz_shrt_setting_writable(id,time,quantize)==(id==XZ_SHELL_ITEM_TIME_MODE?time:id==XZ_SHELL_ITEM_QUANTIZE_BEAT?quantize:0));
+  struct xz_shell u;struct xz_shell_model m;struct xz_shell_action actions[XZ_SHELL_ACTIONS];
+  struct xz_shrt_queue q={0};struct xz_shrt_command c;
+  xz_shell_init(&u);fx_model_full(&m,&track);m.settings.writable=0;
+  for(int id=0;id<XZ_SHELL_SETTING_COUNT;id++)
+   if(xz_shrt_setting_writable(id,time,quantize))m.settings.writable|=(uint64_t)1<<id;
+  assert(m.settings.writable==(time?(uint64_t)1<<XZ_SHELL_SET_TIME_MODE:0));
+  const struct xz_shell_event events[]={
+   {XZ_SHELL_TOUCH_DOWN,20,12,0,0,-1}, /* PLAY MODE has no setter. */
+   {XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_QUANTIZE,0},
+   {XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_TIME_MODE,0}};
+  for(size_t i=0;i<sizeof events/sizeof *events;i++){
+   size_t n=xz_shell_input(&u,&m,&events[i],actions);
+   assert(n==(size_t)(i==2&&time));
+   for(size_t j=0;j<n;j++){
+    assert(xz_shrt_setting_writable(actions[j].id,time,quantize));
+    assert(xz_shrt_setting_command(&actions[j],0,&c)&&xz_shrt_queue_push(&q,&c));
+   }
+  }
+  assert(q.count==(uint32_t)time);
+  if(time)assert(xz_shrt_queue_pop(&q,&c)&&c.kind==XZ_SHRT_CMD_TIME_MODE);
+  assert(!xz_shrt_queue_pop(&q,&c));
+ }
+ puts("PASS per-setting writable rule: shared IDs, runtime guard combinations, refused settings never queued");
+}
+static const char *title_of(const struct xz_shlib *L, uint32_t id) {
+ const struct xz_shlib_track *t=xz_shlib_track(L,id);assert(t);return xz_shlib_text(L,t->title);
+}
+static struct xz_shlib_list *build(struct xz_shlib *L, enum xz_shell_screen s, enum xz_shell_browse_category c, int depth, const uint32_t *path, const char *query) {
+ struct xz_shlib_request r;memset(&r,0,sizeof r);
+ r.screen=s;r.category=c;r.depth=depth;
+ for(int i=0;i<depth;i++)r.path[i]=path[i];
+ if(query)snprintf(r.query,sizeof r.query,"%s",query);
+ struct xz_shlib_list *l=NULL;
+ assert(!xz_shlib_build(L,&r,&l)&&l);
+ return l;
+}
+static void library(const char *path) {
+ struct xz_shlib *L=NULL;
+ assert(xz_shlib_open("no-such-file.pdb",1u<<20,&L)&&!L);
+ assert(!xz_shlib_open(path,1u<<20,&L)&&L);
+ assert(xz_shlib_track_count(L)==4&&xz_shlib_track(L,101)&&xz_shlib_track(L,404)&&!xz_shlib_track(L,1));
+ assert(!strcmp(title_of(L,101),"Alpha Night"));
+ const struct xz_shlib_track *t=xz_shlib_track(L,101);
+ assert(t->bpm_x100==12800&&t->duration_ms==240000&&t->rating==5&&t->color_id==1&&!strcmp(xz_shlib_text(L,t->file_name),"Alpha Night.mp3"));
+ assert(!strcmp(xz_shlib_text(L,t->file_path),"/Contents/Alpha Night.mp3")); /* the wave prefetch resolves by it */
+ assert(!strcmp(xz_shlib_text(L,t->artist),"Night Artist")&&!strcmp(xz_shlib_text(L,t->key),"8A"));
+ /* TRACK: every track, title order, with an alphabet index; window rows carry the readouts. */
+ struct xz_shlib_list *l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_TRACK,0,NULL,NULL);
+ assert(l->total==4&&!l->folders&&l->depth==0&&!strcmp(l->names+l->level_name,"TRACK")&&l->sort_column==XZ_SHELL_COL_TITLE);
+ assert(l->letter_count>=2&&l->letters[0].row==0);
+ struct xz_shell_browse_row rows[XZ_SHELL_BROWSE_WINDOW];uint32_t on_deck[2]={101,0};
+ int n=xz_shlib_window(L,l,0,on_deck,3,rows);
+ assert(n==4);
+ int found=0;
+ for(int i=0;i<n;i++){
+  assert(rows[i].kind==XZ_SHELL_ROW_TRACK&&(rows[i].known&(1u<<XZ_SHELL_RF_TITLE)));
+  if(rows[i].id==101){found=1;assert(rows[i].bpm_x100==12800&&rows[i].duration_ms==240000&&rows[i].on_deck==1&&
+   rows[i].color==xz_shlib_color_rgb(1)&&(rows[i].known&(1u<<XZ_SHELL_RF_ON_DECK))&&!strcmp(rows[i].key,"8A"));}
+  else assert(!rows[i].on_deck);
+ }
+ assert(found);
+ assert(xz_shlib_window(L,l,3,on_deck,1,rows)==1&&!(rows[0].known&(1u<<XZ_SHELL_RF_ON_DECK)));
+ assert(xz_shlib_window(L,l,4,NULL,0,rows)==0);
+ uint32_t first=l->id[0];
+ xz_shlib_list_free(l);
+ /* Sorting: BPM ascending, then title descending reverses the title order. */
+ struct xz_shlib_request r;memset(&r,0,sizeof r);r.screen=XZ_SHELL_BROWSE;r.category=XZ_SHELL_CAT_TRACK;
+ r.sort_set=1;r.sort_column=XZ_SHELL_COL_BPM;
+ assert(!xz_shlib_build(L,&r,&l));
+ assert(l->id[0]==303&&l->sort_column==XZ_SHELL_COL_BPM&&l->letter_count==0);
+ for(int i=1;i<l->total;i++)assert(xz_shlib_track(L,l->id[i-1])->bpm_x100<=xz_shlib_track(L,l->id[i])->bpm_x100);
+ xz_shlib_list_free(l);
+ r.sort_column=XZ_SHELL_COL_TITLE;r.sort_descending=1;
+ assert(!xz_shlib_build(L,&r,&l)&&l->id[3]==first&&l->sort_descending);
+ xz_shlib_list_free(l);
+ /* ARTIST: groups at the top, the group's tracks one level down. */
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_ARTIST,0,NULL,NULL);
+ assert(l->folders&&l->total==3);
+ int artist_row=-1;
+ for(int i=0;i<l->total;i++){assert(l->kind[i]==XZ_SHELL_ROW_FOLDER);if(l->id[i]==1){artist_row=i;assert(!strcmp(l->names+l->name[i],"Night Artist"));}}
+ assert(artist_row>=0);
+ n=xz_shlib_window(L,l,0,NULL,0,rows);assert(n==3&&rows[artist_row].known==(1u<<XZ_SHELL_RF_TITLE));
+ uint32_t list_top=l->list_id;
+ xz_shlib_list_free(l);
+ uint32_t artist=1;
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_ARTIST,1,&artist,NULL);
+ assert(!l->folders&&l->total==2&&l->depth==1&&!strcmp(l->names+l->level_name,"Night Artist")&&l->has_parent&&
+        !strcmp(l->names+l->parent_name,"ARTIST")&&l->list_id!=list_top);
+ for(int i=0;i<l->total;i++)assert(xz_shlib_track(L,l->id[i])->artist_id==1);
+ xz_shlib_list_free(l);
+ /* BPM groups are numeric and named by value. */
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_BPM,0,NULL,NULL);
+ assert(l->total==3&&!strcmp(l->names+l->name[0],"90.00"));
+ xz_shlib_list_free(l);
+ /* PLAYLIST tree: folders by sort order, a playlist's entries in their order (repeats kept). */
+ l=build(L,XZ_SHELL_PLAYLIST,XZ_SHELL_CAT_TRACK,0,NULL,NULL);
+ assert(l->category==XZ_SHELL_CAT_PLAYLIST&&l->folders&&l->total==2&&l->id[0]==1000&&l->id[1]==2002);
+ assert(!strcmp(l->names+l->name[0],"Sets")&&!strcmp(l->names+l->level_name,"PLAYLIST"));
+ xz_shlib_list_free(l);
+ uint32_t sets[2]={1000,2000};
+ l=build(L,XZ_SHELL_PLAYLIST,XZ_SHELL_CAT_PLAYLIST,1,sets,NULL);
+ assert(l->folders&&l->total==2&&l->id[0]==1001&&l->id[1]==2000&&!strcmp(l->names+l->level_name,"Sets"));
+ xz_shlib_list_free(l);
+ l=build(L,XZ_SHELL_PLAYLIST,XZ_SHELL_CAT_PLAYLIST,2,sets,NULL);
+ assert(!l->folders&&l->total==4&&l->id[0]==202&&l->id[1]==303&&l->id[2]==101&&l->id[3]==101);
+ assert(!strcmp(l->names+l->level_name,"Opening")&&!strcmp(l->names+l->parent_name,"Sets")&&l->sort_column==XZ_SHELL_COL_NUMBER);
+ xz_shlib_list_free(l);
+ uint32_t empty=2002;
+ l=build(L,XZ_SHELL_PLAYLIST,XZ_SHELL_CAT_PLAYLIST,1,&empty,NULL);assert(l->total==0);xz_shlib_list_free(l);
+ /* HISTORY: the sessions, then one session's tracks in play order. */
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_HISTORY,0,NULL,NULL);
+ assert(l->folders&&l->total==1&&l->id[0]==3000);xz_shlib_list_free(l);
+ uint32_t session=3000;
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_HISTORY,1,&session,NULL);
+ assert(l->total==2&&l->id[0]==101&&l->id[1]==202);xz_shlib_list_free(l);
+ /* SEARCH: casefolded terms; an empty query lists nothing. */
+ l=build(L,XZ_SHELL_SEARCH,XZ_SHELL_CAT_TRACK,0,NULL,"alpha");assert(l->total==1&&l->id[0]==101);xz_shlib_list_free(l);
+ l=build(L,XZ_SHELL_SEARCH,XZ_SHELL_CAT_TRACK,0,NULL,"strasse");assert(l->total==1&&l->id[0]==404);xz_shlib_list_free(l);
+ l=build(L,XZ_SHELL_SEARCH,XZ_SHELL_CAT_TRACK,0,NULL,"");assert(l->total==0);xz_shlib_list_free(l);
+ /* FOLDER: the stick's folders that hold library tracks; subfolders first, then the folder's tracks by title. */
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_FOLDER,0,NULL,NULL);
+ assert(l->folders&&l->total==1&&l->kind[0]==XZ_SHELL_ROW_FOLDER&&!strcmp(l->names+l->name[0],"Contents"));
+ uint32_t folder[3]={l->id[0],0,0};xz_shlib_list_free(l);
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_FOLDER,1,folder,NULL);
+ assert(l->folders&&l->total==4&&l->kind[0]==XZ_SHELL_ROW_FOLDER&&!strcmp(l->names+l->name[0],"Deep"));
+ assert(!strcmp(l->names+l->level_name,"Contents")&&l->has_parent&&!strcmp(l->names+l->parent_name,"FOLDER"));
+ for(int i=1;i<4;i++)assert(l->kind[i]==XZ_SHELL_ROW_TRACK&&l->id[i]!=404);
+ folder[1]=l->id[0];xz_shlib_list_free(l);
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_FOLDER,2,folder,NULL);
+ assert(l->total==1&&!strcmp(l->names+l->name[0],"Cuts")&&!strcmp(l->names+l->parent_name,"Contents"));
+ folder[2]=l->id[0];xz_shlib_list_free(l);
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_FOLDER,3,folder,NULL);
+ assert(!l->folders&&l->total==1&&l->id[0]==404&&!strcmp(l->names+l->level_name,"Cuts")&&!strcmp(l->names+l->parent_name,"Deep"));
+ xz_shlib_list_free(l);
+ /* A folder that is not inside the one before it fails. */
+ {uint32_t bad[2]={folder[0],folder[2]};memset(&r,0,sizeof r);r.screen=XZ_SHELL_BROWSE;r.category=XZ_SHELL_CAT_FOLDER;r.depth=2;
+  r.path[0]=bad[0];r.path[1]=bad[1];l=NULL;assert(xz_shlib_build(L,&r,&l)&&!l);
+  r.depth=1;r.path[0]=0;assert(xz_shlib_build(L,&r,&l)&&!l);r.path[0]=999;assert(xz_shlib_build(L,&r,&l)&&!l);}
+ /* MATCHING: empty without a master deck; else BPM within the range and a compatible key. */
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_MATCHING,0,NULL,NULL);assert(l->total==0&&!strcmp(l->names+l->level_name,"MATCHING"));xz_shlib_list_free(l);
+ memset(&r,0,sizeof r);r.screen=XZ_SHELL_BROWSE;r.category=XZ_SHELL_CAT_MATCHING;r.matching.on=1;
+ r.matching.bpm_min_x100=12032;r.matching.bpm_max_x100=13568;l=NULL;
+ assert(!xz_shlib_build(L,&r,&l)&&l&&l->total==3);for(int i=0;i<3;i++)assert(l->id[i]!=303);xz_shlib_list_free(l);
+ snprintf(r.matching.master_key,sizeof r.matching.master_key,"%s","8A");l=NULL;
+ assert(!xz_shlib_build(L,&r,&l)&&l&&l->total==1&&l->id[0]==101);xz_shlib_list_free(l);
+ /* Unsupported paths fail without a list. */
+ memset(&r,0,sizeof r);r.screen=XZ_SHELL_BROWSE;l=NULL;
+ r.category=XZ_SHELL_CAT_TRACK;r.depth=1;assert(xz_shlib_build(L,&r,&l)&&!l);
+ r.category=XZ_SHELL_CAT_MATCHING;r.depth=1;assert(xz_shlib_build(L,&r,&l)&&!l);
+ r.category=XZ_SHELL_CAT_PLAYLIST;r.depth=1;r.path[0]=77;assert(xz_shlib_build(L,&r,&l)&&!l);
+ assert(xz_shlib_categories()==(1u<<XZ_SHELL_CAT_COUNT)-1u);
+ /* NEW lands in an open folder: folder nodes are told from playlists. */
+ assert(xz_shlib_playlist_is_folder(L,1000)==1&&xz_shlib_playlist_is_folder(L,2000)==0&&xz_shlib_playlist_is_folder(L,77)==-1);
+ /* INFO: the full record, with jump links for the catalog fields. */
+ struct xz_shell_info_track info;
+ assert(xz_shlib_info(L,101,XZ_SHELL_SRC_USB1,&info));
+ assert(info.track_id==101&&!strcmp(info.title,"Alpha Night")&&!strcmp(info.album,"First Album")&&!strcmp(info.genre,"House"));
+ assert(info.bpm_x100==12800&&info.duration_ms==240000&&info.rating==5&&info.color==XZ_SHELL_COLOR_PINK&&info.source==XZ_SHELL_SRC_USB1);
+ assert(info.artist_id==1&&(info.links&XZ_SHELL_KNOWN(XZ_SHELL_I_ARTIST))&&(info.links&XZ_SHELL_KNOWN(XZ_SHELL_I_BPM)));
+ assert(!strcmp(info.file_name,"Alpha Night.mp3")&&(info.known&XZ_SHELL_KNOWN(XZ_SHELL_I_FILE_NAME)));
+ assert(xz_shlib_info(L,404,XZ_SHELL_SRC_USB2,&info)&&!(info.links&XZ_SHELL_KNOWN(XZ_SHELL_I_ALBUM))&&!(info.known&XZ_SHELL_KNOWN(XZ_SHELL_I_KEY)));
+ assert(!xz_shlib_info(L,1,XZ_SHELL_SRC_USB1,&info)&&!info.known);
+ /* Filter on the worker over the whole list: BPM range, rating, colour, key. */
+ memset(&r,0,sizeof r);r.screen=XZ_SHELL_BROWSE;r.category=XZ_SHELL_CAT_TRACK;
+ r.filter.on=1;r.filter.bpm_min_x100=12000;r.filter.bpm_max_x100=13000;
+ assert(!xz_shlib_build(L,&r,&l)&&l->total==3);
+ for(int i=0;i<l->total;i++){uint32_t b=xz_shlib_track(L,l->id[i])->bpm_x100;assert(b>=12000&&b<=13000);}
+ xz_shlib_list_free(l);
+ r.filter.rating_min=4;assert(!xz_shlib_build(L,&r,&l)&&l->total==2);xz_shlib_list_free(l);
+ r.filter.rating_min=0;r.filter.colors=1u<<XZ_SHELL_TAG_COLOR_PINK;
+ assert(!xz_shlib_build(L,&r,&l)&&l->total==1&&l->id[0]==101);xz_shlib_list_free(l);
+ memset(&r.filter,0,sizeof r.filter);r.filter.on=1;snprintf(r.filter.master_key,sizeof r.filter.master_key,"8A");
+ assert(!xz_shlib_build(L,&r,&l));
+ {int has101=0,has404=0;for(int i=0;i<l->total;i++){has101|=l->id[i]==101;has404|=l->id[i]==404;}assert(has101&&!has404);}
+ xz_shlib_list_free(l);
+ /* Rows carry album, genre and date added; every column sorts. */
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_TRACK,0,NULL,NULL);
+ n=xz_shlib_window(L,l,0,NULL,0,rows);
+ for(int i=0;i<n;i++)if(rows[i].id==101)assert((rows[i].known&(1u<<XZ_SHELL_RF_ALBUM))&&!strcmp(rows[i].album,"First Album")&&
+  !strcmp(rows[i].genre,"House")&&(rows[i].known&(1u<<XZ_SHELL_RF_DATE_ADDED))&&rows[i].date_added==20261018);
+ xz_shlib_list_free(l);
+ for(int c=0;c<XZ_SHELL_COL_COUNT;c++)if((xz_shlib_sort_keys()>>c)&1u){
+  memset(&r,0,sizeof r);r.screen=XZ_SHELL_BROWSE;r.category=XZ_SHELL_CAT_TRACK;r.sort_set=1;r.sort_column=c;
+  assert(!xz_shlib_build(L,&r,&l)&&l->total==4);xz_shlib_list_free(l);
+ }
+ /* Playlist edits merged into the stick's tree: rename, delete, create with a track, a moved order. */
+ struct xz_shpl_set e;xz_shpl_init(&e);uint32_t made=0;
+ struct xz_shell_playlist_edit ed={XZ_SHELL_PL_RENAME,2000,0,0,0,"Warm Up"};
+ assert(!xz_shpl_apply(&e,&ed,NULL,0,"Opening",NULL));
+ ed=(struct xz_shell_playlist_edit){XZ_SHELL_PL_CREATE,0,0,0,0,"New List"};
+ assert(!xz_shpl_apply(&e,&ed,NULL,0,NULL,&made)&&made==XZ_SHPL_FIRST_CREATED);
+ ed=(struct xz_shell_playlist_edit){XZ_SHELL_PL_ADD_TRACK,made,404,0,0,""};assert(!xz_shpl_apply(&e,&ed,NULL,0,NULL,NULL));
+ ed=(struct xz_shell_playlist_edit){XZ_SHELL_PL_DELETE,2002,0,0,0,""};assert(!xz_shpl_apply(&e,&ed,NULL,0,NULL,NULL));
+ uint32_t *base;uint32_t bn;assert(!xz_shlib_playlist_tracks(L,2000,&base,&bn)&&bn==4&&base[0]==202);
+ ed=(struct xz_shell_playlist_edit){XZ_SHELL_PL_MOVE_TRACK,2000,101,3,0,""};
+ assert(!xz_shpl_apply(&e,&ed,base,bn,"Opening",NULL));free(base);
+ ed=(struct xz_shell_playlist_edit){XZ_SHELL_PL_REMOVE_TRACK,2000,999,0,0,""};assert(xz_shpl_apply(&e,&ed,NULL,0,NULL,NULL));
+ ed=(struct xz_shell_playlist_edit){XZ_SHELL_PL_RENAME,2002,0,0,0,"Back"};assert(xz_shpl_apply(&e,&ed,NULL,0,NULL,NULL));
+ memset(&r,0,sizeof r);r.screen=XZ_SHELL_PLAYLIST;r.category=XZ_SHELL_CAT_PLAYLIST;r.edits=&e;
+ assert(!xz_shlib_build(L,&r,&l)&&l->total==2&&l->id[0]==1000&&l->id[1]==made&&!strcmp(l->names+l->name[1],"New List"));
+ xz_shlib_list_free(l);
+ r.depth=2;r.path[0]=1000;r.path[1]=2000;
+ assert(!xz_shlib_build(L,&r,&l)&&!strcmp(l->names+l->level_name,"Warm Up")&&l->total==4&&
+        l->id[0]==101&&l->id[1]==202&&l->id[2]==303&&l->id[3]==101);
+ xz_shlib_list_free(l);
+ r.depth=1;r.path[0]=made;assert(!xz_shlib_build(L,&r,&l)&&l->total==1&&l->id[0]==404);xz_shlib_list_free(l);
+ r.path[0]=2002;assert(xz_shlib_build(L,&r,&l)&&!l);
+ struct xz_shlib_playlist_ref refs[8];int nr=xz_shlib_playlist_refs(L,&e,refs,8);
+ assert(nr==3);
+ for(int i=0;i<nr;i++){
+  if(refs[i].id==2000)assert(!strcmp(refs[i].name,"Warm Up")&&refs[i].tracks==4);
+  else if(refs[i].id==made)assert(refs[i].tracks==1);
+  else assert(refs[i].id==2001);
+ }
+ /* The sidecar: text round trip, then an atomic save and load. */
+ size_t len=0;char *text=xz_shpl_serialize(&e,&len);
+ struct xz_shpl_set back;assert(text&&!xz_shpl_parse(&back,text,len)&&back.n==e.n&&back.next_id==e.next_id);
+ const struct xz_shpl *x=xz_shpl_find(&back,2000);
+ assert(x&&x->renamed&&x->has_tracks&&!strcmp(x->name,"Warm Up")&&x->count==4&&x->tracks[3]==101);
+ assert(xz_shpl_find(&back,2002)->deleted&&xz_shpl_find(&back,made)->created&&!strcmp(xz_shpl_find(&back,made)->name,"New List"));
+ free(text);xz_shpl_free(&back);
+ assert(!xz_shpl_save(&e,"."));
+ assert(!xz_shpl_load(&back,".")&&back.n==e.n&&xz_shpl_find(&back,made)->count==1);xz_shpl_free(&back);
+ assert(!xz_shpl_load(&back,"no-such-root")&&back.n==0);
+ /* Reserved shell lists in the same set: TAG LIST order, no duplicates, the 100-track limit, played marks,
+    deleted histories; never listed as playlists; round trip through the sidecar text. */
+ assert(xz_shpl_reserved(XZ_SHPL_TAG_LIST)&&!xz_shpl_reserved(made)&&!xz_shpl_reserved(2000));
+ assert(xz_shpl_list_add(&e,XZ_SHPL_TAG_LIST,303,100)==1&&xz_shpl_list_add(&e,XZ_SHPL_TAG_LIST,101,100)==1);
+ assert(xz_shpl_list_add(&e,XZ_SHPL_TAG_LIST,303,100)==0&&xz_shpl_list_has(&e,XZ_SHPL_TAG_LIST,101));
+ assert(xz_shpl_list_add(&e,XZ_SHPL_TAG_LIST,404,2)==-1);
+ {uint32_t n;const uint32_t *t=xz_shpl_list(&e,XZ_SHPL_TAG_LIST,&n);assert(n==2&&t[0]==303&&t[1]==101);}
+ assert(xz_shpl_list_add(&e,XZ_SHPL_HISTORY_DELETED,3000,0)==1&&xz_shpl_list_add(&e,XZ_SHPL_UNPLAYED,202,0)==1);
+ nr=xz_shlib_playlist_refs(L,&e,refs,8);for(int i=0;i<nr;i++)assert(!xz_shpl_reserved(refs[i].id));
+ /* The TAG LIST screen lists it in order; deleted histories drop out of HISTORY. */
+ r.edits=&e;
+ memset(&r,0,sizeof r);r.screen=XZ_SHELL_TAG_LIST;r.edits=&e;l=NULL;
+ assert(!xz_shlib_build(L,&r,&l)&&l&&l->total==2&&l->id[0]==303&&l->id[1]==101&&!strcmp(l->names+l->level_name,"TAG LIST"));xz_shlib_list_free(l);
+ memset(&r,0,sizeof r);r.screen=XZ_SHELL_BROWSE;r.category=XZ_SHELL_CAT_HISTORY;r.edits=&e;l=NULL;
+ assert(!xz_shlib_build(L,&r,&l)&&l&&l->total==0);xz_shlib_list_free(l);
+ r.depth=1;r.path[0]=3000;l=NULL;assert(xz_shlib_build(L,&r,&l)&&!l);
+ {uint32_t h[4];assert(xz_shlib_history_ids(L,h,4)==1&&h[0]==3000);}
+ /* A playlist from the TAG LIST: the created playlist takes exactly those tracks. */
+ {uint32_t pl=0;struct xz_shell_playlist_edit c={XZ_SHELL_PL_CREATE,0,0,0,0,"From Tags"};assert(!xz_shpl_apply(&e,&c,NULL,0,NULL,&pl));
+  uint32_t n;const uint32_t *t=xz_shpl_list(&e,XZ_SHPL_TAG_LIST,&n);assert(!xz_shpl_set_tracks(&e,pl,t,n));
+  assert(xz_shpl_find(&e,pl)->count==2&&xz_shpl_find(&e,pl)->tracks[0]==303);
+  assert(xz_shpl_set_tracks(&e,2000,t,n));}
+ xz_shpl_list_remove(&e,XZ_SHPL_TAG_LIST,303);
+ {uint32_t n;const uint32_t *t=xz_shpl_list(&e,XZ_SHPL_TAG_LIST,&n);assert(n==1&&t[0]==101);}
+ text=xz_shpl_serialize(&e,&len);assert(text&&!xz_shpl_parse(&back,text,len));
+ assert(xz_shpl_list_has(&back,XZ_SHPL_TAG_LIST,101)&&xz_shpl_list_has(&back,XZ_SHPL_HISTORY_DELETED,3000)&&xz_shpl_list_has(&back,XZ_SHPL_UNPLAYED,202));
+ free(text);xz_shpl_free(&back);
+ xz_shpl_list_clear(&e,XZ_SHPL_TAG_LIST);{uint32_t n;assert(!xz_shpl_list(&e,XZ_SHPL_TAG_LIST,&n)&&!n);}
+ xz_shpl_free(&e);
+ /* A too-small arena fails cleanly rather than truncating. */
+ struct xz_shlib *tiny=NULL;assert(xz_shlib_open(path,4096,&tiny)&&!tiny);
+ xz_shlib_free(L);
+ puts("PASS library: tracks, TRACK/ARTIST/BPM/PLAYLIST/HISTORY/SEARCH lists, windows, on-deck, sorting, INFO records, failures");
+ puts("PASS filter (BPM, rating, colour, key), album/genre/date rows, every sort key, merged playlist edits, sidecar save/load");
+ puts("PASS TAG LIST, played marks and deleted histories in the sidecar; TAG LIST screen, HISTORY filtering, playlist from tags");
+}
+
+/* DECK 3 / DECK 4: snapshot -> model, capabilities, action routing, notices, the active deck after a side
+   switch, the resolver's row copy and the column binning. */
+static struct xz_extra_column extra_cols[300];
+static struct xz_extra_beat extra_beats[16];
+static struct xz_shell_column extra_scroll[300], extra_overview[64];
+static struct xz_shell_beat extra_grid[16];
+static void extra_snapshot(struct xz_extra_decks *s) {
+ memset(s,0,sizeof *s);
+ s->route_up=1;s->left_on_3=1;
+ for(int i=0;i<XZ_EXTRA_DECKS;i++){
+  struct xz_extra_deck *d=&s->deck[i];
+  d->known=(1u<<(XZ_EXTRA_F_VINYL+1))-1u; /* legacy fields; optional snapshots are supplied explicitly */
+  d->loaded=1;snprintf(d->title,sizeof d->title,"Extra %d",i+3);snprintf(d->artist,sizeof d->artist,"Artist %d",i+3);
+  d->source=i+1;d->elapsed_ms=60000;d->total_ms=300000;d->elapsed_at_ms=9900;d->playing=i==1;
+  d->bpm_x100=12000;d->track_bpm_x100=12000;d->tempo_x100=0;d->master=0;snprintf(d->key,sizeof d->key,"%s",i?"8A":"Fm");
+  d->tempo_range=i?100:16;d->master_tempo=!i;d->vinyl=i;
+  d->cue_ms=1000;d->hot_cue[2]=(struct xz_extra_cue){1,4000,0x20c8ff,0};
+  d->loop.active=1;d->loop.in_ms=8000;d->loop.out_ms=12000;   /* 8 beats at 120 BPM */
+  d->grid=extra_beats;d->grid_count=16;
+  d->wave=(struct xz_extra_wave){extra_cols,300,2000,0};
+ }
+ s->deck[1].loop.out_ms=8125;                                 /* a quarter beat */
+}
+static void extra_decks(void) {
+ struct xz_shell_model m;struct xz_extra_decks s;struct xz_extra_deck_event e;
+ struct xz_shrt_extra_parts parts[XZ_EXTRA_DECKS];memset(parts,0,sizeof parts);
+ fx_model_full(&m,&track);
+ /* Route down: exactly the two-deck model, whatever was in decks 2 and 3. */
+ struct xz_shell_model two=m;
+ memset(&m.deck[2],0x5a,sizeof m.deck[2]);m.deck_count=4;m.sides_extra=3;
+ memset(&s,0,sizeof s);
+ xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ two.deck_count=XZ_SHELL_NATIVE_DECKS;
+ assert(!memcmp(&m,&two,sizeof m));
+ xz_shrt_extra_map(&m,NULL,parts,500000,10000);
+ assert(!memcmp(&m,&two,sizeof m));
+ /* Route up. */
+ extra_snapshot(&s);
+ for(int i=0;i<XZ_EXTRA_DECKS;i++)parts[i]=(struct xz_shrt_extra_parts){extra_scroll,extra_overview,300,64,2000,extra_grid,16};
+ xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(m.deck_count==4&&m.sides_extra==1&&!memcmp(&m.deck[0],&two.deck[0],sizeof m.deck[0]));
+ for(int d=2;d<4;d++){
+  const struct xz_shell_deck *k=&m.deck[d];
+  uint64_t want=XZ_SHELL_KNOWN(XZ_SHELL_F_LOADED)|XZ_SHELL_KNOWN(XZ_SHELL_F_TITLE)|XZ_SHELL_KNOWN(XZ_SHELL_F_ARTIST)|
+   XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE)|XZ_SHELL_KNOWN(XZ_SHELL_F_ELAPSED)|XZ_SHELL_KNOWN(XZ_SHELL_F_TOTAL)|XZ_SHELL_KNOWN(XZ_SHELL_F_PLAYING)|
+   XZ_SHELL_KNOWN(XZ_SHELL_F_BPM)|XZ_SHELL_KNOWN(XZ_SHELL_F_TRACK_BPM)|XZ_SHELL_KNOWN(XZ_SHELL_F_TEMPO)|XZ_SHELL_KNOWN(XZ_SHELL_F_MASTER)|
+   XZ_SHELL_KNOWN(XZ_SHELL_F_KEY)|XZ_SHELL_KNOWN(XZ_SHELL_F_CUE_POINT)|XZ_SHELL_KNOWN(XZ_SHELL_F_HOT_CUES)|XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP)|
+   XZ_SHELL_KNOWN(XZ_SHELL_F_GRID)|XZ_SHELL_KNOWN(XZ_SHELL_F_WAVE)|XZ_SHELL_KNOWN(XZ_SHELL_F_OVERVIEW)|
+   XZ_SHELL_KNOWN(XZ_SHELL_F_TEMPO_RANGE)|XZ_SHELL_KNOWN(XZ_SHELL_F_MASTER_TEMPO)|XZ_SHELL_KNOWN(XZ_SHELL_F_VINYL);
+  assert(k->known==want);
+  assert(k->title==s.deck[d-2].title&&!strcmp(k->title,d==2?"Extra 3":"Extra 4")&&k->artist==s.deck[d-2].artist&&k->key==s.deck[d-2].key);
+  assert(k->source==(d==2?XZ_SHELL_SRC_USB1:XZ_SHELL_SRC_USB2)&&k->loaded&&k->playing==(d==3));
+  /* elapsed_at_ms: 100 ms before mono_now becomes 100 ms before the model clock. */
+  assert(k->elapsed_ms==60000&&k->elapsed_at_ms==499900&&k->total_ms==300000);
+  assert(k->bpm_x100==12000&&k->track_bpm_x100==12000&&k->cue_ms==1000);
+  assert(k->tempo_range==(d==2?16:100)&&k->master_tempo==(d==2)&&k->vinyl==(d==3));
+  assert(k->hot_cue[2].set&&k->hot_cue[2].ms==4000&&k->hot_cue[2].rgb==0x20c8ff&&!k->hot_cue[2].is_loop&&!k->hot_cue[0].set);
+  assert(k->grid==extra_grid&&k->grid_count==16&&k->wave.columns==extra_scroll&&k->wave.count==300&&k->wave.span_ms==2000);
+  assert(k->overview.columns==extra_overview&&k->overview.count==64&&!k->caps_off);
+ }
+ assert(m.deck[2].loop.active&&m.deck[2].loop.beats_num==8&&m.deck[2].loop.beats_den==1);
+ assert(m.deck[3].loop.beats_num==1&&m.deck[3].loop.beats_den==4);
+ /* LOOP IN / OUT ADJUST: the edge under the jog, as the stock decks publish it; none outside adjustment. */
+ assert(!(m.deck[2].known&XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT))&&!(m.deck[3].known&XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT)));
+ s.deck[0].loop.edit=2;s.deck[1].loop.edit=1;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert((m.deck[2].known&XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT))&&m.deck[2].loop_edit.endpoint==1&&m.deck[2].loop_edit.ms==12000);
+ assert((m.deck[3].known&XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT))&&m.deck[3].loop_edit.endpoint==0&&m.deck[3].loop_edit.ms==s.deck[1].loop.in_ms);
+ s.deck[1].loop.active=0;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(!(m.deck[3].known&XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT)));
+ s.deck[0].loop.edit=s.deck[1].loop.edit=0;s.deck[1].loop.active=1;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(!(m.deck[2].known&XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT)));
+ s.deck[0].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_MEMORY_CUES);s.deck[0].memory_count=1;
+ s.deck[0].memory_cue[0]=(struct xz_extra_cue){1,5000,0xff8000,6000};
+ xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert((m.deck[2].known&XZ_SHELL_KNOWN(XZ_SHELL_F_MEMORY_CUES))&&m.deck[2].memory_count==1&&m.deck[2].memory_cue[0].ms==5000&&m.deck[2].memory_cue[0].is_loop);
+ /* Unknown bits stay clear; a stale, future or missing stamp is not extrapolated; no parts, no wave. */
+ s.deck[0].known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_ELAPSED)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_LOOP);s.deck[0].elapsed_at_ms=10001;
+ s.deck[1].elapsed_at_ms=0;s.deck[1].source=7;
+ memset(&parts[1],0,sizeof parts[1]);
+ xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(m.deck[2].known==(XZ_SHELL_KNOWN(XZ_SHELL_F_LOADED)|XZ_SHELL_KNOWN(XZ_SHELL_F_ELAPSED)|XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP)));
+ assert(m.deck[2].elapsed_at_ms==0&&m.deck[2].loop.beats_num==0&&!m.deck[2].title);
+ assert(!m.deck[2].memory_count);
+ assert(m.deck[3].elapsed_at_ms==0&&!(m.deck[3].known&(XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE)|XZ_SHELL_KNOWN(XZ_SHELL_F_WAVE)|XZ_SHELL_KNOWN(XZ_SHELL_F_GRID))));
+ s.deck[0].elapsed_at_ms=10000-61000;xz_shrt_extra_map(&m,&s,parts,500000,10000);assert(m.deck[2].elapsed_at_ms==0);
+ s.deck[0].elapsed_at_ms=10000;xz_shrt_extra_map(&m,&s,parts,0,10000);assert(m.deck[2].elapsed_at_ms==1);
+ /* Signed completed-PCM anchors use their own timestamp/rate, never a nominal fader estimate. */
+ extra_snapshot(&s);s.deck[0].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE);
+ struct xz_extra_timeline *timeline=&s.deck[0].timeline;
+ *timeline=(struct xz_extra_timeline){.source_frame=463050,.source_rate=44100,.at_ms=9975,.rate_ppm=-1000000,.moving=1,
+   .flags=XZ_EXTRA_TIMELINE_ANCHOR|XZ_EXTRA_TIMELINE_RATE|XZ_EXTRA_TIMELINE_MOTION};
+ xz_shrt_extra_map(&m,&s,parts,500000,10000);m.clock_ms=500000;
+ assert(!m.deck[2].playing&&m.deck[2].moving);
+ assert(xz_shell_elapsed_now(&m,2)==10475);
+ /* Mapping and later presentation share the original 50 ms projection budget. */
+ m.clock_ms=500050;assert(xz_shell_elapsed_now(&m,2)==10450);
+ m.clock_ms=500100;assert(xz_shell_elapsed_now(&m,2)==10450);m.clock_ms=500000;
+ assert(xz_shrt_moving_decks(&m)&4u);
+ assert(xz_shrt_frame_period_ms(XZ_SHELL_PLAY,xz_shrt_moving_decks(&m)!=0)==XZ_SHRT_FRAME_LIVE_MS);
+ timeline->flags&=~XZ_EXTRA_TIMELINE_RATE;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(m.deck[2].elapsed_at_ms==0&&xz_shell_elapsed_now(&m,2)==10500);
+ timeline->flags|=XZ_EXTRA_TIMELINE_RATE;
+ for(int invalid=0;invalid<4;invalid++){
+  timeline->at_ms=9975;timeline->source_rate=44100;timeline->source_frame=463050;
+  if(invalid==0)timeline->at_ms=10001;else if(invalid==1)timeline->at_ms=9000;else if(invalid==2)timeline->source_rate=0;else timeline->source_frame=UINT64_MAX;
+  xz_shrt_extra_map(&m,&s,parts,500000,10000);
+  assert(m.deck[2].elapsed_at_ms==0&&!(m.deck[2].known&XZ_SHELL_KNOWN(XZ_SHELL_F_PLAYBACK_RATE))&&m.deck[2].moving);
+ }
+ puts("PASS actual timeline clock conversion, reverse paused motion, unknown-rate holds and invalid/future/stale anchor refusal");
+ /* SYNC readouts distinguish actual beat lock from tempo-only and pending state. */
+ extra_snapshot(&s);s.deck[0].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC);
+ s.deck[0].sync=(struct xz_extra_sync){.requested=1,.master_deck=0,.master_scope=XZ_EXTRA_MASTER_SCOPE_NATIVE,
+   .reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE,.tempo_matched=1};
+ xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(m.deck[2].sync&&m.deck[2].sync_status==XZ_SHELL_SYNC_TEMPO_ONLY&&m.deck[2].sync_master_deck==0);
+ s.deck[0].sync.master_deck=3;s.deck[0].sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
+ s.deck[0].sync.reason=XZ_EXTRA_SYNC_ACQUIRING;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(m.deck[2].sync_status==XZ_SHELL_SYNC_ENABLED);
+ s.deck[0].sync.locked=1;s.deck[0].sync.reason=XZ_EXTRA_SYNC_LOCKED;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(m.deck[2].sync_status==XZ_SHELL_SYNC_LOCKED&&m.deck[2].sync_master_deck==3);
+ s.deck[0].sync.locked=0;s.deck[0].sync.reason=XZ_EXTRA_SYNC_MASTER_CLOCK;s.deck[0].master=1;
+ s.deck[0].master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(m.deck[2].sync_status==XZ_SHELL_SYNC_MASTER&&m.deck[2].master&&m.deck[2].master_scope==12u);
+ assert(!memcmp(&m.deck[0],&two.deck[0],sizeof m.deck[0]));
+ s.deck[0].sync.requested=0;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(!m.deck[2].sync&&m.deck[2].sync_status==XZ_SHELL_SYNC_OFF);
+ for(int side=0;side<2;side++){
+  extra_snapshot(&s);s.deck[side].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC);
+  s.deck[side].sync=(struct xz_extra_sync){.requested=1,.master_deck=1,.reason=XZ_EXTRA_SYNC_OUT_OF_RANGE};
+  xz_shrt_extra_map(&m,&s,parts,500000,10000);
+  assert(m.deck[side+2].sync&&m.deck[side+2].sync_status==XZ_SHELL_SYNC_RATE_LIMIT);
+  assert(m.deck[side+2].sync_status!=XZ_SHELL_SYNC_LOCKED&&m.deck[side+2].sync_status!=XZ_SHELL_SYNC_TEMPO_ONLY);
+  struct xz_shell u;xz_shell_init(&u);
+  static uint16_t limit_pixels[XZ_SHELL_WIDTH*XZ_SHELL_HEIGHT],enabled_pixels[XZ_SHELL_WIDTH*XZ_SHELL_HEIGHT];
+  assert(xz_shell_render(&u,&m,limit_pixels,XZ_SHELL_WIDTH));
+  m.deck[side+2].sync_status=XZ_SHELL_SYNC_ENABLED;
+  assert(xz_shell_render(&u,&m,enabled_pixels,XZ_SHELL_WIDTH));
+  assert(memcmp(limit_pixels,enabled_pixels,sizeof limit_pixels));
+ }
+
+ static const enum xz_shell_sync_status statuses[]={XZ_SHELL_SYNC_ENABLED,XZ_SHELL_SYNC_ENABLED,XZ_SHELL_SYNC_ENABLED,
+  XZ_SHELL_SYNC_TEMPO_ONLY,XZ_SHELL_SYNC_ENABLED,XZ_SHELL_SYNC_ENABLED,XZ_SHELL_SYNC_TEMPO_ONLY,
+  XZ_SHELL_SYNC_RATE_LIMIT,XZ_SHELL_SYNC_ENABLED,XZ_SHELL_SYNC_LOCKED,XZ_SHELL_SYNC_TEMPO_ONLY,
+  XZ_SHELL_SYNC_MASTER,XZ_SHELL_SYNC_EXTERNAL_MASTER,XZ_SHELL_SYNC_NO_BPM,XZ_SHELL_SYNC_TEMPO_ONLY};
+ _Static_assert(sizeof statuses/sizeof *statuses==XZ_EXTRA_SYNC_TEMPO_FOLLOW+1,"all mapped reasons");
+ for(int side=0;side<2;side++)for(int reason=0;reason<=XZ_EXTRA_SYNC_TEMPO_FOLLOW;reason++)
+ for(int q=0;q<2;q++)for(int locked=0;locked<2;locked++)for(int matched=0;matched<2;matched++){
+  extra_snapshot(&s);s.deck[side].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_QUANTIZE);
+  s.deck[side].master=0;s.deck[side].quantize=q;
+  s.deck[side].sync=(struct xz_extra_sync){.requested=1,.locked=locked,.master_deck=0,.reason=reason,.tempo_matched=matched};
+  xz_shrt_extra_map(&m,&s,parts,500000,10000);
+  enum xz_shell_sync_status expected=statuses[reason];
+  if(!matched&&expected==XZ_SHELL_SYNC_TEMPO_ONLY)expected=XZ_SHELL_SYNC_ENABLED;
+  if(reason==XZ_EXTRA_SYNC_LOCKED&&(!locked||!matched))expected=XZ_SHELL_SYNC_ENABLED;
+  if(reason==XZ_EXTRA_SYNC_WAIT_ANCHOR&&!q&&matched)expected=XZ_SHELL_SYNC_TEMPO_ONLY;
+  assert(m.deck[side+2].sync_status==expected);
+  assert(m.deck[side+2].sync_status!=XZ_SHELL_SYNC_WAITING);
+ }
+ puts("PASS actual SYNC lock, tempo-only, enabled, rate limit and master scope");
+ /* Up, down, up again: down is the two-deck model each time. */
+ extra_snapshot(&s);
+ for(int flip=0;flip<4;flip++){
+  s.route_up=flip&1?0:1;
+  xz_shrt_extra_map(&m,&s,parts,500000,10000);
+  assert(m.deck_count==(s.route_up?4:2)&&(s.route_up||(!m.deck[2].known&&!m.deck[3].known&&!m.sides_extra)));
+ }
+ /* Capabilities. Two decks: LOAD when the native decks load, nothing off. */
+ fx_model_full(&m,&track);m.deck_count=2;
+ assert(xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_SEEK,1,1,1)==(XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_LOAD));
+ for(int d=0;d<4;d++)assert(!m.deck[d].caps_off);
+ assert(xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,0,1,1)==XZ_SHELL_CAP_BROWSE);
+ extra_snapshot(&s);xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ uint32_t caps=xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_GRID|XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_BYPASS|XZ_SHELL_CAP_SET_SETTING,1,1,1);
+ assert(caps&XZ_SHELL_CAP_SEEK&&caps&XZ_SHELL_CAP_LOAD&&caps&XZ_SHELL_CAP_DECK_SELECT&&m.capabilities==caps);
+ assert(m.deck[0].caps_off==XZ_SHELL_CAP_SEEK&&m.deck[1].caps_off==XZ_SHELL_CAP_SEEK);
+ for(int d=2;d<4;d++){
+  uint32_t on=caps&~m.deck[d].caps_off;
+  assert(on&XZ_SHELL_CAP_LOAD&&on&XZ_SHELL_CAP_SEEK&&!(on&(XZ_SHRT_DECK_CAPS&~(uint32_t)XZ_SHRT_EXTRA_CAPS))&&on&XZ_SHELL_CAP_BROWSE);
+ }
+ caps=xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,0,1,0);
+ assert(caps&XZ_SHELL_CAP_LOAD&&!(caps&XZ_SHELL_CAP_DECK_SELECT)&&m.deck[0].caps_off&XZ_SHELL_CAP_LOAD&&!(m.deck[2].caps_off&XZ_SHELL_CAP_LOAD));
+ caps=xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,1,0,1);
+ assert(caps&XZ_SHELL_CAP_LOAD&&m.deck[3].caps_off&XZ_SHELL_CAP_LOAD&&!(m.deck[1].caps_off&XZ_SHELL_CAP_LOAD));
+ caps=xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,0,0,1);assert(!(caps&XZ_SHELL_CAP_LOAD));
+ /* Actions. */
+ xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_GRID|XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_SET_SETTING,1,1,1);
+ struct xz_shell_action a={XZ_SHELL_ACT_LOAD,2,0,77};
+ assert(xz_shrt_extra_action(&m,&a,1,&e)==XZ_SHRT_EXTRA_INPUT&&e.deck==0&&e.kind==XZ_EXTRA_IN_LOAD&&e.pressed&&e.load.source==2&&e.load.track_id==77);
+ assert(xz_shrt_extra_action(&m,&a,-1,&e)==XZ_SHRT_EXTRA_REFUSE);
+ a.id=0;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);a.id=77;
+ a.deck=1;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_NONE);
+ a=(struct xz_shell_action){XZ_SHELL_ACT_SEEK,3,123456,0};
+ /* NEEDLE LOCK (stock default LOCK): waveform seek only while the software deck is not playing. */
+ int was_playing=m.deck[3].playing;
+ int was_locked=m.deck[3].needle_locked;
+ m.deck[3].playing=1;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);
+ m.deck[3].playing=0;m.deck[3].needle_locked=0;
+ assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_INPUT&&e.deck==1&&e.kind==XZ_EXTRA_IN_SEEK&&e.seek_ms==123456);
+ m.deck[3].playing=was_playing;m.deck[3].needle_locked=was_locked;
+ a.value=-1;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);
+ a=(struct xz_shell_action){XZ_SHELL_ACT_SEEK,0,1000,0};assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_NONE);
+ static const enum xz_shell_action_kind refused[]={XZ_SHELL_ACT_GRID_ADJUST,XZ_SHELL_ACT_SET_SETTING,XZ_SHELL_ACT_TAG_TRACK,
+  XZ_SHELL_ACT_STEM_MUTE,XZ_SHELL_ACT_STEM_GAIN,XZ_SHELL_ACT_STEM_BYPASS,XZ_SHELL_ACT_LOAD_CUE,XZ_SHELL_ACT_GRID_EDIT};
+ for(size_t i=0;i<sizeof refused/sizeof *refused;i++)for(int d=2;d<4;d++){
+  a=(struct xz_shell_action){refused[i],d,1,1};
+  assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);
+  a.deck=d-2;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_NONE);
+ }
+ static const enum xz_shell_action_kind other[]={XZ_SHELL_ACT_ZOOM,XZ_SHELL_ACT_ACTIVE_DECK,XZ_SHELL_ACT_INFO_JUMP,XZ_SHELL_ACT_DECK_SELECT,XZ_SHELL_ACT_BROWSE};
+ for(size_t i=0;i<sizeof other/sizeof *other;i++){a=(struct xz_shell_action){other[i],2,0,0};assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_NONE);}
+ /* LOAD switched off for the players, or a two-deck model: refused. */
+ xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,1,0,1);
+ a=(struct xz_shell_action){XZ_SHELL_ACT_LOAD,2,0,77};assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);
+ m.deck_count=2;xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,1,1,1);assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);
+ /* End to end through the shell: the mapped model's needle search on DECK 4 becomes a player SEEK, DECK 1's
+    overview stays dark, and LOAD from a list reaches DECK 3. */
+ extra_snapshot(&s);
+ for(int i=0;i<XZ_EXTRA_DECKS;i++)parts[i]=(struct xz_shrt_extra_parts){extra_scroll,extra_overview,300,64,2000,extra_grid,16};
+ xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,1,1,1);
+ {
+  struct xz_shell u;struct xz_shell_action out[XZ_SHELL_ACTIONS];xz_shell_init(&u);
+  for(int d=0;d<4;d++){
+   struct xz_shell_rect ov=xz_shell_play_rect(&m,XZ_SHELL_R_OVERVIEW,d);
+   struct xz_shell_event down={XZ_SHELL_TOUCH_DOWN,ov.x+ov.w/2,ov.y+ov.h/2,0,0,-1},up=down;up.kind=XZ_SHELL_TOUCH_UP;
+   size_t n=xz_shell_input(&u,&m,&down,out);xz_shell_input(&u,&m,&up,out+n);
+   if(d<2)assert(n==0);
+   else{
+    assert(n==1&&out[0].kind==XZ_SHELL_ACT_SEEK&&out[0].deck==d);
+    /* NEEDLE LOCK: a playing software deck refuses the seek; paused, it becomes a player SEEK. */
+    int was_playing=m.deck[d].playing;
+    m.deck[d].playing=1;assert(xz_shrt_extra_action(&m,&out[0],0,&e)==XZ_SHRT_EXTRA_REFUSE);
+    m.deck[d].playing=0;
+    assert(xz_shrt_extra_action(&m,&out[0],0,&e)==XZ_SHRT_EXTRA_INPUT&&e.kind==XZ_EXTRA_IN_SEEK&&e.deck==d-2&&e.seek_ms==out[0].value);
+    m.deck[d].playing=was_playing;
+   }
+  }
+  static uint16_t pixels[XZ_SHELL_WIDTH*XZ_SHELL_HEIGHT];
+  assert(xz_shell_render(&u,&m,pixels,XZ_SHELL_WIDTH));
+ }
+ /* Notices: once per notice_seq, only while fresh, never empty. */
+ uint32_t seen=0;memset(&s,0,sizeof s);
+ assert(!xz_shrt_extra_notice(&seen,&s,5000));
+ snprintf(s.notice,sizeof s.notice,"TRACK NOT FOUND");s.notice_seq=1;s.notice_at_ms=4000;
+ assert(xz_shrt_extra_notice(&seen,&s,5000)&&seen==1&&!xz_shrt_extra_notice(&seen,&s,5000));
+ s.notice_seq=2;s.notice_at_ms=1000;assert(!xz_shrt_extra_notice(&seen,&s,1000+XZ_SHELL_NOTICE_MS)&&seen==2);
+ s.notice_seq=3;s.notice[0]=0;assert(!xz_shrt_extra_notice(&seen,&s,1000));
+ assert(!xz_shrt_extra_notice(&seen,NULL,1000));
+ /* 2 DECKS: a side switching deck while the shell draws says where it went, once; four-deck views, a refresh
+    gap and the route going down say nothing. */
+ {
+  struct xz_shell_model pm;memset(&pm,0,sizeof pm);struct xz_shrt_pair_seen ps={0};
+  pm.deck_count=XZ_SHELL_DECKS;
+  assert(!xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,100));
+  pm.sides_extra=1;assert(!strcmp(xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,150),"LEFT: DECK 3"));
+  assert(!xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,200));
+  pm.sides_extra=3;assert(!strcmp(xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,250),"RIGHT: DECK 4"));
+  pm.sides_extra=0;assert(!strcmp(xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,300),"LEFT: DECK 1  RIGHT: DECK 2"));
+  pm.sides_extra=2;assert(!xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_FOUR,350));
+  pm.sides_extra=0;assert(!xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,2000));
+  pm.sides_extra=1;assert(!strcmp(xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,2100),"LEFT: DECK 3"));
+  pm.deck_count=2;pm.sides_extra=0;assert(!xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,2150));
+  pm.deck_count=XZ_SHELL_DECKS;assert(!xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,2200));
+  assert(!xz_shrt_pair_notice(NULL,&pm,XZ_LAYOUT_TWO,2250)&&!xz_shrt_pair_notice(&ps,NULL,XZ_LAYOUT_TWO,2250));
+ }
+ /* The resolver's row copy. */
+ struct xz_extra_track t;
+ assert(!xz_shrt_extra_track(&t,2,99,"/media/usb2/sda1","/Contents/A/b.mp3","Title","Artist","Fm",12850));
+ assert(t.source==2&&t.track_id==99&&!strcmp(t.path,"/media/usb2/sda1/Contents/A/b.mp3")&&!strcmp(t.title,"Title")&&
+  !strcmp(t.artist,"Artist")&&!strcmp(t.key,"Fm")&&t.track_bpm_x100==12850&&!t.anlz_dir[0]);
+ assert(!xz_shrt_extra_track(&t,1,1,"/r","/x",NULL,NULL,"10Am-long",0xffffffffu)&&!t.title[0]&&!strcmp(t.key,"10Am-lo")&&t.track_bpm_x100==0);
+ char longer[200];memset(longer,'a',sizeof longer);
+ for(int i=0;i<60;i++){longer[i*2+4]=(char)0xc3;longer[i*2+5]=(char)0xa9;}
+ longer[sizeof longer-1]=0;
+ assert(!xz_shrt_extra_track(&t,1,1,"/r","/x",longer,NULL,NULL,0)&&strlen(t.title)==XZ_EXTRA_TEXT-2&&((unsigned char)t.title[XZ_EXTRA_TEXT-3]==0xa9));
+ assert(xz_shrt_extra_track(&t,1,1,"/r","",NULL,NULL,NULL,0)==-1&&xz_shrt_extra_track(&t,1,1,"/r",NULL,NULL,NULL,NULL,0)==-1);
+ char deep[1100];memset(deep,'d',sizeof deep);deep[0]='/';deep[sizeof deep-1]=0;
+ assert(xz_shrt_extra_track(&t,1,1,"/r",deep,NULL,NULL,NULL,0)==-1);
+ /* Columns: the percentile peak becomes full height, bins keep each band's peak. */
+ static uint8_t bands[1000*3];
+ for(int i=0;i<1000;i++){bands[i*3]=(uint8_t)(i%100);bands[i*3+1]=10;bands[i*3+2]=(uint8_t)(i==500?255:0);}
+ uint32_t peak=xz_shrt_band_peak(bands,1000);assert(peak==99);
+ struct xz_shell_column cols[64];
+ assert(xz_shrt_bin_columns(bands,1000,peak,cols,64)==64);
+ assert(cols[6].low==255&&cols[0].mid==10*255/99&&cols[32].high==255&&cols[1].high==0);
+ assert(xz_shrt_bin_columns(bands,10,0,cols,64)==10&&cols[9].low==255);
+ assert(xz_shrt_band_peak(bands,0)==1);
+ puts("PASS four decks: snapshot mapping, route flips, capabilities, LOAD/SEEK routing, refusals, notices, active deck, row copy, columns");
+}
+
+int main(int argc, char **argv) {
+ assert(argc==2);
+ fx_track_build(&track,1);
+ key_table();verdicts();load_verdicts();contacts();touches();pushes();timed_holds();hand_off();playhead();commands();writable_settings();extra_decks();library(argv[1]);
+ puts("PASS shell runtime");
+ return 0;
+}

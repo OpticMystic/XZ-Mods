@@ -1,0 +1,18 @@
+{
+  "interface": "MODERN",
+  "section": "browse#moving-through-a-list",
+  "steps": [
+    {
+      "key": "BROWSE"
+    },
+    {
+      "push": true
+    },
+    {
+      "turn": 5
+    },
+    {
+      "back": true
+    }
+  ]
+}

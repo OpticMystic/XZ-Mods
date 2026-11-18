@@ -1,0 +1,12 @@
+{
+  "section": "performance#quantize",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "QUANTIZE"
+    },
+    {
+      "key": "QUANTIZE"
+    }
+  ]
+}

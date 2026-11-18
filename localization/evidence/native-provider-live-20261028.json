@@ -1,0 +1,51 @@
+{
+  "native_tests": {
+    "passed": 3,
+    "failed": 0,
+    "scope": "Actual isolated native provider install, connect, child-process cancellation/restart. No application packaging, USB or controller launch.",
+    "log": "C:\\Users\\short\\.codex\\tmp\\xz-full-corpus-20261028\\native-final-live-2.log",
+    "log_sha256": "7f71df3bafa78428804f92129a7ad22d1027fffb7440508427ba97f5ba240b42"
+  },
+  "installation": {
+    "verified": true,
+    "review": "machine-unreviewed",
+    "results": {
+      "es": "Seleccione un idioma para el manual.",
+      "fr": "Choisissez une langue pour le manuel.",
+      "de": "Wählen Sie eine Sprache für das Handbuch aus.",
+      "pt": "Escolha uma língua para o manual.",
+      "it": "Scegliete una lingua per il manuale.",
+      "ja": "手順の言語を選択します。",
+      "ko": "매뉴얼을 위한 언어를 선택하십시오.",
+      "zh-Hans": "选择一个语言为手册。",
+      "zh-Hant": "選擇一個語言爲手冊。",
+      "nl": "Kies een taal voor de handleiding.",
+      "pl": "Wybierz język do podręcznika.",
+      "tr": "Manual için bir dil seçin.",
+      "uk": "Виберіть мову для ручного.",
+      "ar": "اختر لغة للدوية."
+    },
+    "provider": {
+      "provider": "xz-small100-ct2",
+      "review": "machine-unreviewed",
+      "model_sha256": "24e8b51720b7267cfd8faacedce50128bf11c4327f039632a494deb5e1c421f6",
+      "tokenizer_sha256": "d8f7c76ed2a5e0822be39f0a4f95a55eb19c78f4593ce609e2edbc2aea4d380a",
+      "vocabulary_sha256": "18916ac68f9ac8fbd5250ca603dcb3861aac8672924d93a8dadc82eb3147f941",
+      "ctranslate2": "4.8.2",
+      "recipe": 2,
+      "beam": 1,
+      "no_repeat_ngram_size": 4,
+      "script_conversion": "opencc-0.1.7"
+    },
+    "runtime": {
+      "python": "C:\\Users\\short\\.codex\\tmp\\xz-full-corpus-20261028\\native-temp\\xz-install-provider-24472\\python\\Scripts\\python.exe",
+      "prefix": "C:\\Users\\short\\.codex\\tmp\\xz-full-corpus-20261028\\native-temp\\xz-install-provider-24472\\python",
+      "modules": {
+        "ctranslate2": "C:\\Users\\short\\.codex\\tmp\\xz-full-corpus-20261028\\native-temp\\xz-install-provider-24472\\python\\Lib\\site-packages\\ctranslate2\\__init__.py",
+        "sentencepiece": "C:\\Users\\short\\.codex\\tmp\\xz-full-corpus-20261028\\native-temp\\xz-install-provider-24472\\python\\Lib\\site-packages\\sentencepiece\\__init__.py",
+        "opencc": "C:\\Users\\short\\.codex\\tmp\\xz-full-corpus-20261028\\native-temp\\xz-install-provider-24472\\python\\Lib\\site-packages\\opencc\\__init__.py"
+      }
+    }
+  },
+  "source_sha256": "bb9a8804eb5a3cebc58dce5909ca1fd1f1f234c043882aa05abd5ba07c8cf27f"
+}

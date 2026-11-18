@@ -36,20 +36,81 @@ class LibraryTests(unittest.TestCase):
         bundle='a'*16;folder=self.root/'CDJMODS/stems'/bundle;folder.mkdir(parents=True)
         manifest={'schema':writer.MANIFEST_SCHEMA,'roles':{name:{} for name in writer.ROLES}}
         (folder/'overcue-manifest.json').write_text(json.dumps(manifest))
-        for name in writer.ROLES:(folder/writer.role_file(name)).write_bytes(b'present')
+        for name in writer.ROLES:(folder/writer.role_file(name)).write_bytes(b'OVPGZ001'+b'present')
         index={'schema':writer.INDEX_SCHEMA,'tracks':{'1':{'file_path':self.mapping[1],'bundle':bundle}}}
         (self.root/'CDJMODS/index.json').write_text(json.dumps(index))
         result=stem_library.browse({'volume':str(self.root),'query':'Track 1.wav'},QuietJob())
         self.assertEqual(result['tracks'][0]['stem_status'],'present')
         self.assertTrue(result['tracks'][0]['can_verify'])
         self.assertFalse(result['tracks'][0]['can_generate'])
+        for name in writer.ROLES:(folder/writer.role_file(name)).write_bytes(b'OVPGZ004'+b'present')
+        row=stem_library.browse({'volume':str(self.root),'query':'Track 1.wav'},QuietJob())['tracks'][0]
+        self.assertEqual((row['stem_status'],row['page_codec']),('present','flac-44k1'))
+        (folder/writer.role_file(writer.ROLES[0])).write_bytes(b'OVPGZ999'+b'unsupported')
+        row=stem_library.browse({'volume':str(self.root),'query':'Track 1.wav'},QuietJob())['tracks'][0]
+        self.assertEqual(row['stem_status'],'error')
+        self.assertFalse(row['can_verify'])
+        self.assertIn('not supported',row['detail'])
+    def test_four_file_overcue_bundle_and_optional_pairs(self):
+        from builder import overcue_writer as writer
+        source=self.root/'Contents/Artist/Track 1.mp3';source.write_bytes(b'ID3'+bytes(200))
+        track={'id':1,'file_path':'/Contents/Artist/Track 1.mp3'}
+        bundle='c'*16;folder=self.root/'CDJMODS/stems'/bundle;folder.mkdir(parents=True)
+        manifest={'schema':writer.MANIFEST_SCHEMA,'writer':{'name':'OverCue'},
+                  'runtime':{'frames':40000,'source_timing_policy':'native-mp3-header/1'},
+                  'roles':{role:{} for role in writer.REQUIRED_ROLES}}
+        (folder/'overcue-manifest.json').write_text(json.dumps(manifest))
+        for role in writer.REQUIRED_ROLES:(folder/writer.role_file(role)).write_bytes(b'OVPGZ003present')
+        entry={'bundle':bundle,'file_path':track['file_path'],'frames':40000,'source_timing_policy':'native-mp3-header/1'}
+        for three_part in (None,0,1,2,'four-file'):
+            with self.subTest(three_part=three_part),patch.object(writer.mp3_timing,'probe',side_effect=AssertionError('OverCue timing is advisory')):
+                if three_part is not None:entry['three_part']=three_part
+                row=stem_library.stem_status(self.root,track,{'tracks':{'1':entry}},None)
+                self.assertEqual(row['stem_status'],'present')
+                self.assertTrue(row['can_verify']);self.assertFalse(row['needs_regeneration'])
+                self.assertEqual(row['stored_bytes'],4*15)
+                self.assertNotIn('seven',row['detail'])
+        for role in writer.ROLES:
+            if role not in writer.REQUIRED_ROLES:(folder/writer.role_file(role)).write_bytes(b'OVPGZ003present')
+        row=stem_library.stem_status(self.root,track,{'tracks':{'1':entry}},None)
+        self.assertEqual((row['stem_status'],row['stored_bytes']),('present',7*15))
+        (folder/writer.role_file('drums')).unlink()
+        self.assertEqual(stem_library.stem_status(self.root,track,{'tracks':{'1':entry}},None)['stem_status'],'error')
+
+    def test_mp3_bundle_from_a_gapless_decode_asks_to_prepare_again(self):
+        from builder import overcue_writer as writer,mp3_timing
+        self.mapping[1]='/Contents/Artist/Track 1.mp3'
+        write_export(self.root.joinpath(*rekordbox_pdb.EXPORT_PDB),self.mapping)
+        (self.root/'Contents/Artist/Track 1.mp3').write_bytes(b'ID3'+bytes(200))
+        bundle='b'*16;folder=self.root/'CDJMODS/stems'/bundle;folder.mkdir(parents=True)
+        for name in writer.ROLES:(folder/writer.role_file(name)).write_bytes(b'OVPGZ003'+b'present')
+        index={'schema':writer.INDEX_SCHEMA,'tracks':{'1':{'file_path':self.mapping[1],'bundle':bundle,'frames':40000}}}
+        (self.root/'CDJMODS/index.json').write_text(json.dumps(index))
+        old={'schema':writer.MANIFEST_SCHEMA,'writer':{'name':writer.WRITER,'version':'0.3.0-preview.1'},
+             'source':{'codec':'mp3','sample_rate':44100},'runtime':{'frames':40000},'roles':{name:{} for name in writer.ROLES}}
+        (folder/'overcue-manifest.json').write_text(json.dumps(old))
+        tagged={'lame_tag':True,'encoder_delay':576,'encoder_padding':936,'delay_frames':1105,'padding_frames':407,'sample_rate':44100}
+        with patch.object(mp3_timing,'probe',return_value=tagged):
+            row=stem_library.browse({'volume':str(self.root),'query':'Track 1.mp3'},QuietJob())['tracks'][0]
+        self.assertEqual((row['stem_status'],row['timeline'],row['needs_regeneration'],row['can_generate']),('present','gapless',True,True))
+        self.assertIn('Prepare again',row['stem_label']);self.assertIn('25 ms',row['detail'])
+        with patch.object(mp3_timing,'probe',return_value={**tagged,'lame_tag':False}):
+            row=stem_library.browse({'volume':str(self.root),'query':'Track 1.mp3'},QuietJob())['tracks'][0]
+        self.assertEqual((row['timeline'],row['needs_regeneration']),('player',False))
+        old['source']['mp3']={**tagged,'timeline':'player'}
+        (folder/'overcue-manifest.json').write_text(json.dumps(old))
+        with patch.object(mp3_timing,'probe',side_effect=AssertionError('manifest answers without a probe')):
+            row=stem_library.browse({'volume':str(self.root),'query':'Track 1.mp3'},QuietJob())['tracks'][0]
+        self.assertEqual((row['timeline'],row['needs_regeneration']),('player',False))
     def test_paths_cannot_escape_usb(self):
         for value in ['/Contents/../../outside.wav','/Contents/C:/bad.wav','/other/track.wav','/Contents/a\\b.wav']:
             with self.assertRaises(ValueError):stem_library.source_path(self.root,value)
     def test_assignment_must_be_complete_and_unique(self):
         path=str(self.root/'Contents/Artist/Track 1.wav')
-        with self.assertRaises(ValueError):stem_import.validated_files({'files':[{'path':path,'group':''}]})
-        with self.assertRaises(ValueError):stem_import.validated_files({'files':[{'path':path,'group':'vocals'}]*2})
-        self.assertEqual(stem_import.validated_files({'files':[{'path':path,'group':'drums'}]})[0]['group'],'drums')
+        assigned=lambda files:stem_import.assigned(*stem_import.stem_files({'files':files},None))
+        with self.assertRaises(ValueError):assigned([{'path':path,'group':''}])
+        with self.assertRaises(ValueError):assigned([{'path':path,'group':'vocals'}]*2)
+        with self.assertRaisesRegex(ValueError,'Assign every stem'):assigned([{'path':path}])
+        self.assertEqual(assigned([{'path':path,'group':'drums'}])[0]['group'],'drums')
 
 if __name__=='__main__':unittest.main()

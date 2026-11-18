@@ -1,0 +1,5 @@
+ctranslate2==4.8.2
+sentencepiece==0.2.1
+opencc-python-reimplemented==0.1.7
+numpy==2.5.4
+pyyaml==6.0.3

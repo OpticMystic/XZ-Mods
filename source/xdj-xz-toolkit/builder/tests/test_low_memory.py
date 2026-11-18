@@ -19,7 +19,7 @@ class LowMemoryTests(unittest.TestCase):
                 mix = inference.read_source(root/'input.wav', work)
                 self.assertIsInstance(mix, np.memmap)
                 np.testing.assert_array_equal(mix, pcm.astype(np.float32)/32768)
-                def model(chunk):return {'vocals':chunk*.3, 'drums':chunk*.2}
+                def model(chunks):return {'vocals':chunks*.3, 'drums':chunks*.2}
                 targets = inference.overlap_inference(mix, model, ['vocals','drums'], 4096, 2048, work)
                 self.assertTrue(all(isinstance(p, np.memmap) for p in targets.values()))
                 disk = inference.postprocess(mix, targets['vocals'], targets['drums'], work)

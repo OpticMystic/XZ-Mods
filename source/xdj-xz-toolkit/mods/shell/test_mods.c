@@ -1,0 +1,482 @@
+#ifdef NDEBUG
+#error Shell acceptance requires active assertions
+#endif
+#include "fixtures.h"
+#include "settings_fixtures.h"
+#include "shell_internal.h"
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+
+#define STRIDE 804
+#define GUARD 64
+#define PIXELS (STRIDE*(XZ_SHELL_HEIGHT+2))
+static uint16_t buffer_a[GUARD+PIXELS+GUARD], buffer_b[GUARD+PIXELS+GUARD];
+static struct fx_track track;
+static struct xz_shell_action out[XZ_SHELL_ACTIONS];
+
+static uint16_t *frame(uint16_t *buffer) { return buffer+GUARD+STRIDE; }
+static void fill(uint16_t *buffer) { for(size_t i=0;i<GUARD+PIXELS+GUARD;i++)buffer[i]=0xa55a; }
+static void check_guards(uint16_t *buffer) {
+ for(size_t i=0;i<GUARD+STRIDE;i++)assert(buffer[i]==0xa55a);
+ for(size_t i=GUARD+STRIDE+(size_t)STRIDE*XZ_SHELL_HEIGHT;i<GUARD+PIXELS+GUARD;i++)assert(buffer[i]==0xa55a);
+ for(int y=0;y<XZ_SHELL_HEIGHT;y++)for(int x=XZ_SHELL_WIDTH;x<STRIDE;x++)assert(frame(buffer)[y*STRIDE+x]==0xa55a);
+}
+static const uint16_t *render_into(uint16_t *buffer, const struct xz_shell *u, const struct xz_shell_model *m) {
+ fill(buffer);
+ assert(xz_shell_render(u,m,frame(buffer),STRIDE));
+ check_guards(buffer);
+ return frame(buffer);
+}
+static size_t send(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_event_kind kind, int x, int y, int delta) {
+ struct xz_shell_event e={kind,x,y,delta,0,-1};
+ memset(out,0,sizeof out);
+ return xz_shell_input(u,m,&e,out);
+}
+static size_t key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_key k) {
+ struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,k,-1};
+ memset(out,0,sizeof out);
+ return xz_shell_input(u,m,&e,out);
+}
+static size_t turn(struct xz_shell *u, const struct xz_shell_model *m, int delta) { return send(u,m,XZ_SHELL_ENCODER_TURN,0,0,delta); }
+static size_t push(struct xz_shell *u, const struct xz_shell_model *m) { return send(u,m,XZ_SHELL_ENCODER_PUSH,0,0,0); }
+static size_t tap(struct xz_shell *u, const struct xz_shell_model *m, int x, int y) {
+ struct xz_shell_action both[XZ_SHELL_ACTIONS*2];size_t n=send(u,m,XZ_SHELL_TOUCH_DOWN,x,y,0);
+ memcpy(both,out,sizeof out);
+ size_t k=send(u,m,XZ_SHELL_TOUCH_UP,x,y,0);
+ memcpy(both+n,out,k*sizeof *out);
+ memcpy(out,both,sizeof out);
+ return n+k;
+}
+static void model(struct xz_shell_model *m) {
+ fx_model_full(m,&track);
+ m->settings_screen=fxs_reset();
+ m->mods=&fxm_model;
+}
+static int pane(const struct xz_shell *u) { return u->stack[u->depth-1].focus&3; }
+static int value_cursor(const struct xz_shell *u) { return (u->stack[u->depth-1].focus>>4)&0xfff; }
+static int cursor_id(const struct xz_shell *u) { return u->stack[u->depth-1].cursor-1; }
+enum { RAIL_PANE, ITEMS_PANE, VALUES_PANE };
+enum { TAB_UTILITY, TAB_STEMS, TAB_LOOK, TAB_JUMP, TAB_PROFILE, TAB_GAMES, TABS };
+
+static void hold_menu(struct xz_shell *u, const struct xz_shell_model *m) {
+ assert(key(u,m,XZ_SHELL_KEY_MENU_HOLD)==0);
+ assert(xz_shell_screen(u)==XZ_SHELL_UTILITY&&u->mods_view.tab==TAB_UTILITY&&u->mods_view.on_tabs==1);
+}
+/* Back to UTILITY's rail: one BACK closes UTILITY from its items (test_settings.c), so close and hold MENU. */
+static void to_rail(struct xz_shell *u, const struct xz_shell_model *m) {
+ for(int i=0;i<8&&u->depth>1;i++)key(u,m,XZ_SHELL_KEY_BACK);
+ hold_menu(u,m);
+}
+/* From the rail: open page t and push into it. */
+static void enter_tab(struct xz_shell *u, const struct xz_shell_model *m, int t) {
+ assert(u->mods_view.on_tabs==1);
+ turn(u,m,-TABS);turn(u,m,t);
+ assert(u->mods_view.tab==t);
+ assert(push(u,m)==0&&u->mods_view.on_tabs==0);
+}
+/* Inside an item page: put the item cursor on id. Categories are header rows the cursor steps over;
+   section says which one id is in, for the reader. */
+static void goto_item(struct xz_shell *u, const struct xz_shell_model *m, int section, int id) {
+ (void)section;
+ assert(pane(u)==ITEMS_PANE&&!u->mods_view.on_tabs);
+ turn(u,m,-99);
+ for(int i=0;i<40&&cursor_id(u)!=id;i++)turn(u,m,1);
+ assert(cursor_id(u)==id);
+}
+
+static void test_contract(void) {
+ struct xz_shell_model m;model(&m);
+ struct xz_shell u;xz_shell_init(&u);
+ struct xz_shell_rect back=xz_shell_settings_rect(XZ_SHELL_SR_BACK_BUTTON),rail=xz_shell_settings_rect(XZ_SHELL_SR_RAIL);
+ struct xz_shell_rect items=xz_shell_settings_rect(XZ_SHELL_SR_ITEMS),values=xz_shell_settings_rect(XZ_SHELL_SR_VALUES);
+ struct xz_shell_rect status=xz_shell_settings_rect(XZ_SHELL_SR_STATUS);
+ /* One rail on the left: UTILITY on top, a divider, then the mod pages, each a 48 px entry. */
+ int bottom=rail.y;
+ for(int t=0;t<TABS;t++){
+  struct xz_shell_rect r=xz_shell_mods_tab_rect(&u,&m,t);
+  assert(r.x==0&&r.w==rail.w&&r.h>=44&&r.y>=bottom&&r.y+r.h<=rail.y+rail.h);
+  if(t==1)assert(r.y>bottom);   /* the divider between the stock menu and the mod pages */
+  if(t>1)assert(r.y==bottom);
+  bottom=r.y+r.h;
+ }
+ assert(xz_shell_mods_tab_rect(&u,&m,TABS).w==0&&xz_shell_mods_tab_rect(&u,&m,-1).w==0);
+ /* No top tab row: the panes start right under the title bar. */
+ assert(rail.y==back.y+back.h-2&&items.y==rail.y&&rail.x+rail.w<items.x&&items.x+items.w<values.x);
+ assert(rail.y+rail.h<=status.y&&status.y+status.h==XZ_SHELL_HEIGHT&&rail.h==XZ_SHELL_SETTINGS_ROWS*XZ_SHELL_SETTINGS_ROW_H);
+ struct xz_shell_rect b=xz_shell_mods_page_button();
+ assert(b.w>=44&&b.h>=44&&b.x>=items.x&&b.y>=rail.y&&b.y+b.h<=rail.y+rail.h);
+ m.mods=NULL;
+ assert(xz_shell_mods_tab_rect(&u,&m,0).h>=44&&xz_shell_mods_tab_rect(&u,&m,1).w==0);
+ /* Eleven mod pages do not fit: the mod entries scroll so the open one shows, UTILITY stays on top. */
+ static const struct xz_shell_mods_tab many[11]={
+  {"CLASSIC THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,1,NULL,0},{"MODERN THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,2,NULL,0},
+  {"INTERFACE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,3,NULL,0},{"APPEARANCE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,4,NULL,0},
+  {"STEMS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,5,NULL,0},{"BEAT JUMP",XZ_SHELL_TAB_PAGE,NULL,NULL,0,6,NULL,0},
+  {"DJ PROFILE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,7,NULL,0},{"GAMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,8,NULL,0},
+  {"PERFORMANCE PADS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,9,NULL,0},{"ADVANCED",XZ_SHELL_TAB_PAGE,NULL,NULL,0,10,NULL,0},
+  {"ABOUT THIS MOD",XZ_SHELL_TAB_PAGE,NULL,NULL,0,11,NULL,0},
+ };
+ static const struct xz_shell_mods_model many_mods={11,many};
+ m.mods=&many_mods;
+ int hidden_seen=0;
+ for(int open=0;open<12;open++){
+  u.mods_view.tab=open;
+  assert(xz_shell_mods_tab_rect(&u,&m,open).w>0&&xz_shell_mods_tab_rect(&u,&m,0).w>0);
+  for(int t=0;t<12;t++){
+   struct xz_shell_rect o=xz_shell_mods_tab_rect(&u,&m,t);
+   if(!o.w)hidden_seen=1;else assert(o.y>=rail.y&&o.y+o.h<=rail.y+rail.h);
+  }
+  render_into(buffer_a,&u,&m);
+ }
+ assert(hidden_seen);
+ puts("PASS MODS contract: one left rail, UTILITY then a divider then the mod pages, scrolling; no top tabs");
+}
+
+static void test_held_menu_and_back_chain(void) {
+ struct xz_shell u;struct xz_shell_model m;model(&m);
+ xz_shell_init(&u);
+ hold_menu(&u,&m);
+ assert(u.depth==2);
+ render_into(buffer_a,&u,&m);
+ /* Turn walks the rail and clamps at both ends; the encoder stays on the rail. */
+ assert(turn(&u,&m,1)==0&&u.mods_view.tab==TAB_STEMS&&u.mods_view.on_tabs==1);
+ turn(&u,&m,99);assert(u.mods_view.tab==TABS-1);
+ turn(&u,&m,-99);assert(u.mods_view.tab==TAB_UTILITY);
+ /* Push enters UTILITY at its first item; a writable item opens its values. */
+ fxs_item(XZ_SHELL_ITEM_LOAD_LOCK)->writable=1;
+ assert(push(&u,&m)==0&&u.mods_view.on_tabs==0&&pane(&u)==ITEMS_PANE);
+ assert(push(&u,&m)==0&&pane(&u)==VALUES_PANE);
+ /* BACK: values, then closed from the items (test_settings.c). No BACK does anything else on the way. */
+ assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&pane(&u)==ITEMS_PANE&&u.depth==2&&!u.mods_view.on_tabs);
+ assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1&&xz_shell_screen(&u)==XZ_SHELL_PLAY);
+ /* Held MENU always lands on UTILITY with the row focused, whatever tab was last open. */
+ hold_menu(&u,&m);enter_tab(&u,&m,TAB_LOOK);
+ assert(key(&u,&m,XZ_SHELL_KEY_MENU_HOLD)==0&&u.depth==2&&u.mods_view.tab==TAB_UTILITY&&u.mods_view.on_tabs==1);
+ /* Held again on the UTILITY row, MENU keeps it there (test_my_settings.c, test_play.c); the key never falls
+    through to the stock menu. BACK closes it. */
+ assert(key(&u,&m,XZ_SHELL_KEY_MENU_HOLD)==0&&u.depth==2&&u.mods_view.tab==TAB_UTILITY);
+ assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1);
+ hold_menu(&u,&m);
+ /* From BROWSE, held MENU stacks MODS over it, and BACK returns there. */
+ key(&u,&m,XZ_SHELL_KEY_BACK);assert(u.depth==1);
+ key(&u,&m,XZ_SHELL_KEY_BROWSE);
+ int under=u.depth;enum xz_shell_screen below=xz_shell_screen(&u);
+ hold_menu(&u,&m);assert(u.depth==under+1);
+ assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==under&&xz_shell_screen(&u)==below);
+ /* A mod tab with one section enters at its items, and one BACK from them closes MODS (test_settings.c). */
+ xz_shell_init(&u);hold_menu(&u,&m);
+ static const struct xz_shell_setting_item one[]={{7,0,"ONLY",fxs_off_on,2,0,1,1}};
+ static const struct xz_shell_settings_model one_model={1,one,NULL};
+ static const struct xz_shell_mods_tab one_tab[]={{"ONE",XZ_SHELL_TAB_ITEMS,&one_model,NULL,0,0,NULL,0}};
+ static const struct xz_shell_mods_model one_mods={1,one_tab};
+ m.mods=&one_mods;
+ enter_tab(&u,&m,1);assert(pane(&u)==ITEMS_PANE);
+ assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1);
+ puts("PASS held MENU lands on MODS > UTILITY on the rail; turn picks a page, push enters, BACK steps values, then closes");
+}
+
+static void test_header_mods(void) {
+ struct xz_shell u;struct xz_shell_model m;model(&m);
+ int x=XZ_SHELL_MODS_X+XZ_SHELL_MODS_W/2,y=12;
+ /* The MODS header button asks the runtime for its one menu, on the page it was last on, whether or not mod
+    tabs are published (test_mods_entry.c); the shell stays where it is under the panel. */
+ static const struct xz_shell_mods_model empty={0,fxm_tabs},no_tabs={3,NULL};
+ const struct xz_shell_mods_model *models[]={&fxm_model,NULL,&empty,&no_tabs};
+ for(size_t i=0;i<sizeof models/sizeof *models;i++){
+  m.mods=models[i];xz_shell_init(&u);
+  fill(buffer_a);assert(xz_shell_render_frame(&u,&m,frame(buffer_a),STRIDE));   /* the header acts on a drawn frame */
+  size_t n=tap(&u,&m,x,y);
+  assert(n==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&out[0].value==-1&&u.depth==1);
+  /* Held MENU still opens UTILITY on its rail. */
+  hold_menu(&u,&m);render_into(buffer_a,&u,&m);
+ }
+ puts("PASS MODS header button hands MODS to the runtime's one menu; held MENU opens UTILITY");
+}
+
+/* A key assigned to MODS (the REKORDBOX button): the runtime's one menu from any screen; on UTILITY it
+   closes UTILITY (test_mods_entry.c). */
+static void test_mods_key(void) {
+ struct xz_shell u;struct xz_shell_model m;model(&m);
+ xz_shell_init(&u);
+ assert(key(&u,&m,XZ_SHELL_KEY_MODS)==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&u.depth==1);
+ assert(key(&u,&m,XZ_SHELL_KEY_SHORTCUT)==0&&xz_shell_screen(&u)==XZ_SHELL_SHORTCUT);
+ assert(key(&u,&m,XZ_SHELL_KEY_MODS)==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&xz_shell_screen(&u)==XZ_SHELL_SHORTCUT);
+ xz_shell_init(&u);hold_menu(&u,&m);push(&u,&m);
+ assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&u.depth==1);
+ puts("PASS MODS key: the runtime's one menu from any screen; on UTILITY it closes UTILITY");
+}
+static void test_set_requests(void) {
+ struct xz_shell u;struct xz_shell_model m;model(&m);
+ xz_shell_init(&u);hold_menu(&u,&m);
+ /* UTILITY tab: a writable stock item sets through SET_SETTING with its own id. */
+ assert(push(&u,&m)==0);
+ goto_item(&u,&m,0,XZ_SHELL_ITEM_AUTO_CUE);
+ assert(push(&u,&m)==0&&pane(&u)==VALUES_PANE&&value_cursor(&u)==1);
+ turn(&u,&m,-1);
+ assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_AUTO_CUE&&out[0].value==0);
+ /* A mod tab: SET_MOD with the tab index, the runtime's item id and the choice index. */
+ to_rail(&u,&m);
+ enter_tab(&u,&m,TAB_STEMS);
+ goto_item(&u,&m,1,22);
+ assert(push(&u,&m)==0&&pane(&u)==VALUES_PANE&&value_cursor(&u)==1);
+ turn(&u,&m,2);
+ assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_MOD&&out[0].deck==TAB_STEMS-1&&out[0].id==22&&out[0].value==3);
+ assert(u.depth==2&&pane(&u)==ITEMS_PANE);
+ /* The same through touch: highlight a value, then confirm it. */
+ to_rail(&u,&m);
+ enter_tab(&u,&m,TAB_JUMP);
+ goto_item(&u,&m,1,15);
+ struct xz_shell_rect v=xz_shell_settings_rect(XZ_SHELL_SR_VALUES);
+ push(&u,&m);
+ int row=0-((u.stack[u.depth-1].scroll>>12)&0xfff)+2;   /* choice 2 ("1/2") on screen */
+ int ty=v.y+row*XZ_SHELL_SETTINGS_ROW_H+XZ_SHELL_SETTINGS_ROW_H/2;
+ /* One tap sets a value (test_settings.c: one-tap items and values). */
+ assert(tap(&u,&m,v.x+40,ty)==1&&out[0].kind==XZ_SHELL_ACT_SET_MOD&&out[0].deck==TAB_JUMP-1&&out[0].id==15&&out[0].value==2);
+ /* Picking the value already set asks for nothing. */
+ hold_menu(&u,&m);enter_tab(&u,&m,TAB_LOOK);goto_item(&u,&m,2,3);
+ push(&u,&m);assert(value_cursor(&u)==1&&push(&u,&m)==0);
+ puts("PASS set requests: UTILITY item -> SET_SETTING, mod item -> SET_MOD {tab, id, choice} by encoder and touch");
+}
+
+static int count_ink(const uint16_t *f, struct xz_shell_rect r, uint32_t ink) {
+ int n=0;uint16_t want=(uint16_t)(((ink>>8)&0xf800)|((ink>>5)&0x7e0)|((ink>>3)&31));
+ for(int y=r.y;y<r.y+r.h;y++)for(int x=r.x;x<r.x+r.w;x++)n+=f[(size_t)y*STRIDE+(size_t)x]==want;
+ return n;
+}
+enum { HELP_INK=0xd8d8d8, CHOICE_INK=0x9ec8ff };
+static void test_descriptions(void) {
+ struct xz_shell u,copy;struct xz_shell_model m;model(&m);
+ struct xz_shell_rect v=xz_shell_settings_rect(XZ_SHELL_SR_VALUES);
+ const int row=XZ_SHELL_SETTINGS_ROW_H;
+ xz_shell_init(&u);hold_menu(&u,&m);push(&u,&m);
+ /* UTILITY: writable items explain their choices. */
+ fxs_item(XZ_SHELL_ITEM_HOT_CUE_COLOR)->writable=1;
+ goto_item(&u,&m,0,XZ_SHELL_ITEM_HOT_CUE_COLOR);
+ struct xz_shell_rect below={v.x,v.y+2*row,v.w,v.h-2*row};
+ const uint16_t *f=render_into(buffer_a,&u,&m);
+ assert(count_ink(f,below,HELP_INK)>40&&count_ink(f,below,CHOICE_INK)>20);   /* the current choice's line */
+ assert(push(&u,&m)==0&&pane(&u)==VALUES_PANE&&value_cursor(&u)==1);
+ const uint16_t *on=render_into(buffer_a,&u,&m);
+ turn(&u,&m,-1);
+ const uint16_t *off=render_into(buffer_b,&u,&m);
+ /* The choice line follows the value cursor; the item's own text does not move. */
+ int differs_in=0,differs_out=0;
+ for(int y=0;y<XZ_SHELL_HEIGHT;y++)for(int x=0;x<XZ_SHELL_WIDTH;x++){
+  if(on[(size_t)y*STRIDE+(size_t)x]==off[(size_t)y*STRIDE+(size_t)x])continue;
+  if(x>=v.x&&y>=v.y)differs_in=1;else differs_out=1;
+ }
+ assert(differs_in&&!differs_out);
+ /* Losing write permission exits the choices without a write or hand-off. */
+ fxs_item(XZ_SHELL_ITEM_HOT_CUE_COLOR)->writable=0;
+ assert(push(&u,&m)==0&&pane(&u)==ITEMS_PANE);
+ copy=u;
+ /* The runtime's note joins the panel with a lock, and only the panel changes. */
+ static const char *notes[FXS_COUNT];
+ notes[fxs_item(XZ_SHELL_ITEM_HOT_CUE_COLOR)-fxs_table]="READ-ONLY BUILD";
+ const uint16_t *plain=render_into(buffer_a,&copy,&m);
+ fxs_model.notes=notes;
+ const uint16_t *noted=render_into(buffer_b,&copy,&m);
+ differs_in=differs_out=0;
+ for(int y=0;y<XZ_SHELL_HEIGHT;y++)for(int x=0;x<XZ_SHELL_WIDTH;x++){
+  if(plain[(size_t)y*STRIDE+(size_t)x]==noted[(size_t)y*STRIDE+(size_t)x])continue;
+  if(x>=v.x&&y>=v.y+row)differs_in=1;else differs_out=1;
+ }
+ assert(differs_in&&!differs_out);
+ fxs_model.notes=NULL;
+ /* A touch in the panel asks nothing. */
+ u=copy;
+ assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,v.x+60,v.y+v.h-10,0)==0);
+ send(&u,&m,XZ_SHELL_TOUCH_UP,v.x+60,v.y+v.h-10,0);
+ /* A mod item with no text has no panel: the value rows run to the bottom. */
+ xz_shell_init(&u);hold_menu(&u,&m);enter_tab(&u,&m,TAB_STEMS);
+ goto_item(&u,&m,0,4);
+ f=render_into(buffer_a,&u,&m);
+ struct xz_shell_rect bottom={v.x,v.y+6*row,v.w,4*row};
+ assert(count_ink(f,bottom,HELP_INK)==0&&count_ink(f,bottom,CHOICE_INK)==0);
+ /* The runtime's text for a mod item shows once m->help carries it, with one line per choice. */
+ static const char *const pad_lines[]={"Pads play hot cues.","Pads jump by beats.","Pads trigger samples.","Pads mute stems."};
+ static const struct xz_shell_item_help help_items[]={{TAB_STEMS,4,"Which pad page the stem shortcut opens.",4,pad_lines}};
+ static const struct xz_shell_help_model help={1,help_items};
+ m.help=&help;
+ f=render_into(buffer_a,&u,&m);
+ struct xz_shell_rect under={v.x,v.y+4*row,v.w,v.h-4*row};
+ assert(count_ink(f,under,HELP_INK)>40&&count_ink(f,under,CHOICE_INK)>20);
+ /* Scope matters: the same id on another tab has no text. */
+ static const struct xz_shell_item_help other_items[]={{TAB_JUMP,4,"Not this tab.",0,NULL}};
+ static const struct xz_shell_help_model other={1,other_items};
+ m.help=&other;
+ f=render_into(buffer_a,&u,&m);
+ assert(count_ink(f,bottom,HELP_INK)==0);
+ m.help=NULL;
+ /* Every UTILITY item's text stays inside the values pane: nothing reaches its right edge. */
+ xz_shell_init(&u);hold_menu(&u,&m);push(&u,&m);
+ struct xz_shell_rect edge={v.x+v.w-10,v.y,10,v.h};
+ int described=0;
+ for(int i=0;i<60;i++){
+  f=render_into(buffer_a,&u,&m);
+  assert(count_ink(f,edge,HELP_INK)==0&&count_ink(f,edge,CHOICE_INK)==0);
+  described+=count_ink(f,v,HELP_INK)>0;
+  int before=cursor_id(&u);turn(&u,&m,1);if(cursor_id(&u)==before)break;
+ }
+ assert(described>=30);
+ /* SHORTCUT's title line says what the focused setting does, and follows the focus. */
+ xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_SHORTCUT);
+ struct xz_shell_rect title={190,0,XZ_SHELL_HEADER_X-200,40};
+ const uint16_t *first=render_into(buffer_a,&u,&m);
+ assert(count_ink(first,title,0xc8c8c8)>40);
+ turn(&u,&m,1);
+ const uint16_t *second=render_into(buffer_b,&u,&m);
+ int title_changed=0;
+ for(int y=title.y;y<title.y+title.h;y++)for(int x=title.x;x<title.x+title.w;x++)title_changed|=first[(size_t)y*STRIDE+(size_t)x]!=second[(size_t)y*STRIDE+(size_t)x];
+ assert(title_changed);
+ puts("PASS descriptions: item text under the choices, choice line follows the cursor, runtime notes, m->help per scope, inside the pane; SHORTCUT title follows focus");
+}
+
+static void test_page_tabs(void) {
+ struct xz_shell u;struct xz_shell_model m;model(&m);
+ xz_shell_init(&u);hold_menu(&u,&m);
+ turn(&u,&m,TAB_PROFILE);
+ render_into(buffer_a,&u,&m);
+ /* From the rail a push on a page tab opens that page in the runtime's panel at once (test_mods_entry.c);
+    the encoder stays on the rail. */
+ assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&out[0].value==24&&u.mods_view.on_tabs);
+ render_into(buffer_b,&u,&m);
+ struct xz_shell_rect b=xz_shell_mods_page_button();
+ assert(tap(&u,&m,b.x+b.w/2,b.y+b.h/2)==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&out[0].value==24);
+ /* With the page button touched the encoder left the rail: turn does nothing, BACK closes UTILITY. */
+ assert(turn(&u,&m,1)==0&&u.mods_view.tab==TAB_PROFILE);
+ assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1);
+ hold_menu(&u,&m);turn(&u,&m,TAB_GAMES);
+ assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&out[0].value==13);
+ puts("PASS page tabs: a push from the rail or the page button opens the page through OPEN_MODS value = page");
+}
+
+static void test_tab_touch(void) {
+ struct xz_shell u;struct xz_shell_model m;model(&m);
+ xz_shell_init(&u);hold_menu(&u,&m);push(&u,&m);
+ assert(!u.mods_view.on_tabs&&pane(&u)==ITEMS_PANE);
+ for(int t=TABS-1;t>=0;t--){
+  struct xz_shell_rect r=xz_shell_mods_tab_rect(&u,&m,t);
+  size_t n=tap(&u,&m,r.x+r.w/2,r.y+r.h/2);
+  /* A page's cell opens it in the runtime's panel in one touch; an item page's cell picks it. */
+  if(t==TAB_PROFILE||t==TAB_GAMES)assert(n==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&u.depth==2);
+  else assert(n==0&&u.mods_view.tab==t&&u.mods_view.on_tabs==1&&u.depth==2);
+  render_into(buffer_a,&u,&m);
+ }
+ /* A changed page starts at its top; touching the lit entry again enters it. */
+ assert(u.mods_view.on_tabs&&u.mods_view.tab==TAB_UTILITY&&u.stack[1].scroll==0);
+ struct xz_shell_rect first=xz_shell_mods_tab_rect(&u,&m,0);
+ assert(tap(&u,&m,first.x+first.w/2,first.y+first.h/2)==0&&!u.mods_view.on_tabs&&pane(&u)==ITEMS_PANE);
+ /* A touch in the items takes the encoder off the rail; the back button closes. */
+ to_rail(&u,&m);
+ struct xz_shell_rect items=xz_shell_settings_rect(XZ_SHELL_SR_ITEMS);
+ send(&u,&m,XZ_SHELL_TOUCH_DOWN,items.x+40,items.y+2*XZ_SHELL_SETTINGS_ROW_H+10,0);
+ assert(!u.mods_view.on_tabs);
+ send(&u,&m,XZ_SHELL_TOUCH_UP,items.x+40,items.y+2*XZ_SHELL_SETTINGS_ROW_H+10,0);
+ struct xz_shell_rect back=xz_shell_settings_rect(XZ_SHELL_SR_BACK_BUTTON);
+ tap(&u,&m,back.x+back.w/2,back.y+back.h/2);
+ assert(u.depth==1);
+ puts("PASS rail touch: a page opens in one touch, an item page is picked and a second touch enters; a content touch leaves the rail; back button closes");
+}
+
+static void test_one_value(void) {
+ struct xz_shell u;struct xz_shell_model m;model(&m);
+ xz_shell_init(&u);
+ /* WAVEFORM COLOR set on SHORTCUT is the value UTILITY shows: one setting, two doors. */
+ assert(key(&u,&m,XZ_SHELL_KEY_SHORTCUT)==0&&xz_shell_screen(&u)==XZ_SHELL_SHORTCUT);
+ for(int i=0;i<16&&cursor_id(&u)!=XZ_SHELL_ITEM_WAVE_COLOR;i++)turn(&u,&m,1);
+ assert(cursor_id(&u)==XZ_SHELL_ITEM_WAVE_COLOR);
+ int before=(int)u.display.wave_color;
+ /* A local waveform colour overrides the sticks' colours: USB COLORS steps from ALL to DECK ONLY with it. */
+ assert(u.display.usb_colors==XZ_SHELL_USB_COLORS_ALL);
+ assert(push(&u,&m)==2&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR);
+ assert(out[1].kind==XZ_SHELL_ACT_SET_SETTING&&out[1].id==XZ_SHELL_ITEM_USB_COLORS&&out[1].value==XZ_SHELL_USB_COLORS_TILE);
+ assert(u.display.usb_colors==XZ_SHELL_USB_COLORS_TILE);
+ int now=(int)u.display.wave_color;
+ assert(now!=before&&out[0].value==now);
+ key(&u,&m,XZ_SHELL_KEY_BACK);assert(u.depth==1);
+ hold_menu(&u,&m);push(&u,&m);
+ goto_item(&u,&m,1,XZ_SHELL_ITEM_WAVE_COLOR);
+ assert(push(&u,&m)==0&&value_cursor(&u)==now);
+ /* And the other way: UTILITY's change is what SHORTCUT shows next. */
+ turn(&u,&m,-1);
+ assert(push(&u,&m)==1&&(int)u.display.wave_color==now-1);
+ /* The table holds the item once, whatever the runtime listed. */
+ int seen=0;
+ turn(&u,&m,-40);
+ for(int i=0;i<40;i++){if(cursor_id(&u)==XZ_SHELL_ITEM_WAVE_COLOR)seen++;int c=cursor_id(&u);turn(&u,&m,1);if(cursor_id(&u)==c)break;}
+ assert(seen==1);
+ puts("PASS SHORTCUT and UTILITY show one value per setting");
+}
+
+static void test_probe_and_wild(void) {
+ struct xz_shell u,probe;struct xz_shell_model m;model(&m);
+ xz_shell_init(&u);hold_menu(&u,&m);
+ /* A probe copy takes keys without touching the original: tab state lives in the struct. */
+ probe=u;
+ turn(&probe,&m,TAB_JUMP);push(&probe,&m);
+ assert(probe.mods_view.tab==TAB_JUMP&&!probe.mods_view.on_tabs);
+ assert(u.mods_view.tab==TAB_UTILITY&&u.mods_view.on_tabs==1);
+ const uint16_t *a=render_into(buffer_a,&u,&m);
+ render_into(buffer_b,&probe,&m);
+ struct xz_shell again=u;
+ const uint16_t *c=render_into(buffer_b,&again,&m);
+ assert(memcmp(a,c,sizeof(uint16_t)*STRIDE*XZ_SHELL_HEIGHT)==0);
+ /* Wild tabs: NULL labels, items and sections, a section count past the names, zero counts. */
+ static const char *const holes[]={NULL,"ON"};
+ static const struct xz_shell_setting_item odd[]={
+  {1,(enum xz_shell_setting_category)99,"BAD SECTION",holes,2,0,1,1},
+  {2,5,NULL,NULL,9,4,1,1},
+  {3,0,"PAST END",holes,2,7,1,0},
+  {4,0,"UNKNOWN",holes,2,0,0,1},
+ };
+ static const struct xz_shell_settings_model odd_model={4,odd,NULL},zero_model={0,odd,NULL},null_items={3,NULL,NULL};
+ static const char *const few[]={"ONE",NULL};
+ static const struct xz_shell_mods_tab wild[]={
+  {NULL,XZ_SHELL_TAB_ITEMS,&odd_model,few,2,0,NULL,0},
+  {"NO ITEMS",XZ_SHELL_TAB_ITEMS,NULL,NULL,0,0,NULL,0},
+  {"ZERO",XZ_SHELL_TAB_ITEMS,&zero_model,NULL,0,0,NULL,0},
+  {"NULL ITEMS",XZ_SHELL_TAB_ITEMS,&null_items,NULL,0,0,NULL,0},
+  {NULL,XZ_SHELL_TAB_PAGE,NULL,NULL,0,-5,NULL,0},
+  {"A VERY LONG TAB LABEL THAT CANNOT FIT",(enum xz_shell_mods_tab_kind)9,NULL,NULL,0,0,"A SUMMARY FAR TOO LONG FOR ITS LINE ON THIS SMALL SCREEN, IT MUST BE CUT",0},
+ };
+ static const struct xz_shell_mods_model wild_mods={sizeof wild/sizeof *wild,wild};
+ m.mods=&wild_mods;
+ for(int t=0;t<(int)(sizeof wild/sizeof *wild)+1;t++){
+  xz_shell_init(&u);hold_menu(&u,&m);turn(&u,&m,t);
+  for(int step=0;step<8;step++){
+   render_into(buffer_a,&u,&m);
+   push(&u,&m);turn(&u,&m,1);
+   send(&u,&m,XZ_SHELL_ENCODER_HOLD,0,0,0);
+   if(step==4){key(&u,&m,XZ_SHELL_KEY_BACK);key(&u,&m,XZ_SHELL_KEY_BACK);}
+  }
+  render_into(buffer_a,&u,&m);
+  while(u.depth>1)key(&u,&m,XZ_SHELL_KEY_BACK);
+ }
+ /* A mods model that shrinks under an open tab falls back to UTILITY. */
+ m.mods=&fxm_model;
+ xz_shell_init(&u);hold_menu(&u,&m);turn(&u,&m,TAB_GAMES);assert(u.mods_view.tab==TAB_GAMES);   /* a page tab: picked, not entered */
+ m.mods=NULL;
+ render_into(buffer_a,&u,&m);
+ push(&u,&m);turn(&u,&m,1);render_into(buffer_a,&u,&m);
+ while(u.depth>1)key(&u,&m,XZ_SHELL_KEY_BACK);
+ puts("PASS probe copies keep tab state apart; wild and shrinking mod tabs render and drive safely");
+}
+
+int main(void) {
+ setvbuf(stdout,NULL,_IONBF,0);   /* a failed assertion still shows which test got there */
+ fx_track_build(&track,7);
+ test_contract();
+ test_held_menu_and_back_chain();
+ test_header_mods();
+ test_mods_key();
+ test_set_requests();
+ test_descriptions();
+ test_page_tabs();
+ test_tab_touch();
+ test_one_value();
+ test_probe_and_wild();
+ puts("PASS mods");
+ return 0;
+}

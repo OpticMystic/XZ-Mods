@@ -8,7 +8,7 @@ to build source.
 
 ## Prepare your USB
 
-1. Back up your Rekordbox USB. Start with a few tracks and a spare FAT/FAT32 USB.
+1. Back up your music USB. Start with a few tracks and a spare USB stick.
 2. Extract the supplied XZ Mods 0.1.6 ZIP.
    Extract it and keep `XZ Mods.exe` beside its `resources` folder. Windows needs
    WebView2. VJ.Tools and a separate Python installation are not required.
@@ -16,20 +16,31 @@ to build source.
    and select the USB drive root. The app downloads and verifies the official
    firmware and required boot support, then builds and checks `autoexec.bin`.
    First setup downloads about 320 MB; verified files are cached locally.
-   The USB must be FAT/FAT32. Existing music and loader files are not overwritten.
+   The app never formats the USB. Existing music and loader files are not overwritten.
    The public download contains no firmware, boot support or personal boot image.
 4. Prepare stems with [OverCue](https://overcue.gg/). This is the recommended
    path. OverCue Desktop separates your tracks and writes a `CDJMODS` folder on
-   your Rekordbox USB. Keep the matching `Contents` and `CDJMODS` folders on the
+   your music USB. **In OverCue Desktop's Settings, choose the 44.1 kHz FLAC stems.**
+   Since OverCue Desktop 2.2.34 that choice is labelled **CDJ-2000NXS2**; it has been
+   there since 2.2.11 on Windows and 2.2.10 on Mac. The XZ plays at 44.1 kHz, so these
+   stems need no conversion on the player: a track's stems are ready in memory sooner,
+   and they take less space on the USB. OverCue's default 96 kHz stems still play on
+   the XZ, but the player has to convert them, and a track needs several minutes before
+   loops and jumps have stems everywhere in it. Do not choose the 44.1 kHz WAV option:
+   the XZ does not read WAV stems. If you also play the USB on players running OverCue,
+   keep 96 kHz: those players play 44.1 kHz stem tracks without stems, and 96 kHz stems
+   work on both. Keep the matching `Contents` and `CDJMODS` folders on the
    same USB. Open **Prepare stems > Check OverCue track** and choose the original
    track inside `Contents`. This reads the source and all prepared pages without
    changing them. Both new lossless FLAC pages and legacy zlib pages are supported,
-   including OverCue Desktop's **Repack existing** output. Update the USB loader
+   including OverCue Desktop's **Repack existing** output. The four-file stems from
+   OverCue Desktop 2.2.26 and later play, and so do stems after **Remove unused stem
+   files** or **Realign stems**. Update the USB loader
    with this local build before loading FLAC-prepared tracks on the XZ.
 5. Or use the beta stem builder in **Prepare stems > Build stems in XZ Mods**.
    It writes the same [open OverCue format](https://github.com/OverCue-gg/overcue-stems-format)
-   under `CDJMODS` and never replaces stems OverCue made. Export the track with
-   Rekordbox first. It must be a 44.1 kHz stereo WAV or FLAC file in the USB's
+   under `CDJMODS` and never replaces stems OverCue made. Export the track from
+   your DJ software first. It must be a 44.1 kHz stereo WAV or FLAC file in the USB's
    `Contents` folder. Choose that track, choose an engine, then click
    **Prepare stems**. Separation runs on the CPU, one track at a time, with
    bounded model windows and disk-backed audio buffers. Generate and Import write
@@ -102,8 +113,7 @@ The 0.1.4 loader automatically applies the original loading artwork to a validat
 copy of the device GUI in RAM. The public package contains only the replacement
 artwork, not the manufacturer GUI pack.
 
-The streamlined menu has Controls, Appearance, VJ.Tools and Advanced. Groove
-pads and X-PAD remain under Advanced with readiness indicators. VJ.Tools is
+The streamlined menu has Controls, Appearance, VJ.Tools and Advanced. VJ.Tools is
 optional; its corner button appears only when the connection setting is enabled
 and the network connection is live. Exit VJ returns to native playback.
 
@@ -121,12 +131,11 @@ two-deck, loop, focus and experimental-control qualification remains in progress
 
 ## Related projects
 
-- [CDJ3K-Mods](https://cdj3k-mods.com/) and its
-  [source repository](https://github.com/nsaintot/cdj3k-mods): CDJ-3000 mods.
-- [OverCue](https://overcue.gg/): CDJ-3000 mods and desktop stem preparation.
-  XZ Mods reads supported prepared audio; the OverCue CDJ installer is not an XZ installer.
-- [XDJ-RX3 Toolkit](https://github.com/Tratosca/rx3-toolkit): the RX3 project,
-  not a mod for the original XDJ-RX.
+- nsaintot's player mods and their
+  [source repository](https://github.com/nsaintot/cdj3k-mods): mods for another DJ player.
+- [OverCue](https://overcue.gg/): player mods and desktop stem preparation.
+  XZ Mods reads supported prepared audio; OverCue's own player installer is not an XZ installer.
+- [Tratosca's toolkit](https://github.com/Tratosca/rx3-toolkit): mods for a different player.
 - [XDJ-AZ Mods](https://github.com/Kyle-Hosman/xdj-az-mods): AZ mod loader and tools.
 
 These projects have separate compatibility and installation requirements.
@@ -138,7 +147,7 @@ These projects have separate compatibility and installation requirements.
 3. Select **Back up and update loader**. The app verifies the new image before
    replacing `autoexec.bin` and keeps the previous bytes under
    `VJ.Tools/XZ-Mods-updates`.
-4. Eject the USB safely after completion. Music, Rekordbox data and saved
+4. Eject the USB safely after completion. Music, your exported library and saved
    preferences remain in place.
 
 If you selected a prepared folder, copy its resulting loader to the USB root.
@@ -168,19 +177,85 @@ page. Page 2 defaults to 16/32/64/128 beats, or 4/8/16/32 bars. Shift + Beat Jum
 selects page 2 by default, with alternate warm red/orange pad lights.
 
 
-## Browse USB tracks and prepare stems
+## Prepare stems
 
-Open Prepare stems. XZ Mods selects a connected USB with a Rekordbox Device Library. Use the drive selector or Choose drive to change it. The table reads track titles and artists from the exported database, shows USB free space, and checks the corresponding stem files.
+Open Prepare stems. XZ Mods finds the connected music USB and lists every
+track on it. The bar at the top shows the USB, how many tracks are ready, the
+free space and one line that says what your selection will cost. To use
+another USB, open the drive menu. Its last two entries are Choose a folder...
+and Look for USBs again. If no USB is found, Connect a USB walks you through
+finding or choosing one.
 
-Choose Open-Unmix HQ or Vocal focus, then click Generate beside a track. Required model files download on first use. Tracks must be 44.1 kHz WAV or FLAC exports. OverCue remains the recommended preparation tool.
+Each track shows a status you can read at a glance. Missing has no stems yet.
+Ready has stems on the USB. Not yet means the format (AIFF or AAC) is not
+supported yet. No audio file means the track file is not on the USB; export it
+again from your DJ software. MP3, WAV and FLAC tracks all prepare the same way. The
+Format column shows which one a track is, and the Size column shows its
+estimated size on the USB. Use the tabs to show only Missing, Ready or Can't
+prepare tracks, and the search box to find a title or artist.
 
-Prepared means all seven stem files are present. Click Verify to check the audio pages and source checksum. Check playback timing on the XZ before a set.
+### Set up the stem engine once
 
-## Import instrument stems
+The first time, the button in the bar reads Set up stem engine. It opens a
+short setup: XZ Mods checks this computer, you choose a quality, it downloads
+what it needs once, then it tests on 30 seconds of your first selected track.
+Balanced is recommended on computers with a graphics card or Apple silicon,
+Fast on computers without one. Every downloaded file is checked against its
+fingerprint. If setup cannot finish, it names the reason and offers the one
+fix, for example Use the processor when the graphics driver is too old. To
+change quality later, choose Change next to the engine name.
 
-Click Import stems beside a track. Drop its individual stem files into the import area, then assign each to Drums, Vocals or Harmonics. You can assign several files to each group. XZ Mods adds them together and writes the seven OverCue playback combinations. Your supplied drums remain the drum part; they are not reconstructed from the complete mix.
+### Select and prepare
 
-Use files that start at the same point as the complete track. By default, lengths must match. The length adjustment checkbox pads shorter files with silence and trims longer files. It does not correct offsets or time-stretch audio. Unassigned groups are silent.
+Tick the tracks you want, or use the box at the top of the table to select
+every Missing track in view. A batch holds up to 100 tracks. The estimate line
+shows the total size and the space left after, for example 12 tracks selected
+· about 4.9 GB · 38.0 GB free after. It turns amber when space gets tight and
+red when the selection does not fit. In that case the button reads Prepare N
+that fit and prepares the selected tracks in order until the next one would not
+fit. Tracks it leaves out stay selected.
+
+Choose Prepare N tracks. Rows change in place: Queued, then Preparing with a
+percentage and the current step, then Ready. The bar shows which track is
+running and about how long is left. The first time on a new computer it says
+Timing this computer until it has a measurement. Cancel stops within a
+second. Finished tracks are kept; the one in progress is discarded.
+
+When the batch ends, the bar says what happened and offers the next step:
+Retry N failed, Prepare N remaining after a cancel, Continue after the USB was
+unplugged (nothing is left half-written), or Choose fewer tracks when the USB
+filled up. Prepared tracks leave the selection.
+
+### Track details
+
+Click a row to open its details. Ready tracks show who prepared them and
+offer Verify, which reads every audio page without changing the USB, plus
+Import stems to replace and Prepare again. Prepare again asks first and keeps
+the current stems until the new ones pass their check. A track that fails
+Verify shows Damaged and can be selected to prepare again.
+
+## Import stems made elsewhere
+
+Choose Import stems in the toolbar, or Import stems made elsewhere in a
+track's details. Drop stem files or a ZIP into the window, or choose files.
+Suno, Demucs, UVR and other WAV, FLAC, MP3 or AIFF sets work. From the
+toolbar, pick which track the stems are for.
+
+Next checks the files. XZ Mods places each file on Vocals, Drums or Harmonics
+by its name and lines the stems up with the track on your USB, shifting and
+levelling them automatically. Change any Goes to choice you disagree with. If
+a file's name says nothing, choose its place; Leave out skips it. If the stems
+do not line up, or come from a different song, the window says so and offers
+other files or another track.
+
+A vocals and instrumental pair needs the stem engine to pull the drums out of
+the instrumental, so the XZ gets a separate Drums button. If the engine is not
+set up yet, the import offers Set up stem engine and continues where you left
+it afterwards.
+
+Write stems to USB writes the seven stem mixes the XZ plays and checks them.
+Your stem files and the track itself stay as they are. When stems replace
+existing ones, the old stems stay until the new ones pass their check.
 
 ## Update the Windows app
 
@@ -201,18 +276,13 @@ Apple Silicon can generate stems with the approved models. Intel Macs can import
 aligned stems, prepare or update a USB, edit settings, and use waveform and game
 setup. App updates use signed architecture-specific bundles when available.
 
-## Prepare selected tracks
-
-Select tracks in Prepare stems, choose the model, then use Prepare selected.
-The app processes tracks in order, reuses verified prepared stems and reports
-finished, failed and queued tracks. Cancel leaves completed tracks available.
-Use Retry failed to retry the unsuccessful selections. Keep enough free space
-on both the USB and the computer for disk-backed processing.
-
 ## New FLAC stem pages
 
-The reader accepts OverCue's OVPGZ003 FLAC pages and existing OVPGZ001 zlib
-pages. Generate and Import write FLAC and verify all seven playback mixes.
+The reader accepts 44.1 kHz OVPGZ004 FLAC pages, OverCue's 96 kHz OVPGZ003 FLAC
+pages and existing OVPGZ001 zlib pages. Generate and Import write 44.1 kHz FLAC
+stems, or 96 kHz FLAC stems for a USB set to **XDJ-XZ and OverCue players**, and
+verify all seven playback mixes, which older OverCue firmware still needs. The XZ reads only the vocal, drums, harmonics
+and full-mix files, so OverCue's four-file stems play too.
 Keep Contents and CDJMODS together. Update an older USB loader through USB
 loader > Back up and update loader before using the new FLAC pages on the XZ.
 

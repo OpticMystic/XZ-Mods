@@ -1,0 +1,24 @@
+{
+  "section": "play-screen#deck-column-and-waveform-lanes",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "turn": 6
+    },
+    {
+      "turn": -6
+    },
+    {
+      "tap": "TIME 1"
+    },
+    {
+      "tap": "TIME 1"
+    },
+    {
+      "tap": "INFO HEADER"
+    },
+    {
+      "back": true
+    }
+  ]
+}

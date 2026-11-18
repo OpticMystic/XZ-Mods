@@ -1,0 +1,19 @@
+{
+  "section": "mods-menu#EXTRAS",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "EXTRAS"
+    },
+    {
+      "turn": 3
+    },
+    {
+      "back": true
+    }
+  ]
+}

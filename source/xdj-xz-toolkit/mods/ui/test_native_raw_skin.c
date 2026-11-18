@@ -21,8 +21,18 @@ int xz_read_memory(uint32_t address,void *out,size_t length){
  memcpy(out,windows[i].d,64);return 0;
 }
 static int fake_destroy(void *gr){windows[index_at(gr)].alive=0;destroys++;return 0;}
+/* Caution draw fixture: one check result, one handle cell, one text the hub test reads. */
+static uint32_t fake_id,fake_cell,checks,draws;static int fake_text_hub;
+static uint32_t fake_check(void){checks++;return fake_id;}
+static uint32_t fake_draw(uint32_t a,uint32_t b,uint32_t c,uint32_t d){(void)a;(void)b;(void)c;(void)d;draws++;if(fake_id&&!fake_cell)fake_cell=0x1000+39*0x100;return 7;}
+unsigned xz_stock_usb_hub_at(xz_stock_dialog_read read,uint32_t text){(void)read;return text==XZ_STOCK_STATUS_TEXT?(unsigned)fake_text_hub:0u;}
+static int armed_cautions;
 int xz_hook_arm(uint32_t address,const unsigned char expected[8],void *hook,void **old){
  const unsigned char guard[8]={0x38,0x40,0x2d,0xe9,0x00,0x40,0xa0,0xe1};
+ if(address==0x147f08||address==0x146fcc){
+  assert(hook==(address==0x147f08?(void *)status_draw_hook:(void *)browse_draw_hook)&&expected[0]==0xf0);
+  *old=(void *)fake_draw;armed_cautions++;return 0;
+ }
  assert(address==0x1576a0&&!memcmp(expected,guard,8)&&hook==(void *)destroy_hook);*old=(void *)fake_destroy;return 0;
 }
 static int fake_lock(void *gr,void **pixels,int *pitch){
@@ -51,8 +61,26 @@ static void check(unsigned i,unsigned h,int expected_theme){
   assert(windows[i].pixels[y*12+x]==value);
  }
 }
+static void caution_checks(void){
+ struct caution_draw *c=&cautions[0];c->check=fake_check;c->cell=&fake_cell;caution_destroy=destroy_hook;
+ init(39,8,18);
+ /* An ordinary caution draws every time and stays. */
+ fake_id=201;fake_text_hub=0;assert(status_draw_hook(1,2,3,4)==7&&draws==1&&fake_cell&&windows[39].alive);
+ assert(status_draw_hook(1,2,3,4)==7&&draws==2&&fake_cell&&!c->hubs);
+ /* The hub window is removed right after its first draw and never drawn again; its handle is cleared. */
+ fake_cell=0;fake_id=207;fake_text_hub=1;int before=destroys;
+ assert(status_draw_hook(1,2,3,4)==7&&draws==3&&!fake_cell&&destroys==before+1&&c->hubs==1&&c->hub[0]==207);
+ init(39,8,18);fake_cell=0x1000+39*0x100;
+ assert(status_draw_hook(1,2,3,4)==0&&draws==3&&!fake_cell&&destroys==before+2);
+ assert(status_draw_hook(1,2,3,4)==0&&draws==3&&destroys==before+2);
+ /* Another caution after it still draws. No caution draws the stock clear path. */
+ fake_id=201;fake_text_hub=0;assert(status_draw_hook(1,2,3,4)==7&&draws==4&&fake_cell);
+ fake_id=0;fake_cell=0;assert(status_draw_hook(1,2,3,4)==7&&draws==5);
+ puts("PASS E-8307 hub caution: removed after its first draw, never drawn again; other cautions untouched");
+}
 int main(void){
  assert(!xz_native_raw_skin_start(fake_lock,fake_unlock));
+ assert(armed_cautions==2);
  init(0,8,48);populate(begin(0,0x22f384),48);end(0);check(0,48,0);
  theme=1;xz_native_raw_skin_repaint();check(0,48,1);
  theme=2;xz_native_raw_skin_repaint();check(0,48,2);
@@ -90,5 +118,6 @@ int main(void){
  for(unsigned i=0;i<N;i++){init(i,8,18);populate(begin(i,0x23f64c),18);end(i);}
  assert(xz_native_raw_skin_v1.cache_full>0);
  unsigned active=0;for(unsigned i=0;i<CACHE_COUNT;i++)active+=cache[i].valid!=0;assert(active==CACHE_COUNT);
+ caution_checks();
  assert(locks==unlocks);puts("PASS raw skins identity, A-B-A, pristine partial updates, sentinels, padding, destroy and bounded cache");return 0;
 }

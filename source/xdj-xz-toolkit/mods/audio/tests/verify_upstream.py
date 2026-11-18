@@ -28,8 +28,17 @@ def run(args):
     return subprocess.check_output([str(x) for x in args], text=True).strip()
 
 
+def need_upstream():
+    """The pinned upstream checkout from the command line; without one, say so and exit 77 (skipped)."""
+    if len(sys.argv) < 2:
+        print(f"SKIPPED: needs the path of a cdj3k-mods checkout at commit {PIN[:12]} as its argument "
+              "(another repository)")
+        raise SystemExit(77)
+    return Path(sys.argv[1]).resolve()
+
+
 def main():
-    upstream = Path(sys.argv[1]).resolve()
+    upstream = need_upstream()
     assert run(["git", "-c", f"safe.directory={upstream}", "-C", upstream,
                 "rev-parse", "HEAD"]) == PIN
     source = run(["git", "-c", f"safe.directory={upstream}", "-C", upstream,

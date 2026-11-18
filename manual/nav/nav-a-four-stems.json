@@ -1,0 +1,29 @@
+{
+  "section": "stems#stem-buttons-in-4-decks",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "tap": "DECKS"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "tap": "STEMS HEADER"
+    },
+    {
+      "tap": "STEMS HEADER"
+    }
+  ],
+  "requires_observations": [
+    {
+      "four_stems_hidden": 1
+    },
+    {
+      "four_stems_hidden": 0
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "section": "four-decks#the-classic-four-deck-screen",
+  "interface": "CLASSIC",
+  "steps": [
+    {
+      "fixture": 261
+    },
+    {
+      "touch": [
+        550,
+        175
+      ]
+    },
+    {
+      "touch": [
+        360,
+        35
+      ]
+    },
+    {
+      "touch": [
+        550,
+        175
+      ]
+    },
+    {
+      "touch": [
+        550,
+        245
+      ]
+    },
+    {
+      "touch": [
+        360,
+        35
+      ]
+    }
+  ],
+  "requires_observations": [
+    {
+      "classic_detail": 0
+    },
+    {
+      "classic_detail": 1
+    }
+  ]
+}

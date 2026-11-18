@@ -1,0 +1,24 @@
+{
+  "section": "browse#playlists",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "BROWSE"
+    },
+    {
+      "turn": 6
+    },
+    {
+      "push": true
+    },
+    {
+      "turn": 2
+    },
+    {
+      "push": true
+    },
+    {
+      "back": true
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "section": "extras#report-an-issue",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "EXTRAS"
+    },
+    {
+      "tap": "REPORT AN ISSUE",
+      "expect_page": 34
+    },
+    {
+      "turn": 2
+    },
+    {
+      "select": "SOMETHING ISN'T WORKING"
+    },
+    {
+      "select": "SKIP, I'LL ADD IT ON MY COMPUTER"
+    },
+    {
+      "wait": 500
+    }
+  ]
+}

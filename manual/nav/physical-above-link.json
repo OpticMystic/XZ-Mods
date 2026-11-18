@@ -1,0 +1,22 @@
+{
+  "section": "hardware#the-above-link-button",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "gesture": "button above LINK",
+      "code": 30,
+      "side": 0
+    },
+    {
+      "gesture": "button above LINK",
+      "code": 30,
+      "side": 0
+    }
+  ],
+  "requires_effects": [
+    [
+      "above-link",
+      1
+    ]
+  ]
+}

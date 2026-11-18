@@ -52,13 +52,13 @@ args.output.mkdir(parents=True, exist_ok=True)
 dll = args.output.resolve()/'wave-rider-preview.dll'
 subprocess.run([str(args.zig.resolve()), 'cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror',
     '-DXZ_WAVE_RIDER_SOURCE_PORTABLE', '-shared', *[str(root/name) for name in
-    ('wave_rider.c', 'wave_rider_render.c', 'wave_rider_source.c', 'wave_rider_preview.c')],
+    ('wave_rider.c', 'wave_rider_render.c', 'wave_rider_art.c', 'game_motion_draw.c', 'game_feel_art.c', 'game_font.c', 'wave_rider_source.c', 'wave_rider_preview.c')],
     str(root.parent/'ui/ui_draw.c'), '-o', str(dll)], check=True)
 game = ctypes.CDLL(str(dll))
 game.rider_preview_load.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_char_p, ctypes.c_uint]
 game.rider_preview_step.argtypes = [ctypes.c_uint]
-game.rider_preview_key.argtypes = [ctypes.c_int, ctypes.c_uint]
-game.rider_preview_move.argtypes = [ctypes.c_float, ctypes.c_uint]
+game.rider_preview_key.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+game.rider_preview_move.argtypes = [ctypes.c_int, ctypes.c_float, ctypes.c_uint]
 game.rider_preview_touch.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
 game.rider_preview_seek.argtypes = [ctypes.c_double]
 game.rider_preview_frame.restype = ctypes.POINTER(ctypes.c_uint16)
@@ -102,8 +102,8 @@ class Handler(BaseHTTPRequestHandler):
             with lock:
                 kind = action['kind']
                 if kind == 'touch': game.rider_preview_touch(int(action['x']), int(action['y']), int(action['down']), now())
-                elif kind == 'move': game.rider_preview_move(float(action['delta']), now())
-                elif kind == 'key': game.rider_preview_key(int(action['key']), now())
+                elif kind == 'move': game.rider_preview_move(int(action.get('player', 0)), float(action['delta']), now())
+                elif kind == 'key': game.rider_preview_key(int(action.get('player', 0)), int(action['key']), int(action.get('down', 1)), now())
                 elif kind == 'pause': game.rider_preview_pause()
                 elif kind == 'seek': game.rider_preview_seek(float(action['seconds'])*150)
                 else: raise ValueError('Unknown action')

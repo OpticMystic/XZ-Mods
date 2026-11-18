@@ -1,0 +1,25 @@
+{
+  "section": "stems#modern-stem-buttons",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "tap": "DRUMS"
+    },
+    {
+      "tap": "BYPASS"
+    },
+    {
+      "tap": "BYPASS"
+    }
+  ],
+  "requires_effects": [
+    [
+      "shell",
+      16
+    ],
+    [
+      "shell",
+      28
+    ]
+  ]
+}

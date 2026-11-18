@@ -21,11 +21,16 @@ runtime_input.add_argument('--runtime-build',type=Path)
 runtime_input.add_argument('--runtime-bundle',type=Path,help='Verified paired bundle shared with the VJ.Tools XZ loader')
 p.add_argument('--zig',type=Path,required=True)
 p.add_argument('--runtime-source',type=Path,help='Native source checkout matching the paired runtime; defaults to toolkit')
+p.add_argument('--version-seeds',type=Path,help='Verified offline mod catalog to retain in a clean package')
 p.add_argument('--doom-wad',type=Path,help='Private local Doom WAD to include in USB images; never uploaded or published')
+p.add_argument('--quad-resources',type=Path)
+p.add_argument('--quad-profile-sha256')
 p.add_argument('--skip-backend',action='store_true',help='Retain an already built backend when only native runtime resources changed')
 p.add_argument('--toolkit',type=Path,default=None,
     help='Path to the xdj-xz-toolkit checkout (default: $XZ_TOOLKIT_DIR, sibling ../xdj-xz-toolkit, or monorepo packages/xdj-xz-toolkit)')
 a=p.parse_args()
+if bool(a.quad_resources)!=bool(a.quad_profile_sha256):raise ValueError('Quad resources and exact profile digest are required together')
+if a.quad_resources and a.skip_backend:raise ValueError('Quad selection requires rebuilding the pinned backend')
 def _resolve_toolkit():
     if a.toolkit:return Path(a.toolkit)
     env=os.environ.get('XZ_TOOLKIT_DIR')
@@ -39,6 +44,20 @@ def _resolve_toolkit():
 TOOLKIT=_resolve_toolkit().resolve()
 RUNTIME_SOURCE=(a.runtime_source or TOOLKIT).resolve()
 resources=APP/'resources';resources.mkdir(exist_ok=True)
+if a.version_seeds:
+    sys.path.insert(0,str(TOOLKIT))
+    from builder import mod_versions
+    seeds=mod_versions.cache._safe_path(a.version_seeds)
+    catalog=mod_versions._json(seeds/'catalog.json')
+    if catalog.get('schema')!='xz-mod-seeds/1' or not isinstance(catalog.get('versions'),list) or len(catalog['versions'])>64:
+        raise ValueError('Invalid offline mod catalog')
+    for item in catalog['versions']:
+        ident=item.get('id')
+        if not isinstance(ident,str) or not mod_versions.ID.fullmatch(ident):raise ValueError('Invalid offline mod identifier')
+        if mod_versions._verify(seeds/ident)['id']!=ident:raise ValueError('Offline mod identity mismatch')
+        shutil.copytree(seeds/ident,resources/'mod-version-seeds'/ident,dirs_exist_ok=True)
+    (resources/'mod-version-seeds').mkdir(exist_ok=True)
+    shutil.copyfile(seeds/'catalog.json',resources/'mod-version-seeds/catalog.json')
 def digest(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def copy(source,target):target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,target)
 runtime=resources/'runtime';runtime.mkdir(exist_ok=True)
@@ -50,6 +69,7 @@ if a.runtime_bundle:
     bundle_manifest=verify_mods_source(a.runtime_bundle,RUNTIME_SOURCE)
     copy(a.runtime_bundle/'libxz-mods.so',runtime/'libxz-mods.so')
     copy(a.runtime_bundle/'libxz-receiver.so',runtime/'libxz-receiver.so')
+    copy(a.runtime_bundle/'source.zip',runtime/'source.zip')
     if (a.runtime_bundle/'xz-doom').is_file():copy(a.runtime_bundle/'xz-doom',runtime/'xz-doom')
     for name in ('xz-updater','xz-runtime-smoke','ota-trust.json'):
         if (a.runtime_bundle/name).is_file():copy(a.runtime_bundle/name,runtime/name)
@@ -71,7 +91,11 @@ elif (runtime/'doom1.wad').is_file():
     (runtime/'doom1.wad').unlink()
 (runtime/'manifest.json').write_text(json.dumps({'firmware':'XDJ-XZ 1.26','profile':'experimental','hardware_qualified':False,
     'prepared_formats':['overcue-stems/4','stemd-cache/1'],
-    'prepared_containers':['OVPGZ001','OVPGZ003'], 'stem_page_codecs':['zlib','flac-96k'],
+    'prepared_containers':['OVPGZ001','OVPGZ003','OVPGZ004'], 'stem_page_codecs':['zlib','flac-96k','flac-44k1'],
+    # The app removes a stick's pre-1.0 DJ profile store only when the runtime on it reads DJ Profile 1.0.
+    # A paired bundle that predates capability lists says nothing; read its verified native source instead.
+    'capabilities':(bundle_manifest['capabilities'] if bundle_manifest and 'capabilities' in bundle_manifest else
+        ['djprofile/1'] if '"djprofile/1"' in (RUNTIME_SOURCE/'mods/dj_profile.c').read_text(encoding='utf8',errors='replace') else []),
     'bundle_manifest_sha256':digest(a.runtime_bundle/'manifest.json') if a.runtime_bundle else None,
     'source_repository':bundle_manifest.get('source_repository') if bundle_manifest else 'https://github.com/OpticMystic/xdj-xz-toolkit',
     'source_directory':bundle_manifest.get('source_directory','.') if bundle_manifest else '.',
@@ -84,7 +108,7 @@ elif (runtime/'doom1.wad').is_file():
     'ota_runtime_smoke_sha256':digest(runtime/'xz-runtime-smoke') if (runtime/'xz-runtime-smoke').is_file() else None,
     'vjtools_connection':True,'vjtools_required':False},indent=2)+'\n')
 copy(a.runtime_bundle/'bootstrap.sh' if a.runtime_bundle else TOOLKIT/'vendor/tools/xz_runtime/orchestrator.sh',resources/'bootstrap.sh')
-for name in ('inference.py','overcue_roles.py','overcue_flac_pack.py','grouped_stems.py','models.json'):copy(TOOLKIT/'builder'/name,resources/'inference'/name)
+for name in ('inference.py','overcue_roles.py','overcue_flac_pack.py','grouped_stems.py','resample_source.py','stem_align.py','stem_waveforms.py','models.json'):copy(TOOLKIT/'builder'/name,resources/'inference'/name)
 licenses=resources/'licenses';licenses.mkdir(exist_ok=True)
 copy(APP/'LICENSE',licenses/'XZ-Mods-MIT.txt')
 copy(TOOLKIT/'mods/key/LICENSE-MPL-2.0',licenses/'Mozilla-MPL-2.0.txt')
@@ -124,7 +148,7 @@ for folder in ('cue','audio','key','ui','tests','doom','ota'):
             copy(path,source/'mods'/path.relative_to(RUNTIME_SOURCE/'mods'))
 for name in ('generate.py','source.json','BarlowSemiCondensed-Medium.ttf'):
     copy(RUNTIME_SOURCE/'mods/ui/fonts'/name,source/'mods/ui/fonts'/name)
-for name in ('xz_directfb_hook.c','mods_bridge.h','orchestrator.sh'):
+for name in ('xz_directfb_hook.c','xz_screen_server.h','xz_screen_codec.h','mods_bridge.h','orchestrator.sh'):
     copy(RUNTIME_SOURCE/'vendor/tools/xz_runtime'/name,source/'vendor/tools/xz_runtime'/name)
 for folder in ('build/dfb-generated','build/directfb-1.4-src/include','build/directfb-1.4-src/lib'):
     for path in (RUNTIME_SOURCE/'vendor'/folder).rglob('*.h'):copy(path,source/'vendor'/path.relative_to(RUNTIME_SOURCE/'vendor'))
@@ -136,8 +160,19 @@ if a.runtime_bundle:
                 raise ValueError('Unsafe runtime source archive member')
         archive.extractall(source)
 if a.runtime_bundle and (runtime/'xz-updater').is_file():
-    subprocess.run([sys.executable,str(RUNTIME_SOURCE/'mods/ota/publish.py'),'--bundle',str(a.runtime_bundle),
-                    '--output',str(resources/'ota-release'),'--label','XZ-Mods-local-runtime'],check=True)
+    oversized=any((a.runtime_bundle/name).stat().st_size>(16*1024*1024 if name=='source.zip' else 2*1024*1024)
+                  for name in ('libxz-mods.so','libxz-receiver.so','xz-doom','source.zip'))
+    if oversized:
+        record=json.loads((runtime/'manifest.json').read_text())
+        record['ota_unavailable_reason']='This runtime is larger than the XZ network updater supports. Update the USB loader in Set up USB.'
+        (runtime/'manifest.json').write_text(json.dumps(record,indent=2)+'\n')
+        for name in ('latest.xzu','manifest.bin','release.json'):
+            stale=resources/'ota-release'/name
+            if not stale.resolve().is_relative_to(resources.resolve()):raise ValueError('Unsafe OTA staging path')
+            stale.unlink(missing_ok=True)
+    else:
+        subprocess.run([sys.executable,str(RUNTIME_SOURCE/'mods/ota/publish.py'),'--bundle',str(a.runtime_bundle),
+                        '--output',str(resources/'ota-release'),'--label','XZ-Mods-local-runtime'],check=True)
 uv_record={'version':'0.11.33','url':'https://github.com/astral-sh/uv/releases/download/0.11.33/uv-x86_64-pc-windows-msvc.zip',
     'archive_sha256':'c253ce868ad48d29327b661452ce184c9e333e6d6f5bc8d6fcfbf4dd52b83442'}
 if not (resources/'uv.exe').is_file():
@@ -154,9 +189,16 @@ uv_record['executable_sha256']=digest(resources/'uv.exe')
 (resources/'uv-source.json').write_text(json.dumps(uv_record,indent=2)+'\n')
 subprocess.run([sys.executable,str(TOOLKIT/'builder/build_audio_helper.py'),'--zig',str(a.zig.resolve()),'--output',str(resources/'xz-audio-helper.exe')],check=True)
 subprocess.run([sys.executable,str(TOOLKIT/'builder/build_overcue_check.py'),'--zig',str(a.zig.resolve()),'--output',str(resources/'xz-overcue-check.exe')],check=True)
+# zig cc writes a debug database beside each Windows helper; it is not part of the shipped app.
+for name in ('xz-audio-helper.pdb','xz-overcue-check.pdb'):(resources/name).unlink(missing_ok=True)
 if a.skip_backend:
     if not (resources/'backend/xz-mods-service.exe').is_file():raise ValueError('Build the standalone backend before skipping its rebuild')
-else:subprocess.run([sys.executable,str(APP/'tools/build_backend.py'),'--toolkit',str(TOOLKIT)],check=True)
+else:
+    if a.quad_resources:
+        sys.path.insert(0,str(TOOLKIT))
+        from builder.quad_payload import install
+        install(a.quad_resources,resources,a.quad_profile_sha256)
+    subprocess.run([sys.executable,str(APP/'tools/build_backend.py'),'--toolkit',str(TOOLKIT)]+(['--quad-profile-sha256',a.quad_profile_sha256] if a.quad_resources else []),check=True)
 for path in resources.rglob('*'):
     if path.is_file() and (path.suffix.lower() in ('.key','.upd','.pth','.ckpt','.safetensors') or path.name in ('rbp','rbp.patched','autoexec.bin','imagedata.dat','XDJXZ_v126.zip')):
         raise ValueError('Public package contains a prohibited firmware/key asset: '+path.name)

@@ -1,0 +1,711 @@
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { mkdtemp, rm, readFile, readdir, writeFile, mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { serveUi } from './csp_server.mjs';
+import { killBrowser } from './kill_browser.mjs';
+
+// Drives the Manual page of ui/index.html in headless Edge over CDP, served with the app's real CSP. It checks the
+// section in the top bar, the chapter list in the side list, every chapter, the numbered points against the chapters' figure blocks, search, openManual, the
+// explainers, the reading position, the interface filter, reduced motion and narrow windows. No packages needed.
+// The menu map (ui/manual-map.js): its doorways, the tree, pan and zoom, keys, find, the screen panel, chapter links
+// both ways, every state, CLASSIC, window sizes and reduced motion, all under the app CSP.
+// Explainers are rendered clips, one per scene, listed by ui/assets/manual/media.js; an explainer without clips must be
+// hidden. Nothing on the start page or in an explainer may be an SVG drawing.
+// Run: node tools/verify_manual_tab.mjs   (XZ_MANUAL_SHOTS=<dir> saves screenshots and explainer frames;
+// XZ_MANUAL_MEDIA=<dir> serves a staged media copy from tools/import_manual_media.py --out <dir> over ui/, so the clip
+// player can be tested before the renders land; XZ_TEST_BROWSER overrides the browser)
+const app = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+// The Tauri host as far as the app asks at start; nothing here writes anywhere.
+function installMock() {
+  const fx = window.fx = { csp: [], calls: [] };
+  document.addEventListener('securitypolicyviolation', event => fx.csp.push(event.violatedDirective + ' ' + (event.blockedURI || 'inline') + ' ' + (event.sourceFile || '').split('/').pop() + ':' + event.lineNumber));
+  const results = {
+    list_mod_versions: { format: 'xz-mod-versions/1', versions: [{ id: 'v1', label: 'Fixture build', runtime_sha256: 'newsha', hardware_qualified: false, source_commit: 'abc' }], selected: { id: 'v1', pinned: true, revision: 1 }, bundled_id: 'v1' },
+    discover_usbs: { format: 'xz-usbs/1', usbs: [] }, discover_stem_usbs: { usbs: [] },
+    support_list: { limit: 32, reports: [] }, support_sources: { scan_generation: 'f'.repeat(32), sticks: [], other_sticks: [], excess_sticks: 0, xz: 'not_available' }
+  };
+  const jobs = [];
+  window.__TAURI__ = { core: { invoke: async (command, args) => {
+    fx.calls.push(command);
+    if (command === 'translation_action') { fx.providerAction = args.action; return args.action === 'detect' ? {python:'C:/XZ/python/Scripts/python.exe',model:'C:/XZ/model'} : {running:false,ok:true}; }
+    if (command === 'app_information') return { version: '0.5.0-preview.22.10', platform: 'windows', installed: true, update_channel: 'stable', release_page: 'https://github.com/OpticMystic/XZ-Mods/releases/latest', portable_url: '', release_notes: { releases: [] } };
+    if (command === 'check_app_update') return { phase: 'current', message: 'Up to date' };
+    if (command === 'support_reports') return { reports: [], limit: 200, migrated: 0 };
+    if (command === 'support_check_statuses') return { checked: 0, failed: 0, updated: [], unseen: [] };
+    if (command === 'list_volumes') return ['C:\\'];
+    if (command === 'start_job') { jobs.push(args.request); return jobs.length; }
+    if (command === 'job_status') { const method = jobs[args.id - 1].method; return method in results ? { running: false, ok: true, result: results[method] } : { running: false, ok: false, error: 'Not available in this test.' }; }
+    if (command === 'cancel_job') return {};
+    if (command.startsWith('xz_') || command.startsWith('support_')) return null;
+    return null;
+  } }, event: { listen: async () => () => {} } };
+  window.txt = selector => document.querySelector(selector)?.textContent.replace(/\s+/g, ' ').trim() || '';
+}
+
+// What the chapters say: every ```figure block's numbered points, in order, straight from manual/chapters/*.md.
+const book = JSON.parse(await readFile(join(app, 'manual/manual.json'), 'utf8'));
+const chapters = {};
+for (const { slug } of book.chapters) {
+  const text = (await readFile(join(app, 'manual/chapters', slug + '.md'), 'utf8')).replace(/\r\n/g, '\n');
+  const figures = [...text.matchAll(/^```figure[^\n]*\n([\s\S]*?)^```/gm)].map(m => [...m[1].matchAll(/^(\d+)\s*@\s*(\d+)\s*,\s*(\d+)\s+(.+?)\s*\|/gm)].map(c => ({ n: c[1], x: +c[2], y: +c[3], name: c[4] })));
+  const explainers = [...text.matchAll(/^```explainer (\S+)/gm)].map(m => m[1]);
+  if (/^```explainer (three-band|usb-diary)\b/m.test(text)) throw Error(slug + ': three-band and usb-diary have no physical subject; the chapter text carries them');
+  chapters[slug] = { figures, explainers };
+}
+const manualJs = await readFile(join(app, 'ui/manual/index.js'), 'utf8');
+assert(/^\/\/ Generated by tools\/build_manual\.py app/.test(manualJs), 'ui/manual/index.js is generated');
+
+const server = await serveUi(app, { overlay: process.env.XZ_MANUAL_MEDIA });
+const profile = await mkdtemp(join(tmpdir(), 'xz-manual-'));
+const child = spawn(process.env.XZ_TEST_BROWSER || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+  ['--headless=new', '--disable-gpu', '--no-first-run', '--autoplay-policy=no-user-gesture-required', '--remote-debugging-port=0', '--user-data-dir=' + profile, 'about:blank'], { stdio: 'ignore', windowsHide: true });
+let socket, base, passed = 0;
+const shots = process.env.XZ_MANUAL_SHOTS;
+try {
+  for (let attempt = 0; attempt < 100 && !base; attempt++) {
+    try { base = 'http://127.0.0.1:' + (await readFile(join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]; }
+    catch { await new Promise(done => setTimeout(done, 100)); }
+  }
+  assert(base, 'Browser did not start');
+  const target = (await (await fetch(base + '/json/list', { signal: AbortSignal.timeout(5000) })).json()).find(item => item.type === 'page');
+  socket = new WebSocket(target.webSocketDebuggerUrl);
+  await new Promise((done, fail) => { socket.onopen = done; socket.onerror = () => fail(Error('CDP connection failed')); });
+  let sequence = 0;
+  const errors = [], pending = new Map();
+  socket.onmessage = event => {
+    const data = JSON.parse(event.data), task = pending.get(data.id);
+    if (data.method === 'Runtime.exceptionThrown') errors.push(data.params.exceptionDetails.exception?.description || data.params.exceptionDetails.text);
+    if (data.method === 'Runtime.consoleAPICalled' && data.params.type === 'error') errors.push('console.error: ' + data.params.args.map(a => a.value ?? a.description).join(' '));
+    if (data.method === 'Log.entryAdded' && data.params.entry.level === 'error' && !/favicon/.test(data.params.entry.url || '')) errors.push('log: ' + data.params.entry.text + ' ' + (data.params.entry.url || ''));
+    if (!task) return;
+    pending.delete(data.id);
+    data.error ? task.reject(Error(JSON.stringify(data.error))) : task.resolve(data.result);
+  };
+  const send = (method, params = {}) => new Promise((resolve, reject) => { const id = ++sequence; pending.set(id, { resolve, reject }); socket.send(JSON.stringify({ id, method, params })); setTimeout(() => reject(Error('CDP timed out: ' + method)), 20000); });
+  const evaluate = async expression => {
+    const value = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+    if (value.exceptionDetails) throw Error(expression.slice(0, 160) + ': ' + (value.exceptionDetails.exception?.description || value.exceptionDetails.text));
+    return value.result.value;
+  };
+  const sleep = ms => new Promise(done => setTimeout(done, ms));
+  const waitFor = async (expression, label, tries = 200) => {
+    for (let attempt = 0; attempt < tries; attempt++) { if (await evaluate(expression)) return; await sleep(25); }
+    throw Error('Timed out: ' + label + '\n  manual: ' + JSON.stringify(await evaluate('window.manualPage?.state()')) + '\n  page errors: ' + errors.join(' / '));
+  };
+  const check = async (expression, label) => {
+    const value = await evaluate(expression);
+    if (value !== true) throw Error('Failed: ' + label + (value === false ? '' : '\n  got: ' + JSON.stringify(value)) + '\n  page errors: ' + errors.join(' / '));
+    passed++; console.log('ok', label);
+  };
+  const ok = label => { passed++; console.log('ok', label); };
+  await send('Runtime.enable'); await send('Log.enable'); await send('Page.enable');
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: '(' + installMock + ')();' });
+  const size = (width, height) => send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+  const motion = value => send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value }] });
+  await size(1280, 860);
+  if (shots) await mkdir(shots, { recursive: true });
+  const shot = async (name, clip) => {
+    if (!shots) return;
+    await sleep(120);
+    const image = await send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip: { ...clip, scale: 1 } } : {}) });
+    await writeFile(join(shots, name + '.png'), Buffer.from(image.data, 'base64'));
+  };
+  const open = async (hash = '') => {
+    await send('Page.navigate', { url: 'about:blank' });
+    await sleep(50);
+    await send('Page.navigate', { url: server.url + 'index.html' + hash });
+    await waitFor(`document.readyState==='complete'&&typeof window.openManual==='function'&&typeof showPage==='function'`, 'page loaded');
+  };
+  const cspClean = async label => {
+    const violations = await evaluate(`window.fx?.csp||[]`);
+    assert.deepEqual(violations.slice(0, 5), [], 'CSP violations ' + label + ' (' + violations.length + ')');
+    assert.deepEqual(errors, [], 'page errors ' + label + ': ' + errors.join(' / '));
+  };
+  // Glyphs in buttons are the only SVG allowed in the hero, the tour and the explainers.
+  const drawings = `(()=>{const found=[...document.querySelectorAll('#manual .m-hero svg,#manual .mt-card svg,#manual .mx svg')].filter(s=>!s.closest('button'));return found.length?found.length+' drawing(s): '+found.map(s=>s.closest('.mx,.m-hero,.mt-card').className).slice(0,3).join('; '):true;})()`;
+  const fits = `(()=>{const out=[];if(document.documentElement.scrollWidth>innerWidth+1)out.push('page '+document.documentElement.scrollWidth+' wide');for(const item of document.querySelectorAll('#manual .m-chapter>*,#manual .m-start>*,#manual .m-side'))if(item.getBoundingClientRect().right>innerWidth+1)out.push((item.className||item.tagName)+' '+Math.round(item.getBoundingClientRect().right));return out.length?out.slice(0,4).join('; '):true;})()`;
+
+  await open();
+  await waitFor(`!!window.XZLocalization`, 'XZ localization loaded');
+  await check(`(()=>{const b=document.getElementById('xz-language-setup'),rail=document.querySelector('.topbar'),r=rail.getBoundingClientRect(),k=b?.getBoundingClientRect();return !!b?.closest('.top-version')&&r.width<=213&&k.left>=r.left&&k.right<=r.right&&k.bottom<=r.bottom&&rail.scrollHeight<=rail.clientHeight;})()`, 'language setup button sits cleanly in the rail .top-version without widening or overflowing the rail');
+  await evaluate(`document.getElementById('xz-language-setup').click()`);
+  await waitFor(`document.getElementById('xz-provider-python').value==='C:/XZ/python/Scripts/python.exe'`, 'independent resources detected');
+  await shot('00-language-provider');
+  await evaluate(`document.getElementById('xz-provider-connect').click()`);
+  await check(`window.fx.providerAction==='connect'`, 'provider wizard requests real native verification');
+  await evaluate(`document.getElementById('xz-language-close').click()`);
+  for (const locale of ['es','fr','de','pt','it','ja','ko','zh-Hans','zh-Hant','nl','pl','tr','uk','ar']) {
+    await evaluate(`document.getElementById('xz-language-setup').click();document.getElementById('xz-language-choice').value=${JSON.stringify(locale)};document.getElementById('xz-language-apply').click();document.getElementById('xz-language-close').click()`);
+    await check(`document.documentElement.lang===${JSON.stringify(locale)}&&document.documentElement.dir===${JSON.stringify(locale === 'ar' ? 'rtl' : 'ltr')}&&document.querySelector('nav button[data-page=tools] span').textContent!=='Tools'`, locale + ' applies translated navigation and direction');
+    if (process.env.XZ_FULL_CORPUS === '1') {
+      await check(`Object.keys(XZ_L10N_DATA.catalogs[${JSON.stringify(locale)}].entries).length===Object.keys(XZ_L10N_DATA.source.entries).length`, locale + ' contains the full corpus');
+      await evaluate(`openManual('desktop-app')`);
+      const sourceTitle = book.chapters.find(chapter => chapter.slug === 'desktop-app').title;
+      const translatedTitle = await evaluate(`XZLocalization.text(${JSON.stringify(sourceTitle)},'manual')`);
+      assert.notEqual(translatedTitle, sourceTitle, locale + ' translated manual title');
+      await waitFor(`document.querySelector('#m-view').textContent.includes(${JSON.stringify(translatedTitle)})`, locale + ' translated manual');
+      await evaluate(`(()=>{const input=document.getElementById('m-q');input.value=${JSON.stringify(translatedTitle)};input.dispatchEvent(new Event('input'));})()`);
+      await waitFor(`document.querySelector('.m-hit[data-slug="desktop-app"]')`, locale + ' translated search');
+      await check(`XZLocalization.text('E-8307: UNSUPPORTED DEVICE')==='E-8307: UNSUPPORTED DEVICE'&&XZTemplate(['Live ? ',''],'<private-name> {xz1}').includes('<private-name> {xz1}')`, locale + ' preserves stock alerts and runtime user text');
+      if (shots) await shot('locale-' + locale);
+    }
+  }
+  await evaluate(`localStorage.setItem('xz-mods.localization.v1', JSON.stringify({locale:'pt-BR'}));localStorage.setItem('xz-mods.localization.v1.imports', JSON.stringify({'pt-BR':{...XZ_L10N_DATA.catalogs.pt,locale:'pt-BR',entries:Object.fromEntries(Object.entries(XZ_L10N_DATA.catalogs.pt.entries).slice(0,1))}}))`);
+  await open();
+  await check(`XZLocalization.locale==='pt'&&JSON.parse(localStorage.getItem('xz-mods.localization.v1')).locale==='pt'&&document.querySelector('#xz-language-choice option[value="pt"]').textContent==='Portugu\u00eas'`, 'legacy Portuguese preference and catalog migrate to generic pt');
+  await evaluate(`localStorage.removeItem('xz-mods.localization.v1.imports')`);
+  await evaluate(`document.getElementById('xz-language-setup').click();document.getElementById('xz-language-choice').value='es';document.getElementById('xz-language-apply').click();document.getElementById('xz-language-close').click();openManual('browse')`);
+  await waitFor(`document.querySelector('#manual').textContent.includes(XZLocalization.text('Goes up one level.','manual'))&&XZLocalization.text('Goes up one level.','manual')!=='Goes up one level.'`, 'manual prose translated after lazy load');
+  await check(`document.querySelector('#manual').textContent.includes('BACK')`, 'printed BACK retained in translated manual');
+  await evaluate(`(async()=>{const c=structuredClone(XZ_L10N_DATA.catalogs.es);const id=Object.keys(c.entries).find(id=>XZ_L10N_DATA.source.entries[id].source==='Tools');c.entries[id].text='Herramientas importadas';const input=document.getElementById('xz-language-import');const transfer=new DataTransfer();transfer.items.add(new File([JSON.stringify(c)],'xz-es.json',{type:'application/json'}));input.files=transfer.files;await input.onchange({target:input});document.getElementById('xz-language-choice').value='es';document.getElementById('xz-language-apply').click();})()`);
+  await check(`document.querySelector('nav button[data-page=tools] span').textContent==='Herramientas importadas'`, 'offline file import installs and applies reviewed text');
+  await open();
+  await check(`XZLocalization.locale==='es'&&document.querySelector('nav button[data-page=tools] span').textContent==='Herramientas importadas'`, 'XZ language and imported catalog survive restart');
+  await evaluate(`localStorage.removeItem('xz-mods.localization.v1.imports')`);
+  await check(`(()=>{const c=structuredClone(XZ_L10N_DATA.catalogs.es);c.source_revision='stale';try{XZLocalization.valid(c);return false;}catch{return true;}})()`, 'stale import rejected');
+  await evaluate(`document.getElementById('xz-language-setup').click();document.getElementById('xz-language-choice').value='en';document.getElementById('xz-language-apply').click();document.getElementById('xz-language-close').click()`);
+  await open();
+  await check(`[...document.querySelectorAll('.topbar nav button')].map(b=>b.dataset.page).join()==='setup,stems,dj-profile,updates,tools,manual,licenses,my-reports'&&document.querySelector('nav button[data-page=manual] use').getAttribute('href')==='#i-book'&&txt('nav button[data-page=manual]')==='Manual'`, 'the top bar has Manual, with its book glyph, between Tools and About');
+  await evaluate(`document.querySelector('nav button[data-page=manual]').click()`);
+  await waitFor(`manualPage.state().view==='start'&&document.querySelectorAll('.mt-card').length>0`, 'start page');
+  await check(`txt('#page-title')==='Manual'&&document.querySelector('nav button[data-page=manual]').classList.contains('selected')&&!document.getElementById('manual').classList.contains('hidden')&&document.querySelector('#ctx-manual:not([hidden]) .m-side .m-toc')&&getComputedStyle(document.getElementById('ctx')).display==='block'`, 'the Manual section opens the Manual page, is selected and puts the chapter list in the side list');
+  const media = await evaluate(`manualArt.media()`);
+  assert.equal(media.format, 'xz-manual-media/1', 'ui/assets/manual/media.js is loaded');
+  console.log('   media: ' + (process.env.XZ_MANUAL_MEDIA ? 'staged copy ' + process.env.XZ_MANUAL_MEDIA : 'ui/assets/manual') + '; clips for ' + Object.keys(media.explainers).join(', ') + '; hero ' + (media.hero.interim ? 'interim cable render' : 'rendered'));
+  await check(`document.querySelectorAll('.mt-card').length===XZ_MANUAL.tour.length&&document.querySelectorAll('.m-path-ch').length===XZ_MANUAL.chapters.length&&document.querySelectorAll('.m-toc-ch').length===${book.chapters.length}&&document.querySelectorAll('.m-pick button').length===3`, 'the start page shows the tour, the interface choice and every chapter');
+  await check(`(()=>{const v=document.querySelector('.m-hero video.m-hero-video'),h=manualArt.media().hero;return !!v&&v.getAttribute('src')===h.video&&v.getAttribute('poster')===h.poster&&v.muted&&v.loop&&!!(v.compareDocumentPosition(document.querySelector('.m-start-title'))&Node.DOCUMENT_POSITION_FOLLOWING)||{src:v?.getAttribute('src'),poster:v?.getAttribute('poster')};})()`, 'the hero is the rendered clip of the model, muted, above the title');
+  await waitFor(`(()=>{const v=document.querySelector('.m-hero-video');return !v.paused&&v.currentTime>0;})()`, 'the hero clip plays');
+  ok('the hero clip plays once the start page shows');
+  await evaluate(`document.querySelector('.m-hero-toggle').click()`);
+  await check(`document.querySelector('.m-hero-video').paused&&document.querySelector('.m-hero-toggle').getAttribute('aria-label')==='Play the picture'`, 'the hero has a pause button');
+  await evaluate(`document.querySelector('.m-hero-toggle').click()`);
+  await evaluate(`document.querySelector('.mt-grid').scrollIntoView({block:'center'})`);
+  await waitFor(`[...document.querySelectorAll('.mt-card .mt-art img')].every(i=>i.complete&&i.naturalWidth>0)`, 'tour pictures load');
+  await check(`(()=>{const imgs=[...document.querySelectorAll('.mt-card .mt-art img')];return imgs.length===XZ_MANUAL.tour.length&&imgs.every((i,k)=>i.getAttribute('src')===XZ_MANUAL.tour[k].img&&i.getAttribute('src').startsWith('manual/shots/')&&i.getAttribute('src').endsWith('.webp')&&i.naturalWidth===XZ_MANUAL.tour[k].w&&i.naturalHeight===XZ_MANUAL.tour[k].h);})()`, 'every tour tile shows its picture, a render, at its own size');
+  await check(drawings, 'no SVG drawing on the start page: the hero and the tour are renders');
+  if (shots) { await size(1280, 1500); await evaluate(`document.querySelector('.mt-grid').scrollIntoView({block:'start'})`); await shot('01-tour', await evaluate(`(()=>{const r=document.querySelector('.mt-grid').getBoundingClientRect();return {x:r.left,y:r.top+scrollY,width:r.width,height:r.height};})()`)); await size(1280, 860); }
+  await evaluate(`document.getElementById('card').scrollTo(0,0)`);
+  await shot('01-start');
+  await cspClean('on the start page');
+  ok('no CSP violations and no page errors on the start page');
+
+  // Every chapter, its figures and their numbered points.
+  let figuresChecked = 0, marksChecked = 0;
+  for (const { slug, title } of book.chapters) {
+    await evaluate(`openManual(${JSON.stringify(slug)})`);
+    await waitFor(`manualPage.state().view==='chapter'&&manualPage.state().slug===${JSON.stringify(slug)}`, 'chapter ' + slug);
+    const seen = await evaluate(`(()=>{const a=document.querySelector('.m-chapter');return {title:txt('.mc-title'),focus:document.activeElement===a.querySelector('.mc-title'),
+      figures:[...a.querySelectorAll('.mf')].map(f=>[...f.querySelectorAll('.mf-mark')].map(m=>({n:m.dataset.n,x:+m.dataset.x,y:+m.dataset.y,left:m.style.left,top:m.style.top,legend:!!f.querySelector('.mf-legend li[data-n="'+m.dataset.n+'"]'),label:m.getAttribute('aria-label'),desc:document.getElementById(m.getAttribute('aria-describedby'))?.dataset.n}))),
+      sizes:[...a.querySelectorAll('.mf-stage img')].map(i=>[i.getAttribute('width'),i.getAttribute('height')]),
+      broken:[...a.querySelectorAll('img')].filter(i=>i.complete&&i.naturalWidth===0&&i.getAttribute('loading')!=='lazy').length,
+      links:[...a.querySelectorAll('a.m-link')].length, heads:[...a.querySelectorAll('h3[data-anchor]')].length, pager:a.parentElement.querySelectorAll('.m-pager button').length}})()`);
+    assert.equal(seen.title, title, slug + ': title');
+    assert(seen.focus, slug + ': focus moves to the chapter title');
+    const expected = chapters[slug].figures;
+    assert.equal(seen.figures.length, expected.length, slug + ': one figure per ```figure block');
+    expected.forEach((points, f) => {
+      assert.equal(seen.figures[f].length, points.length, `${slug} figure ${f + 1}: one numbered point per callout`);
+      points.forEach((point, i) => {
+        const mark = seen.figures[f][i];
+        assert.equal(mark.n, point.n, `${slug} figure ${f + 1}: point ${i + 1} number`);
+        assert(mark.label.startsWith(point.n + ': ' + point.name.replace(/\*\*/g, '').slice(0, 6)), `${slug} figure ${f + 1} point ${point.n}: label ${mark.label}`);
+        assert(mark.left === mark.x + '%' && mark.top === mark.y + '%', `${slug} figure ${f + 1} point ${point.n}: placed at its x,y`);
+        assert(mark.x >= 0 && mark.x <= 100 && mark.y >= 0 && mark.y <= 100, `${slug} figure ${f + 1} point ${point.n}: inside the picture`);
+        assert(mark.legend && mark.desc === point.n, `${slug} figure ${f + 1} point ${point.n}: described by its legend row`);
+        marksChecked++;
+      });
+      figuresChecked++;
+    });
+    assert.equal(seen.pager, slug === book.chapters[0].slug || slug === book.chapters.at(-1).slug ? 1 : 2, slug + ': previous and next');
+  }
+  ok(`every chapter loads with its title, ${figuresChecked} figures and ${marksChecked} numbered points match the chapters' callouts`);
+
+  // Positions in pixels: a point's centre sits where the chapter says, in the picture's own pixels.
+  await evaluate(`openManual('four-decks')`);
+  await waitFor(`manualPage.state().slug==='four-decks'`, 'four-decks');
+  await evaluate(`document.querySelector('.mf').scrollIntoView({block:'center'})`);
+  await waitFor(`[...document.querySelectorAll('.mf')][0].querySelector('.mf-stage img').complete&&[...document.querySelectorAll('.mf')][0].querySelector('.mf-stage img').naturalWidth>0`, 'four-decks first picture');
+  const first = chapters['four-decks'].figures[0];
+  await check(`(()=>{const f=document.querySelector('.mf'),img=[...f.querySelectorAll('.mf-stage img')].find(i=>i.offsetWidth),r=img.getBoundingClientRect(),k=r.width/img.naturalWidth,out=[];
+    ${JSON.stringify(first)}.forEach(p=>{const m=f.querySelector('.mf-mark[data-n="'+p.n+'"]').getBoundingClientRect();const dx=m.left+m.width/2-(r.left+p.x*k),dy=m.top+m.height/2-(r.top+p.y*k);if(Math.hypot(dx,dy)>1.5)out.push(p.n+' off by '+dx.toFixed(1)+','+dy.toFixed(1));});return out.length?out.join('; '):true;})()`, 'numbered points sit on the picture where the chapter puts them');
+
+  // Hover, focus and keys on the numbered points.
+  await evaluate(`document.querySelector('.mf').scrollIntoView({block:'center'})`);
+  await sleep(500);
+  const markBox = await evaluate(`(()=>{const r=document.querySelector('.mf .mf-mark[data-n="2"]').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2];})()`);
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: markBox[0], y: markBox[1] });
+  await waitFor(`document.querySelector('.mf .mf-mark[data-n="2"]').classList.contains('is-on')`, 'hover highlights point 2');
+  await check(`(()=>{const f=document.querySelector('.mf');return f.querySelector('.mf-tip').classList.contains('is-on')&&f.querySelector('.mf-tip').textContent.includes(f.querySelector('.mf-legend li[data-n="2"] b').textContent)&&f.querySelector('.mf-legend li[data-n="2"]').classList.contains('is-on')&&f.querySelector('.mf-stage').classList.contains('has-spot')&&f.querySelector('.mf-stage').style.getPropertyValue('--sx')===f.querySelector('.mf-mark[data-n="2"]').dataset.x+'%';})()`, 'pointing at a number highlights it, lights its legend row, spotlights it and shows its text');
+  await shot('03-hotspot', await evaluate(`(()=>{document.querySelector('.mf').scrollIntoView({block:'nearest'});const r=document.querySelector('.mf').getBoundingClientRect();return {x:Math.max(0,r.left-20),y:Math.max(0,r.top+scrollY-20),width:Math.min(innerWidth,r.width+40),height:r.height+40};})()`));
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 5 });
+  await waitFor(`!document.querySelector('.mf .mf-stage').classList.contains('has-spot')`, 'leaving clears the highlight');
+  await check(`document.querySelectorAll('.mf')[0].querySelectorAll('.mf-mark[tabindex="0"]').length===1&&document.querySelectorAll('.mf')[0].querySelectorAll('.mf-mark[tabindex="-1"]').length===document.querySelectorAll('.mf')[0].querySelectorAll('.mf-mark').length-1`, 'the numbered points are one tab stop');
+  await evaluate(`document.querySelector('.mf .mf-mark').focus()`);
+  await check(`document.querySelector('.mf .mf-mark[data-n="1"]').classList.contains('is-on')`, 'focusing a number highlights it');
+  for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 });
+  await check(`document.activeElement.dataset.n==='2'&&document.activeElement.classList.contains('is-on')&&document.activeElement.tabIndex===0`, 'arrow keys move between the numbers');
+  await evaluate(`document.activeElement.blur()`);
+  await evaluate(`document.querySelector('.mf .mf-tool[aria-pressed]').click()`);
+  await check(`document.querySelector('.mf .mf-tool[aria-pressed]').getAttribute('aria-pressed')==='true'&&document.querySelector('.mf .mf-mark.is-on')?.dataset.n==='1'`, 'Play starts at the first number');
+  await waitFor(`document.querySelector('.mf .mf-mark.is-on')?.dataset.n==='2'`, 'Play steps to the second number', 200);
+  ok('Play steps through the numbers in order');
+  await evaluate(`document.querySelector('.mf .mf-tool[aria-pressed]').click()`);
+  await check(`document.querySelector('.mf .mf-tool[aria-pressed]').getAttribute('aria-pressed')==='false'`, 'Pause stops it');
+
+  // The four-deck explainer follows the numbered steps in the chapter: scene N shows clip N.
+  const fourDef = media.explainers['four-deck-setup'];
+  const FOUR = `document.querySelector('.mx[data-mx="four-deck-setup"]')`;
+  if (fourDef) {
+    await check(`(()=>{const x=${FOUR},list=document.querySelector('ol.steps.mx-bound');return !!x&&x.dataset.mounted==='1'&&!x.hidden&&!!list&&list.children.length===8&&+x.dataset.scenes===8&&x.querySelectorAll('.mx-dots button').length===8&&x.querySelectorAll('.mx-stage video').length===1;})()`, 'the four-deck explainer binds to the 8 setup steps, with one clip player');
+    await evaluate(`${FOUR}.scrollIntoView({block:'center'})`);
+    await waitFor(`${FOUR}.classList.contains('is-playing')&&!${FOUR}.querySelector('video').paused`, 'the explainer plays once it is in view');
+    ok('the explainer plays its first clip by itself once it scrolls into view');
+    const fourBox = async () => evaluate(`(()=>{${FOUR}.scrollIntoView({block:'nearest'});const r=${FOUR}.getBoundingClientRect();return {x:r.left,y:r.top+scrollY,width:r.width,height:r.height};})()`);
+    for (let step = 1; step <= 8; step++) {
+      const clip = fourDef.scenes[step - 1];
+      await evaluate(`${FOUR}.querySelector('.mx-dots button[data-i="${step}"]').click()`);
+      await check(`(()=>{const x=${FOUR},v=x.querySelector('video'),li=document.querySelector('ol.steps.mx-bound').children[${step - 1}],dur=parseInt(x.style.getPropertyValue('--mx-dur'));return v.getAttribute('src')===${JSON.stringify(clip.video)}&&v.getAttribute('poster')===${JSON.stringify(clip.poster)}&&v.loop===${!!clip.loop}&&x.dataset.scene==='${step}'&&li.classList.contains('is-now')&&x.querySelector('.mx-cap').textContent.includes(li.textContent.trim().slice(0,20))&&dur>=${Math.round(clip.seconds * 1000)}&&dur>=3800||{src:v.getAttribute('src'),dur};})()`, 'four-deck step ' + step + ': clip ' + step + ', the caption and the list agree; the scene lasts at least its clip');
+      if (step === 1) { await waitFor(`!${FOUR}.querySelector('video').paused&&${FOUR}.querySelector('video').currentTime>0`, 'a picked step plays its clip'); ok("picking a step plays that step's clip"); }
+      if (shots) { await sleep(1200); await shot('04-four-deck-step-' + step, await fourBox()); }
+    }
+    await check(`!${FOUR}.classList.contains('is-playing')`, 'choosing a step takes over from the autoplay');
+    await evaluate(`document.querySelector('ol.steps.mx-bound').children[2].click()`);
+    await check(`${FOUR}.dataset.scene==='3'&&${FOUR}.querySelector('video').getAttribute('src')===${JSON.stringify(fourDef.scenes[2].video)}`, "clicking a step in the list shows that step's clip");
+  } else {
+    await check(`(()=>{const x=${FOUR};return !!x&&x.hidden&&x.dataset.missing==='not rendered'&&!document.querySelector('ol.steps.mx-bound')&&document.querySelectorAll('.m-chapter ol.steps')[0].children.length>0;})()`, 'the four-deck explainer has no clips yet: it is hidden and the steps read as a plain list');
+  }
+
+  // Every explainer in every chapter: clips per scene where rendered, hidden where not, never a drawing.
+  const shown = [];
+  for (const [slug, info] of Object.entries(chapters)) {
+    if (!info.explainers.length) continue;
+    await evaluate(`openManual(${JSON.stringify(slug)})`);
+    await waitFor(`manualPage.state().slug===${JSON.stringify(slug)}`, slug);
+    const found = await evaluate(`[...document.querySelectorAll('.mx')].map(x=>({kind:x.dataset.mx,mounted:x.dataset.mounted||'',hidden:x.hidden,missing:x.dataset.missing||'',scenes:+(x.dataset.scenes||0),videos:x.querySelectorAll('.mx-stage video').length,dots:x.querySelectorAll('.mx-dots button').length}))`);
+    assert.deepEqual(found.map(x => x.kind), info.explainers, slug + ': every explainer block is in the page');
+    for (const x of found) {
+      const def = media.explainers[x.kind];
+      if (!def) { assert(x.hidden && x.missing === 'not rendered' && !x.mounted && !x.videos, `${slug} ${x.kind}: no clips, so it is hidden (${JSON.stringify(x)})`); continue; }
+      assert(x.mounted === '1' && !x.hidden && x.videos === 1, `${slug} ${x.kind}: mounted with its clip player (${JSON.stringify(x)})`);
+      assert.equal(x.scenes, def.scenes.length, `${slug} ${x.kind}: one clip per scene`);
+      assert.equal(x.dots, def.scenes.length > 1 ? def.scenes.length : 0, `${slug} ${x.kind}: one step button per scene`);
+      shown.push(x.kind);
+    }
+    await check(drawings, slug + ': no SVG drawing in its explainers');
+    for (const [k, x] of found.entries()) {
+      const def = media.explainers[x.kind];
+      if (!def) continue;
+      for (let scene = 1; scene <= def.scenes.length; scene++) {
+        const clip = def.scenes[scene - 1];
+        if (def.scenes.length > 1) await evaluate(`document.querySelectorAll('.mx')[${k}].querySelector('.mx-dots button[data-i="${scene}"]').click()`);
+        await check(`(()=>{const v=document.querySelectorAll('.mx')[${k}].querySelector('video');return v.getAttribute('src')===${JSON.stringify(clip.video)}&&v.getAttribute('poster')===${JSON.stringify(clip.poster)};})()`, `${slug} ${x.kind} scene ${scene}: clip ${scene} and its poster`);
+        if (shots) {
+          await evaluate(`document.querySelectorAll('.mx')[${k}].scrollIntoView({block:'center'})`);
+          await sleep(1400);
+          await shot(`05-${x.kind}-${scene}`, await evaluate(`(()=>{document.querySelectorAll('.mx')[${k}].scrollIntoView({block:'nearest'});const r=document.querySelectorAll('.mx')[${k}].getBoundingClientRect();return {x:r.left,y:r.top+scrollY,width:r.width,height:r.height};})()`));
+        }
+      }
+    }
+  }
+  ok(`every explainer block is drawn by its clips where rendered (${shown.join(', ') || 'none yet'}) and hidden where not`);
+
+
+  // Search.
+  await evaluate(`showPage('manual')`);
+  const search = async query => { await evaluate(`(()=>{const i=document.getElementById('m-q');i.value=${JSON.stringify(query)};i.dispatchEvent(new Event('input'));})()`); await waitFor(`manualPage.state().view==='search'&&document.querySelector('.m-results-head')`, 'search ' + query); await sleep(150); };
+  const hits = () => evaluate(`[...document.querySelectorAll('.m-hit')].map(b=>b.dataset.slug+'#'+b.dataset.anchor)`);
+  for (const [query, slug] of [['loopback cable', 'four-decks'], ['E-8307', 'troubleshooting'], ['gate cue', 'performance'], ['3-band colours', 'screen-and-themes'], ['beat jump', 'performance'], ['Repair library', 'desktop-app'], ['KEY SYNC', 'performance']]) {
+    await search(query);
+    const found = await hits();
+    assert(found.length > 0, 'search finds ' + query);
+    assert(found.slice(0, 3).some(hit => hit.startsWith(slug + '#')), `search ${query}: ${slug} among the first results (${found.slice(0, 3)})`);
+  }
+  await check(`[...document.querySelectorAll('.m-hit mark')].some(m=>/key sync/i.test(m.textContent)||/key|sync/i.test(m.textContent))`, 'search marks the words it found');
+  ok('search finds loopback cable, E-8307, gate cue, 3-band colours, beat jump, Repair library and KEY SYNC in their chapters');
+  await search('loopback');
+  await shot('06-search');
+  await search('zzqx nothing');
+  await check(`document.querySelectorAll('.m-hit').length===0&&txt('.m-results-head p').includes('Nothing in the manual')&&!!document.querySelector('.m-empty')`, 'a search with no match says so');
+  await search('<img src=x onerror=alert(1)>');
+  await check(`!document.querySelector('#m-view img[src="x"]')`, 'search text is never parsed as HTML');
+  await search('SYNC on decks 3 and 4');
+  const syncHit = (await hits())[0];
+  assert.equal(syncHit, 'four-decks#sync-on-decks-3-and-4', 'a heading is the first hit for its own words');
+  for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r' } : {}) });
+  await evaluate(`document.getElementById('m-q').focus()`);
+  for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r' } : {}) });
+  await waitFor(`manualPage.state().view==='chapter'&&manualPage.state().slug==='four-decks'`, 'Enter opens the first hit');
+  await check(`(()=>{const h=document.querySelector(':is(h3,h4)[data-anchor="sync-on-decks-3-and-4"]').getBoundingClientRect();return h.top>=-2&&h.top<innerHeight/2&&document.activeElement.dataset.anchor==='sync-on-decks-3-and-4';})()`, 'Enter in search opens the first hit at its heading');
+
+  // openManual from anywhere in the app, as the four-deck guide's button does.
+  await evaluate(`showPage('setup')`);
+  await evaluate(`openManual('four-decks')`);
+  await waitFor(`!document.getElementById('manual').classList.contains('hidden')&&manualPage.state().slug==='four-decks'`, "openManual('four-decks')");
+  await check(`txt('#page-title')==='Manual'&&document.querySelector('nav button[data-page=manual]').classList.contains('selected')&&document.activeElement===document.querySelector('.mc-title')&&document.querySelector('.m-toc-ch[aria-current=page]').dataset.slug==='four-decks'&&document.querySelectorAll('.m-toc-sec').length>4`, "openManual('four-decks') shows the Manual page at Four decks, with its sections in the list");
+  await shot('02-four-decks');
+  await evaluate(`showPage('tools')`);
+  await evaluate(`openManual('performance','ram-tracks')`);
+  await waitFor(`manualPage.state().slug==='performance'`, 'openManual with an anchor');
+  await check(`(()=>{const h=document.querySelector(':is(h3,h4)[data-anchor="ram-tracks"]').getBoundingClientRect();return h.top>=-2&&h.top<innerHeight/2||'top '+h.top+' scrolled '+document.getElementById('card').scrollTop+' height '+document.getElementById('card').scrollHeight;})()`, 'openManual(chapter, anchor) scrolls to that heading');
+  await evaluate(`openManual('no-such-chapter')`);
+  await waitFor(`manualPage.state().view==='start'`, 'an unknown chapter opens the start page');
+  ok('an unknown chapter opens the start page');
+  // Links between chapters and the app's "Read in the manual" links all land on a heading that exists.
+  const appLinks = await evaluate(`[...document.querySelectorAll('[data-manual-open]')].map(e=>e.dataset.manualOpen)`);
+  assert(appLinks.length >= 3, 'the app links into the manual where it explains a feature (' + appLinks.length + ')');
+  for (const target of appLinks) {
+    const [slug, anchor] = target.split('#');
+    await evaluate(`openManual(${JSON.stringify(slug)},${JSON.stringify(anchor || '')})`);
+    await waitFor(`manualPage.state().slug===${JSON.stringify(slug)}`, target);
+    if (anchor) assert(await evaluate(`!!document.querySelector(':is(h3,h4)[data-anchor=${JSON.stringify(anchor)}]')`), 'Read in the manual: ' + target + ' has its heading');
+  }
+  ok(`${appLinks.length} "Read in the manual" links land on chapters and headings that exist`);
+  await evaluate(`openManual('getting-started')`);
+  await waitFor(`manualPage.state().slug==='getting-started'`, 'getting started');
+  await evaluate(`document.querySelector('.m-chapter a.m-link[data-chapter="four-decks"]').click()`);
+  await waitFor(`manualPage.state().slug==='four-decks'`, 'a link between chapters');
+  ok('a link in a chapter opens the chapter it names');
+  await evaluate(`document.querySelector('.m-pager .m-next').click()`);
+  await waitFor(`manualPage.state().slug==='mods-menu'`, 'Next');
+  await evaluate(`document.querySelector('.m-pager .m-prev').click()`);
+  await waitFor(`manualPage.state().slug==='four-decks'`, 'Previous');
+  ok('Previous and Next move between chapters');
+
+  // Galleries open full size.
+  await evaluate(`document.querySelector('.mg-shot').click()`);
+  await check(`document.getElementById('m-box').open&&document.querySelector('#m-box img').getAttribute('src').startsWith('manual/shots/')`, 'a gallery picture opens full size');
+  for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await check(`!document.getElementById('m-box').open`, 'Escape closes it');
+
+  // Reading position: scroll, leave, come back after a restart.
+  await evaluate(`document.querySelector(':is(h3,h4)[data-anchor="sync-on-decks-3-and-4"]').scrollIntoView()`);
+  await sleep(700);
+  await check(`(()=>{const s=JSON.parse(localStorage.getItem('xz-manual/1'));return s.last.slug==='four-decks'&&s.last.anchor==='sync-on-decks-3-and-4'&&s.read['four-decks']>0.4;})()`, 'the reading position and progress are saved');
+  await check(`+document.querySelector('.m-bar span').style.transform.match(/[\\d.]+/)[0]>0.4&&document.querySelector('.m-toc-sec[aria-current=location]')?.dataset.anchor==='what-decks-3-and-4-can-do'`, 'the progress bar and the section list follow the reading');
+  await open();
+  await evaluate(`document.querySelector('nav button[data-page=manual]').click()`);
+  await waitFor(`manualPage.state().view==='start'&&document.querySelector('.m-continue')`, 'continue after a restart');
+  await check(`txt('.m-continue b').startsWith('Four decks')&&txt('.m-continue b').includes('SYNC on decks 3 and 4')`, 'after a restart the start page offers to continue where the reader left off');
+  await evaluate(`document.querySelector('.m-continue').click()`);
+  await waitFor(`manualPage.state().slug==='four-decks'`, 'continue');
+  await check(`(()=>{const h=document.querySelector(':is(h3,h4)[data-anchor="sync-on-decks-3-and-4"]').getBoundingClientRect();return h.top>=-2&&h.top<innerHeight/2;})()`, 'Continue returns to that section');
+
+  // Interface filter.
+  await evaluate(`document.querySelector('.m-seg [data-iface=modern]').click()`);
+  await check(`[...document.querySelectorAll('.m-chapter [data-iface=classic]')].every(e=>!e.offsetWidth&&!e.offsetHeight)&&[...document.querySelectorAll('.m-chapter [data-iface=modern]')].some(e=>e.offsetHeight)&&[...document.querySelectorAll('.m-chapter .mf img[data-iface]')].every(i=>(i.dataset.iface==='modern')===!!i.offsetHeight)`, 'MODERN hides CLASSIC-only parts and shows the MODERN picture of each MODS page');
+  await search('CLASSIC four-deck screen');
+  await check(`[...document.querySelectorAll('.m-hit')].every(b=>!b.querySelector('.m-hit-path').textContent.includes('CLASSIC'))`, 'search leaves out the other interface');
+  await evaluate(`document.querySelector('.m-seg [data-iface=both]').click()`);
+  await evaluate(`openManual('four-decks')`);
+
+  // The menu map: every screen the firmware draws, from the play screen, with the control that opens each.
+  const press = async (key, code, vk, text) => { for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key, code, windowsVirtualKeyCode: vk, ...(type === 'keyDown' && text ? { text } : {}) }); };
+  const MAP = `manualPage.state().map`;
+  const tree = JSON.parse(await readFile(join(app, 'manual/menu-tree/menu-tree.json'), 'utf8'));
+  const screensOf = iface => new Set(tree.nodes.filter(n => n.interface === iface).map(n => n.path.join('/'))).size;
+  await size(1440, 900);
+  await evaluate(`openManual()`); await waitFor(`manualPage.state().view==='start'`, 'start for the map');
+  await check(`!!document.querySelector('.m-mapcard')&&document.querySelectorAll('.m-mapcard-art img').length===XZ_MANUAL.map.preview.length&&!document.querySelector('.m-mapnav').hidden&&document.querySelector('.m-mapnav small').textContent==='${screensOf('modern')}'`, 'the start page and the chapter list both offer the menu map, with its screen count');
+  await check(drawings, 'the menu map doorway shows renders only');
+  await evaluate(`document.querySelector('.m-mapcard').click()`);
+  await waitFor(`manualPage.state().view==='map'&&${MAP}?.screen==='play-screen'&&document.querySelectorAll('.mm-card:not([hidden])').length>5`, 'the menu map opens');
+  await check(`(()=>{const s=${MAP};return s.iface==='modern'&&s.screens===${screensOf('modern')}&&document.querySelectorAll('.mm-card').length===s.screens&&document.querySelectorAll('.mm-card:not([hidden])').length===s.shown&&document.querySelector('[role=tree]').contains(document.querySelector('.mm-card[aria-selected=true]'))&&document.querySelector('.m-mapnav').getAttribute('aria-current')==='page'||s;})()`, `the map shows the ${screensOf('modern')} MODERN screens as a tree, the play screen selected`);
+  await check(`(()=>{const roots=[...document.querySelectorAll('.mm-card[aria-level="1"]:not([hidden])')],kids=[...document.querySelectorAll('.mm-card[aria-level="2"]:not([hidden])')];const x=c=>c.getBoundingClientRect().left;return roots.length>=1&&kids.length>=5&&kids.every(k=>x(k)>x(roots[0])+100);})()`, 'the play screen is on the left and what its keys open fans out to its right');
+  await check(`(()=>{const labels=[...document.querySelectorAll('.mm-label:not([hidden])')];return labels.length>=5&&labels.some(l=>l.querySelector('kbd')?.textContent==='MENU')&&labels.some(l=>/^Tap/.test(l.textContent)&&l.querySelector('.mm-scr'))&&labels.every(l=>l.querySelector('kbd,.mm-g'));})()`, 'every branch is labelled with its control: keys as keycaps, taps with the words on the screen');
+  // A screenshot run can reach this while the map camera is still moving. An empty visible set must not
+  // satisfy the wait before IntersectionObserver has assigned any sources.
+  await waitFor(`(()=>{const v=document.querySelector('.mm-view').getBoundingClientRect(),imgs=[...document.querySelectorAll('.mm-card:not([hidden]) .mm-thumb img')].filter(i=>{const r=i.getBoundingClientRect();return r.bottom>v.top&&r.top<v.bottom&&r.right>v.left&&r.left<v.right;});return imgs.length>0&&imgs.every(i=>i.getAttribute('src')&&i.complete&&i.naturalWidth===240);})()`, 'map thumbnails in view load');
+  await check(`(()=>{const imgs=[...document.querySelectorAll('.mm-thumb img')],loaded=imgs.filter(i=>i.getAttribute('src'));return loaded.length>0&&loaded.length<imgs.length&&loaded.every(i=>/^manual\\/map\\/t-[0-9a-f]{16}\\.webp$/.test(i.getAttribute('src')));})()`, 'thumbnails load lazily: the ones near the view only, each a render from ui/manual/map');
+  await shot('10-map-1440');
+  await cspClean('on the menu map');
+  ok('no CSP violations and no page errors on the menu map');
+
+  // Pan and zoom: drag, wheel, keys, fit.
+  const cam = () => evaluate(`${MAP}.cam`);
+  const viewBox = await evaluate(`(()=>{const r=document.querySelector('.mm-view').getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height};})()`);
+  let before = await cam();
+  const px = viewBox.x + viewBox.w - 60, py = viewBox.y + viewBox.h - 160;
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: px, y: py, button: 'left', clickCount: 1 });
+  for (let i = 1; i <= 6; i++) await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: px - i * 20, y: py - i * 10, button: 'left', buttons: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: px - 120, y: py - 60, button: 'left', clickCount: 1 });
+  let after = await cam();
+  assert(Math.abs(after.x - before.x + 120) < 2 && Math.abs(after.y - before.y + 60) < 2 && after.k === before.k, 'dragging the map moves it with the pointer: ' + JSON.stringify([before, after]));
+  ok('dragging pans the map with the pointer');
+  before = after;
+  await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: viewBox.x + 300, y: viewBox.y + 200, deltaX: 0, deltaY: -240 });
+  await waitFor(`${MAP}.cam.k>${before.k}`, 'the wheel zooms in');
+  after = await cam();
+  const wx = (viewBox.x + 300 - viewBox.x - before.x) / before.k, wx2 = (300 - after.x) / after.k;
+  assert(Math.abs(wx - wx2) < 1, 'the wheel zooms around the pointer');
+  ok('the wheel zooms in around the pointer');
+  await evaluate(`document.querySelector('.mm-card[aria-selected=true]').focus()`);
+  before = await cam();
+  await press('-', 'Minus', 189, '-');
+  await waitFor(`${MAP}.cam.k<${before.k - 0.01}`, '- zooms out');
+  await press('0', 'Digit0', 48, '0');
+  await sleep(500);
+  await check(`(()=>{const v=document.querySelector('.mm-view').getBoundingClientRect(),c=[...document.querySelectorAll('.mm-card:not([hidden])')].map(c=>c.getBoundingClientRect());return c.every(r=>r.left>=v.left-1&&r.right<=v.right+1&&r.top>=v.top-1&&r.bottom<=v.bottom+1);})()`, '- zooms out and 0 fits every open screen into the view');
+  await evaluate(`document.querySelector('.mm-tool[data-tool=plus]').click()`);
+  await waitFor(`${MAP}.cam.k>${(await cam()).k + 0.01}`, 'the + button zooms in');
+  ok('the zoom buttons and keys work');
+
+  // Keys walk the tree; Enter opens a screen; Escape closes it.
+  await evaluate(`manualMap.focus('play-screen')`);
+  await waitFor(`${MAP}.screen==='play-screen'&&document.activeElement.classList.contains('mm-card')`, 'focus on the play screen');
+  await evaluate(`document.querySelector('.mm-panel:not([hidden]) .mm-panel-head .mm-tool')?.click();document.querySelector('.mm-card[aria-selected=true]').focus()`);
+  await press('ArrowRight', 'ArrowRight', 39);
+  await check(`(()=>{const a=document.activeElement;return a.getAttribute('aria-level')==='2'&&a.getAttribute('aria-selected')==='true'&&${MAP}.screen===a.dataset.key&&a.dataset.key==='mods-home';})()`, 'ArrowRight walks from the play screen to MODS, the first branch');
+  await press('ArrowDown', 'ArrowDown', 40);
+  await check(`document.activeElement.getAttribute('aria-level')==='2'&&document.activeElement.dataset.key!=='mods-home'&&${MAP}.screen===document.activeElement.dataset.key`, 'ArrowDown walks to the next branch');
+  await press('ArrowUp', 'ArrowUp', 38);
+  await press('ArrowRight', 'ArrowRight', 39);
+  await check(`document.activeElement.getAttribute('aria-level')==='3'&&document.activeElement.getBoundingClientRect().left>0`, 'ArrowRight walks into a section of MODS');
+  await press('ArrowLeft', 'ArrowLeft', 37); await press('ArrowLeft', 'ArrowLeft', 37);
+  await check(`document.activeElement.dataset.key==='mods-home'&&document.activeElement.getAttribute('aria-expanded')==='false'&&${MAP}.shown<${screensOf('modern')}`, 'ArrowLeft goes back up, then closes the branch');
+  await press('ArrowRight', 'ArrowRight', 39);
+  await check(`document.activeElement.getAttribute('aria-expanded')==='true'`, 'ArrowRight opens it again');
+  await press('Enter', 'Enter', 13, '\r');
+  await waitFor(`${MAP}.panel&&!document.querySelector('.mm-panel').hidden&&document.querySelector('.mm-panel-title').textContent==='HOME'`, 'Enter opens the screen');
+  await waitFor(`(()=>{const i=document.querySelector('.mm-big-img');return i.complete&&i.naturalWidth===800&&i.naturalHeight===480&&/^manual\\/map\\/[0-9a-f]{16}\\.webp$/.test(i.getAttribute('src'));})()`, 'the big screen loads');
+  ok('Enter opens the screen at full size, 800 x 480, as the firmware drew it');
+  await press('Escape', 'Escape', 27);
+  await check(`!${MAP}.panel&&document.querySelector('.mm-panel').hidden&&document.activeElement.dataset.key==='mods-home'`, 'Escape closes the screen and keeps the place on the map');
+
+  // Find a screen, follow a path, read about it.
+  await evaluate(`(()=>{const q=document.querySelector('.mm-q');q.focus();q.value='beat jump';q.dispatchEvent(new Event('input'));})()`);
+  await waitFor(`document.querySelectorAll('.mm-found [role=option]').length>0`, 'search on the map');
+  await check(`document.querySelector('.mm-found [role=option] b').textContent==='BEAT JUMP PADS'&&document.querySelector('.mm-q').getAttribute('aria-expanded')==='true'`, 'Find a screen lists BEAT JUMP PADS first for "beat jump"');
+  await press('Enter', 'Enter', 13, '\r');
+  await waitFor(`${MAP}.screen==='mods-play-beat-jump-pads'&&${MAP}.panel`, 'Enter opens the found screen');
+  await sleep(500);
+  await check(`(()=>{const c=document.querySelector('.mm-card[aria-selected=true]').getBoundingClientRect(),v=document.querySelector('.mm-view').getBoundingClientRect();return c.left>=v.left&&c.right<=v.right&&c.top>=v.top&&c.top<v.bottom&&[...document.querySelectorAll('.mm-crumbs button')].map(b=>b.querySelector('b').textContent).join('>')==='PLAY SCREEN>HOME>PLAY>BEAT JUMP PADS';})()`, 'the found screen is opened in view, its branch opened, with its path from the play screen');
+  await check(`(()=>{const how=[...document.querySelectorAll('.mm-crumbs .mm-crumb-how')].map(e=>e.textContent);return how[0].includes('MENU')&&how.length===1&&document.querySelectorAll('.mm-crumbs li').length===4;})()`, 'the path names the control for each step (MENU; a tap on a screen name is said once)');
+  const states = await evaluate(`${MAP}.title&&document.querySelectorAll('.mm-strip button').length`);
+  assert(states > 1, 'BEAT JUMP PADS shows its states');
+  await evaluate(`document.querySelector('.mm-states-nav button[aria-label="Next state"]').click()`);
+  await check(`${MAP}.stateIndex===1&&document.querySelectorAll('.mm-strip button')[1].getAttribute('aria-pressed')==='true'&&!!document.querySelector('.mm-states-head .mm-move kbd,.mm-states-head .mm-move .mm-scr')`, `the states strip steps through the ${states} states and names the control between them`);
+  await check(`document.querySelectorAll('.mm-ways .mm-link-row').length>=1&&[...document.querySelectorAll('.mm-ways h4')].map(h=>h.textContent).join()==='How you get here,Where it leads'`, 'the screen lists how you get to it and where it leads');
+  await evaluate(`document.querySelector('.mm-pager button:last-child').click()`);
+  await waitFor(`${MAP}.screen!=='mods-play-beat-jump-pads'`, 'Next screen');
+  await evaluate(`document.querySelector('.mm-pager button:first-child').click()`);
+  await waitFor(`${MAP}.screen==='mods-play-beat-jump-pads'`, 'Previous screen');
+  ok('Previous and Next screen walk the map in order');
+  await shot('11-map-panel-1440');
+  const read = await evaluate(`(()=>{const b=document.querySelector('.mm-read');return b&&{text:b.textContent};})()`);
+  assert(read && /Beat jump/i.test(read.text), 'the screen links to its manual section: ' + JSON.stringify(read));
+  await evaluate(`document.querySelector('.mm-read').click()`);
+  await waitFor(`manualPage.state().view==='chapter'&&manualPage.state().slug==='performance'`, 'Read in the manual');
+  await check(`(()=>{const a=document.activeElement;return /^(beat-jump|change-the-jump-sizes)$/.test(a.dataset.anchor)&&a.getBoundingClientRect().top<innerHeight/2;})()`, 'Read in the manual opens the chapter at the section that explains the screen');
+  await check(`!document.querySelector('.m-root').classList.contains('m-map-on')&&!document.querySelector('.mm')`, 'leaving the map gives the chapter its usual layout');
+
+  // Chapters open the map at a screen.
+  const onMap = await evaluate(`(()=>{const b=document.querySelector('.m-chapter .m-onmap');return b&&{key:b.dataset.map,head:b.closest('[data-anchor]').dataset.anchor};})()`);
+  assert(onMap, 'a section the map shows has an "On the menu map" button');
+  await evaluate(`document.querySelector('.m-chapter .m-onmap').click()`);
+  await waitFor(`manualPage.state().view==='map'&&${MAP}?.screen===${JSON.stringify(onMap.key)}&&${MAP}.panel`, 'On the menu map');
+  ok(`"On the menu map" at ${onMap.head} opens the map at ${onMap.key}, with the screen open`);
+  await evaluate(`showPage('tools')`);
+  await evaluate(`openManual('menu-map','mods-extras-about-xz-mods')`);
+  await waitFor(`!document.getElementById('manual').classList.contains('hidden')&&${MAP}?.screen==='mods-extras-about-xz-mods'&&document.activeElement.dataset.key==='mods-extras-about-xz-mods'`, "openManual('menu-map', screen)");
+  ok("openManual('menu-map', screen) opens the map focused on that screen, from anywhere in the app");
+  const linked = await evaluate(`(()=>{const out=[];for(const [k,v] of Object.entries(XZ_MANUAL.map.sections))out.push([k,v,!!manualMap.resolve(v)]);return out;})()`);
+  assert(linked.length > 10 && linked.every(([, , found]) => found), 'every section link to the map lands on a screen');
+  ok(`${linked.length} chapter sections link to a screen on the map`);
+
+  // Branches, every state, the other interface.
+  await evaluate(`document.querySelector('.mm-tool[data-tool=collapse]').click()`);
+  const closed = await evaluate(`${MAP}.shown`);
+  await evaluate(`document.querySelector('.mm-tool[data-tool=expand]').click()`);
+  await check(`${MAP}.shown===${screensOf('modern')}&&${closed}<${screensOf('modern')}`, 'Close and Open every branch');
+  await evaluate(`[...document.querySelectorAll('.mm-card:not([hidden]) .mm-twist')][2].click()`);
+  await check(`${MAP}.shown<${screensOf('modern')}`, 'a branch button closes that branch');
+  await evaluate(`document.querySelector('.mm-tool[data-tool=expand]').click();document.querySelector('.mm-chip').click()`);
+  await sleep(400);
+  const perScreen = Object.values(tree.nodes.filter(n => n.interface === 'modern').reduce((a, n) => { const k = n.path.join('/'); a[k] = (a[k] || 0) + 1; return a; }, {}));
+  const laneCells = perScreen.filter(c => c > 1).reduce((a, c) => a + c, 0);
+  await check(`(()=>{const cells=document.querySelectorAll('.mm-card:not([hidden]) .mm-cell');return ${MAP}.lanes&&cells.length===${laneCells}||cells.length;})()`, `Show every state lays out all ${laneCells} states of the MODERN screens that have more than one`);
+  await evaluate(`document.querySelector('.mm-tool[data-tool=fit]').click()`);
+  await sleep(500);
+  await shot('12-map-every-state');
+  await check(`(()=>{const imgs=[...document.querySelectorAll('.mm-cell img')];return imgs.filter(i=>i.getAttribute('src')).length<imgs.length;})()`, 'with every state shown, pictures still load only near the view');
+  await evaluate(`document.querySelector('.mm-cell').click()`);
+  await check(`${MAP}.panel&&${MAP}.stateIndex===0`, 'a state on the map opens it in the panel');
+  await evaluate(`document.querySelector('.mm-chip').click()`);
+  await evaluate(`document.querySelector('.mm-seg [data-iface=classic]').click()`);
+  await waitFor(`${MAP}.iface==='classic'&&${MAP}.screens===${screensOf('classic')}`, 'CLASSIC');
+  await check(`document.querySelector('.mm-seg [data-iface=classic]').getAttribute('aria-pressed')==='true'&&[...document.querySelectorAll('.mm-card:not([hidden])')].length===${screensOf('classic')}`, `CLASSIC shows its ${screensOf('classic')} screens`);
+  await evaluate(`document.querySelector('.m-seg [data-iface=modern]').click()`);
+  await waitFor(`${MAP}.iface==='modern'`, 'the manual\'s interface choice switches the map');
+  ok('the map follows the interface chosen for the manual');
+  await evaluate(`document.querySelector('.m-seg [data-iface=both]').click()`);
+
+  // Window sizes.
+  for (const [w, hgt] of [[1100, 760], [1440, 900], [760, 520]]) {
+    await size(w, hgt); await sleep(200);
+    await evaluate(`openManual('menu-map','mods-play-keys')`);
+    await waitFor(`${MAP}?.screen==='mods-play-keys'`, 'map at ' + w);
+    await sleep(500);
+    await check(fits, `the map fits ${w} x ${hgt}`);
+    await check(`(()=>{const m=document.querySelector('.mm').getBoundingClientRect(),v=document.querySelector('.mm-view').getBoundingClientRect(),c=document.querySelector('.mm-card[aria-selected=true]').getBoundingClientRect(),p=document.querySelector('.mm-panel');const cover=getComputedStyle(p).position==='absolute'?p.getBoundingClientRect().left:v.right;return m.bottom<=innerHeight+1&&v.height>=180&&c.left>=v.left-1&&c.right<=cover+1||{m:m.bottom,v:v.height,c:[c.left,c.right],cover};})()`, `at ${w} x ${hgt} the map fills the window and the open screen's card stays clear of the panel`);
+    if (w !== 760) { await shot(`13-map-panel-${w}`); await evaluate(`document.querySelector('.mm-panel-head .mm-tool').click()`); await sleep(400); await shot(`13-map-${w}`); }
+  }
+  await size(1280, 860);
+  await cspClean('on the menu map, after every check');
+
+  // Narrow and wide windows.
+  for (const [w, h] of [[760, 520], [1100, 760], [1440, 900], [1920, 1040]]) {
+    await size(w, h); await sleep(150);
+    await evaluate(`openManual('four-decks')`); await waitFor(`manualPage.state().slug==='four-decks'`, 'resize');
+    await check(fits, `four-decks fits ${w} x ${h}`);
+    await evaluate(`openManual()`); await waitFor(`manualPage.state().view==='start'`, 'start');
+    await check(fits, `the start page fits ${w} x ${h}`);
+  }
+  await size(760, 520); await sleep(150);
+  await check(`getComputedStyle(document.getElementById('ctx')).display==='none'&&!!document.getElementById('ctx-toggle').offsetWidth&&document.getElementById('ctx-toggle').getAttribute('aria-expanded')==='false'`, 'in a narrow window the chapter list folds behind the side list button');
+  await evaluate(`document.getElementById('ctx-toggle').click()`);
+  await check(`getComputedStyle(document.getElementById('ctx')).display==='block'&&!!document.querySelector('.m-side-body .m-toc').offsetWidth&&document.getElementById('ctx-toggle').getAttribute('aria-expanded')==='true'`, 'the side list button opens it as a drawer');
+  await evaluate(`document.querySelector('.m-toc-ch[data-slug="stems"]').click()`); await waitFor(`manualPage.state().slug==='stems'`, 'drawer pick');
+  await check(`getComputedStyle(document.getElementById('ctx')).display==='none'&&document.getElementById('ctx-toggle').getAttribute('aria-expanded')==='false'`, 'picking a chapter closes the drawer');
+  await size(1280, 860);
+
+  // "/" focuses search.
+  await evaluate(`document.activeElement?.blur();openManual('stems')`); await waitFor(`manualPage.state().slug==='stems'`, 'stems');
+  await evaluate(`document.activeElement.blur()`);
+  for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: '/', code: 'Slash', windowsVirtualKeyCode: 191, ...(type === 'keyDown' ? { text: '/' } : {}) });
+  await check(`document.activeElement.id==='m-q'&&document.getElementById('m-q').value===''`, '/ focuses search on the Manual page');
+  await cspClean('while reading');
+  ok('no CSP violations and no page errors while reading');
+
+  // The manual's own picture of this page (manual/app-shots/manual.png), at the size of every app shot, with the boxes
+  // of what its callouts name.
+  if (shots) {
+    await size(1100, 760);
+    // With reduced motion the explainer shows its first poster, so the picture is the same every time. When the first
+    // explainer with clips is below the fold, the card scrolls until it is in view; the top bar and the chapter list stay put.
+    await evaluate(`localStorage.clear()`);
+    await motion('reduce');
+    await open();
+    await evaluate(`openManual('four-decks')`);
+    await waitFor(`manualPage.state().slug==='four-decks'`, 'app shot');
+    await evaluate(`document.activeElement.blur();const card=document.getElementById('card');card.scrollTo(0,0);(()=>{const x=[...document.querySelectorAll('.mx')].find(b=>!b.hidden);const r=x?.getBoundingClientRect();if(r&&r.bottom>innerHeight-12)card.scrollTo(0,Math.round(r.bottom-innerHeight+28));})()`);
+    await sleep(1600);
+    const image = await send('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: await evaluate('scrollY'), width: 1100, height: 760, scale: 1 } });
+    await motion('no-preference');
+    await writeFile(join(shots, 'app-manual.png'), Buffer.from(image.data, 'base64'));
+    const marks = { rail: 'nav button[data-page=manual] span', search: '#m-q', progress: '.m-progress b', chapter: '.m-toc-ch[aria-current=page] span', sections: '.m-toc-secs', start: '.m-home span', mapnav: '.m-mapnav span', title: '.mc-title', explainer: '.mx:not([hidden]) .mx-head h5', video: '.mx:not([hidden]) .mx-stage', play: '.mx:not([hidden]) .mx-play', dots: '.mx:not([hidden]) .mx-dots' };
+    await writeFile(join(shots, 'app-manual-boxes.json'), JSON.stringify(await evaluate(`(()=>{const out={};for(const [k,s] of Object.entries(${JSON.stringify(marks)})){const r=document.querySelector(s)?.getBoundingClientRect();if(r)out[k]=[Math.round(r.left),Math.round(r.top),Math.round(r.right),Math.round(r.bottom)];}return out;})()`), null, 1));
+    // The manual's picture of the menu map (manual/app-shots/menu-map.png): at BEAT JUMP PADS with its screen open.
+    await evaluate(`localStorage.clear()`);
+    await open();
+    await evaluate(`openManual('menu-map','mods-play-beat-jump-pads')`);
+    await waitFor(`manualPage.state().map?.screen==='mods-play-beat-jump-pads'&&manualPage.state().map.panel`, 'menu map shot');
+    await evaluate(`document.activeElement.blur()`);
+    await waitFor(`[...document.querySelectorAll('.mm img:not([loading=lazy])')].filter(i=>i.getAttribute('src')&&i.getBoundingClientRect().width&&i.getBoundingClientRect().top<innerHeight).every(i=>i.complete)`, 'menu map pictures');
+    await sleep(800);
+    const mapImage = await send('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: await evaluate('scrollY'), width: 1100, height: 760, scale: 1 } });
+    await writeFile(join(shots, 'app-menu-map.png'), Buffer.from(mapImage.data, 'base64'));
+    const mapMarks = { seg: '.mm-seg', find: '.mm-find', tools: '.mm-tools', crumbs: '.mm-crumbs', card: '.mm-card[aria-selected=true] .mm-thumb', label: '.mm-label.is-trail', twist: '.mm-card:not([hidden]) .mm-twist', panel: '.mm-panel-title', big: '.mm-big', states: '.mm-states-head', read: '.mm-read', mini: '.mm-mini', jumps: '.mm-jumps' };
+    await writeFile(join(shots, 'app-menu-map-boxes.json'), JSON.stringify(await evaluate(`(()=>{const out={};for(const [k,s] of Object.entries(${JSON.stringify(mapMarks)})){const r=[...document.querySelectorAll(s)].find(e=>e.getBoundingClientRect().width)?.getBoundingClientRect();if(r)out[k]=[Math.round(r.left),Math.round(r.top),Math.round(r.right),Math.round(r.bottom)];}return out;})()`), null, 1));
+    await size(1280, 860);
+  }
+
+  // Reduced motion: nothing moves by itself.
+  await motion('reduce');
+  await open();
+  await evaluate(`openManual('four-decks')`);
+  await waitFor(`manualPage.state().slug==='four-decks'`, 'reduced');
+  const firstClip = `[...document.querySelectorAll('.mx')].find(x=>!x.hidden)`;
+  await evaluate(`${firstClip}?.scrollIntoView({block:'center'})`);
+  await sleep(900);
+  await check(`(()=>{const x=${firstClip};if(!x)return 'no explainer with clips in four-decks';const v=x.querySelector('video'),def=manualArt.media().explainers[x.dataset.mx];return !x.classList.contains('is-playing')&&![...document.querySelectorAll('.mx')].some(b=>b.classList.contains('is-playing'))&&[...document.querySelectorAll('video')].every(v=>v.paused&&v.currentTime===0)&&v.getAttribute('poster')===def.scenes[0].poster;})()`, 'with reduced motion every explainer shows its first poster and nothing plays by itself');
+  if (fourDef) {
+    await evaluate(`${FOUR}.scrollIntoView({block:'center'});${FOUR}.querySelector('.mx-dots button[data-i="7"]').click()`);
+    await sleep(700);
+    await check(`(()=>{const v=${FOUR}.querySelector('video');return v.paused&&v.currentTime===0&&v.getAttribute('poster')===${JSON.stringify(fourDef.scenes[6].poster)}&&v.getAttribute('src')===${JSON.stringify(fourDef.scenes[6].video)};})()`, 'with reduced motion picking a step shows its poster without playing');
+    await evaluate(`${FOUR}.querySelector('.mx-play').click()`);
+    await waitFor(`!${FOUR}.querySelector('video').paused`, 'Play plays the clip with reduced motion');
+    ok('with reduced motion Play still plays the clips, because the reader asked');
+    await evaluate(`${FOUR}.querySelector('.mx-play').click()`);
+  }
+  await check(`(()=>{const m=document.querySelector('.mf-mark');return getComputedStyle(m).transitionDuration.split(',').every(d=>parseFloat(d)===0)&&!document.querySelector('.m-root').classList.contains('m-anim')&&!document.querySelector('.m-view').classList.contains('m-enter');})()`, 'with reduced motion figures and pages appear without transitions');
+  await evaluate(`openManual()`); await waitFor(`manualPage.state().view==='start'`, 'start reduced');
+  await sleep(600);
+  await check(`(()=>{const v=document.querySelector('.m-hero-video');return v.paused&&v.currentTime===0&&v.getAttribute('poster')===manualArt.media().hero.poster&&[...document.querySelectorAll('.mt-card img')].every(e=>getComputedStyle(e).transitionDuration.split(',').every(d=>parseFloat(d)===0));})()`, 'with reduced motion the start page shows the hero poster and nothing moves');
+  // The menu map with reduced motion: the view jumps instead of gliding and nothing on it animates.
+  await evaluate(`openManual('menu-map')`); await waitFor(`manualPage.state().map?.screen==='play-screen'`, 'map reduced');
+  const k0 = await evaluate(`manualPage.state().map.cam.k`);
+  await evaluate(`document.querySelector('.mm-tool[data-tool=plus]').click()`);
+  await check(`manualPage.state().map.cam.k>${k0}&&document.querySelector('.mm').classList.contains('mm-still')&&getComputedStyle(document.querySelector('.mm-card')).transitionDuration.split(',').every(d=>parseFloat(d)===0)`, 'with reduced motion the map zooms at once, with no glide, and its cards do not animate');
+  await evaluate(`document.querySelector('.mm-twist').click()`);
+  await check(`(()=>{const c=[...document.querySelectorAll('.mm-card:not([hidden])')];return c.every(e=>e.style.transform.startsWith('translate('));})()`, 'with reduced motion a branch opens and closes at once');
+  await motion('no-preference');
+  await cspClean('with reduced motion');
+  await check(`(()=>{const probe=document.createElement('div');probe.setAttribute('style','color:rgb(255, 0, 0)');document.body.append(probe);const blocked=getComputedStyle(probe).color!=='rgb(255, 0, 0)';probe.remove();return location.protocol==='http:'&&blocked;})()`, 'the page runs under the app CSP: a style attribute is blocked, as in the installed app');
+  ok('no CSP violations and no page errors');
+
+  // Navigation videos (```nav``` blocks, manual/nav-media.json): every block mounts one player whose flows, videos and
+  // steps are the ones nav-media.json records; the video decodes under the CSP; a click on a step seeks to it and
+  // lights it; the flow tabs switch the video.
+  const navMedia = JSON.parse(await readFile(join(app, 'manual/nav-media.json'), 'utf8')).flows;
+  let navCount = 0, navFlows = new Set();
+  for (const { slug } of book.chapters) {
+    const text = (await readFile(join(app, 'manual/chapters', slug + '.md'), 'utf8')).replace(/\r\n/g, '\n');
+    const blocks = [...text.matchAll(/^```nav (\S+)[^\n]*\n((?:(?!```)[^\n]*\n)*)```/gm)].map(m => [m[1], ...m[2].split('\n').filter(l => l.trim()).map(l => l.split('|')[0].trim())]);
+    if (!blocks.length) continue;
+    await evaluate(`openManual(${JSON.stringify(slug)})`);
+    await waitFor(`manualPage.state().slug===${JSON.stringify(slug)}`, slug);
+    const found = await evaluate(`[...document.querySelectorAll('.mn')].map(x=>({mounted:x.dataset.mounted||'',flows:(x.dataset.flows||'').split(' ').filter(Boolean),videos:x.querySelectorAll('.mn-stage video').length,src:x.querySelector('.mn-stage video')?.getAttribute('src')||'',steps:x.querySelectorAll('.mn-list>li').length,tabs:x.querySelectorAll('.mn-tabs button').length}))`);
+    assert.deepEqual(found.map(x => x.flows), blocks, slug + ': every nav block is in the page with its flows');
+    for (const [k, x] of found.entries()) {
+      const first = navMedia[x.flows[0]];
+      assert(x.mounted === '1' && x.videos === 1 && x.src === first.video, `${slug} nav ${x.flows[0]}: mounted with its video (${JSON.stringify(x)})`);
+      assert.equal(x.steps, first.steps.length, `${slug} nav ${x.flows[0]}: one step per recorded step`);
+      assert.equal(x.tabs, x.flows.length > 1 ? x.flows.length : 0, `${slug} nav ${x.flows[0]}: one tab per flow when there are several`);
+      x.flows.forEach(f => navFlows.add(f)); navCount++;
+    }
+    await check(`[...document.querySelectorAll('.mn svg')].every(s=>s.closest('button'))`, slug + ': no SVG drawing in its navigation videos');
+  }
+  assert(navCount > 0, 'the chapters have navigation videos');
+  // One player in depth: the button above LINK in the hardware chapter, then its second flow.
+  await evaluate(`openManual('hardware')`);
+  await waitFor(`manualPage.state().slug==='hardware'`, 'hardware');
+  const NAV = `[...document.querySelectorAll('.mn')].find(x=>(x.dataset.flows||'').split(' ')[0]==='physical-above-link')`;
+  await evaluate(`${NAV}.scrollIntoView({block:'center'})`);
+  await waitFor(`(()=>{const v=${NAV}.querySelector('video');return v.readyState>=2&&v.videoWidth===1280&&v.videoHeight===480;})()`, 'the navigation video decodes under the app CSP');
+  const rbSteps = navMedia['physical-above-link'].steps;
+  await evaluate(`${NAV}.querySelectorAll('.mn-list>li')[1].click()`);
+  await waitFor(`(()=>{const x=${NAV},v=x.querySelector('video'),li=x.querySelectorAll('.mn-list>li');return v.currentTime*1000>=${rbSteps[1].t_ms - 300}&&li[1].classList.contains('is-now')&&li[0].classList.contains('is-done');})()`, 'a click on step 2 plays from step 2 and lights it');
+  await check(`${NAV}.querySelector('.mn-list').textContent.includes('button above')&&!/rekordbox/i.test(${NAV}.textContent)&&[...${NAV}.querySelectorAll('.mn-list .xzb')].some(k=>k.dataset.key==='link')`, 'the steps name the button above LINK in key notation, with no maker name');
+  if (shots) { await sleep(600); await shot('05n-nav-above-link', await evaluate(`(()=>{${NAV}.scrollIntoView({block:'nearest'});const r=${NAV}.getBoundingClientRect();return {x:r.left,y:r.top+scrollY,width:r.width,height:r.height};})()`)); }
+  const multi = `[...document.querySelectorAll('.mn')].find(x=>x.querySelectorAll('.mn-tabs button').length>1)`;
+  const second = await evaluate(`${multi}?.dataset.flows.split(' ')[1]||''`);
+  if (second) {
+    await evaluate(`${multi}.querySelectorAll('.mn-tabs button')[1].click()`);
+    await check(`(()=>{const x=${multi};return x.querySelector('video').getAttribute('src')===${JSON.stringify(navMedia[second]?.video)}&&x.querySelectorAll('.mn-tabs button')[1].getAttribute('aria-pressed')==='true'&&x.querySelectorAll('.mn-list>li').length===${navMedia[second]?.steps.length};})()`, 'a flow tab switches the video and its steps');
+  }
+  ok(`${navCount} navigation videos (${navFlows.size} flows) mount with their recorded steps; steps seek; tabs switch`);
+
+  // The embedded copy holds only files it uses.
+  const used = new Set((manualJs + (await Promise.all((await readdir(join(app, 'ui/manual/chapters'))).map(f => readFile(join(app, 'ui/manual/chapters', f), 'utf8')))).join('')).match(/manual\/shots\/[0-9a-f]+\.(webp|svg)/g));
+  const files = (await readdir(join(app, 'ui/manual/shots'))).map(f => 'manual/shots/' + f);
+  assert.deepEqual(files.filter(f => !used.has(f)), [], 'no unused pictures');
+  assert.deepEqual([...used].filter(f => !files.includes(f)), [], 'no missing pictures');
+  ok(`the embedded manual ships ${files.length} pictures, each used`);
+  const mapJs = await readFile(join(app, 'ui/manual/map.js'), 'utf8');
+  const mapUsed = new Set(mapJs.match(/manual\/map\/t?-?[0-9a-f]{16}\.webp/g));
+  const mapFiles = (await readdir(join(app, 'ui/manual/map'))).map(f => 'manual/map/' + f);
+  assert.deepEqual(mapFiles.filter(f => !mapUsed.has(f)), [], 'no unused map pictures');
+  assert.deepEqual([...mapUsed].filter(f => !mapFiles.includes(f)), [], 'no missing map pictures');
+  ok(`the menu map ships ${mapFiles.length} pictures (screens and their card pictures), each used`);
+  console.log('\n' + passed + ' checks passed');
+} finally {
+  socket?.close();
+  await server.close();
+  killBrowser(child, profile);
+  await new Promise(done => setTimeout(done, 300));
+  await rm(profile, { recursive: true, force: true }).catch(() => {});
+}

@@ -1,0 +1,42 @@
+{
+  "section": "extras#beat-arcade",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "EXTRAS"
+    },
+    {
+      "tap": "GAMES"
+    },
+    {
+      "tap": "BEAT ARCADE"
+    },
+    {
+      "touch": [
+        600,
+        410
+      ]
+    },
+    {
+      "touch": [
+        600,
+        160
+      ]
+    },
+    {
+      "touch": [
+        750,
+        24
+      ]
+    }
+  ],
+  "requires_states": [
+    {
+      "game": 1,
+      "game_phase": 1
+    }
+  ]
+}

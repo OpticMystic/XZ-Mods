@@ -1,0 +1,25 @@
+alignment state=1 lag=29 correlation=0.999901 elapsed_ms=109
+alignment state=1 lag=29 correlation=1.000000 elapsed_ms=88
+alignment state=1 lag=29 correlation=0.999900 elapsed_ms=231
+lete PCM hash
+PASS verified paged PCM, all seven complete hashes, cross-page reads, bounds and waveform
+PASS verified paged PCM, all seven complete hashes, cross-page reads, bounds and waveform
+PASS verified paged PCM, all seven complete hashes, cross-page reads, bounds and waveform
+PASS verified paged PCM, all seven complete hashes, cross-page reads, bounds and waveform
+PASS rejected invalid bundle
+PASS rejected invalid bundle
+PASS rejected corrupt page or complete PCM hash
+PASS rejected corrupt page or complete PCM hash
+PASS verified paged PCM, all seven complete hashes, cross-page reads, bounds and waveform
+PASS rejected invalid bundle
+PASS rejected corrupt page or complete PCM hash
+PASS verified paged PCM, all seven complete hashes, cross-page reads, bounds and waveform
+PASS loop mix changes retain audible prior selection while replacement cache fills
+PASS loop return: first sample onward matches selected mix, no mute leak, silence or cache miss
+PASS mix plans, measured alignment, bit-exact unity, selected mix and no silent loading gap
+PASS loop mix changes retain audible prior selection while replacement cache fills
+PASS loop return: first sample onward matches selected mix, no mute leak, silence or cache miss
+PASS mix plans, measured alignment, bit-exact unity, selected mix and no silent loading gap
+PASS loop mix changes retain audible prior selection while replacement cache fills
+PASS loop return: first sample onward matches selected mix, no mute leak, silence or cache miss
+PASS mix plans, measured alignment, bit-exact unity, selected mix and no silent loading gap

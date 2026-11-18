@@ -2,6 +2,7 @@
 #ifndef XZ_LAYERED_RUNTIME_H
 #define XZ_LAYERED_RUNTIME_H
 #include <stdint.h>
+#include "layered_wave.h"
 
 /* Scrolling waveform look. Stems falls back to 3-band on tracks without stems. */
 enum xz_wave_mode {XZ_WAVE_STOCK=0,XZ_WAVE_THREE_BAND=1,XZ_WAVE_STEMS=2,XZ_WAVE_MODE_COUNT=3};
@@ -14,9 +15,21 @@ int xz_layered_wave_active(void);
 void xz_layered_wave_configure(int mode,const uint32_t stem_rgb[3]);
 void xz_layered_wave_begin(uint16_t *pixels);
 void xz_layered_wave_end(void);
+/* The native lanes' zoom (audio microseconds per column, 0 before any lane is drawn) and column
+   background mode. Any thread. */
+void xz_layered_wave_view(uint32_t *column_us,unsigned *background);
+/* Draw thread, after _end: how many columns the player drew from waveform data for native deck (0 or 1) since
+   _begin, capped at 536; -1 when the column hook is not installed (nothing is known). */
+int xz_layered_wave_native_columns(unsigned deck);
+/* Draw thread, after _end: native deck's layer columns this frame drew (536), or NULL. */
+struct xz_layered_data;struct xz_layered_col;
+const struct xz_layered_col *xz_layered_wave_drawn(unsigned deck,struct xz_layered_data *look);
 /* Around a theme recolour of the 536x268 surface: keep drawn layer pixels exact
  * while cue, beat and playhead marks the stock drew over them stay themed. */
 void xz_layered_wave_protect(const uint16_t *pixels);
+/* The same for the native decks in the mask only (bit 0 DECK 1, bit 1 DECK 2): a 2 DECKS half drawn over by a
+   software deck keeps none of the native layer pixels it covered. */
+void xz_layered_wave_protect_decks(const uint16_t *pixels,unsigned decks);
 void xz_layered_wave_restore(uint16_t *pixels);
 /* Bottom overview (300x34, stride 300, drawn bottom-up by stock) for one deck, inside its
  lock. Returns 1 if layers were drawn; call _restore after any theme recolour. */

@@ -12,18 +12,99 @@ struct xz_ui_scene {
 };
 /* page_controls() in ui.c decides which controls exist. place() only assigns
    x,y,w,h to them; it never adds, drops or relabels a control. */
+/* A top-bar label as drawn: its columns and colours, so the STEMS marks can sit under it. */
+struct xz_top_face { int text_x, text_w; uint32_t fill, ink; };
 struct xz_ui_skin {
  void (*place)(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_ui_widget *w, size_t n);
  void (*render)(const struct xz_ui_scene *s);
  /* Geometry is fixed by xz_ui_inline_layout. look.selected is muted (MUTE) or
     bypass (BYPASS); s->d is deck 0, so use m->deck[w.deck]. */
  void (*render_inline)(const struct xz_ui_scene *s);
- void (*render_buttons)(struct xz_canvas c, int stems, int vj_visible, int vj_active);
+ /* One top-bar button on stock-drawn screens (VJ.TOOLS, METRICS, STEMS, MODS) in columns x..x+w-1 of c,
+    which is clipped to the band (top_bar.h); lit is its on state. Returns where its label went. */
+ struct xz_top_face (*top_button)(struct xz_canvas c, int x, int w, const char *label, int lit);
 };
 void xz_ui_place(const struct xz_ui *,const struct xz_ui_model *,struct xz_ui_widget *,size_t);
-void xz_ui_stem_setup(const struct xz_ui_scene *);
+void xz_ui_stem_rows(const struct xz_ui_scene *);
+void xz_ui_stem_colors(const struct xz_ui_scene *);
+/* 3-BAND COLOURS: the editor page, and a band's colour as the waveforms draw it (STANDARD is the interface's own). */
+void xz_ui_band_colors(const struct xz_ui_scene *);
+uint32_t xz_ui_band_standard(const struct xz_ui_model *,int band);
+uint32_t xz_ui_model_band_color(const struct xz_ui_model *,int band);
+/* A deck's RAM state in words, naming a missing loopback route on decks 3/4 rather than a missing engine. */
+const char *xz_ui_ram_status_text(const struct xz_ui_ram *);
 void xz_ui_page_details(const struct xz_ui_scene *);
-extern const struct xz_ui_skin xz_skin_classic, xz_skin_lcars, xz_skin_matrix, xz_skin_analog;
+extern const struct xz_ui_skin xz_skin_classic, xz_skin_lcars, xz_skin_matrix, xz_skin_analog, xz_skin_flagship;
+
+/* Shared screen grid. Header 0..HEAD, section rail 0..RAIL_W, content
+   CX..CX+CW by CY..CB, info dock DOCK_Y..480. Controls never enter the dock, except MODERN's counter error
+   strip, which takes the dock's title row (COUNTER_*) while a deck has one. */
+enum { XZ_UI_HEAD=40, XZ_UI_RAIL_W=124, XZ_UI_CX=136, XZ_UI_CW=656, XZ_UI_CY=48, XZ_UI_CB=404, XZ_UI_DOCK_Y=412 };
+/* MODERN's rail: UTILITY above this line, the sections below it. */
+enum { XZ_UI_RAIL_DIVIDER_Y=88 };
+/* The dock's explanation: three lines of the small face from DOCK_Y + BODY_Y, BODY_W wide. */
+enum { XZ_UI_DOCK_BODY_Y=28, XZ_UI_DOCK_BODY_W=532, XZ_UI_DOCK_LINES=3 };
+/* The counter error strip: the dock's title row, left of the WORKS ON column; the explanation stays below it. */
+enum { XZ_UI_COUNTER_Y=XZ_UI_DOCK_Y+1, XZ_UI_COUNTER_W=556, XZ_UI_COUNTER_H=25 };
+/* REPORT THIS on that strip (a counter error or the E-8307 hub warning; not on REPORT AN ISSUE itself): its widget,
+   left of SHOW DECK, or 0 when there is none. ui_chrome.c draws it where this puts it. */
+int xz_ui_strip_report(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_ui_widget *out);
+/* Rows text takes in the dock's word wrap at width px (99 when one word does not fit). */
+int xz_ui_wrap_lines(struct xz_canvas c, int width, const char *text);
+/* DJ Profile list panel under the header's right corner. */
+enum { XZ_UI_PROFILE_LIST_X=432, XZ_UI_PROFILE_LIST_Y=44, XZ_UI_PROFILE_LIST_W=360 };
+int xz_ui_profile_list_bottom(const struct xz_ui *, const struct xz_ui_model *);
+/* The header chip and the open list, drawn over every skin. */
+void xz_ui_chrome_profile(const struct xz_ui_scene *s, uint32_t bg, uint32_t ink, uint32_t dim, uint32_t accent, uint32_t alarm);
+/* The colours shared chrome uses in this theme. */
+void xz_ui_chrome_colors(const struct xz_ui_model *m, const struct xz_theme_palette *p, uint32_t *bg, uint32_t *ink, uint32_t *accent);
+/* A DJ logo from src (src_side square RGB565) in a circle or rounded square; NULL src draws e's
+   monogram, or a silhouette when e is NULL too. */
+void xz_ui_chrome_logo(struct xz_canvas c, int x, int y, int side, int circle, const uint16_t *src, int src_side,
+ const struct xz_ui_dj_entry *e, uint32_t bg, uint32_t ink, uint32_t accent);
+/* Longest whole-character prefix of text that fits width. */
+void xz_ui_chrome_fit(struct xz_canvas c, int x, int y, int width, const char *text, int scale, uint32_t color);
+/* DJ PROFILE page and editor (ui_profile.c). controls adds the page's widgets; place sets geometry
+   for its kinds and returns 0 for others; touch returns -1 for kinds it does not own; back returns
+   1 when it moved the editor a step instead of leaving the page. */
+size_t xz_ui_profile_controls(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_ui_widget *w, size_t n);
+int xz_ui_profile_place(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_ui_widget *a);
+int xz_ui_profile_owns(enum xz_ui_action_kind kind);
+int xz_ui_profile_ready(const struct xz_ui *u, const struct xz_ui_model *m, const struct xz_ui_widget *a);
+int xz_ui_profile_touch(struct xz_ui *u, const struct xz_ui_model *m, const struct xz_ui_widget *a, struct xz_ui_action out[XZ_UI_ACTIONS]);
+int xz_ui_profile_back(struct xz_ui *u);
+/* The MODS on-screen keyboard (DJ profile editor, REPORT AN ISSUE): four rows of ten in the current layout (letters
+   or symbols, kb_symbols), the byte a key types (capitals while kb_shift), and a typed byte's row*10+column or -1. */
+const char *xz_ui_kb_row(const struct xz_ui *u, int row);
+int xz_ui_kb_byte(const struct xz_ui *u, char c);
+int xz_ui_kb_slot(const struct xz_ui *u, int byte);
+void xz_ui_profile_render(const struct xz_ui_scene *s);
+const char *xz_ui_profile_describe(const struct xz_ui *u, const struct xz_ui_model *m, const struct xz_ui_widget *a, const char **title);
+const char *xz_ui_profile_footer(const struct xz_ui *u, const struct xz_ui_model *m);
+/* Why a profile control is not ready, for the footer notice. */
+const char *xz_ui_profile_blocked(const struct xz_ui *u, const struct xz_ui_model *m, const struct xz_ui_widget *a);
+/* BACK and CLOSE have physical keys, so the encoder skips them. */
+int xz_ui_focusable(const struct xz_ui_widget *);
+int xz_ui_widget_ready(const struct xz_ui *, const struct xz_ui_model *, const struct xz_ui_widget *);
+struct xz_ui_look xz_ui_widget_look(const struct xz_ui *, const struct xz_ui_model *, const struct xz_ui_widget *);
+/* Shared chrome every skin draws over its own background: rail icons, the
+   focus ring on the encoder's control and the info dock. */
+void xz_ui_chrome_icon(struct xz_canvas c, enum xz_ui_page page, int cx, int cy, uint32_t color);
+void xz_ui_chrome_focus(const struct xz_ui_scene *s, uint32_t color);
+/* The rail's attention dots, drawn over every skin (xz_ui_four_decks_attention, ui.h). */
+void xz_ui_chrome_rail_marks(const struct xz_ui_scene *s);
+/* 1 when the dock shows the page's notice on the left (the section pages), keeping the save state on the right. */
+int xz_ui_section_page_notice(const struct xz_ui *u);
+void xz_ui_chrome_dock(const struct xz_ui_scene *s, uint32_t bg, uint32_t ink, uint32_t dim, uint32_t accent, uint32_t alarm);
+void xz_ui_chrome_switch(struct xz_canvas c, int x, int y, int on, int available, uint32_t track, uint32_t knob, uint32_t accent);
+/* The top bar (top_bar.h). xz_top_bar_canvas is clipped to the band. xz_ui_top_button draws one button in
+   c.theme's skin. xz_top_bar_label centres a label in columns x..x+w-1 on the band's text row over fill.
+   xz_top_bar_marks underlines the STEMS label in five segments, one per stem layout in the order STEMS
+   steps them (BELOW, BELOW HALF, OUTER, OUTER HALF, HIDDEN): the current one in ink, the rest dimmed. */
+struct xz_canvas xz_top_bar_canvas(uint16_t *pixels, size_t stride, int theme);
+struct xz_top_face xz_ui_top_button(struct xz_canvas c, int x, int w, const char *label, int lit);
+struct xz_top_face xz_top_bar_label(struct xz_canvas c, int x, int w, const char *label, uint32_t fill, uint32_t ink);
+void xz_top_bar_marks(struct xz_canvas c, struct xz_top_face stems, int layout);
 
 extern const char *const xz_ui_lengths[6];
 const char *xz_ui_footer_text(const struct xz_ui *u, const struct xz_ui_model *m);

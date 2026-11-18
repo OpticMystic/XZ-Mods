@@ -3,8 +3,15 @@
 #include "native_window_keys.h"
 #include "../runtime.h"
 #include <pthread.h>
+#include "../xz_mutex.h"
 #include <string.h>
 #include <stddef.h>
+#include "ram_notice.h"
+#include "../stock_dialog.h"
+#pragma weak xz_stock_usb_hub_at
+#pragma weak xz_hub_card_draw
+#pragma weak xz_log
+#include <stdio.h>
 
 extern int xz_native_skin_on_owner_thread(void);
 #define CACHE_COUNT 32
@@ -12,11 +19,18 @@ extern int xz_native_skin_on_owner_thread(void);
 #define SENTINEL 0x1234
 struct descriptor {uintptr_t gr,hw;unsigned width,height;};
 struct marker {struct descriptor d;int pitch;unsigned valid;uint16_t raw[8*48];};
-struct transaction {struct descriptor d;uint16_t *actual;int pitch,kind,slot;};
+struct transaction {struct descriptor d;uint16_t *actual;int pitch,kind,slot;uint32_t text;};
+/* The player's E-8307 hub window (../stock_dialog.h), which the loopback cable raises and is never an error. While
+   the runtime says it is up, the window shows the calm card (ram_notice.h xz_hub_card_draw) in its own place and
+   size; the stock pixels are kept so a repaint can give them back. Owner thread only. */
+#define HUB_STOCK_PIXELS (800*240)
+static int hub_calm,hub_shown;
+static struct {struct descriptor d;int pitch,valid,saved;} hub;
+static uint16_t hub_stock[HUB_STOCK_PIXELS];
 static struct marker cache[CACHE_COUNT];
 static struct transaction pending;
 static _Alignas(64) uint16_t alert_scratch[1024*480];
-static pthread_mutex_t registry_mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t registry_mutex=XZ_MUTEX_INITIALIZER;
 static _Thread_local int repainting;
 static int (*original_lock)(void *,void **,int *);
 static int (*original_unlock)(void *);
@@ -60,17 +74,86 @@ static void paint_marker(struct marker *m,uint16_t *actual,int pitch){
   for(unsigned x=0;x<8;x++){unsigned at=y*8+x;row[x]=m->raw[at]==KEY565?KEY565:themed[at];}
  }
 }
+static void hub_paint(uint16_t *actual,int pitch,const struct descriptor *d,int calm){
+ if(calm&&xz_hub_card_draw)xz_hub_card_draw((struct xz_canvas){actual,(size_t)(pitch/2),(int)d->width,(int)d->height,0});
+ else if(!calm&&hub.saved)for(unsigned y=0;y<d->height;y++)
+  memcpy((unsigned char *)actual+(size_t)y*(unsigned)pitch,hub_stock+(size_t)y*d->width,d->width*2u);
+ hub_shown=calm;
+}
+/* After the player drew a caution window: note whether it is the hub warning, keep its stock pixels, and paint the
+   calm card over them while the cable explains it. */
+static void hub_drawn(const struct transaction *p,const struct descriptor *d){
+ if(!p->text||!xz_stock_usb_hub_at||!xz_stock_usb_hub_at(xz_read_memory,p->text)){
+  if(hub.d.gr==d->gr)memset(&hub,0,sizeof(hub));
+  return;
+ }
+ hub.d=*d;hub.pitch=p->pitch;hub.valid=1;hub.saved=(size_t)d->width*d->height<=HUB_STOCK_PIXELS;
+ if(hub.saved)for(unsigned y=0;y<d->height;y++)
+  memcpy(hub_stock+(size_t)y*d->width,(unsigned char *)p->actual+(size_t)y*(unsigned)p->pitch,d->width*2u);
+ if(__atomic_load_n(&hub_calm,__ATOMIC_ACQUIRE))hub_paint(p->actual,p->pitch,d,1);else hub_shown=0;
+}
+void xz_native_raw_skin_hub_calm(int calm){__atomic_store_n(&hub_calm,!!calm,__ATOMIC_RELEASE);}
 static int destroy_hook(void *gr){
  xz_native_window_keys_forget(gr);
  enter();
+ if(hub.d.gr==(uintptr_t)gr)memset(&hub,0,sizeof(hub));
  for(unsigned i=0;i<CACHE_COUNT;i++)if(cache[i].d.gr==(uintptr_t)gr){memset(&cache[i],0,sizeof(cache[i]));count(&xz_native_raw_skin_v1.evictions);}
  if(pending.d.gr==(uintptr_t)gr)memset(&pending,0,sizeof(pending));
  leave();return original_destroy(gr);
 }
+/* The E-8307 hub window never stays on screen (owner, 2026-10-29: eliminate it completely). The loopback cable raises
+   it and the player keeps it up while the cable is in. ui_com_DrawCautionStatus / ui_com_DrawCautionBrowse ask
+   their check function for the current caution ID, then draw its window. When a drawn window's text is the hub text,
+   its ID is remembered and the window destroyed at once, as the player itself does for a cleared caution (destroy,
+   then zero the handle); from then on that ID is never drawn. Every other caution draws as before. */
+struct caution_draw {
+ uint32_t entry;unsigned char guard[8];
+ uint32_t (*check)(void);   /* Ui_CautionIDCheck_Status / _Browse: locks, applies the timeout, returns the ID */
+ uint32_t *cell;            /* stiCautionStatusWinID / the browse window handle */
+ uint32_t text;             /* sCautionStatusString / sCautionBrowseString */
+ uint32_t (*original)(uint32_t,uint32_t,uint32_t,uint32_t);
+ uint32_t hub[8];unsigned hubs;
+};
+static struct caution_draw cautions[2]={
+ {0x147f08,{0xf0,0x4f,0x2d,0xe9,0xa4,0xd0,0x4d,0xe2},(uint32_t (*)(void))(uintptr_t)0xe1c6c,
+  (uint32_t *)(uintptr_t)0x1adaea4,XZ_STOCK_STATUS_TEXT,NULL,{0},0},
+ {0x146fcc,{0xf0,0x4f,0x2d,0xe9,0x04,0x8b,0x2d,0xed},(uint32_t (*)(void))(uintptr_t)0xe1d44,
+  (uint32_t *)(uintptr_t)0x1adae30,XZ_STOCK_BROWSE_TEXT,NULL,{0},0}
+};
+/* The hooked entry, so destroy_hook forgets the window too. */
+static int (*caution_destroy)(void *)=(int (*)(void *))(uintptr_t)0x1576a0;
+static int caution_hub(const struct caution_draw *c,uint32_t id){
+ for(unsigned i=0;i<c->hubs;i++)if(c->hub[i]==id)return 1;
+ return 0;
+}
+static void caution_hide(struct caution_draw *c){
+ uint32_t window=*c->cell;
+ if(window&&!caution_destroy((void *)(uintptr_t)window))*c->cell=0;
+}
+static uint32_t caution_draw(struct caution_draw *c,uint32_t a,uint32_t b,uint32_t d,uint32_t e){
+ uint32_t id=c->check();
+ if(id&&caution_hub(c,id)){caution_hide(c);return 0;}
+ uint32_t result=c->original(a,b,d,e);
+ if(id&&*c->cell&&c->hubs<8&&c->check()==id&&xz_stock_usb_hub_at&&xz_stock_usb_hub_at(xz_read_memory,c->text)){
+  c->hub[c->hubs++]=id;caution_hide(c);
+  void (*log)(const char *)=xz_log;
+  if(log){char line[96];snprintf(line,sizeof line,"STOCK_DIALOG: E-8307 hub window id=%u removed; never shown again",(unsigned)id);log(line);}
+ }
+ return result;
+}
+static uint32_t status_draw_hook(uint32_t a,uint32_t b,uint32_t d,uint32_t e){return caution_draw(&cautions[0],a,b,d,e);}
+static uint32_t browse_draw_hook(uint32_t a,uint32_t b,uint32_t d,uint32_t e){return caution_draw(&cautions[1],a,b,d,e);}
 int xz_native_raw_skin_start(int (*lock)(void *,void **,int *),int (*unlock)(void *)){
  static const unsigned char guard[8]={0x38,0x40,0x2d,0xe9,0x00,0x40,0xa0,0xe1};
  if(!lock||!unlock)return -1;
  if(!original_destroy&&xz_hook_arm(0x1576a0,guard,(void *)destroy_hook,(void **)&original_destroy))return -1;
+ for(unsigned i=0;i<2;i++){
+  struct caution_draw *c=&cautions[i];
+  if(!c->original&&xz_hook_arm(c->entry,c->guard,i?(void *)browse_draw_hook:(void *)status_draw_hook,(void **)&c->original)){
+   void (*log)(const char *)=xz_log;
+   if(log)log("STOCK_DIALOG: caution draw hook unavailable; the hub window keeps the calm card");
+  }
+ }
  original_lock=lock;original_unlock=unlock;return 0;
 }
 void xz_native_raw_skin_locked(void *gr,void **pixels,int *pitch,uintptr_t caller,int result){
@@ -91,7 +174,9 @@ void xz_native_raw_skin_locked(void *gr,void **pixels,int *pitch,uintptr_t calle
   if(fresh||seed){memset(m,0,sizeof(*m));m->d=d;m->pitch=*pitch;if(seed){copy_raw(m,*pixels,*pitch,1);m->valid=1;}}
   else copy_raw(m,*pixels,*pitch,0);
  }
- pending=(struct transaction){d,*pixels,*pitch,kind,slot};
+ /* Caution windows: the browse family's callers read sCautionBrowseString, the status family's sCautionStatusString. */
+ uint32_t text=kind!=2?0u:caller==0x148444?XZ_STOCK_STATUS_TEXT:XZ_STOCK_BROWSE_TEXT;
+ pending=(struct transaction){d,*pixels,*pitch,kind,slot,text};
  if(kind==2){
   size_t n=(size_t)(*pitch/2)*d.height;
   for(size_t i=0;i<n;i++)alert_scratch[i]=SENTINEL;
@@ -124,6 +209,7 @@ void xz_native_raw_skin_before_unlock(void *hw){
    }
   }
   count(&xz_native_raw_skin_v1.alerts);
+  hub_drawn(&p,&d);
  }
  leave();
 }
@@ -141,6 +227,18 @@ void xz_native_raw_skin_repaint(void){
    paint_marker(m,pixels,pitch);count(&xz_native_raw_skin_v1.repaints);
   }else{m->valid=0;count(&xz_native_raw_skin_v1.rejected);}
   original_unlock((void *)m->d.gr);
+ }
+ /* The hub window follows the cause: calm card while the cable explains it, the stock pixels again when not. */
+ int calm=__atomic_load_n(&hub_calm,__ATOMIC_ACQUIRE);
+ if(hub.valid&&calm!=hub_shown){
+  struct descriptor d;void *pixels=NULL;int pitch=0;
+  if(!read_descriptor(hub.d.gr,&d,0)||!same(d,hub.d))memset(&hub,0,sizeof(hub));
+  else if(original_lock((void *)hub.d.gr,&pixels,&pitch)==0){
+   if(read_descriptor(hub.d.gr,&d,1)&&same(d,hub.d)&&pitch==hub.pitch&&pitch_valid(&d,pitch,pixels)){
+    hub_paint(pixels,pitch,&d,calm);count(&xz_native_raw_skin_v1.repaints);
+   }else count(&xz_native_raw_skin_v1.rejected);
+   original_unlock((void *)hub.d.gr);
+  }else count(&xz_native_raw_skin_v1.rejected);
  }
  repainting=0;leave();
 }

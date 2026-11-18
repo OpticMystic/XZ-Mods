@@ -1,0 +1,19 @@
+{
+  "section": "mods-menu#STEMS",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "STEMS"
+    },
+    {
+      "turn": 3
+    },
+    {
+      "back": true
+    }
+  ]
+}

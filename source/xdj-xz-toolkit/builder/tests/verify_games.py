@@ -15,7 +15,7 @@ env={**os.environ,'XZ_BUILDER_DATA':str(args.data.resolve())}
 env.pop('PYTHONPATH',None);env.pop('PYTHONHOME',None)
 if os.name=='nt':env['PATH']=str(Path(os.environ['SystemRoot'])/'System32')
 results=[]
-for game in ('doom','chex','freedoom','myhouse'):
+for game in ('doom','chex','freedoom'):
     request=json.dumps({'method':'download_game','game':game})
     process=subprocess.run([str(args.backend.resolve())],input=request,capture_output=True,text=True,encoding='utf8',env=env,timeout=600)
     response=json.loads(process.stdout.splitlines()[-1])

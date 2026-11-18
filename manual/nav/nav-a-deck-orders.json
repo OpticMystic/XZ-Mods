@@ -1,0 +1,36 @@
+{
+  "section": "four-decks#deck-view",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "tap": "DECKS"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "tap": "DECKS"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "tap": "DECKS"
+    },
+    {
+      "back": true
+    }
+  ],
+  "requires_effects": [
+    [
+      "shell",
+      30
+    ]
+  ]
+}

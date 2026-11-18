@@ -49,7 +49,55 @@ def command(host: str, text: str, timeout: float = 15) -> str:
     return "\n".join(lines[lines.index(start) + 1:lines.index(end)])
 
 
+def _nc_push(host: str, remote: str, data: bytes, port: int) -> None:
+    """Outbound-only upload: the deck listens with busybox nc and the PC connects to it, so nothing on the
+    PC has to accept an inbound connection (a Public-network firewall blocks the deck's HTTP pull).
+    stdin comes from a sleep so the small busybox nc does not quit on stdin EOF before the data arrives;
+    the data is gzip'd on the wire and unpacked on the deck, then checked by md5."""
+    payload = gzip.compress(data, mtime=0)
+    staged = remote + ".gz"
+    source = ("169.254.168.58", 0) if host == "169.254.168.59" else None
+    with open_telnet(host, source_address=source) as shell:
+        shell.sendall(f"umask 077; rm -f {staged}; (trap '' HUP; sleep 120 | nc -l -p {port} > {staged}) </dev/null >/dev/null 2>&1 &\r\nexit\r\n".encode("ascii"))
+        time.sleep(0.5)
+    deadline = time.monotonic() + 10
+    while True:
+        try:
+            connection = socket.create_connection((host, port), timeout=2, source_address=source)
+            break
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise RuntimeError(f"Deck did not open nc listener on port {port}")
+            time.sleep(0.2)
+    with connection:
+        connection.settimeout(30)
+        connection.sendall(payload)
+        connection.shutdown(socket.SHUT_WR)
+        try:
+            while connection.recv(4096):
+                pass
+        except (socket.timeout, ConnectionError):
+            pass
+    want = hashlib.md5(payload).hexdigest()
+    deadline = time.monotonic() + 15
+    while True:
+        got = command(host, f"md5sum {staged} 2>/dev/null").strip().split()
+        if got and got[0] == want:
+            break
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"nc transfer incomplete: {remote}")
+        time.sleep(0.5)
+    command(host, f"gzip -dc {staged} > {remote} && rm -f {staged}; echo done", 60)
+    digest = command(host, f"md5sum {remote}").strip().split()[0]
+    if digest != hashlib.md5(data).hexdigest():
+        raise RuntimeError(f"RAM transfer verification failed: {remote}")
+
+
 def upload(host: str, remote: str, data: bytes) -> None:
+    import os
+    push_port = os.environ.get("XZ_NC_PUSH_PORT")
+    if push_port:
+        return _nc_push(host, remote, data, int(push_port))
     encoded = base64.b64encode(gzip.compress(data, mtime=0)).decode("ascii")
     with open_telnet(host) as shell:
         terminal_command(shell, f"umask 077; : > {remote}.b64")

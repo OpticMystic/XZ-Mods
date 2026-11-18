@@ -1,0 +1,20 @@
+{
+  "section": "screen-and-themes#modern-look",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "SCREEN"
+    },
+    {
+      "tap": "LAMPS AND TITLES",
+      "expect_page": 42
+    },
+    {
+      "settings": true
+    }
+  ]
+}

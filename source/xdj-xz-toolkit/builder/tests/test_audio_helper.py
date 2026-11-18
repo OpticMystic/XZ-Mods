@@ -53,7 +53,7 @@ class NativeAudioTests(unittest.TestCase):
 
     def test_flac_requires_helper_and_does_not_execute_media(self):
         with patch.dict(os.environ, {"XZ_AUDIO_HELPER": ""}):
-            with self.assertRaisesRegex(ValueError, "requires"):
+            with self.assertRaisesRegex(ValueError, "require the bundled"):
                 cache.inspect_audio(self.flac)
 
     def test_streaming_source_longer_than_old_resident_pcm_limit(self):

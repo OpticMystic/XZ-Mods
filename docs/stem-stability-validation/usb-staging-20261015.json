@@ -1,0 +1,32 @@
+{
+  "volume": "G:\\",
+  "loader_sha256": "81b9693da4cf9af3da9a69d03431b7a0c05f00ead39729cdc032f2be98f722bf",
+  "loader_bytes": 14403584,
+  "runtime_sha256": "1764ee8799701b7bfaaeea6bc9130f3cc30ca3df31a1d4b27ca754ff99e81277",
+  "receiver_sha256": "dd12975a6436225139c04e6996e559fe39795eb9da42cd033393ac46f4a8b070",
+  "backup": "G:\\VJ.Tools\\XZ-Mods-updates\\a18e5dfd536941deb2a4f6c582a9d7a2\\previous.bin",
+  "pc_backup": "E:\\Codex\\xz-stem-fix-20261015\\usb-update-20261015\\before\\autoexec.bin",
+  "embedded_pair_verified": true,
+  "pinned_version_verified": true,
+  "protected_files_unchanged": 13,
+  "media_files_unchanged": 2996,
+  "games_added": 0,
+  "controller_tested": false,
+  "previous_loader_sha256": "c3cd5a26f1c3620eec6ee54591f266a868e191e6965f4c13d917f507dc1aff51",
+  "identity": {
+    "path": "g:\\",
+    "device": "2697541434",
+    "directory": "0",
+    "serial": "2697541434",
+    "filesystem": "FAT32",
+    "volume_root": "G:\\"
+  },
+  "selected_after": {
+    "id": "ab9cec84aa4a65a42ace7257dd648029b991224694a85e7f045f082631b58862",
+    "pinned": true,
+    "revision": "7b9c69e207b91659b09075e026fad22c5905408e7ff58cde176e48589c76b801"
+  },
+  "media_verification": "size and mtime metadata unchanged; media was not rewritten",
+  "smartcue_on_physical_acceptance": "not established; corrected owner report says OFF/OFF works",
+  "isolated_receiver_performance_acceptance": false
+}

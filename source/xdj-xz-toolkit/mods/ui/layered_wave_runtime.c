@@ -5,7 +5,12 @@
 #include "layered_wave_source.h"
 #include "../runtime.h"
 #include "../audio/native_reader.h"
+#include "../ram/runtime.h"
+extern int xz_ram_retained_source(unsigned,struct xz126_deck_source *) __attribute__((weak));
+#include "../pc_control/stems.h"
+#include "../pc_control/wave.h"
 #include <pthread.h>
+#include "../xz_thread.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,7 +27,9 @@
 #define CENTER(deck) (65u+(deck)*136u)
 typedef void (XZ_WAVE_ABI *native_column_fn)(unsigned,unsigned,unsigned,unsigned,unsigned,float);
 static native_column_fn stock_column;
-struct prepared {uint32_t player,file_frames;int mode;char path[XZ126_READER_PATH_MAX];struct xz_wave_load load;struct xz_layered_data data;};
+/* Columns the player drew with waveform data for each native deck this frame (xz_layered_wave_native_columns). */
+static _Thread_local unsigned native_columns[2];
+struct prepared {uint32_t player,file_frames;int mode,pc;unsigned physical,slot;uint32_t epoch,serial;char path[XZ126_READER_PATH_MAX];struct xz_wave_load load;struct xz_layered_data data;};
 /* Published read-only to the draw thread; the worker is the only writer. A replaced copy
  * is freed only after RETIRE_MS, so a frame that picked it up always finishes with it.
  * No lock on the draw path: a missed lock used to cost a whole stock frame (a flicker). */
@@ -32,8 +39,14 @@ static struct prepared *live[2];
 static struct {struct prepared *p;long at;} retired[RETIRE_SLOTS];
 /* Worker-only bookkeeping per deck. */
 static struct {long last_valid,retry_at;char failed[XZ126_READER_PATH_MAX];} track[2];
+static struct {unsigned slot;uint32_t epoch,serial,count;int mode;long retry_at;} pc_track[2];
 static int started,mode;
-static uint16_t colors[3]={0xf800,0x07e0,0x001f};
+extern int xz_shell_runtime_owns(void) __attribute__((weak));
+extern int xz_ui_runtime_native_wave_visible(void) __attribute__((weak));
+static int native_visible(void){
+ return xz_ui_runtime_native_wave_visible?xz_ui_runtime_native_wave_visible():!(xz_shell_runtime_owns&&xz_shell_runtime_owns());
+}
+static uint16_t colors[3]={0x2cbf,0xf9c6,0x368b};
 static _Thread_local struct {int active;uint16_t *pixels;const struct prepared *deck[2];uint32_t flags[2];int direct[2];} frame;
 /* What this thread drew in the current frame; it outlives the lock for the theme pass. */
 static _Thread_local struct {struct xz_layered_data look[2];struct xz_layered_col col[2][WIDTH];int any;} drawn;
@@ -43,16 +56,37 @@ static _Thread_local uint8_t keep[2][WIDTH][(2*EXTENT+7)/8];
  * [10] overview fills seen, [11] overview fills drawn */
 __attribute__((visibility("default"))) uint32_t xz_layered_wave_proof_v1[12]={2};
 static _Thread_local long frame_began;
+/* Native zoom: the first sample a frame drew at columns 0, 268 (the playhead) and 535, per deck.
+   Near a track's start or end the stock clamps one side, which only shortens that side's span, so
+   the zoom is the longer side. Background mode 1 (grey) until a frame is seen. */
+static const unsigned zoom_x[3]={0,268,WIDTH-1};
+static _Thread_local struct {uint32_t first[2][3];uint8_t seen[2];} zoom;
+static uint32_t zoom_column_us,zoom_background=1;
+static void zoom_fold(void){
+ for(unsigned d=0;d<2;d++){
+  const uint32_t *f=zoom.first[d];
+  if(zoom.seen[d]!=7||f[1]<f[0]||f[2]<f[1]||f[2]-f[0]>150u*600u)continue;
+  uint32_t a=(uint32_t)((uint64_t)(f[1]-f[0])*1000000u/150u/(zoom_x[1]-zoom_x[0]));
+  uint32_t b=(uint32_t)((uint64_t)(f[2]-f[1])*1000000u/150u/(zoom_x[2]-zoom_x[1]));
+  if(a<b)a=b;
+  if(a)__atomic_store_n(&zoom_column_us,a,__ATOMIC_RELAXED);
+ }
+ memset(&zoom,0,sizeof(zoom));
+}
 static long now_us(void){struct timeval t;gettimeofday(&t,NULL);return t.tv_sec*1000000L+t.tv_usec;}
 
 static int read_mem(void *c,uint32_t a,void *b,size_t n){(void)c;return xz_read_memory(a,b,n);}
 static int word(uint32_t a,uint32_t *v){return xz_read_memory(a,v,4);}
 static int current_source(unsigned deck,struct xz126_deck_source *s){
- uint32_t engine;return word(XZ126_PLAY_ENGINE_CELL,&engine)||xz126_deck_source_read(read_mem,NULL,engine,deck,s);
+ uint32_t engine;int result=word(XZ126_PLAY_ENGINE_CELL,&engine)||xz126_deck_source_read(read_mem,NULL,engine,deck,s);
+ return result&&xz_ram_retained_source&&xz_ram_retained_source(deck,s)?0:result;
 }
 /* 1 while the deck still holds p's file. The XZ rebinds its reader objects mid-track
  * (loops, scratching), so only a readable, different path counts as a change. */
 static int still_current(const struct prepared *p){
+ if(p->pc)return xz_pc_wave_current(p->physical,p->slot,p->epoch,p->serial,p->data.count);
+ struct xz_pc_stem_source source;
+ if(xz_pc_stems_native_source(p->physical,&source)&&source.pc)return 0;
  uint32_t reader,impl;char path[XZ126_READER_PATH_MAX];size_t n=strlen(p->path)+1;
  if(word(p->player+0xc8,&reader)||!reader||word(reader+4,&impl)||!impl||xz_read_memory(impl,path,n))return 1;
  if(path[0]!='/')return 1;
@@ -86,9 +120,41 @@ static int load(struct prepared *p,unsigned deck,int stems){
  xz_log(line);__atomic_fetch_add(&xz_layered_wave_proof_v1[1],1,__ATOMIC_RELAXED);
  return 0;
 }
+static void pc_deck_tick(unsigned i,int wanted,long now,const struct xz_pc_stem_source *source){
+ struct prepared *cur=__atomic_load_n(&live[i],__ATOMIC_ACQUIRE);
+ /* A PC source must never reuse an exported-USB reader, including during setup. */
+ if(cur&&(!cur->pc||!still_current(cur))){publish(i,NULL);cur=NULL;}
+ if(!source->linked||!source->rekordbox||!source->loaded||source->slot<0||source->slot>=4){
+  if(cur)publish(i,NULL);
+  return;
+ }
+ if(cur&&cur->mode==wanted)return;
+ unsigned slot=(unsigned)source->slot;struct xz_pc_wave_stamp stamp;
+ if(!xz_pc_wave_native_stamp(slot,&stamp)||stamp.busy||!stamp.complete||!stamp.count||stamp.count>540000)return;
+ if(pc_track[i].slot==slot&&pc_track[i].epoch==stamp.epoch&&pc_track[i].serial==stamp.serial&&
+    pc_track[i].count==stamp.count&&pc_track[i].mode==wanted&&now<pc_track[i].retry_at)return;
+ pc_track[i].slot=slot;pc_track[i].epoch=stamp.epoch;pc_track[i].serial=stamp.serial;
+ pc_track[i].count=stamp.count;pc_track[i].mode=wanted;pc_track[i].retry_at=now+1000;
+ struct prepared *next=calloc(1,sizeof(*next));if(!next)return;
+ next->pc=1;next->physical=i;next->mode=wanted;
+ long begun=now_ms();
+ if(xz_pc_wave_load(i,&next->load,&next->slot,&next->epoch,&next->serial)){
+  prepared_free(next);return;
+ }
+ next->data=(struct xz_layered_data){next->load.bands,next->load.count,next->load.normalization,next->load.kind,{0,0,0}};
+ if(!still_current(next)){prepared_free(next);return;}
+ /* STEMS keeps its documented real-PWV7 fallback for PERFORMANCE mode. */
+ pc_track[i].retry_at=0;publish(i,next);
+ __atomic_store_n(&xz_layered_wave_proof_v1[6],(uint32_t)(now_ms()-begun),__ATOMIC_RELAXED);
+ __atomic_fetch_add(&xz_layered_wave_proof_v1[1],1,__ATOMIC_RELAXED);
+ char line[160];snprintf(line,sizeof(line),"LAYERED_WAVE: deck=%u PC slot=%u real-PWV7 samples=%u epoch=%u serial=%u",i+1,next->slot,next->load.count,next->epoch,next->serial);xz_log(line);
+}
 static void deck_tick(unsigned i,int wanted,long now){
  struct prepared *cur=__atomic_load_n(&live[i],__ATOMIC_ACQUIRE);
  if(!wanted){if(cur)publish(i,NULL);return;}
+ struct xz_pc_stem_source pc_source;
+ if(xz_pc_stems_native_source(i,&pc_source)&&pc_source.pc){pc_deck_tick(i,wanted,now,&pc_source);return;}
+ if(cur&&cur->pc){publish(i,NULL);cur=NULL;}
  struct xz126_deck_source s;
  /* A failed snapshot is usually the player rebinding; keep drawing for a while. */
  if(current_source(i,&s)){if(cur&&now-track[i].last_valid>5000)publish(i,NULL);return;}
@@ -98,7 +164,7 @@ static void deck_tick(unsigned i,int wanted,long now){
  if(same&&cur->mode==wanted&&!retry)return;
  if(now<track[i].retry_at&&!strcmp(track[i].failed,s.path))return;
  struct prepared *next=calloc(1,sizeof(*next));if(!next)return;
- next->player=s.player;next->file_frames=s.file_frames;next->mode=wanted;memcpy(next->path,s.path,sizeof(next->path));
+ next->physical=i;next->player=s.player;next->file_frames=s.file_frames;next->mode=wanted;memcpy(next->path,s.path,sizeof(next->path));
  /* The current copy stays on screen while the next one loads, so a mode switch or a
   * stems retry never blanks the waveform. */
  if(load(next,i,wanted==XZ_WAVE_STEMS)||(retry&&next->load.kind!=XZ_LAYERED_STEMS)){
@@ -111,18 +177,21 @@ static void deck_tick(unsigned i,int wanted,long now){
  if(!current_source(i,&after)&&(after.file_frames!=s.file_frames||strcmp(after.path,s.path))){prepared_free(next);return;}
  track[i].retry_at=0;publish(i,next);
 }
+static void worker_step(long now){
+ int wanted=__atomic_load_n(&mode,__ATOMIC_ACQUIRE);
+ sweep(now);xz_pc_wave_state();
+ if(native_visible())for(unsigned i=0;i<2;i++)deck_tick(i,wanted,now);
+}
 static void *worker(void *unused){
  (void)unused;
  for(;;){
-  int wanted=__atomic_load_n(&mode,__ATOMIC_ACQUIRE);long now=now_ms();
-  sweep(now);
-  for(unsigned i=0;i<2;i++)deck_tick(i,wanted,now);
+  worker_step(now_ms());
   struct timespec delay={0,250000000};nanosleep(&delay,NULL);
  }
  return NULL;
 }
 int xz_layered_wave_enabled(void){return __atomic_load_n(&started,__ATOMIC_ACQUIRE);}
-int xz_layered_wave_active(void){return xz_layered_wave_enabled()&&__atomic_load_n(&mode,__ATOMIC_ACQUIRE)!=XZ_WAVE_STOCK;}
+int xz_layered_wave_active(void){return xz_layered_wave_enabled()&&native_visible()&&__atomic_load_n(&mode,__ATOMIC_ACQUIRE)!=XZ_WAVE_STOCK;}
 static uint16_t rgb565(uint32_t rgb){return (uint16_t)(((rgb>>19)&31)<<11|((rgb>>10)&63)<<5|((rgb>>3)&31));}
 void xz_layered_wave_configure(int requested,const uint32_t stem_rgb[3]){
  if(requested<0||requested>=XZ_WAVE_MODE_COUNT)requested=XZ_WAVE_STOCK;
@@ -131,6 +200,7 @@ void xz_layered_wave_configure(int requested,const uint32_t stem_rgb[3]){
  __atomic_store_n(&xz_layered_wave_proof_v1[5],(uint32_t)requested,__ATOMIC_RELAXED);
 }
 void xz_layered_wave_end(void){
+ zoom_fold();
  if(frame_began){
   long took=now_us()-frame_began;frame_began=0;
   if(took>=0&&took<1000000){
@@ -141,8 +211,18 @@ void xz_layered_wave_end(void){
  }
  memset(&frame,0,sizeof(frame));
 }
+void xz_layered_wave_view(uint32_t *column_us,unsigned *background){
+ if(column_us)*column_us=__atomic_load_n(&zoom_column_us,__ATOMIC_RELAXED);
+ if(background)*background=__atomic_load_n(&zoom_background,__ATOMIC_RELAXED);
+}
+const struct xz_layered_col *xz_layered_wave_drawn(unsigned deck,struct xz_layered_data *look){
+ if(deck>=2||!drawn.any)return NULL;
+ if(look)*look=drawn.look[deck];
+ return drawn.col[deck];
+}
 void xz_layered_wave_begin(uint16_t *pixels){
  xz_layered_wave_end();
+ native_columns[0]=native_columns[1]=0;
  if(xz_layered_wave_enabled())frame_began=now_us();
  drawn.any=0;memset(drawn.col,0,sizeof(drawn.col));
  if(!xz_layered_wave_active()||!pixels)return;
@@ -160,12 +240,22 @@ void xz_layered_wave_begin(uint16_t *pixels){
    frame.direct[i]=last<UINT32_MAX/16&&flags<=UINT32_MAX-last*16-12&&
     !xz_read_memory(flags+12,&probe,1)&&!xz_read_memory(flags+last*16+12,&probe,1);
    drawn.look[i]=p->data;drawn.look[i].bands=NULL;
-   for(unsigned k=0;k<3;k++)drawn.look[i].colors[k]=__atomic_load_n(&colors[k],__ATOMIC_RELAXED);
+   if(p->data.kind==XZ_LAYERED_THREE_BAND)xz_layered_band_colors(drawn.look[i].colors);
+   else for(unsigned k=0;k<3;k++)drawn.look[i].colors[k]=__atomic_load_n(&colors[k],__ATOMIC_RELAXED);
   }
  }
 }
+int xz_layered_wave_native_columns(unsigned deck){
+ if(deck>=2||!stock_column)return -1;
+ return (int)native_columns[deck];
+}
 static void XZ_WAVE_ABI column(unsigned deck,unsigned x,unsigned first,unsigned end,unsigned bg,float scale){
  stock_column(deck,x,first,end,bg,scale);
+ if(deck<2&&end>first&&native_columns[deck]<WIDTH)native_columns[deck]++;
+ if(deck<2)for(unsigned k=0;k<3;k++)if(x==zoom_x[k]){
+  zoom.first[deck][k]=first;zoom.seen[deck]|=(uint8_t)(1u<<k);
+  __atomic_store_n(&zoom_background,bg,__ATOMIC_RELAXED);
+ }
  if(!frame.active||deck>=2||!frame.deck[deck]||x>=WIDTH)return;
  const struct prepared *p=frame.deck[deck];
  if(first>=p->data.count||first>UINT32_MAX/16||frame.flags[deck]>UINT32_MAX-first*16-12)return;
@@ -179,10 +269,11 @@ static void XZ_WAVE_ABI column(unsigned deck,unsigned x,unsigned first,unsigned 
 }
 /* Rows d above the centre line, then their mirror below it. */
 static unsigned row_of(unsigned deck,unsigned r){return r<EXTENT?CENTER(deck)-r:CENTER(deck)+1+(r-EXTENT);}
-void xz_layered_wave_protect(const uint16_t *pixels){
+void xz_layered_wave_protect(const uint16_t *pixels){xz_layered_wave_protect_decks(pixels,3u);}
+void xz_layered_wave_protect_decks(const uint16_t *pixels,unsigned decks){
  memset(keep,0,sizeof(keep));
  if(!drawn.any||!pixels)return;
- for(unsigned deck=0;deck<2;deck++)for(unsigned x=0;x<WIDTH;x++){
+ for(unsigned deck=0;deck<2;deck++)if(decks&(1u<<deck))for(unsigned x=0;x<WIDTH;x++){
   const struct xz_layered_col *c=&drawn.col[deck][x];if(!c->valid)continue;
   for(unsigned r=0;r<2*EXTENT;r++){
    int want=xz_layered_pixel(&drawn.look[deck],c,r%EXTENT);
@@ -213,7 +304,9 @@ int xz_layered_overview(uint16_t *pixels,unsigned deck){
  __atomic_fetch_add(&xz_layered_wave_proof_v1[10],1,__ATOMIC_RELAXED);
  const struct prepared *p=__atomic_load_n(&live[deck],__ATOMIC_ACQUIRE);
  if(p&&p->mode==__atomic_load_n(&mode,__ATOMIC_ACQUIRE)&&still_current(p)){
-  overview.look=p->data;for(unsigned k=0;k<3;k++)overview.look.colors[k]=__atomic_load_n(&colors[k],__ATOMIC_RELAXED);
+  overview.look=p->data;
+  if(p->data.kind==XZ_LAYERED_THREE_BAND)xz_layered_band_colors(overview.look.colors);
+  else for(unsigned k=0;k<3;k++)overview.look.colors[k]=__atomic_load_n(&colors[k],__ATOMIC_RELAXED);
   for(unsigned x=0;x<OVERVIEW_W;x++){
    struct xz_layered_col *c=&overview.col[x];c->valid=0;
    if(cue_column(pixels,x)||cue_column(pixels,x+1)||(x&&cue_column(pixels,x-1)))continue;
@@ -242,9 +335,9 @@ void xz_layered_overview_restore(uint16_t *pixels){
 }
 int xz_layered_wave_start(void){
  if(xz_layered_wave_enabled())return 0;
- const char *disabled=getenv("XZ_MODS_LAYERED_WAVE");if(disabled&&!strcmp(disabled,"0"))return 0;
+ /* wave_mode is the sole user choice; old launch overrides are ignored. */
  static const unsigned char guard[8]={0xf0,0x4f,0x2d,0xe9,0x80,0x52,0xa0,0xe1};
  if(xz_hook_arm(0x1fab28,guard,(void*)column,(void**)&stock_column))return -1;
- pthread_t thread;if(pthread_create(&thread,NULL,worker,NULL))return -1;
+ pthread_t thread;if(XZ_WORKER_CREATE(&thread,worker,NULL))return -1;
  pthread_detach(thread);__atomic_store_n(&started,1,__ATOMIC_RELEASE);return 0;
 }

@@ -87,9 +87,10 @@ static inline int xz_native_retro_art(unsigned id,int theme,struct xz_asset_role
   xz_retro_title(s,theme,width,30);return 1;
  }
  if(fx){
-  xz_retro_shell(s,theme,all);xz_theme_fill(s,(struct xz_theme_rect){6,5,width-12,height-10},p->bg);
-  if(t->font==XZ_FONT_PIXEL)xz_main_text(s,38,12,"BEAT FX",1,p->ink);
-  else xz_main_atlas(s,28,8,"BEAT FX",1,p->ink);
+  /* Rows 0..2 lie at y 15..17, the overlay's top band (top_bar.h); the stock header starts at row 3. */
+  xz_retro_shell(s,theme,(struct xz_theme_rect){0,3,width,height-3});xz_theme_fill(s,(struct xz_theme_rect){6,8,width-12,height-13},p->bg);
+  if(t->font==XZ_FONT_PIXEL)xz_main_text(s,38,15,"BEAT FX",1,p->ink);
+  else xz_main_atlas(s,28,11,"BEAT FX",1,p->ink);
   return 1;
  }
  if(deck){

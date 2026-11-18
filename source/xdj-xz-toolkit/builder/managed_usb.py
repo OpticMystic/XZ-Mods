@@ -9,9 +9,11 @@ import os
 from pathlib import Path
 import re
 import shutil
+import sys
 import tempfile
 import uuid
-from . import usb,usb_settings
+import ctypes
+from . import dj_profile,games,usb,usb_settings
 from .cache import _safe_path,_regular,_publish_new
 from .jobs import exclusive_lock
 
@@ -135,7 +137,7 @@ def recoveries(volume):
 def read_settings(volume,resources):
     schema=usb_settings.contract(resources);path=_safe_path(Path(volume)/SETTINGS);rev=revision(path)
     try:
-        if rev.get('bytes',0)>511:raise ValueError('Settings file is larger than this runtime supports; original was preserved')
+        if rev.get('bytes',0)>1023:raise ValueError('Settings file is larger than this runtime supports; original was preserved')
         values=usb_settings.parse(path.read_bytes(),schema) if rev['exists'] else usb_settings.defaults(schema)
     except ValueError as exc:return {'editable':False,'reason':str(exc),'revision':rev,'schema':schema}
     return {'editable':True,'values':values,'revision':rev,'schema':schema,'path':str(path)}
@@ -143,11 +145,100 @@ def read_settings(volume,resources):
 def inspect(volume,resources):
     volume=_safe_path(volume);observed=identity(volume)
     manifest=json.loads((Path(resources)/'runtime/manifest.json').read_text())
-    return {'format':'xz-mods-usb/1','volume':str(volume),'identity':observed,'loader':revision(volume/'autoexec.bin'),
-            'installed_version':None,'runtime_sha256':manifest['runtime_sha256'],'settings':read_settings(volume,resources),
-            'backups':recoveries(volume),**usb.target_info(volume)}
+    loader=revision(volume/'autoexec.bin')
+    from . import mod_versions,rekordbox_pdb,stem_library
+    try:space=shutil.disk_usage(volume);space={'free_bytes':space.free,'total_bytes':space.total}
+    except OSError:space={'free_bytes':None,'total_bytes':None}
+    try:recorded=mod_versions.lookup_loader(loader)
+    except (OSError,ValueError):recorded=None
+    return {'format':'xz-mods-usb/1','volume':str(volume),'identity':observed,'loader':loader,'recorded_mod_version':recorded,
+            'installed_version':recorded.get('label') if recorded else None,'runtime_sha256':manifest['runtime_sha256'],'settings':read_settings(volume,mod_versions.settings_resources(volume,resources)),
+            'backups':recoveries(volume),'games':games.installed(volume),'space':space,'stems':stem_library.stems_on_usb(volume),
+            'rekordbox':volume.joinpath(*rekordbox_pdb.EXPORT_PDB).is_file(),'dj_profiles':dj_profile.summary(volume),**usb.target_info(volume)}
 
-def update_loader(volume,expected_identity,expected_loader,rbp,key,resources,job):
+def _windows_volumes():
+    """(root, label, drive type, filesystem, writable) for each lettered removable or fixed drive. filesystem and writable
+    are None when Windows cannot read the volume."""
+    kernel=ctypes.windll.kernel32;found=[]
+    for number in range(26):
+        root=Path(chr(65+number)+':/')
+        if not kernel.GetLogicalDrives()&(1<<number):continue
+        kind=kernel.GetDriveTypeW(str(root))
+        if kind not in (2,3):continue
+        label=ctypes.create_unicode_buffer(261);name=ctypes.create_unicode_buffer(64);flags=ctypes.c_uint32()
+        try:known=kernel.GetVolumeInformationW(str(root),label,261,None,None,ctypes.byref(flags),name,64)
+        except OSError:continue
+        # FILE_READ_ONLY_VOLUME: a locked SD card or a write-protected stick.
+        found.append((root,label.value,kind,name.value.upper() if known else None,not flags.value&0x80000 if known else None))
+    return found
+
+def discover(resources):
+    """Drives the setup wizard can offer: USB volumes, plus any volume already carrying an XZ Mods loader.
+    removable is True for a USB stick, disk or card (by its bus on Windows, so a stick Windows calls a fixed disk counts).
+    filesystem is shown to the DJ; writable False means no loader can go on it. Each is None when unknown."""
+    found=[]
+    def describe(root,label,removable,filesystem=None,writable=None):
+        loader=(root/'autoexec.bin').is_file();settings=(root/SETTINGS).is_file()
+        rekordbox=root.joinpath('PIONEER','rekordbox','export.pdb').is_file()
+        if not (removable or loader):return
+        found.append({'volume':str(root),'label':label or str(root),'removable':removable,'loader':loader,'settings':settings,'rekordbox':rekordbox,
+                      'filesystem':filesystem or None,'writable':writable,'games':sum(game['installed'] for game in games.installed(root))})
+    if os.name=='nt':
+        for root,label,kind,filesystem,writable in _windows_volumes():
+            describe(root,label,usb.on_usb(kind,usb.windows_bus(root),filesystem),filesystem,writable)
+    elif sys.platform=='darwin':
+        import subprocess
+        from .host import mac_volume
+        for root in Path('/Volumes').iterdir():
+            if root.is_symlink() or not root.is_dir():continue
+            try:
+                # Network shares and plain folders also appear in /Volumes; keep only local /dev/disk mounts rooted at this entry.
+                info=mac_volume(root)
+                if Path(info['volume_root'])!=root:continue
+                removable=os.stat(root).st_dev!=os.stat('/').st_dev
+            except (OSError,ValueError,subprocess.SubprocessError):continue
+            describe(root,root.name,removable,info.get('filesystem'),info.get('writable'))
+    return {'format':'xz-usbs/1','usbs':found}
+
+def _commit_loader(volume,observed,expected_loader,candidate,job,settings_change=None):
+    changed=None
+    if settings_change:
+        _check_revision(volume/SETTINGS,settings_change['expected'])
+        compatible=candidate.parent/'compatible-settings.cfg'
+        _write(compatible,settings_change['data'])
+        changed=_commit(volume,observed,SETTINGS,settings_change['expected'],compatible,job)
+    try:
+        result=_commit(volume,observed,'autoexec.bin',expected_loader,candidate,job)
+    except BaseException as error:
+        if changed:
+            # Restore the profile only while the old loader and our exact adjusted
+            # profile remain in place. Never overwrite an intervening user edit.
+            try:
+                check_target(volume,observed)
+                if revision(volume/'autoexec.bin')==expected_loader and revision(volume/SETTINGS)==changed['revision']:
+                    from .jobs import Job
+                    rollback=candidate.parent/'rollback-settings.cfg'
+                    _write(rollback,_regular(changed['backup']).read_bytes())
+                    _commit(volume,observed,SETTINGS,changed['revision'],rollback,Job())
+                else:
+                    raise RuntimeError('Loader or settings changed during the failed switch')
+            except (OSError,ValueError,RuntimeError) as recovery_error:
+                raise RuntimeError(f'{error}. Settings recovery needs inspection: {recovery_error}. Original settings backup: {changed["backup"]}') from error
+        raise
+    if changed:result['settings_adjustment']={'backup':changed['backup'],'transaction_id':changed['transaction_id'],
+        'removed_fields':settings_change['removed_fields'],'reset_fields':settings_change['reset_fields']}
+    return result
+
+def build_with_settings(volume,rbp,key,resources,job,settings_change):
+    volume=_safe_path(volume);observed=identity(volume);expected={'exists':False}
+    with _lease(volume,observed):
+        _check_revision(volume/'autoexec.bin',expected)
+        with tempfile.TemporaryDirectory(prefix='.xzmods-version-',dir=volume) as temp:
+            built=usb.build_usb(temp,rbp,key,resources,job,True)
+            result=_commit_loader(volume,observed,expected,Path(built['image']),job,settings_change)
+        return {**built,**result,**usb.target_info(volume),'image':str(volume/'autoexec.bin')}
+
+def update_loader(volume,expected_identity,expected_loader,rbp,key,resources,job,settings_change=None):
     volume=_safe_path(volume)
     if not isinstance(expected_loader,dict) or expected_loader.get('exists') is not True:raise ValueError('Inspect an existing loader first')
     with _lease(volume,expected_identity):
@@ -156,7 +247,7 @@ def update_loader(volume,expected_identity,expected_loader,rbp,key,resources,job
         with tempfile.TemporaryDirectory(prefix='.xzmods-update-',dir=volume) as temp:
             candidate=usb.build_usb(temp,rbp,key,resources,job,True)
             job.progress('backup','Backing up the existing loader before replacement')
-            result=_commit(volume,expected_identity,'autoexec.bin',expected_loader,Path(candidate['image']),job)
+            result=_commit_loader(volume,expected_identity,expected_loader,Path(candidate['image']),job,settings_change)
         return {'format':'xz-mods-loader-updated/1',**result,'image':str(volume/'autoexec.bin'),'inspection':inspect(volume,resources)}
 
 def save_settings(volume,expected_identity,expected_revision,values,resources,job):
@@ -185,3 +276,34 @@ def restore_loader(volume,expected_identity,expected_loader,transaction,resource
             candidate=Path(temp)/'autoexec.bin';shutil.copyfile(previous,candidate)
             result=_commit(volume,expected_identity,'autoexec.bin',expected_loader,candidate,job)
         return {'format':'xz-mods-loader-restored/1',**result,'inspection':inspect(volume,resources)}
+
+
+def support_candidates():
+    """Metadata-only candidates. No loader hashing, music inspection, or writes."""
+    found=[]
+    if os.name=='nt':
+        kernel=ctypes.windll.kernel32
+        mask=kernel.GetLogicalDrives()
+        for number in range(26):
+            if not mask&(1<<number):continue
+            path=Path(chr(65+number)+':/')
+            kind=kernel.GetDriveTypeW(str(path))
+            if kind not in (2,3):continue
+            # support_sources validates fixed markers, parents and identities.
+            found.append({'volume':str(path),'removable':kind==2})
+    elif sys.platform=='darwin':
+        from .host import mac_volume
+        for path in Path('/Volumes').iterdir():
+            if path.is_symlink() or not path.is_dir():continue
+            try:
+                if Path(mac_volume(path)['volume_root'])==path:found.append({'volume':str(path),'removable':True})
+            except (OSError,ValueError):continue
+    return found
+
+
+def attach_loader_identity(result,prepared):
+    """Commit the host's staged identity immediately after loader readback."""
+    if prepared is not None:
+        from . import controller_queue
+        result['loader_identity']=controller_queue.finish_loader_request(prepared)
+    return result

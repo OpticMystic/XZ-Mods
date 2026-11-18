@@ -1,0 +1,23 @@
+{
+  "section": "connect#dj-profile",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "CONNECT"
+    },
+    {
+      "tap": "DJ PROFILE"
+    },
+    {
+      "tap": "SET UP DJ PROFILE",
+      "expect_page": 24
+    },
+    {
+      "turn": 2
+    }
+  ]
+}

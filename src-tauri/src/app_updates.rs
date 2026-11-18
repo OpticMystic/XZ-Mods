@@ -8,6 +8,16 @@ pub const RELEASE_PAGE:&str="https://github.com/OpticMystic/XZ-Mods/releases/lat
 pub const PORTABLE_URL:&str="https://github.com/OpticMystic/XZ-Mods/releases/latest/download/XZ-Mods-Builder-preview-win64.zip";
 #[cfg(not(windows))]
 pub const PORTABLE_URL:&str=RELEASE_PAGE;
+pub const BETA_PAGE:&str="https://beta.xzmods.com/";
+pub const BETA_PORTABLE_URL:&str=concat!("https://github.com/OpticMystic/XZ-Mods/releases/download/v",env!("CARGO_PKG_VERSION"),"/XZ-Mods-Builder-preview-win64.zip");
+const BETA_FEED:&str="https://beta.xzmods.com/updates/latest.json";
+const BETA_FEED_MIRROR:&str="https://xzmods.com/updates/latest.json";
+fn beta_build(version:&str)->bool{semver::Version::parse(version).is_ok_and(|v|!v.pre.is_empty())}
+fn beta_comparison(current:&str,latest:&str)->Result<std::cmp::Ordering,String>{
+    let version=semver::Version::parse(latest).map_err(|_|"The beta update version is invalid")?;
+    if version.pre.is_empty(){return Err("The beta feed points to a stable release. Check the beta downloads page.".into());}
+    newer(current,latest)
+}
 const RELEASE_API:&str="https://api.github.com/repos/OpticMystic/XZ-Mods/releases/latest";
 
 pub struct Updates { pub inner:Mutex<UpdateState> }
@@ -22,6 +32,13 @@ fn write_marker(app:&tauri::AppHandle,version:&str)->Result<(),String>{
     let target=marker(app)?;let parent=target.parent().ok_or("Settings folder unavailable")?;
     std::fs::create_dir_all(parent).map_err(|e|e.to_string())?;
     std::fs::write(target,serde_json::to_vec(&json!({"version":version})).map_err(|e|e.to_string())?).map_err(|e|e.to_string())
+}
+/* The marker holds the version the updater installed. A beta takes a full release from the beta feed only under a
+   pre-release tag of the same version (0.6.0-release for 0.6.0: beta builds refuse a plain one), so a full release also
+   shows its notes after such an update. */
+fn notes_due(marker:&str,installed:&str)->bool{
+    marker==installed||(!beta_build(installed)&&semver::Version::parse(marker).is_ok_and(|m|!m.pre.is_empty()
+        &&semver::Version::parse(installed).is_ok_and(|v|(m.major,m.minor,m.patch)==(v.major,v.minor,v.patch))))
 }
 pub fn bundled_notes()->Value{serde_json::from_str(include_str!("../../release-notes.json")).expect("Validated release notes")}
 
@@ -59,12 +76,12 @@ fn test_url(key:&str)->Option<reqwest::Url>{
 #[tauri::command]
 pub fn app_information(app:tauri::AppHandle)->Result<Value,String>{
     let version=app.package_info().version.to_string();
-    let show_notes=marker(&app).ok().and_then(|p|std::fs::read(p).ok()).and_then(|b|serde_json::from_slice::<Value>(&b).ok()).is_some_and(|v|v["version"]==version);
+    let show_notes=marker(&app).ok().and_then(|p|std::fs::read(p).ok()).and_then(|b|serde_json::from_slice::<Value>(&b).ok()).is_some_and(|v|v["version"].as_str().is_some_and(|m|notes_due(m,&version)));
     #[cfg(not(target_os="macos"))]
     let installed=std::env::current_exe().ok().and_then(|p|p.parent().map(|d|d.join("uninstall.exe").is_file())).unwrap_or(false);
     #[cfg(target_os="macos")]
     let installed=std::env::current_exe().ok().is_some_and(|p|p.components().any(|c|c.as_os_str().to_string_lossy().ends_with(".app")));
-    Ok(json!({"version":version,"installed":installed,"platform":std::env::consts::OS,"portable_url":PORTABLE_URL,"show_release_notes":show_notes,"release_notes":bundled_notes(),"test_build":cfg!(feature="updater-test")}))
+    Ok(json!({"version":version,"installed":installed,"platform":std::env::consts::OS,"portable_url":if beta_build(&version){BETA_PORTABLE_URL}else{PORTABLE_URL},"release_page":if beta_build(&version){BETA_PAGE}else{RELEASE_PAGE},"update_channel":if beta_build(&version){"beta"}else{"stable"},"automatic_update_checks":cfg!(any(windows,target_os="macos")),"show_release_notes":show_notes,"release_notes":bundled_notes(),"test_build":cfg!(feature="updater-test")}))
 }
 #[tauri::command]
 pub fn acknowledge_release_notes(app:tauri::AppHandle)->Result<(),String>{
@@ -74,9 +91,29 @@ pub fn acknowledge_release_notes(app:tauri::AppHandle)->Result<(),String>{
 pub fn app_update_status(app:tauri::AppHandle)->Result<Value,String>{
     app.state::<Updates>().inner.lock().map(|s|s.status.clone()).map_err(|_|"Update state unavailable".into())
 }
+async fn check_beta(app:&tauri::AppHandle,current:&str)->Result<Value,String>{
+    let builder=app.updater_builder().timeout(Duration::from_secs(20))
+        .endpoints(vec![reqwest::Url::parse(BETA_FEED).map_err(|e|e.to_string())?,reqwest::Url::parse(BETA_FEED_MIRROR).map_err(|e|e.to_string())?]).map_err(|e|e.to_string())?
+        .version_comparator(|_,_|true);
+    #[cfg(feature="updater-test")]
+    let builder=if let Some(url)=test_url("XZ_UPDATER_TEST_ENDPOINT"){builder.endpoints(vec![url]).map_err(|e|e.to_string())?}else{builder};
+    let update=builder.build().map_err(|e|e.to_string())?.check().await
+        .map_err(|_|"Could not read the signed beta update feed. Check your connection and try again.")?;
+    let Some(mut update)=update else{return Ok(json!({"phase":"current","channel":"beta","current_version":current,"message":"No newer beta is available.","checked_at":now()}));};
+    let comparison=beta_comparison(current,&update.version)?;
+    if comparison!=std::cmp::Ordering::Greater{
+        return Ok(json!({"phase":if comparison==std::cmp::Ordering::Less{"ahead"}else{"current"},"channel":"beta","current_version":current,"latest_version":update.version,"message":if comparison==std::cmp::Ordering::Less{"This beta is newer than the published beta."}else{"XZ Mods beta is up to date."},"checked_at":now()}));
+    }
+    if !approved_download(&update.download_url){return Err("The beta update points to an unexpected installer location".into());}
+    update.timeout=Some(Duration::from_secs(600));
+    let result=json!({"phase":"available","channel":"beta","current_version":current,"latest_version":update.version,"message":"A newer XZ Mods beta is ready to install.","notes":parse_notes(update.body.as_deref().unwrap_or("")),"checked_at":now()});
+    app.state::<Updates>().inner.lock().map_err(|_|"Update state unavailable")?.pending=Some(update);
+    Ok(result)
+}
 async fn check_inner(app:&tauri::AppHandle)->Result<Value,String>{
     let _=rustls::crypto::ring::default_provider().install_default();
     let current=app.package_info().version.to_string();
+    if beta_build(&current){return check_beta(app,&current).await;}
     let api=RELEASE_API.parse::<reqwest::Url>().map_err(|e|e.to_string())?;
     #[cfg(feature="updater-test")]
     let api=test_url("XZ_UPDATER_TEST_API").unwrap_or(api);
@@ -115,6 +152,7 @@ async fn check_inner(app:&tauri::AppHandle)->Result<Value,String>{
 }
 #[tauri::command]
 pub async fn check_app_update(app:tauri::AppHandle)->Result<Value,String>{
+    crate::controller_queue::wake(app.clone());
     if app.state::<crate::Jobs>().updating.load(Ordering::Acquire){return Err("An app update is already running".into());}
     {
         let state=app.state::<Updates>();let mut s=state.inner.lock().map_err(|_|"Update state unavailable")?;
@@ -149,14 +187,60 @@ pub async fn install_app_update(app:tauri::AppHandle)->Result<(),String>{
             #[cfg(target_os="macos")] {app.restart();}
             #[cfg(not(target_os="macos"))] {Ok(())}
         },
-        Err(_)=>{app.state::<crate::Jobs>().updating.store(false,Ordering::Release);state(&app,json!({"phase":"error","message":"The app update could not be installed. Your current app is unchanged."}));Err("Could not install the app update".into())}
+        Err(_)=>{
+            // A Mac app opened straight from the disk image or Downloads runs from a read-only copy that cannot be replaced.
+            let message=if cfg!(target_os="macos"){"The app update could not be installed. Your current app is unchanged. Move XZ Mods to the Applications folder, open it from there and try again."}else{"The app update could not be installed. Your current app is unchanged."};
+            app.state::<crate::Jobs>().updating.store(false,Ordering::Release);state(&app,json!({"phase":"error","message":message}));Err("Could not install the app update".into())
+        }
     }
+}
+
+/// Updater test builds only: with XZ_UPDATER_TEST_AUTOINSTALL=<log file>, check the test feed at launch and install
+/// what it offers, logging each step, so a real update can be proven end to end without clicking.
+#[cfg(feature="updater-test")]
+pub fn autoinstall_for_test(app:&tauri::AppHandle){
+    let Some(log)=std::env::var_os("XZ_UPDATER_TEST_AUTOINSTALL").map(std::path::PathBuf::from) else{return};
+    let app=app.clone();
+    tauri::async_runtime::spawn(async move{
+        let note=|line:String|{use std::io::Write;if let Ok(mut f)=std::fs::OpenOptions::new().create(true).append(true).open(&log){let _=writeln!(f,"{line}");}};
+        note(format!("launched {}",app.package_info().version));
+        let checked=check_app_update(app.clone()).await;
+        note(format!("check {}",match &checked{Ok(v)=>v.to_string(),Err(e)=>e.clone()}));
+        if checked.is_ok_and(|v|v["phase"]=="available"){
+            let installed=install_app_update(app.clone()).await;
+            note(format!("install {installed:?}"));
+        }
+    });
 }
 
 #[cfg(test)]
 mod tests{
     use super::*;
     #[test]fn release_notes_prioritize_features_then_fixes(){let n=parse_notes("# XZ Mods 1.2.3\n## Fixes\n- Keep USB settings.\n## New features\n- App updates.\n");assert_eq!(n["features"][0],"App updates.");assert_eq!(n["fixes"][0],"Keep USB settings.");}
+    #[test]fn beta_and_stable_channels_are_separate(){
+        assert!(!beta_build("0.2.1"));assert!(beta_build("0.3.0-preview.12"));
+        assert_eq!(beta_comparison("0.3.0-preview.12","0.3.0-preview.13").unwrap(),std::cmp::Ordering::Greater);
+        assert_eq!(beta_comparison("0.3.0-preview.13","0.3.0-preview.12").unwrap(),std::cmp::Ordering::Less);
+        assert_eq!(beta_comparison("0.3.0-preview.13","0.3.0-preview.13").unwrap(),std::cmp::Ordering::Equal);
+        assert!(beta_comparison("0.3.0-preview.12","0.3.0").is_err());assert!(beta_comparison("0.3.0-preview.12","bad").is_err());
+        /* 0.5.1-Beta follows every 0.5.0 preview on the beta channel. */
+        assert!(beta_build("0.5.1-Beta"));assert_eq!(beta_comparison("0.5.0-preview.22.13.4","0.5.1-Beta").unwrap(),std::cmp::Ordering::Greater);
+        assert_eq!(beta_comparison("0.5.1-Beta","0.5.0-preview.22.13.4").unwrap(),std::cmp::Ordering::Less);
+        /* The 0.5.1-Beta.1 hotfix is offered to 0.5.1-Beta, and 0.5.1-Beta.2 to both. 0.6.0 is a full release on the stable channel: betas get it only from its 0.6.0-release bridge entry on the beta feed. */
+        assert!(beta_build("0.5.1-Beta.1"));assert_eq!(beta_comparison("0.5.1-Beta","0.5.1-Beta.1").unwrap(),std::cmp::Ordering::Greater);
+        assert!(beta_build("0.5.1-Beta.2"));assert_eq!(beta_comparison("0.5.1-Beta.1","0.5.1-Beta.2").unwrap(),std::cmp::Ordering::Greater);assert_eq!(beta_comparison("0.5.1-Beta","0.5.1-Beta.2").unwrap(),std::cmp::Ordering::Greater);
+        assert!(!beta_build("0.6.0"));assert_eq!(newer("0.5.1-Beta.2","0.6.0").unwrap(),std::cmp::Ordering::Greater);assert!(beta_comparison("0.5.1-Beta.2","0.6.0").is_err());assert_eq!(beta_comparison("0.5.1-Beta.2","0.6.0-release").unwrap(),std::cmp::Ordering::Greater);
+        assert!(BETA_FEED.starts_with(BETA_PAGE));assert!(!BETA_FEED.contains("releases/latest"));
+    }
+    #[test]fn full_release_notes_show_after_a_bridged_beta_update(){
+        assert!(notes_due("0.6.0","0.6.0"));assert!(notes_due("0.6.0-release","0.6.0"));
+        assert!(!notes_due("0.5.1-Beta.2","0.6.0"));assert!(!notes_due("0.6.0-release","0.6.1"));assert!(!notes_due("garbage","0.6.0"));
+        assert!(notes_due("0.6.1-Beta.1","0.6.1-Beta.1"));assert!(!notes_due("0.6.1-Beta","0.6.1-Beta.1"));
+        /* What a beta build does with the beta feed: a plain full release is refused, its pre-release-tagged bridge entry is newer. */
+        assert!(beta_comparison("0.5.1-Beta.2","0.6.0").is_err());
+        assert_eq!(beta_comparison("0.5.1-Beta.2","0.6.0-release").unwrap(),std::cmp::Ordering::Greater);
+        assert_eq!(beta_comparison("0.3.0-preview.13","0.6.0-release").unwrap(),std::cmp::Ordering::Greater);
+    }
     #[test]fn versions_do_not_downgrade(){assert_eq!(newer("0.1.7","v0.1.5").unwrap(),std::cmp::Ordering::Less);assert_eq!(newer("0.1.7","0.1.8").unwrap(),std::cmp::Ordering::Greater);assert!(newer("0.1.7","garbage").is_err());}
     #[test]fn download_origin_is_restricted(){
         let suffix=crate::host::update_suffix();

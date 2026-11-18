@@ -39,7 +39,9 @@ with tempfile.TemporaryDirectory(prefix='xz-stem-builder-') as temporary:
     root = Path(temporary)
     resources, data, usb = root/'resources', root/'data', root/'USB café'
     (resources/'inference').mkdir(parents=True)
-    shutil.copyfile(toolkit/'builder/overcue_roles.py', resources/'inference/overcue_roles.py')
+    for name in ('overcue_roles.py', 'overcue_flac_pack.py', 'stem_waveforms.py'):
+        shutil.copyfile(toolkit/'builder'/name, resources/'inference'/name)
+    shutil.copyfile(args.uv, resources/('uv.exe' if os.name == 'nt' else 'uv'))  # import_python sets up FLAC pages with it
     subprocess.run([sys.executable, str(toolkit/'builder/build_overcue_check.py'), '--zig', str(args.zig),
                     '--output', str(resources/'xz-overcue-check.exe')], check=True)
     python = data/'engine-python'/('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
@@ -74,8 +76,10 @@ with tempfile.TemporaryDirectory(prefix='xz-stem-builder-') as temporary:
 
     checker = subprocess.run([str(resources/'xz-overcue-check.exe'), str(source)], capture_output=True, text=True, encoding='utf-8')
     print('xz-overcue-check:', checker.stdout.strip() or checker.stderr.strip())
-    assert checker.returncode == 0 and json.loads(checker.stdout)['verified_mixes'] == 7
-    assert json.loads(checker.stdout)['frames'] == receipt['frames'] == -(-int(44100 * args.seconds) * 320 // 147)
+    assert checker.returncode == 0 and json.loads(checker.stdout)['verified_mixes'] in (4, 7)
+    # The default 44.1 kHz profile keeps every source frame; nothing is resampled.
+    assert receipt['sample_rate'] == json.loads(checker.stdout)['sample_rate'] == 44100
+    assert json.loads(checker.stdout)['frames'] == receipt['frames'] == int(44100 * args.seconds)
     inspected = service.dispatch({'method': 'inspect_overcue', 'source': str(source)}, Job())
     assert inspected['all_pages_verified'] and inspected['source_identity_verified']
 

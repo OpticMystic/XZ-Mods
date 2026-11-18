@@ -1,0 +1,27 @@
+{
+  "section": "browse#search",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "BROWSE hold"
+    },
+    {
+      "tap": "B"
+    },
+    {
+      "tap": "A"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "key": "LOAD"
+    }
+  ],
+  "requires_effects": [
+    [
+      "shell",
+      5
+    ]
+  ]
+}

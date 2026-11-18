@@ -1,0 +1,18 @@
+{
+  "section": "browse#tag-list",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "TAG LIST"
+    },
+    {
+      "turn": 2
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "back": true
+    }
+  ]
+}

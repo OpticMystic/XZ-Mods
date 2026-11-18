@@ -1,0 +1,24 @@
+{
+  "section": "stems#stem-buttons-on-the-play-screen",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "tap": "STEMS HEADER"
+    },
+    {
+      "tap": "STEMS HEADER"
+    },
+    {
+      "tap": "STEMS HEADER"
+    },
+    {
+      "tap": "STEMS HEADER"
+    },
+    {
+      "tap": "STEMS HEADER"
+    },
+    {
+      "tap": "STEMS HEADER"
+    }
+  ]
+}

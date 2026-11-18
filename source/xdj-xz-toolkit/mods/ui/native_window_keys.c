@@ -3,10 +3,11 @@
 #include "native_skin_runtime.h"
 #include "../runtime.h"
 #include <pthread.h>
+#include "../xz_mutex.h"
 #include <string.h>
 #include <dlfcn.h>
 
-static pthread_mutex_t keys_mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t keys_mutex=XZ_MUTEX_INITIALIZER;
 static struct xz_window_key_registry keys;
 static int start_state;
 static uint32_t (*stock_color)(void *,unsigned,uint32_t);

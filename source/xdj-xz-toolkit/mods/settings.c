@@ -2,6 +2,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include "settings.h"
 #include "ui/themes.h"
+#include "ui/wave_viewport.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -9,37 +10,93 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <mntent.h>
+_Static_assert(XZ_CLASSIC_THEME_COUNT==XZ_THEME_FLAGSHIP&&XZ_THEME_FLAGSHIP==XZ_THEME_COUNT-1,"classic themes are every theme before FLAGSHIP");
+int xz_settings_look(int ui_interface, int classic_theme) {
+    return ui_interface==XZ_INTERFACE_MODERN?XZ_THEME_FLAGSHIP:classic_theme;
+}
 void xz_settings_default(struct xz_settings *s) {
-    *s = (struct xz_settings){.stems=1,.pad_feedback=1,.jump=xz_jump_defaults(),.stems_overlay=1,.wave_mode=1};
+    *s = (struct xz_settings){.recording_tracklist=XZ_RECORDING_TRACKLIST_DEFAULT,.ableton_link=XZ_ABLETON_LINK_OFF,.pro_dj_link_decks=0,.network_dhcp=1,.stems=1,.ui_interface=XZ_INTERFACE_MODERN,.theme=XZ_THEME_FLAGSHIP,.shift_pages=1,.shift_keysync=1,.pad_feedback=1,.jump=xz_jump_defaults(),.stems_overlay=1,.wave_mode=1,.browse_columns={XZ_BROWSE_TITLE,XZ_BROWSE_KEY,XZ_BROWSE_BPM},.browse_key_prefix=1,.browse_traffic=1,.key_feedback=1,.rekordbox_menu=0,.ram_debug=1,.metrics_enabled=1,.rekordbox_press=XZ_REKORDBOX_INTERFACE,.rekordbox_shift=XZ_REKORDBOX_STOCK,.modern_stems=XZ_MODERN_STEMS_PADS,.deck_view=XZ_DECK_VIEW_TWO,.deck_view_button=1,.band_colors={0,0,0},.modern_wave_color=2,.wave_position=0,.key_display=0,.wave_zoom=3,.usb_colors=0,.hidden_parts=0};
 }
 static int valid(const struct xz_settings *s) {
     for (int i=0;i<8;i++) if ((unsigned)s->jump.sizes[i]>=XZ_JUMP_SIZES) return 0;
-    return (unsigned)s->stems_overlay<=1 && (unsigned)s->wave_mode<=2 && (unsigned)s->jump.enabled<=1 && (unsigned)s->jump.shift_page<=1 && (unsigned)s->stems <= 1 && (unsigned)s->gate <= 1 &&
+    for (int i=0;i<3;i++) {
+        if ((unsigned)s->band_colors[i]>=XZ_BAND_COLOR_CHOICES) return 0;
+        if ((unsigned)s->stem_colors[i]>=XZ_STEM_COLOR_CHOICES) return 0;
+        if ((unsigned)s->browse_columns[i]>=XZ_BROWSE_COLUMN_COUNT) return 0;
+        for (int j=0;j<i;j++) if(s->browse_columns[i]==s->browse_columns[j]) return 0;
+    }
+    return (unsigned)s->recording_tracklist<=1 && (unsigned)s->ableton_link<XZ_ABLETON_LINK_MODES && (unsigned)s->pro_dj_link_decks<=1 && (unsigned)s->network_dhcp<=1 && (unsigned)s->controller_locale<=14 && (unsigned)s->modern_wave_color<=3 && (unsigned)s->wave_position<=1 && (unsigned)s->key_display<=2 &&
+        (unsigned)s->wave_zoom<=6 && (unsigned)s->usb_colors<=2 && (unsigned)s->hidden_parts<=XZ_HIDDEN_PARTS_MAX && (unsigned)s->modern_browse_columns<=2047 &&
+        (unsigned)s->ui_interface<=XZ_INTERFACE_MODERN && (unsigned)s->classic_theme<XZ_CLASSIC_THEME_COUNT && (unsigned)s->modern_theme<XZ_MODERN_THEME_COUNT &&
+        (unsigned)s->stem_order<XZ_STEM_ORDER_COUNT && (unsigned)s->metrics_enabled<=1 && (unsigned)s->rekordbox_menu<=1 && (unsigned)s->rekordbox_press<XZ_REKORDBOX_ACTIONS && (unsigned)s->rekordbox_shift<XZ_REKORDBOX_ACTIONS && (unsigned)s->ram_debug<=1 && (unsigned)s->key_feedback<=1 && (unsigned)s->browse_key_prefix<=1 && (unsigned)s->browse_traffic<=1 && (unsigned)s->key_format<=XZ_KEY_FORMAT_CAMELOT && (unsigned)s->stems_overlay<XZ_STEM_LAYOUT_COUNT && (unsigned)s->modern_stems<XZ_MODERN_STEMS_COUNT && (unsigned)s->deck_view<XZ_DECK_VIEW_COUNT && (unsigned)s->deck_view_button<=1 && (unsigned)s->browse_preview<=1 && (unsigned)s->wave_mode<=2 && (unsigned)s->jump.enabled<=1 && (unsigned)s->jump.shift_page<=1 && (unsigned)s->stems <= 1 && (unsigned)s->gate <= 1 &&
         (unsigned)s->smart <= 1 && (unsigned)s->theme < XZ_THEME_COUNT &&
         (unsigned)s->stem_page <= 3 && (unsigned)s->shift_pages <= 1 &&
         (unsigned)s->pad_feedback <= 1 && (unsigned)s->shift_keysync <= 1 &&
         (unsigned)s->fb_takeover <= 1 && (unsigned)s->takeover_assign <= 2 && (unsigned)s->spare_eq <= 1 && (unsigned)s->stem_bank <= 1;
 }
+/* Field order is the file order; a record may stop at a version boundary.
+   The appearance block (interface, classic_theme, modern_theme) is all or
+   nothing. A record without it is older: its theme slot decides the rest.
+   The REKORDBOX block (rekordbox_press, rekordbox_shift) is all or nothing too;
+   a record without it migrates from rekordbox_menu (rekordbox_migrate). A record without modern_stems
+   keeps the default, PADS. The DECK VIEW block (deck_view, deck_view_button) is all or nothing; a record
+   without it leaves both as they are (overlay) or at their defaults (parse). deck_view_button is retired (the
+   DECKS button always shows): any stored value reads as 1, and 1 is written.
+   browse_preview is appended alone: absent means hidden on parse, unchanged on overlay.
+   The band colours (48..50) and MODERN display (51..56) are separate all-or-none blocks;
+   absent blocks use defaults on parse and preserve the applied values on overlay.
+   Fields 57 to 62 are each appended alone and may end a record. */
+#define FIELDS 62
+#define MODERN_COLUMNS_FIELD 56
+#define BAND_COLORS_BLOCK 47
+#define MODERN_DISPLAY_BLOCK 50
+#define BROWSE_PREVIEW_BLOCK 46
+#define APPEARANCE_BLOCK 38
+#define REKORDBOX_MENU 35
+#define REKORDBOX_BLOCK 41
+#define MODERN_STEMS_BLOCK 43
+#define DECK_VIEW_BLOCK 44
+/* Older records named one REKORDBOX choice: rekordbox_menu 1 (its default, also when the record
+   predates it) or 0 (the stock action, or the VJ.Tools screen switch when takeover_assign chose the
+   key). MODS opens from the MODERN interface's MENU key, so 1 becomes INTERFACE. */
+static int rekordbox_migrate(int menu, int takeover_assign) {
+    return menu ? XZ_REKORDBOX_INTERFACE : takeover_assign == XZ_TAKEOVER_REKORDBOX ? XZ_REKORDBOX_VJ_SCREEN : XZ_REKORDBOX_STOCK;
+}
+static void fields(struct xz_settings *s, int *values[FIELDS]) {
+    int *all[FIELDS] = {
+        &s->stems,&s->gate,&s->smart,&s->theme,&s->stem_page,
+        &s->shift_pages,&s->pad_feedback,&s->shift_keysync,
+        &s->fb_takeover,&s->takeover_assign,&s->spare_eq,&s->stem_bank,
+        &s->jump.enabled,&s->jump.shift_page,&s->jump.sizes[0],&s->jump.sizes[1],&s->jump.sizes[2],&s->jump.sizes[3],&s->jump.sizes[4],&s->jump.sizes[5],&s->jump.sizes[6],&s->jump.sizes[7],&s->stems_overlay,&s->wave_mode,&s->browse_columns[0],&s->browse_columns[1],&s->browse_columns[2],&s->browse_key_prefix,&s->browse_traffic,&s->key_format,&s->stem_colors[0],&s->stem_colors[1],&s->stem_colors[2],&s->key_feedback,&s->ram_debug,&s->rekordbox_menu,&s->metrics_enabled,&s->stem_order,&s->ui_interface,&s->classic_theme,&s->modern_theme,
+        &s->rekordbox_press,&s->rekordbox_shift,&s->modern_stems,&s->deck_view,&s->deck_view_button,&s->browse_preview,
+        &s->band_colors[0],&s->band_colors[1],&s->band_colors[2],
+        &s->modern_wave_color,&s->wave_position,&s->key_display,&s->wave_zoom,&s->usb_colors,&s->hidden_parts,&s->modern_browse_columns,&s->controller_locale,&s->network_dhcp,&s->pro_dj_link_decks,&s->ableton_link,&s->recording_tracklist
+    };
+    memcpy(values,all,sizeof(all));
+}
 int xz_settings_parse(const char *text, struct xz_settings *out) {
+    return xz_settings_parse_present(text,out,NULL);
+}
+int xz_settings_parse_present(const char *text, struct xz_settings *out, unsigned *present) {
     struct xz_settings s;
     const char *header = "XZ_MODS_SETTINGS 1\n";
     const char *keys[] = {
         "stems=","gate=","smart=","theme=","stem_page=",
         "shift_pages=","pad_feedback=","shift_keysync=",
         "fb_takeover=","takeover_assign=","spare_eq=","stem_bank=",
-        "jump_enabled=","jump_shift_page=","jump_1=","jump_2=","jump_3=","jump_4=","jump_5=","jump_6=","jump_7=","jump_8=","stems_overlay=","wave_mode="
+        "jump_enabled=","jump_shift_page=","jump_1=","jump_2=","jump_3=","jump_4=","jump_5=","jump_6=","jump_7=","jump_8=","stems_overlay=","wave_mode=","browse_1=","browse_2=","browse_3=","browse_key_prefix=","browse_traffic=","key_format=","stem_drums_color=","stem_harmonics_color=","stem_vocals_color=","key_feedback=","ram_debug=","rekordbox_menu=","metrics_enabled=","stem_order=","interface=","classic_theme=","modern_theme=","rekordbox_press=","rekordbox_shift=","modern_stems=","deck_view=","deck_view_button=","browse_preview=",
+        "band_low_color=","band_mid_color=","band_high_color=",
+        "modern_wave_color=","wave_position=","key_display=","wave_zoom=","usb_colors=","hidden_parts=","modern_browse_columns=","controller_locale=","network_dhcp=","pro_dj_link_decks=","ableton_link=","recording_tracklist="
     };
-    int *values[] = {
-        &s.stems,&s.gate,&s.smart,&s.theme,&s.stem_page,
-        &s.shift_pages,&s.pad_feedback,&s.shift_keysync,
-        &s.fb_takeover,&s.takeover_assign,&s.spare_eq,&s.stem_bank,
-        &s.jump.enabled,&s.jump.shift_page,&s.jump.sizes[0],&s.jump.sizes[1],&s.jump.sizes[2],&s.jump.sizes[3],&s.jump.sizes[4],&s.jump.sizes[5],&s.jump.sizes[6],&s.jump.sizes[7],&s.stems_overlay,&s.wave_mode
-    };
+    int *values[FIELDS];
+    fields(&s,values);
     if (strncmp(text,header,strlen(header))) return -1;
     text += strlen(header);
     xz_settings_default(&s);
-    for (unsigned i=0;i<24;i++) {
-        if (((i >= 8 && i <= 12)||i==22||i==23) && *text == '\0') break;
+    unsigned i;
+    for (i=0;i<FIELDS;i++) {
+        if (((i >= 8 && i <= 12)||i==22||i==23||i==24||i==30||i==33||i==34||i==35||i==36||i==37||i==APPEARANCE_BLOCK||i==REKORDBOX_BLOCK||i==MODERN_STEMS_BLOCK||i==DECK_VIEW_BLOCK||i==BROWSE_PREVIEW_BLOCK||i==BAND_COLORS_BLOCK||i==MODERN_DISPLAY_BLOCK||i==MODERN_COLUMNS_FIELD||i==57||i==58||i==59||i==60||i==61) && *text == '\0') break;
         size_t size = strlen(keys[i]);
         if (strncmp(text,keys[i],size)) return -1;
         text += size;
@@ -49,17 +106,56 @@ int xz_settings_parse(const char *text, struct xz_settings *out) {
             if (!value) return -1;
             value = value*10 + *text++ - '0';
         }
+        if(i==MODERN_COLUMNS_FIELD)for(int digit=2;digit<4&&*text>='0'&&*text<='9';digit++)value=value*10+*text++-'0';
         if (*text++ != '\n') return -1;
         *values[i] = value;
     }
     if (*text || !valid(&s)) return -1;
-    *out = s; return 0;
+    if (i < APPEARANCE_BLOCK+1) {
+        /* Older record: theme 24 meant the FLAGSHIP screen, anything else a classic theme. */
+        s.ui_interface = s.theme == XZ_THEME_FLAGSHIP ? XZ_INTERFACE_MODERN : XZ_INTERFACE_CLASSIC;
+        s.classic_theme = s.theme == XZ_THEME_FLAGSHIP ? 0 : s.theme;
+        s.modern_theme = 0;
+    }
+    if (i < REKORDBOX_BLOCK+1) {
+        s.rekordbox_press = rekordbox_migrate(i > REKORDBOX_MENU ? s.rekordbox_menu : 1, s.takeover_assign);
+        s.rekordbox_shift = XZ_REKORDBOX_STOCK;
+    }
+    if (s.takeover_assign == XZ_TAKEOVER_REKORDBOX) s.takeover_assign = XZ_TAKEOVER_LINK;
+    s.rekordbox_menu = s.rekordbox_press == XZ_REKORDBOX_MODS;
+    s.theme = xz_settings_look(s.ui_interface,s.classic_theme);
+    s.jump.shift_page=1;s.ram_debug=1;s.metrics_enabled=1;s.shift_pages=1;s.shift_keysync=1;s.deck_view_button=1;
+    *out = s; if (present) *present = i; return 0;
+}
+int xz_settings_overlay(struct xz_settings *current, const struct xz_settings *record, unsigned present) {
+    struct xz_settings merged = *current, source = *record;
+    int *to[FIELDS], *from[FIELDS];
+    fields(&merged,to); fields(&source,from);
+    for (unsigned i=0;i<present&&i<FIELDS;i++) *to[i] = *from[i];
+    /* An older record carries only theme: it sets the interface, and a classic
+       theme when it named one. theme 24 leaves the current classic theme. */
+    if (present > 3 && present <= APPEARANCE_BLOCK) {
+        merged.ui_interface = source.theme == XZ_THEME_FLAGSHIP ? XZ_INTERFACE_MODERN : XZ_INTERFACE_CLASSIC;
+        merged.classic_theme = source.theme == XZ_THEME_FLAGSHIP ? current->classic_theme : source.theme;
+    }
+    /* A record that names rekordbox_menu but predates the REKORDBOX block brings its migrated press;
+       its SHIFT slot was never chosen and stays as it is. */
+    if (present > REKORDBOX_MENU && present <= REKORDBOX_BLOCK) merged.rekordbox_press = source.rekordbox_press;
+    if (merged.takeover_assign == XZ_TAKEOVER_REKORDBOX) merged.takeover_assign = XZ_TAKEOVER_LINK;
+    merged.rekordbox_menu = merged.rekordbox_press == XZ_REKORDBOX_MODS;
+    merged.theme = xz_settings_look(merged.ui_interface,merged.classic_theme);
+    merged.jump.shift_page=1;merged.ram_debug=1;merged.metrics_enabled=1;merged.shift_pages=1;merged.shift_keysync=1;merged.deck_view_button=1;
+    if (!valid(&merged)) return -1;
+    *current = merged; return 0;
 }
 int xz_settings_format(const struct xz_settings *s, char *out, size_t size) {
     if (!valid(s)) return -1;
-    int n = snprintf(out,size,"XZ_MODS_SETTINGS 1\nstems=%d\ngate=%d\nsmart=%d\ntheme=%d\nstem_page=%d\nshift_pages=%d\npad_feedback=%d\nshift_keysync=%d\nfb_takeover=%d\ntakeover_assign=%d\nspare_eq=%d\nstem_bank=%d\njump_enabled=%d\njump_shift_page=%d\njump_1=%d\njump_2=%d\njump_3=%d\njump_4=%d\njump_5=%d\njump_6=%d\njump_7=%d\njump_8=%d\nstems_overlay=%d\nwave_mode=%d\n",
-        s->stems,s->gate,s->smart,s->theme,s->stem_page,s->shift_pages,s->pad_feedback,s->shift_keysync,s->fb_takeover,s->takeover_assign,s->spare_eq,s->stem_bank,s->jump.enabled,s->jump.shift_page,
-        s->jump.sizes[0],s->jump.sizes[1],s->jump.sizes[2],s->jump.sizes[3],s->jump.sizes[4],s->jump.sizes[5],s->jump.sizes[6],s->jump.sizes[7],s->stems_overlay,s->wave_mode);
+    int look = xz_settings_look(s->ui_interface,s->classic_theme);
+    int n = snprintf(out,size,"XZ_MODS_SETTINGS 1\nstems=%d\ngate=%d\nsmart=%d\ntheme=%d\nstem_page=%d\nshift_pages=%d\npad_feedback=%d\nshift_keysync=%d\nfb_takeover=%d\ntakeover_assign=%d\nspare_eq=%d\nstem_bank=%d\njump_enabled=%d\njump_shift_page=%d\njump_1=%d\njump_2=%d\njump_3=%d\njump_4=%d\njump_5=%d\njump_6=%d\njump_7=%d\njump_8=%d\nstems_overlay=%d\nwave_mode=%d\nbrowse_1=%d\nbrowse_2=%d\nbrowse_3=%d\nbrowse_key_prefix=%d\nbrowse_traffic=%d\nkey_format=%d\nstem_drums_color=%d\nstem_harmonics_color=%d\nstem_vocals_color=%d\nkey_feedback=%d\nram_debug=%d\nrekordbox_menu=%d\nmetrics_enabled=%d\nstem_order=%d\ninterface=%d\nclassic_theme=%d\nmodern_theme=%d\nrekordbox_press=%d\nrekordbox_shift=%d\nmodern_stems=%d\ndeck_view=%d\ndeck_view_button=%d\nbrowse_preview=%d\nband_low_color=%d\nband_mid_color=%d\nband_high_color=%d\nmodern_wave_color=%d\nwave_position=%d\nkey_display=%d\nwave_zoom=%d\nusb_colors=%d\nhidden_parts=%d\nmodern_browse_columns=%d\ncontroller_locale=%d\nnetwork_dhcp=%d\npro_dj_link_decks=%d\nableton_link=%d\nrecording_tracklist=%d\n",
+        s->stems,s->gate,s->smart,look,s->stem_page,s->shift_pages,s->pad_feedback,s->shift_keysync,s->fb_takeover,s->takeover_assign,s->spare_eq,s->stem_bank,s->jump.enabled,s->jump.shift_page,
+        s->jump.sizes[0],s->jump.sizes[1],s->jump.sizes[2],s->jump.sizes[3],s->jump.sizes[4],s->jump.sizes[5],s->jump.sizes[6],s->jump.sizes[7],s->stems_overlay,s->wave_mode,s->browse_columns[0],s->browse_columns[1],s->browse_columns[2],s->browse_key_prefix,s->browse_traffic,s->key_format,s->stem_colors[0],s->stem_colors[1],s->stem_colors[2],s->key_feedback,s->ram_debug,s->rekordbox_press==XZ_REKORDBOX_MODS,s->metrics_enabled,s->stem_order,s->ui_interface,s->classic_theme,s->modern_theme,
+        s->rekordbox_press,s->rekordbox_shift,s->modern_stems,s->deck_view,s->deck_view_button,s->browse_preview,
+        s->band_colors[0],s->band_colors[1],s->band_colors[2],s->modern_wave_color,s->wave_position,s->key_display,s->wave_zoom,s->usb_colors,s->hidden_parts,s->modern_browse_columns,s->controller_locale,s->network_dhcp,s->pro_dj_link_decks,s->ableton_link,s->recording_tracklist);
     return n < 0 || (size_t)n >= size ? -1 : n;
 }
 static int paths(const char *usb, char *dir, char *file) {
@@ -75,7 +171,10 @@ static int paths(const char *usb, char *dir, char *file) {
     return 0;
 }
 int xz_settings_load(const char *usb, struct xz_settings *s) {
-    char dir[1024], path[1024], text[512];
+    return xz_settings_load_present(usb,s,NULL);
+}
+int xz_settings_load_present(const char *usb, struct xz_settings *s, unsigned *present) {
+    char dir[1024], path[1024], text[1024];
     if (paths(usb,dir,path)) return -1;
     int fd = open(path,O_RDONLY|O_NOFOLLOW);
     if (fd < 0) return errno == ENOENT ? 1 : -1;
@@ -84,22 +183,64 @@ int xz_settings_load(const char *usb, struct xz_settings *s) {
     ssize_t n = read(fd,text,sizeof(text)-1); close(fd);
     if (n < 0 || n != st.st_size || memchr(text,0,(size_t)n)) return -1;
     text[n] = 0;
-    return xz_settings_parse(text,s);
+    return xz_settings_parse_present(text,s,present);
 }
-int xz_settings_save(const char *usb, const struct xz_settings *s) {
-    char dir[1024],path[1024],temp[1060],text[512];
-    int n = xz_settings_format(s,text,sizeof(text));
-    if (n < 0 || paths(usb,dir,path)) return -1;
-    if (mkdir(dir,0755) && errno != EEXIST) return -1;
-    snprintf(temp,sizeof(temp),"%s/.XZ-Mods.XXXXXX",dir);
-    int fd = mkstemp(temp);
-    if (fd < 0) return -1;
-    int ok = write(fd,text,(size_t)n) == n && fsync(fd) == 0;
-    if (close(fd)) ok = 0;
-    if (ok && rename(temp,path) == 0) {
-        int directory = open(dir,O_RDONLY|O_DIRECTORY);
-        if (directory < 0) return -1;
-        int result = fsync(directory); close(directory); return result;
+int xz_settings_save_mount(const char *usb, unsigned long mount_id, const struct xz_settings *s) {
+    char dir[1024],path[1024],temp[80],text[1024];
+    static unsigned nonce;
+    int n=xz_settings_format(s,text,sizeof(text));
+    if(n<0||paths(usb,dir,path)||(!mount_id&&!strncmp(usb,"/media/",7)))return -1;
+    int root=open(usb,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+    if(root<0)return -1;
+    struct stat pinned,current;
+    if(fstat(root,&pinned)||lstat(usb,&current)||pinned.st_dev!=current.st_dev||pinned.st_ino!=current.st_ino||
+       (mount_id&&xz_settings_mount_id(usb)!=mount_id)){close(root);return -1;}
+    if(mkdirat(root,"VJ.Tools",0755)&&errno!=EEXIST){close(root);return -1;}
+    int folder=openat(root,"VJ.Tools",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);close(root);
+    if(folder<0)return -1;
+    snprintf(temp,sizeof(temp),".XZ-Mods.%ld.%u.tmp",(long)getpid(),++nonce);
+    int fd=openat(folder,temp,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+    if(fd<0){close(folder);return -1;}
+    int ok=write(fd,text,(size_t)n)==n&&fsync(fd)==0;
+    if(close(fd))ok=0;
+    if(ok&&renameat(folder,temp,folder,"XZ-Mods.cfg")==0){int rc=fsync(folder);close(folder);return rc;}
+    unlinkat(folder,temp,0);close(folder);return -1;
+}
+int xz_settings_save(const char *usb,const struct xz_settings *s) {
+    unsigned long mount_id=usb&&!strncmp(usb,"/media/",7)?xz_settings_mount_id(usb):0;
+    return xz_settings_save_mount(usb,mount_id,s);
+}
+int xz_settings_find_usb(unsigned slot, char out[1024]) {
+    if(slot>1||!out)return -1;
+    char prefix[32];snprintf(prefix,sizeof(prefix),"/media/usb%u/",slot+1);
+    FILE *mounts=setmntent("/proc/mounts","r");if(!mounts)return -1;
+    struct mntent *entry;int best=0;out[0]=0;
+    while((entry=getmntent(mounts))) {
+        if(strncmp(entry->mnt_dir,prefix,strlen(prefix))||strlen(entry->mnt_dir)>=1024)continue;
+        struct stat st;char path[1060];int score=1;
+        snprintf(path,sizeof(path),"%s/PIONEER/rekordbox/export.pdb",entry->mnt_dir);
+        if(!lstat(path,&st)&&S_ISREG(st.st_mode))score=2;
+        snprintf(path,sizeof(path),"%s/VJ.Tools/XZ-Mods.cfg",entry->mnt_dir);
+        if(!lstat(path,&st)&&S_ISREG(st.st_mode))score=3;
+        if(score>best){best=score;strcpy(out,entry->mnt_dir);}
     }
-    unlink(temp); return -1;
+    endmntent(mounts);return best?0:1;
+}
+unsigned long xz_settings_mount_id(const char *usb) {
+    if(!usb||!usb[0])return 0;
+    FILE *f=fopen("/proc/self/mountinfo","r");if(!f)return 0;
+    char line[4096];unsigned long id=0;
+    while(fgets(line,sizeof(line),f)) {
+        char *end;errno=0;unsigned long current=strtoul(line,&end,10);
+        if(errno||end==line||*end!=' ')continue;
+        char *mount=line;
+        for(int field=0;field<4&&mount;field++) {
+            mount=strchr(mount,' ');if(mount)mount++;
+        }
+        if(!mount)continue;
+        end=strchr(mount,' ');if(!end)continue;*end=0;
+        /* getmntent decodes mount names; USB roots use simple partition names. */
+        if(!strcmp(mount,usb)){id=current;break;}
+    }
+    fclose(f);return id;
 }

@@ -236,7 +236,7 @@ static void groove_note(struct xz_arcade *g,int deck){
 void xz_arcade_key(struct xz_arcade *g,int deck,enum xz_arcade_key key,uint32_t now){
     if(deck<0||deck>1||key==XZ_ARCADE_PLAY_KEY)return;
     xz_arcade_step(g,now);
-    if(key==XZ_ARCADE_PAUSE_KEY){g->phase=XZ_ARCADE_MUSIC;g->player[0].ready=g->player[1].ready=0;return;}
+    if(key==XZ_ARCADE_PAUSE_KEY){g->leave=g->phase==XZ_ARCADE_MUSIC;g->phase=XZ_ARCADE_MUSIC;g->player[0].ready=g->player[1].ready=0;return;}
     if(key==XZ_ARCADE_PAD_H){
         uint32_t dt=now-g->tap_ms;
         int mixer=g->clock_source==3&&(uint32_t)(now-g->music_at)<2000;
@@ -314,6 +314,16 @@ void xz_arcade_tempo(struct xz_arcade *g,float bpm,uint32_t at){
     if(g->clock_source!=3)g->phase_aligned=0;
     g->clock_source=3;g->bpm=bpm;g->music_known=0;g->live=0;g->music_at=at;
 }
+static void close_clock(struct xz_arcade *g){
+    g->phase=g->clock_return==XZ_ARCADE_MUSIC?XZ_ARCADE_MUSIC:g->clock_return?(g->music_known&&!g->music_playing?XZ_ARCADE_WAIT_TRACK:XZ_ARCADE_COUNT_IN):XZ_ARCADE_MENU;
+    g->count_until=ceil(g->clock)+4;
+}
+void xz_arcade_back(struct xz_arcade *g,uint32_t now){
+    xz_arcade_step(g,now);
+    if(g->phase==XZ_ARCADE_MENU||g->phase==XZ_ARCADE_MUSIC)xz_arcade_key(g,0,XZ_ARCADE_PAUSE_KEY,now);
+    else if(g->phase==XZ_ARCADE_CLOCK)close_clock(g);
+    else if(g->phase==XZ_ARCADE_RESULT)g->phase=XZ_ARCADE_MENU;
+}
 void xz_arcade_touch(struct xz_arcade *g,int x,int y,int down,uint32_t now){
     int press=down&&!g->touch_down;g->touch_down=!!down;xz_arcade_step(g,now);
     if(!press)return;
@@ -328,10 +338,7 @@ void xz_arcade_touch(struct xz_arcade *g,int x,int y,int down,uint32_t now){
         if(y>=148&&y<207)g->clock_deck=x<280?2:x<520?0:1;
         if(y>=216&&y<268){g->clock_deck=x<400?4:3;g->music_known=0;if(g->clock_deck==3)g->clock_source=4;}
         if(y>=280&&y<346)xz_arcade_key(g,0,XZ_ARCADE_PAD_H,now);
-        if(y>=366&&y<432){
-            g->phase=g->clock_return==XZ_ARCADE_MUSIC?XZ_ARCADE_MUSIC:g->clock_return?(g->music_known&&!g->music_playing?XZ_ARCADE_WAIT_TRACK:XZ_ARCADE_COUNT_IN):XZ_ARCADE_MENU;
-            g->count_until=ceil(g->clock)+4;
-        }
+        if(y>=366&&y<432)close_clock(g);
     }else if(g->phase==XZ_ARCADE_MUSIC){
         if(y>=188&&y<280){xz_arcade_key(g,x<400?0:1,XZ_ARCADE_CUE_KEY,now);}
         if(y>=316&&y<382)g->phase=XZ_ARCADE_MENU;

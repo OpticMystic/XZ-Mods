@@ -1,0 +1,19 @@
+{
+  "section": "connect#vjtools",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "CONNECT"
+    },
+    {
+      "tap": "VJ.TOOLS"
+    },
+    {
+      "turn": 2
+    }
+  ]
+}

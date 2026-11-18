@@ -1,0 +1,37 @@
+{
+  "section": "play-screen#notices",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "tap": "DECKS"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "fixture": 250
+    },
+    {
+      "tap": "CHOOSE TRACK"
+    },
+    {
+      "push": true
+    },
+    {
+      "tap": "TRACK ROW"
+    },
+    {
+      "tap": "LOAD DECK 3"
+    }
+  ],
+  "requires_deck_actions": [
+    [
+      "shell",
+      5,
+      2
+    ]
+  ]
+}

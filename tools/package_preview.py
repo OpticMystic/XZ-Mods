@@ -22,7 +22,7 @@ shutil.copytree(APP/'docs',portable/'docs')
 (portable/'START HERE.txt').write_text(
     'XZ Mods Builder\n\n'
     'Run XZ Mods.exe. Windows requires the Microsoft Edge WebView2 Runtime.\n'
-    'Choose a FAT/FAT32 USB in the app to prepare or update its loader.\n'
+    'Choose a USB in the app to prepare or update its loader.\n'
     'The app downloads the required firmware and boot support on first use.\n'
     'Test your USB on the XDJ-XZ before using it in a set.\n'
     'For app updates, use App updates. To stay portable, download the latest ZIP\n'
@@ -36,7 +36,7 @@ version=json.loads((APP/'src-tauri/tauri.conf.json').read_text())['version']
 manifest={'product':'XZ Mods','version':version,'stage':'developer-preview','public_release_qualified':False,
     'source_commit':subprocess.check_output(['git','-C',str(APP),'rev-parse','HEAD'],text=True).strip() if (APP/'.git').exists() else None,
     'prepared_formats':['overcue-stems/4','stemd-cache/1'],
-    'prepared_containers':['OVPGZ001','OVPGZ003'], 'stem_page_codecs':['zlib','flac-96k'],
+    'prepared_containers':['OVPGZ001','OVPGZ003','OVPGZ004'], 'stem_page_codecs':['zlib','flac-96k','flac-44k1'],
     'runtime':json.loads((portable/'resources/runtime/manifest.json').read_text()),
     'vjtools_required':False,'python_required':False,'firmware_included':False,'keys_included':False,
     'model_weights_included':False,'files':{str(path.relative_to(portable)).replace('\\','/'):digest(path)

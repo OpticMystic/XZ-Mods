@@ -19,9 +19,11 @@ Apple Silicon and Intel Macs running macOS 14 or later.
 - Open Beat Arcade and the real-waveform Wave Rider game from MODS > Extras >
   Games. The XZ still starts on the DJ screen.
 - Download and prepare Doom shareware, Chex Quest and Freedoom data from their own
-  distributions through Games. Commercial IWADs must come from the user. My House
-  stays unavailable: it needs a game engine that does not run on the XZ.
-- Install signed app updates through App updates.
+  distributions. Installing
+  XZ Mods on a USB includes them; leave any out with Change games before you write.
+  Commercial IWADs must come from the user.
+- On Windows, install signed app updates from Updates > App updates. Mac versions
+  are downloaded from the release page.
 
 Apple Silicon supports generation with the current models. Intel Macs support
 stem imports and the USB, settings, waveform and game tools. The Mac packages
@@ -57,7 +59,7 @@ is available for download. Extract the ZIP and run `XZ Mods.exe` with its `resou
 beside it. Windows requires WebView2. VJ.Tools and a developer Python
 installation are not required.
 
-Plug in a FAT/FAT32 USB and choose **Prepare USB → Choose USB and prepare loader**.
+Plug in a USB stick and choose **Prepare USB → Choose USB and prepare loader**.
 The app gets and checks the files it needs, then writes and checks `autoexec.bin`
 in the USB root. It never formats the drive or replaces an existing loader.
 Checked files are kept for later builds. A local-file option and a staging folder
@@ -71,18 +73,30 @@ playback. See [the changelog](CHANGELOG.md) for what was tested.
 ## Use prepared OverCue tracks
 
 Keep the matching exported `Contents` and OverCue `CDJMODS` folders on the same
-USB. In **Prepare stems**, choose **Check OverCue track**, then select the original
+USB. In **Stems**, choose **Check OverCue track**, then select the original
 track inside `Contents`. The builder checks source identity and every compressed
 audio page using the same decoder as the player. It does not change the USB.
 
-Supported prepared format: the open OverCue format (`overcue-index/1` and
-`overcue-stems/4`), including all seven prepared mixes. The source track must match
-the one the stems were made from. Other formats are refused.
+Supported prepared format: the open OverCue format (`overcue-index/1` with
+`overcue-stems/4` 96 kHz stems or `overcue-stems/5` 44.1 kHz stems). Both the four-file
+stems from OverCue Desktop 2.2.26 and later and older seven-file stems play: the player
+mixes every pair from the vocal, drums and harmonics files, as OverCue firmware 0.13.1
+does. The source track must match the one the stems were made from. Other formats are
+refused.
+
+**Prepare 44.1 kHz stems in OverCue for the XZ.** In OverCue Desktop's Settings, choose
+the 44.1 kHz FLAC stems (labelled **CDJ-2000NXS2** since OverCue Desktop 2.2.34). The XZ
+plays at 44.1 kHz, so they need no conversion on the player, are ready in memory sooner
+and take less space. OverCue's default 96 kHz stems still play, more slowly to prepare
+on the player. The XZ does not read OverCue's 44.1 kHz WAV stems. Keep 96 kHz for a USB
+you also play on players running OverCue: they play 44.1 kHz stem tracks without stems.
 
 [OverCue](https://overcue.gg/) is the recommended way to prepare stems.
 XZ Mods also includes a beta stem builder. Its separation and aligned-stem import
 workflows write the [open OverCue format](https://github.com/OverCue-gg/overcue-stems-format)
-under `CDJMODS` and never replace stems OverCue made. The source must be a
+under `CDJMODS` and never replace stems OverCue made. They write 44.1 kHz stems, the
+XDJ-XZ's own rate; choose **XDJ-XZ and OverCue players** for a USB you also play on
+players running OverCue, and they write 96 kHz stems instead. The source must be a
 44.1 kHz stereo WAV or FLAC track that your DJ software already exported to the USB's
 `Contents` folder. Separation runs on the CPU. The beta is not hardware-qualified,
 so check playback alignment on the player.
@@ -100,7 +114,7 @@ with 0.1.5; updating source alone does not update a USB stick.
 Read the [user guide with actual hardware screenshots](docs/USER-GUIDE.md) for
 USB preparation, pad assignments, the controller display themes,
 recovery and [related community projects](docs/USER-GUIDE.md#related-projects).
-The public website is [vj.tools/xz-mods](https://vj.tools/xz-mods).
+The public website is [vj.tools/xz-mods](https://www.vj.tools/xz-mods).
 
 In MODS > Controls, choose whether stems use hot cues A-D or E-H. The selected
 bank maps its first three pads to Vocals, Harmonics and Drums, followed by
@@ -122,3 +136,10 @@ Nothing from the player's maker is part of the XZ Mods download. The app gets an
 checks the files it needs while it prepares the loader, or uses a firmware 1.26
 file you choose under Advanced options (see `BUILDING.md`). Other firmware
 versions are refused, and the app does not claim to support them.
+
+Feature controls follow one rule: unused-input additions are available without
+an enable switch; changes to normal controls retain their MODS setting.
+SHIFT shortcuts use otherwise unused standalone combinations and need no enable,
+even when their action changes audio. SHIFT + BEAT JUMP page 2 works with page-1
+custom jumps off. Old disabled shortcut and information settings are ignored. See the
+[feature-toggle audit](docs/feature-toggle-audit.md) for the complete inventory.

@@ -1,0 +1,20 @@
+{
+  "section": "screen-and-themes#3-band-colours",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "SCREEN"
+    },
+    {
+      "tap": "3-BAND COLOURS",
+      "expect_page": 43
+    },
+    {
+      "settings": "all supported value controls on this page"
+    }
+  ]
+}

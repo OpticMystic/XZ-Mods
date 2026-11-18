@@ -1,0 +1,25 @@
+{
+  "section": "four-decks#switch-a-side-between-decks",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "gesture": "SHIFT",
+      "code": 0,
+      "side": 0
+    },
+    {
+      "gesture": "SHIFT",
+      "code": 0,
+      "side": 0
+    },
+    {
+      "wait": 800
+    }
+  ],
+  "requires_effects": [
+    [
+      "deck-select",
+      1
+    ]
+  ]
+}

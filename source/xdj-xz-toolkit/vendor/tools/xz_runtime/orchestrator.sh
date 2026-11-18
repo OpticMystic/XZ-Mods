@@ -4,31 +4,59 @@
 
 export PATH="/usr/sbin:/usr/bin:/sbin:/bin:/root/pdj:$PATH"
 
+# LOADER_RAM_BEGIN
+# Run from a RAM copy, started in /. The stock decryptor loop-mounts autoexec.bin at /mnt/iso, runs this script
+# from there and, once it returns, unmounts /mnt/iso a single time. A shell keeps its script open, and each
+# background subshell below (the coldplug watcher, the early-boot verifier) is a fork that kept that descriptor
+# and /mnt/iso busy, so the image's loop device stayed for the whole power-on and USB STOP could not unmount the
+# stick. Any failure here runs the script from /mnt/iso as before.
+case "$0" in
+    /dev/shm/xz-loader-*/autoexec.sh) rm -rf "${0%/autoexec.sh}" 2>/dev/null ;;
+    autoexec.sh|*/autoexec.sh)
+        XZ_LOADER_RAM="/dev/shm/xz-loader-$$"
+        if mkdir "$XZ_LOADER_RAM" 2>/dev/null && cat "$0" > "$XZ_LOADER_RAM/autoexec.sh" 2>/dev/null && cd /; then
+            exec /bin/sh "$XZ_LOADER_RAM/autoexec.sh" "$@"
+        fi
+        rm -rf "$XZ_LOADER_RAM" 2>/dev/null
+        ;;
+esac
+# LOADER_RAM_END
+
 USB="$1"
 export XZ_MODS_USB="$USB"
+export XZ_MODS_DECK_INPUT_TRACE=1
 OUT="$USB/XZ_RUNTIME"
 LOG="$OUT/session.txt"
 RBP="/root/pdj/rbp"
 RBP_NEXT="/root/pdj/rbp.xzmod"
-SOURCE_RBP="/mnt/iso/rbp.patched"
-EXPECTED_MD5_FILE="/mnt/iso/rbp.patched.md5"
-SOURCE_GUI="/mnt/iso/gui/imagedata.dat"
-EXPECTED_GUI_MD5_FILE="/mnt/iso/gui/imagedata.dat.md5"
+PAYLOAD_ROOT="/dev/shm/xz-boot-payload-$$"
+SOURCE_RBP="$PAYLOAD_ROOT/rbp.patched"
+EXPECTED_MD5_FILE="$PAYLOAD_ROOT/rbp.patched.md5"
+SOURCE_GUI="$PAYLOAD_ROOT/gui/imagedata.dat"
+EXPECTED_GUI_MD5_FILE="$PAYLOAD_ROOT/gui/imagedata.dat.md5"
 GUI_RAM="/dev/shm/xz_imagedata.dat"
+GUI_STAGE="$GUI_RAM.next"
 GUI_TARGET="/root/gui/pset/imagedata/imagedata.dat"
-SOURCE_FB_TOOL="/mnt/iso/tools/xz-fb-overlay"
+SOURCE_FB_TOOL="$PAYLOAD_ROOT/tools/xz-fb-overlay"
 FB_TOOL_RAM="/dev/shm/xz-fb-overlay"
-SOURCE_HOOK="/mnt/iso/tools/libxz-directfb-hook.so"
-EXPECTED_HOOK_MD5_FILE="/mnt/iso/tools/libxz-directfb-hook.so.md5"
+SOURCE_HOOK="$PAYLOAD_ROOT/tools/libxz-directfb-hook.so"
+EXPECTED_HOOK_MD5_FILE="$PAYLOAD_ROOT/tools/libxz-directfb-hook.so.md5"
 HOOK_RAM="/dev/shm/libxz-directfb-hook.so"
-SOURCE_MODS="/mnt/iso/tools/libxz-mods.so"
+SOURCE_MODS="$PAYLOAD_ROOT/tools/libxz-mods.so"
 MODS_RAM="/dev/shm/libxz-mods.so"
 MODS_MODE=""
-SOURCE_GUI_IP_PATCH="/mnt/iso/tools/xz-gui-ip-patch"
-EXPECTED_GUI_IP_PATCH_MD5_FILE="/mnt/iso/tools/xz-gui-ip-patch.md5"
+SOURCE_GUI_IP_PATCH="$PAYLOAD_ROOT/tools/xz-gui-ip-patch"
+EXPECTED_GUI_IP_PATCH_MD5_FILE="$PAYLOAD_ROOT/tools/xz-gui-ip-patch.md5"
 GUI_IP_PATCH_RAM="/dev/shm/xz-gui-ip-patch"
+NETWORK_TOOLS_RAM="/dev/shm"
+DJLINK_RAM="/dev/shm/xz-djlink"
+LINK_RAM="/dev/shm/xz-link"
 APPLYING_FLAG="/tmp/xz_mod_applying"
 APPLIED_FLAG="/tmp/xz_mod_applied"
+LOADER_LOCK="/tmp/xz_mod_loader_lock"
+PAYLOAD_LOOP=""
+PAYLOAD_MOUNTED=0
+LOADER_LOCK_OWNED=0
 
 mkdir -p "$OUT" 2>/dev/null
 
@@ -58,8 +86,9 @@ configure_vj_network() {
     if [ -n "$CURRENT_IP" ]; then
         echo "$CURRENT_IP" > /tmp/xz_vj_ip
     else
-        CURRENT_IP=$(cat /tmp/xz_vj_ip 2>/dev/null)
-        [ -n "$CURRENT_IP" ] || CURRENT_IP="169.254.168.59"
+        # A cached address alone has no valid mask/gateway contract.
+        # Keep the known link-local fallback; NETWORK applies an explicit plan.
+        CURRENT_IP="169.254.168.59"
         if ! ifconfig eth0 "$CURRENT_IP" netmask 255.255.0.0 up >> "$LOG" 2>&1; then
             log "FAILED: Could not restore VJ.Tools network address $CURRENT_IP."
             return 1
@@ -88,8 +117,77 @@ file_md5() {
     md5sum "$1" 2>/dev/null | awk '{print $1}'
 }
 
+cleanup_payload() {
+    cd /
+    if [ "$LOADER_LOCK_OWNED" = 1 ]; then
+        rm -f "$APPLYING_FLAG"
+        rmdir "$LOADER_LOCK" 2>/dev/null
+    fi
+    if [ "$PAYLOAD_MOUNTED" = 1 ]; then
+        umount -D "$PAYLOAD_ROOT" 2>>"$LOG" || return
+    fi
+    [ -z "$PAYLOAD_LOOP" ] || losetup -d "$PAYLOAD_LOOP" 2>>"$LOG"
+    rmdir "$PAYLOAD_ROOT" 2>/dev/null
+}
+
+pin_own_payload() {
+    # Firmware decryptors share /mnt/iso across USB partitions. A script may
+    # remain open while a different image replaces that mount. Reopen only
+    # this script's USB image at a private read-only mount before any wait.
+    [ -f "$USB/autoexec.bin" ] || return 1
+    mkdir "$PAYLOAD_ROOT" 2>>"$LOG" || return 1
+    PAYLOAD_NOHASH=""
+    if losetup 2>&1 | grep -q '\-N'; then PAYLOAD_NOHASH="-N"; fi
+    for candidate in /dev/loop[0-7]; do
+        losetup "$candidate" >/dev/null 2>&1 && continue
+        if cat /usr/local/pdj/aes256.key | losetup -e aes $PAYLOAD_NOHASH -p 0 "$candidate" "$USB/autoexec.bin" >>"$LOG" 2>&1; then
+            PAYLOAD_LOOP="$candidate"
+            if mount -o ro "$PAYLOAD_LOOP" "$PAYLOAD_ROOT" >>"$LOG" 2>&1; then
+                PAYLOAD_MOUNTED=1
+                log "PAYLOAD_PINNED: image=$USB/autoexec.bin mount=$PAYLOAD_ROOT loop=$PAYLOAD_LOOP read_only=1"
+                return 0
+            fi
+            losetup -d "$PAYLOAD_LOOP" 2>>"$LOG"
+            PAYLOAD_LOOP=""
+        fi
+    done
+    return 1
+}
+
+legacy_loader_running() {
+    # Early-boot legacy scripts release APPLYING_FLAG before their delayed
+    # restart. Wait for that script as well so it cannot restart over us.
+    for proc_cmdline in /proc/[0-9]*/cmdline; do
+        other_pid=${proc_cmdline#/proc/}
+        other_pid=${other_pid%/cmdline}
+        [ "$other_pid" != "$$" ] || continue
+        [ ! -d "/dev/shm/xz-boot-payload-$other_pid" ] || continue
+        arguments=$(tr '\000' '\n' < "$proc_cmdline" 2>/dev/null)
+        printf '%s\n' "$arguments" | grep -Eq '(^|/)autoexec\.sh$' && return 0
+    done
+    return 1
+}
+
+acquire_loader_lock() {
+    # Older loaders use only APPLYING_FLAG. Wait for them to finish instead
+    # of dropping this newer payload, then serialize newer loaders too.
+    busy_wait=0
+    while [ "$busy_wait" -lt 90 ]; do
+        if [ ! -f "$APPLYING_FLAG" ] && ! legacy_loader_running && mkdir "$LOADER_LOCK" 2>/dev/null; then
+            LOADER_LOCK_OWNED=1
+            touch "$APPLYING_FLAG"
+            return 0
+        fi
+        [ "$busy_wait" != 0 ] || log "Waiting for the active USB loader to finish."
+        sleep 1
+        busy_wait=$((busy_wait+1))
+    done
+    log "FAILED: Active USB loader did not finish within 90 seconds; DJ process untouched."
+    return 1
+}
+
 start_telnet() {
-    if [ ! -f /mnt/iso/enable_telnet ]; then
+    if [ ! -f "$PAYLOAD_ROOT/enable_telnet" ]; then
         log "Telnet disabled by payload."
         return
     fi
@@ -114,6 +212,55 @@ start_telnet() {
         [ -f /tmp/xz_telnetd.log ] && cat /tmp/xz_telnetd.log >> "$LOG" 2>&1
     fi
 }
+
+
+# PRIVATE_AUTO_BRIDGE_BEGIN
+stage_auto_bridge() {
+    auto_root="/dev/shm/xz-auto-4bb9db00a2ab"
+    [ ! -L "$auto_root" ] || return 1
+    mkdir -p "$auto_root" || return 1
+    [ "$(cd -P "$auto_root" && pwd -P)" = "$auto_root" ] || return 1
+    if [ ! -f "$auto_root/xz-auto-bridge" ]; then
+        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz-auto-bridge")" = 71c1db1b41c858c64ba985299b7b649e ] || return 1
+        cp "$PAYLOAD_ROOT/tools/auto-bridge/xz-auto-bridge" "$auto_root/xz-auto-bridge" || return 1
+    fi
+    [ ! -L "$auto_root/xz-auto-bridge" ] && [ "$(file_md5 "$auto_root/xz-auto-bridge")" = 71c1db1b41c858c64ba985299b7b649e ] || return 1
+    if [ ! -f "$auto_root/xz_hub_depth.ko" ]; then
+        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz_hub_depth.ko")" = 5758787588f11479dbcca905f294ea69 ] || return 1
+        cp "$PAYLOAD_ROOT/tools/auto-bridge/xz_hub_depth.ko" "$auto_root/xz_hub_depth.ko" || return 1
+    fi
+    [ ! -L "$auto_root/xz_hub_depth.ko" ] && [ "$(file_md5 "$auto_root/xz_hub_depth.ko")" = 5758787588f11479dbcca905f294ea69 ] || return 1
+    if [ ! -f "$auto_root/detach" ]; then
+        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/detach")" = ba080b47a9a12ec4dc11eb37807b0533 ] || return 1
+        cp "$PAYLOAD_ROOT/tools/auto-bridge/detach" "$auto_root/detach" || return 1
+    fi
+    [ ! -L "$auto_root/detach" ] && [ "$(file_md5 "$auto_root/detach")" = ba080b47a9a12ec4dc11eb37807b0533 ] || return 1
+    chmod 700 "$auto_root/xz-auto-bridge" "$auto_root/detach" || return 1
+}
+
+start_auto_bridge() {
+    auto_pid="$1"
+    case "$auto_pid" in ''|*[!0-9]*) return 1;; esac
+    auto_root="/dev/shm/xz-auto-4bb9db00a2ab"
+    if [ -f /dev/shm/xz-four-deck/bridge.pid ]; then
+        auto_owner=$(cat /dev/shm/xz-four-deck/bridge.pid)
+        case "$auto_owner" in ''|*[!0-9]*) return 1;; esac
+        if kill -0 "$auto_owner" 2>/dev/null; then
+            auto_command=$(tr '\000' ' ' < "/proc/$auto_owner/cmdline")
+            if [ "$auto_command" = "$auto_root/xz-auto-bridge --run $auto_pid " ]; then
+                log "AUTO_BRIDGE: existing owner $auto_owner retained; see RAM status."
+                return 0
+            fi
+            log "AUTO_BRIDGE: another owner exists; startup refused."
+            return 1
+        fi
+    fi
+    stage_auto_bridge || return 1
+    printf '%s\n' '#!/bin/sh' "exec nice -n 19 $auto_root/xz-auto-bridge --run $auto_pid > $auto_root/launch.log 2>&1" > "$auto_root/run.sh" || return 1
+    "$auto_root/detach" "$auto_root/run.sh" || return 1
+    log "AUTO_BRIDGE: requested for native PID=$auto_pid; RAM status is /dev/shm/xz-four-deck/status."
+}
+# PRIVATE_AUTO_BRIDGE_END
 
 verify_running_rbp() {
     VERIFY_PID="$1"
@@ -147,6 +294,7 @@ verify_running_rbp() {
         log "FAILED: Requested standalone mod runtime is not mapped."
         return 1
     fi
+    start_auto_bridge "$VERIFY_PID" || log "AUTO_BRIDGE: startup refused; native playback retained."
     return 0
 }
 
@@ -167,6 +315,70 @@ collect_rbp_options() {
     fi
 }
 
+# USB_COLDPLUG_BEGIN
+# Replay mount notifications, never block-device events or mount commands.
+usb_coldplug_watch() (
+    cd / || exit 1
+    cp_pid=$1
+    cp_proc=${2:-/proc}
+    cp_ram=${3:-/dev/shm}
+    cp_limit=${4:-45}
+    cp_interval=${5:-1}
+    case "$cp_pid" in ''|*[!0-9]*) exit 1;; esac
+    cp_birth=$(sed 's/.*) //' "$cp_proc/$cp_pid/stat" 2>/dev/null | awk '{print $20}')
+    [ -n "$cp_birth" ] || exit 1
+    cp_state="$cp_ram/usb-coldplug-$cp_pid-$cp_birth"
+    mkdir -p "$cp_state" || exit 1
+    mkdir "$cp_state/lock" 2>/dev/null || exit 0
+    trap 'rmdir "$cp_state/lock" 2>/dev/null' 0
+    cp_attempt=0
+    cp_start=$(awk '{printf "%.0f", $1 * 1000}' "$cp_proc/uptime")
+    while [ "$cp_attempt" -lt "$cp_limit" ]; do
+        cp_attempt=$((cp_attempt + 1))
+        cp_current=$(sed 's/.*) //' "$cp_proc/$cp_pid/stat" 2>/dev/null | awk '{print $20}')
+        if [ "$cp_current" != "$cp_birth" ]; then
+            echo "USB_COLDPLUG: pid=$cp_pid attempt=$cp_attempt result=process-exited"
+            exit 0
+        fi
+        cp_now=$(awk '{printf "%.0f", $1 * 1000}' "$cp_proc/uptime")
+        cp_elapsed=$((cp_now - cp_start))
+        cp_ready=$(ls -l "$cp_proc/$cp_pid/fd" 2>/dev/null | awk '
+            $NF == "/proc/udev_usb1" {printf "usb1 "}
+            $NF == "/proc/udev_usb2" {printf "usb2 "}')
+        echo "USB_COLDPLUG: pid=$cp_pid attempt=$cp_attempt ready=[$cp_ready] elapsed_ms=$cp_elapsed"
+        # Snapshot once per pass. Validate both names before any proc write.
+        sort -u "$cp_proc/mounts" | while read -r cp_source cp_mount cp_type cp_options cp_dump cp_pass; do
+            cp_dev=${cp_source#/dev/}
+            case "$cp_source" in /dev/sd*) ;; *) continue;; esac
+            case "$cp_dev" in *[!a-z0-9]*) continue;; esac
+            case "$cp_mount" in
+                /media/usb1/"$cp_dev") cp_slot=usb1;;
+                /media/usb2/"$cp_dev") cp_slot=usb2;;
+                *) continue;;
+            esac
+            case " $cp_ready " in *" $cp_slot "*) ;; *) continue;; esac
+            cp_notice="$cp_state/$cp_slot-$cp_dev"
+            [ ! -f "$cp_notice" ] || continue
+            # Redirection must never create a substitute for a missing proc node.
+            [ -e "$cp_proc/udev_$cp_slot" ] || continue
+            if printf 'mount %s' "$cp_mount" > "$cp_proc/udev_$cp_slot"; then
+                : > "$cp_notice"
+                echo "USB_COLDPLUG: dev=$cp_dev action=mount slot=$cp_slot result=notified mounted_after_ms=$cp_elapsed attempt=$cp_attempt"
+            else
+                echo "USB_COLDPLUG: dev=$cp_dev action=mount slot=$cp_slot result=write-failed mounted_after_ms=$cp_elapsed attempt=$cp_attempt"
+            fi
+        done
+        [ "$cp_attempt" -ge "$cp_limit" ] || sleep "$cp_interval"
+    done
+    echo "USB_COLDPLUG: pid=$cp_pid result=watch-complete attempts=$cp_attempt"
+)
+
+usb_coldplug_start() {
+    # Do not hold the udev RUN chain while waiting for later partition mounts.
+    (usb_coldplug_watch "$1") </dev/null >>/dev/shm/xz-usb-coldplug.log 2>&1 &
+}
+# USB_COLDPLUG_END
+
 launch_runtime_rbp() {
     collect_rbp_options
     cd /root/pdj || return 1
@@ -176,6 +388,7 @@ launch_runtime_rbp() {
             MODS_UI=1
             [ "$MODS_MODE" = observer ] && MODS_OBSERVE=1 && MODS_UI=0
             LD_PRELOAD="$HOOK_RAM:$MODS_RAM" XZ_MODS_ENABLE=1 XZ_MODS_OBSERVER="$MODS_OBSERVE" XZ_MODS_UI="$MODS_UI" XZ_MODS_STEMS=1 \
+                XZ_MODS_KEYSHIFT="$MODS_UI" XZ_MODS_NATIVE_VIEW="$MODS_UI" XZ_MODS_SHELL="$MODS_UI" XZ_MODS_SETTINGS_READONLY=1 XZ_MODS_BOOT_RUNTIME="$MODS_EXPECTED:$MODS_MODE" \
                 ./rbp $tsc_option $joglcd_option $nfs_options >/tmp/xz_rbp.log 2>&1 &
         else
             LD_PRELOAD="$HOOK_RAM" ./rbp $tsc_option $joglcd_option $nfs_options >/tmp/xz_rbp.log 2>&1 &
@@ -187,10 +400,86 @@ launch_runtime_rbp() {
         RBP_LAUNCH_PID=$!
         log "Launched candidate rbp PID=$RBP_LAUNCH_PID flags=[$tsc_option $joglcd_option $nfs_options]."
     fi
+    usb_coldplug_start "$RBP_LAUNCH_PID"
     return 0
 }
 
+stage_network_tools() {
+    # Validate both payload members before publishing either helper.
+    for NETWORK_FILE in xz-network-udhcpc xz-network-lease-event; do
+        NETWORK_SOURCE="$PAYLOAD_ROOT/tools/$NETWORK_FILE"
+        NETWORK_EXPECTED=$(awk 'NR == 1 {print $1}' "$NETWORK_SOURCE.md5" 2>/dev/null)
+        [ -n "$NETWORK_EXPECTED" ] && [ "$(file_md5 "$NETWORK_SOURCE")" = "$NETWORK_EXPECTED" ] || return 1
+    done
+    for NETWORK_FILE in xz-network-udhcpc xz-network-lease-event; do
+        NETWORK_SOURCE="$PAYLOAD_ROOT/tools/$NETWORK_FILE"
+        NETWORK_EXPECTED=$(awk 'NR == 1 {print $1}' "$NETWORK_SOURCE.md5" 2>/dev/null)
+        cp "$NETWORK_SOURCE" "$NETWORK_TOOLS_RAM/$NETWORK_FILE.next" || return 1
+        [ "$(file_md5 "$NETWORK_TOOLS_RAM/$NETWORK_FILE.next")" = "$NETWORK_EXPECTED" ] || return 1
+        chmod 700 "$NETWORK_TOOLS_RAM/$NETWORK_FILE.next" || return 1
+    done
+    for NETWORK_FILE in xz-network-udhcpc xz-network-lease-event; do
+        mv -f "$NETWORK_TOOLS_RAM/$NETWORK_FILE.next" "$NETWORK_TOOLS_RAM/$NETWORK_FILE" || return 1
+    done
+    log "NETWORK_TOOLS_STAGED: DHCP is idle until on-device Apply."
+}
+
+# Optional Pro DJ Link helper for DECK 3/4 (mods/djlink_runtime.h). The player starts it only while
+# the PRO DJ LINK DECKS 3/4 setting is on. A missing or mismatching member leaves the setting showing
+# HELPER MISSING; it never stops the load.
+stage_djlink_helper() {
+    DJLINK_SOURCE="$PAYLOAD_ROOT/tools/xz-djlink"
+    [ -f "$DJLINK_SOURCE" ] || return 0
+    DJLINK_EXPECTED=$(awk 'NR == 1 {print $1}' "$DJLINK_SOURCE.md5" 2>/dev/null)
+    if [ -z "$DJLINK_EXPECTED" ] || [ "$(file_md5 "$DJLINK_SOURCE")" != "$DJLINK_EXPECTED" ]; then
+        log "DJLINK: helper hash does not match its manifest; not staged."
+        return 0
+    fi
+    if [ -L "$DJLINK_RAM" ] || ! mkdir -p "$DJLINK_RAM" || [ "$(cd -P "$DJLINK_RAM" && pwd -P)" != "$DJLINK_RAM" ]; then
+        log "DJLINK: $DJLINK_RAM is not a plain directory; not staged."
+        return 0
+    fi
+    if ! cp "$DJLINK_SOURCE" "$DJLINK_RAM/xz-djlink.next" ||
+       [ "$(file_md5 "$DJLINK_RAM/xz-djlink.next")" != "$DJLINK_EXPECTED" ] ||
+       ! chmod 700 "$DJLINK_RAM/xz-djlink.next" ||
+       ! mv -f "$DJLINK_RAM/xz-djlink.next" "$DJLINK_RAM/xz-djlink"; then
+        rm -f "$DJLINK_RAM/xz-djlink.next"
+        log "DJLINK: helper copy failed its check; not staged."
+        return 0
+    fi
+    log "DJLINK_STAGED: md5=$DJLINK_EXPECTED; it starts only with PRO DJ LINK DECKS 3/4 on."
+}
+
+# Optional Ableton Link helper (mods/link_runtime.h, GPL-2.0-or-later, source shipped beside the release). The
+# player starts it only while ABLETON LINK is ENABLED. A missing or mismatching member leaves the setting showing
+# HELPER MISSING; it never stops the load.
+stage_link_helper() {
+    LINK_SOURCE="$PAYLOAD_ROOT/tools/xz-link-peer"
+    [ -f "$LINK_SOURCE" ] || return 0
+    LINK_EXPECTED=$(awk 'NR == 1 {print $1}' "$LINK_SOURCE.md5" 2>/dev/null)
+    if [ -z "$LINK_EXPECTED" ] || [ "$(file_md5 "$LINK_SOURCE")" != "$LINK_EXPECTED" ]; then
+        log "ABLETON LINK: helper hash does not match its manifest; not staged."
+        return 0
+    fi
+    if [ -L "$LINK_RAM" ] || ! mkdir -p "$LINK_RAM" || [ "$(cd -P "$LINK_RAM" && pwd -P)" != "$LINK_RAM" ]; then
+        log "ABLETON LINK: $LINK_RAM is not a plain directory; not staged."
+        return 0
+    fi
+    if ! cp "$LINK_SOURCE" "$LINK_RAM/xz-link-peer.next" ||
+       [ "$(file_md5 "$LINK_RAM/xz-link-peer.next")" != "$LINK_EXPECTED" ] ||
+       ! chmod 700 "$LINK_RAM/xz-link-peer.next" ||
+       ! mv -f "$LINK_RAM/xz-link-peer.next" "$LINK_RAM/xz-link-peer"; then
+        rm -f "$LINK_RAM/xz-link-peer.next"
+        log "ABLETON LINK: helper copy failed its check; not staged."
+        return 0
+    fi
+    log "ABLETON_LINK_STAGED: md5=$LINK_EXPECTED; it starts only with ABLETON LINK enabled."
+}
+
 stage_optional_assets() {
+    stage_network_tools || return 1
+    stage_djlink_helper
+    stage_link_helper
     if [ -f "$SOURCE_FB_TOOL" ]; then
         if cp "$SOURCE_FB_TOOL" "$FB_TOOL_RAM" 2>>"$LOG"; then
             chmod 755 "$FB_TOOL_RAM"
@@ -223,9 +512,9 @@ stage_optional_assets() {
     fi
 
     if [ -f "$SOURCE_MODS" ]; then
-        MODS_EXPECTED=$(awk 'NR == 1 {print $1}' /mnt/iso/tools/libxz-mods.so.md5 2>/dev/null)
+        MODS_EXPECTED=$(awk 'NR == 1 {print $1}' "$PAYLOAD_ROOT/tools/libxz-mods.so.md5" 2>/dev/null)
         [ -n "$MODS_EXPECTED" ] && [ "$(file_md5 "$SOURCE_MODS")" = "$MODS_EXPECTED" ] || return 1
-        MODS_MODE=$(cat /mnt/iso/mods-mode 2>/dev/null)
+        MODS_MODE=$(cat "$PAYLOAD_ROOT/mods-mode" 2>/dev/null)
         case "$MODS_MODE" in observer|experimental) ;; *) return 1;; esac
         [ -f "$HOOK_RAM" ] || return 1
         cp "$SOURCE_MODS" "$MODS_RAM.next" || return 1
@@ -235,8 +524,8 @@ stage_optional_assets() {
         log "Standalone runtime staged in RAM: mode=$MODS_MODE md5=$MODS_EXPECTED"
         # Games are separate programs, staged from this USB boot image into RAM.
         # No engine/WAD download or computer connection occurs on the XZ.
-        for GAME_FILE in xz-doom doom1.wad xz-updater xz-runtime-smoke; do
-            GAME_SOURCE="/mnt/iso/tools/$GAME_FILE"
+        for GAME_FILE in xz-doom doom1.wad xz-updater xz-runtime-smoke xz-pc-wave-receive xz-support; do
+            GAME_SOURCE="$PAYLOAD_ROOT/tools/$GAME_FILE"
             if [ -f "$GAME_SOURCE" ]; then
                 GAME_EXPECTED=$(awk '{print $1}' "$GAME_SOURCE.md5" 2>/dev/null)
                 [ -n "$GAME_EXPECTED" ] && [ "$(file_md5 "$GAME_SOURCE")" = "$GAME_EXPECTED" ] || return 1
@@ -250,7 +539,7 @@ stage_optional_assets() {
     fi
 
     if [ ! -f "$SOURCE_GUI" ]; then
-        if [ ! -f /mnt/iso/branding/apply.sh ]; then
+        if [ ! -f "$PAYLOAD_ROOT/branding/apply.sh" ]; then
             log "No custom GUI pack in this payload."
             return 0
         fi
@@ -270,11 +559,11 @@ stage_optional_assets() {
         log "FAILED: Mounted GUI payload hash does not match its manifest."
         return 1
     fi
-    if ! cp "$SOURCE_GUI" "$GUI_RAM" 2>>"$LOG"; then
+    if ! cp "$SOURCE_GUI" "$GUI_STAGE" 2>>"$LOG"; then
         log "FAILED: Could not stage custom GUI in /dev/shm."
         return 1
     fi
-    if [ "$(file_md5 "$GUI_RAM")" != "$GUI_SOURCE_MD5" ]; then
+    if [ "$(file_md5 "$GUI_STAGE")" != "$GUI_SOURCE_MD5" ]; then
         log "FAILED: Staged GUI hash mismatch."
         return 1
     fi
@@ -291,18 +580,18 @@ stage_optional_assets() {
         chmod 755 "$GUI_IP_PATCH_RAM"
         DEVICE_IP=$(ifconfig eth0 2>/dev/null | sed -n 's/.*inet addr:\([0-9.]*\).*/\1/p' | head -1)
         [ -n "$DEVICE_IP" ] || DEVICE_IP="NO-IP"
-        if ! "$GUI_IP_PATCH_RAM" "$GUI_RAM" "$DEVICE_IP" >>"$LOG" 2>&1; then
+        if ! "$GUI_IP_PATCH_RAM" "$GUI_STAGE" "$DEVICE_IP" >>"$LOG" 2>&1; then
             log "FAILED: Could not render runtime IP into GUI pack."
             return 1
         fi
-        GUI_RUNTIME_MD5=$(file_md5 "$GUI_RAM")
+        GUI_RUNTIME_MD5=$(file_md5 "$GUI_STAGE")
         log "GUI_IP_RUNTIME_PROOF: address=$DEVICE_IP md5=$GUI_RUNTIME_MD5"
     fi
 
-    if [ -f /mnt/iso/branding/apply.sh ]; then
-        (cd /mnt/iso/branding && md5sum -c MD5SUMS) >>"$LOG" 2>&1 || return 1
-        sh /mnt/iso/branding/apply.sh "$GUI_RAM" >>"$LOG" 2>&1 || return 1
-        GUI_RUNTIME_MD5=$(file_md5 "$GUI_RAM")
+    if [ -f "$PAYLOAD_ROOT/branding/apply.sh" ]; then
+        (cd "$PAYLOAD_ROOT/branding" && md5sum -c MD5SUMS) >>"$LOG" 2>&1 || return 1
+        sh "$PAYLOAD_ROOT/branding/apply.sh" "$GUI_STAGE" >>"$LOG" 2>&1 || return 1
+        GUI_RUNTIME_MD5=$(file_md5 "$GUI_STAGE")
         log "XZ_MODS_BRANDING: applied original loading artwork in RAM."
     fi
 
@@ -318,6 +607,10 @@ stage_optional_assets() {
         return 1
     fi
 
+    if ! mv -f "$GUI_STAGE" "$GUI_RAM" 2>>"$LOG"; then
+        log "FAILED: Could not publish staged RAM GUI."
+        return 1
+    fi
     if mount | grep -F " on $GUI_TARGET " >/dev/null 2>&1; then
         umount "$GUI_TARGET" 2>>"$LOG" || return 1
     fi
@@ -337,25 +630,33 @@ stage_optional_assets() {
 
 log "=== XDJ-XZ Diagnostic Native Loader v3 (firmware 1.26) ==="
 log "USB Mount Path: $USB"
+trap cleanup_payload 0
+trap 'exit 1' 1 2 15
+if ! pin_own_payload; then
+    log "FAILED: Could not pin this USB image; DJ process untouched."
+    exit 1
+fi
+acquire_loader_lock || exit 1
+stage_auto_bridge || { log "AUTO_BRIDGE: RAM staging failed; native runtime untouched."; exit 1; }
 configure_vj_network
 network_snapshot
 usb_gadget_snapshot
 start_telnet
 
 if [ -f "$APPLIED_FLAG" ]; then
-    log "Payload already applied this boot: $(cat "$APPLIED_FLAG" 2>/dev/null)"
     CURRENT_PID=$(pidof rbp 2>/dev/null)
-    verify_running_rbp "$CURRENT_PID" "$(cat "$APPLIED_FLAG" 2>/dev/null)"
-    sync
-    exit 0
+    REQUESTED_MODS=$(awk 'NR == 1 {print $1}' "$PAYLOAD_ROOT/tools/libxz-mods.so.md5" 2>/dev/null)
+    REQUESTED_MODE=$(cat "$PAYLOAD_ROOT/mods-mode" 2>/dev/null)
+    if [ -n "$CURRENT_PID" ] && [ -n "$REQUESTED_MODS" ] &&
+       tr '\000' '\n' < "/proc/$CURRENT_PID/environ" | grep -q "^XZ_MODS_BOOT_RUNTIME=$REQUESTED_MODS:$REQUESTED_MODE$"; then
+        log "Exact runtime already applied this boot: $REQUESTED_MODS"
+        usb_coldplug_start "$CURRENT_PID"
+        verify_running_rbp "$CURRENT_PID" "$(cat "$APPLIED_FLAG" 2>/dev/null)"
+        sync
+        exit 0
+    fi
+    log "A different runtime was applied earlier; updating to this payload."
 fi
-
-if [ -f "$APPLYING_FLAG" ]; then
-    log "Loader re-entry blocked while another application attempt is active."
-    sync
-    exit 0
-fi
-touch "$APPLYING_FLAG"
 
 if [ ! -f "$SOURCE_RBP" ]; then
     log "FAILED: $SOURCE_RBP is missing from the mounted payload."
@@ -417,7 +718,7 @@ if ! stage_optional_assets; then
 fi
 
 OTA_TRIAL=0
-if [ -x /dev/shm/xz-updater ]; then
+if false; then # XZ Mods: selected version is pinned; skip OTA apply
     if LD_PRELOAD= /dev/shm/xz-updater apply "$USB" >>"$LOG" 2>&1; then
         OTA_TRIAL=1
         log "OTA_TRIAL_READY: verified libraries staged; checking the DJ process before acceptance."
@@ -469,6 +770,7 @@ if [ -z "$OLD_PID" ]; then
                 DELAYED_PID=""
             fi
         fi
+        usb_coldplug_start "$DELAYED_PID"
         verify_running_rbp "$DELAYED_PID" "$SOURCE_MD5"
         finish_ota_trial "$DELAYED_PID"
         network_snapshot

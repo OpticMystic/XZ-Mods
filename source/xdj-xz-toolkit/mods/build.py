@@ -4,14 +4,130 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import re
 import pathlib
 import shutil
 import subprocess
+import sys
 from elftools.elf.elffile import ELFFile
+from capstone import Cs, CS_ARCH_ARM, CS_MODE_ARM
 
 from ui.ui_sources import UI_SOURCES
+from sdk.sdk_sources import SDK_SOURCES
+from shell.shell_sources import SHELL_SOURCES
 
 ROOT = pathlib.Path(__file__).resolve().parent
+
+
+def player_defines(args) -> list[str]:
+    """Keep the separate player object and shared build on one profile."""
+    flags = ["-DXZ_XP_JOG_TICKS_PER_REV=" + str(args.jog_counts_per_rev)]
+    if args.xp_service_proof:
+        flags.append("-DXZ_XP_SERVICE_PROOF=1")
+    return flags
+
+
+def proof_export(path: pathlib.Path, enabled: bool, name: str, reader_name: str) -> dict[str, int]:
+    with path.open("rb") as stream:
+        table = ELFFile(stream).get_section_by_name(".dynsym")
+        symbols = table.get_symbol_by_name(name) if table else None
+        if not enabled:
+            if symbols:
+                raise ValueError("Unexpected diagnostic export: " + name)
+            return {}
+        if len(symbols or []) != 1 or symbols[0]["st_info"]["type"] != "STT_OBJECT":
+            raise ValueError("Diagnostic object was not compiled into the runtime: " + name)
+        if symbols[0]["st_info"]["bind"] != "STB_GLOBAL" or symbols[0]["st_other"]["visibility"] != "STV_DEFAULT":
+            raise ValueError("Diagnostic object is not a public global export: " + name)
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("xz_build_" + reader_name[:-3], ROOT / reader_name)
+        reader = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(reader)
+        if symbols[0]["st_size"] != reader.SIZE:
+            raise ValueError("Diagnostic object differs from its reader ABI: " + name)
+        return {name: int(symbols[0]["st_size"])}
+
+
+def build_mp3_vfp(output: pathlib.Path, arm_gcc: str | None, wsl_distro: str) -> dict:
+    """Keep the base ARM ABI while compiling MP3 arithmetic to VFP instructions."""
+    source = ROOT / "audio/stem_mp3.c"
+    target = output / "stem-mp3-vfp.o"
+    compiler = arm_gcc or shutil.which("arm-linux-gnueabi-gcc")
+    if compiler:
+        command = [compiler]
+        source_arg, target_arg = str(source), str(target)
+    elif os.name == "nt":
+        command = ["wsl", "-d", wsl_distro, "--", "arm-linux-gnueabi-gcc"]
+        def linux(path: pathlib.Path) -> str:
+            value = str(path.resolve()).replace("\\", "/")
+            if len(value) < 3 or value[1:3] != ":/":
+                raise ValueError("The WSL MP3 compiler requires a local drive path")
+            return "/mnt/" + value[0].lower() + value[2:]
+        source_arg, target_arg = linux(source), linux(target)
+    else:
+        raise ValueError("MP3 needs arm-linux-gnueabi-gcc; pass --arm-gcc with its executable")
+    version = subprocess.run(command + ["--version"], check=True, capture_output=True,
+                             text=True).stdout.splitlines()[0]
+    subprocess.run(command + [
+        "-mcpu=cortex-a9", "-marm", "-mfpu=vfpv3", "-mfloat-abi=softfp",
+        "-O2", "-std=c11", "-fPIC", "-fvisibility=hidden", "-ffp-contract=off",
+        "-c", source_arg, "-o", target_arg], check=True)
+    with target.open("rb") as stream:
+        elf = ELFFile(stream)
+        if elf.elfclass != 32 or elf["e_machine"] != "EM_ARM" or elf["e_flags"] & 0x400:
+            raise ValueError("MP3 object must use the ARM32 base calling convention")
+        symbols = elf.get_section_by_name(".symtab")
+        undefined = {s.name for s in symbols.iter_symbols() if s["st_shndx"] == "SHN_UNDEF"}
+        if undefined & {"__aeabi_fadd", "__aeabi_fsub", "__aeabi_fmul", "__aeabi_fdiv"}:
+            raise ValueError("MP3 arithmetic fell back to software floating point")
+        decoder = Cs(CS_ARCH_ARM, CS_MODE_ARM)
+        floating = 0
+        for symbol in symbols.iter_symbols():
+            if symbol["st_info"]["type"] != "STT_FUNC" or not isinstance(symbol["st_shndx"], int):
+                continue
+            section = elf.get_section(symbol["st_shndx"])
+            start = symbol["st_value"] - section["sh_addr"]
+            for instruction in decoder.disasm(section.data()[start:start + symbol["st_size"]], symbol["st_value"]):
+                floating += instruction.mnemonic.startswith(("vadd.f32", "vsub.f32", "vmul.f32", "vmla.f32"))
+        if not floating:
+            raise ValueError("MP3 object contains no verified VFP arithmetic")
+    return {"object": target.name, "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+            "compiler": version, "vfp_arithmetic_instructions": floating,
+            "calling_convention": "ARM base ABI", "floating_point": "VFPv3",
+            "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+            "decoder_header_sha256": hashlib.sha256((ROOT / "audio/vendor/dr_libs/dr_mp3.h").read_bytes()).hexdigest()}
+
+
+RUNTIME_IMAGE_BASE = 0x26000000
+
+
+def link_at_low_base(command: list, destination: pathlib.Path) -> None:
+    """Link the runtime at a fixed base below the XZ kernel's own mapping range.
+
+    The XZ maps libraries, thread stacks and every large allocation into one 1.3 GiB range that the player
+    nearly fills. Its loader asks the kernel for the address a library is linked at, so a base below that
+    range moves this library and its 35 MiB of zero-initialised data out of it. The compiler driver drops
+    the base option for shared objects, so the linker command it prints is replayed with the option added.
+    """
+    verbose = subprocess.run([*command[:2], "-v", *command[2:]], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    if verbose.returncode:
+        # The compiler's own command lines are thousands of characters long and contain "-ferror-limit";
+        # showing them hid the real diagnostic behind a cut-off list of flags.
+        raise RuntimeError(" | ".join(line[:400] for line in verbose.stdout.splitlines()
+                                      if ("error" in line.lower() or "undefined" in line.lower()) and len(line) < 1200)[-4000:])
+    lines = [line for line in verbose.stdout.splitlines() if line.startswith("ld.lld ")]
+    if len(lines) != 1:
+        raise RuntimeError("Expected one linker command from the compiler driver")
+    arguments = lines[0].split()[1:]
+    if arguments[arguments.index("-o") + 1] != str(destination):
+        raise RuntimeError("Linker output does not match the runtime destination")
+    subprocess.run([command[0], "ld.lld", *arguments, "--image-base=" + hex(RUNTIME_IMAGE_BASE),
+                    "-Map=" + str(destination.with_suffix(".map"))], check=True)
+    with destination.open("rb") as stream:
+        loads = [s for s in ELFFile(stream).iter_segments() if s["p_type"] == "PT_LOAD"]
+    if min(s["p_vaddr"] for s in loads) != RUNTIME_IMAGE_BASE or max(s["p_vaddr"] + s["p_memsz"] for s in loads) > 0x2A000000:
+        raise RuntimeError("Runtime image is not inside the low address zone")
 
 
 def inspect(path: pathlib.Path) -> dict:
@@ -56,12 +172,35 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--zig", default=shutil.which("zig"))
     parser.add_argument("--output", type=pathlib.Path, required=True)
+    parser.add_argument("--arm-gcc", help="ARM EABI GCC executable for the VFP MP3 decoder")
+    parser.add_argument("--wsl-distro", default="Ubuntu", help="WSL distribution used for ARM GCC on Windows")
+    parser.add_argument("--jog-display-proof", action="store_true",
+                        help="Include bounded Jog LCD diagnostic counters in a private trial build")
+    parser.add_argument("--xp-service-proof", action="store_true",
+                        help="Include optional scratch service and first-overflow diagnostics in a private trial build")
+    parser.add_argument("--sync-observation", action="store_true",
+                        help="Include optional native/software SYNC handoff diagnostics in a private trial build")
+    parser.add_argument("--jog-counts-per-rev", type=int, default=6600,
+                        help="Provisional platter counts per revolution, estimated from the owner's 33 s versus 1.8 s travel (default: 6600)")
+    parser.add_argument("--host-checks-only", action="store_true",
+                        help="Run standalone settings host checks without building or deploying the runtime")
+    parser.add_argument("--diary-version", help="XZ Mods runtime version for the USB diary; defaults to release-source.json")
     args = parser.parse_args()
+    if args.host_checks_only:
+        from verify_my_settings import host_checks
+        host_checks(args.output)
+        return
     if not args.zig:
         parser.error("Supply --zig with a Zig executable supporting arm-linux-gnueabi.2.13")
+    if not 100 <= args.jog_counts_per_rev <= 100000:
+        parser.error("--jog-counts-per-rev must be between 100 and 100000")
+    # No real-time thread may wait behind a lower-priority one on a condition variable, rwlock or plain mutex.
+    subprocess.run([sys.executable, str(ROOT / "tests" / "verify_rt_locks.py")], check=True)
     args.output.mkdir(parents=True, exist_ok=True)
     destination = args.output.resolve() / "libxz-mods-development.so"
     compiler = shutil.which(args.zig) or str(pathlib.Path(args.zig).resolve())
+    mp3_build = build_mp3_vfp(args.output.resolve(), args.arm_gcc, args.wsl_distro)
+    mp3_object = args.output.resolve() / mp3_build["object"]
     # Keep the qualified legacy decoder compilation unchanged. LLVM 21 crashes
     # when compiling its dr_libs paths with softfp. Only the new streaming math
     # needs VFP; softfp retains the same function-call ABI as the legacy objects.
@@ -70,6 +209,29 @@ def main() -> None:
                     "-mfloat-abi=softfp", "-mfpu=neon", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
                     "-fPIC", "-fvisibility=hidden", "-c", str(ROOT / "audio/overcue_stream.c"),
                     "-o", str(stream_object)], check=True)
+    audio_runtime_object=args.output.resolve()/"audio-runtime-vfp.o"
+    subprocess.run([compiler,"cc","-target","arm-linux-gnueabi.2.13","-mcpu=cortex_a9",
+                    "-mfloat-abi=softfp","-mfpu=vfpv3","-O2","-std=c11","-Wall","-Wextra","-Werror",
+                    "-fPIC","-fvisibility=hidden","-c",str(ROOT/"audio/runtime.c"),
+                    "-o",str(audio_runtime_object)],check=True)
+    media_object=args.output.resolve()/"stem-media-vfp.o"
+    subprocess.run([compiler,"cc","-target","arm-linux-gnueabi.2.13","-mcpu=cortex_a9",
+                    "-mfloat-abi=softfp","-mfpu=vfpv3","-O2","-std=c11","-Wall","-Wextra","-Werror",
+                    "-fPIC","-fvisibility=hidden","-c",str(ROOT/"audio/stem_media.c"),
+                    "-o",str(media_object)],check=True)
+    # DECK 3/4: the resampler runs per output frame, so VFP like the stem decoder. The transport copy stays
+    # byte-identical; glibc 2.13 keeps clock_gettime in librt, so it calls extra_decks.c's syscall instead.
+    player_object=args.output.resolve()/"extra-player-vfp.o"
+    subprocess.run([compiler,"cc","-target","arm-linux-gnueabi.2.13","-mcpu=cortex_a9",
+                    "-mfloat-abi=softfp","-mfpu=vfpv3","-O2","-std=c11","-Wall","-Wextra","-Werror",
+                    *player_defines(args),
+                    "-fPIC","-fvisibility=hidden","-c",str(ROOT/"extra_player.c"),
+                    "-o",str(player_object)],check=True)
+    transport_object=args.output.resolve()/"usb-transport.o"
+    subprocess.run([compiler,"cc","-target","arm-linux-gnueabi.2.13","-mcpu=cortex_a9",
+                    "-O2","-std=c11","-Wall","-Wextra","-Werror","-fPIC","-fvisibility=hidden",
+                    "-Dclock_gettime=xz_usb_clock_gettime","-c",str(ROOT/"audio/usb_transport/usb_transport.c"),
+                    "-o",str(transport_object)],check=True)
     # The native column drawer passes its zoom float in s0. Enable VFP so the
     # per-function aapcs-vfp attribute is honored; the library stays soft-float.
     layered_object = args.output.resolve() / "layered-wave-runtime.o"
@@ -77,39 +239,132 @@ def main() -> None:
                     "-mfloat-abi=softfp", "-mfpu=neon", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
                     "-fPIC", "-fvisibility=hidden", "-c", str(ROOT / "ui/layered_wave_runtime.c"),
                     "-o", str(layered_object)], check=True)
+    # The XZ has VFPv3. Software floating point exceeded a 512-frame audio
+    # deadline on the controller; softfp keeps the stock register-call ABI.
+    key_object = args.output.resolve() / "keyshift-native.o"
+    subprocess.run([compiler, "cc", "-target", "arm-linux-gnueabi.2.13", "-mcpu=cortex_a9",
+                    "-mfloat-abi=softfp", "-mfpu=vfpv3", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
+                    "-fPIC", "-fvisibility=hidden", "-c", str(ROOT / "key/keyshift.c"),
+                    "-o", str(key_object)], check=True)
+    with key_object.open("rb") as stream:
+        key_elf = ELFFile(stream)
+        key_symbol = next(s for s in key_elf.get_section_by_name(".symtab").iter_symbols()
+                          if s.name == "xz_key_shift_process")
+        key_section = key_elf.get_section(key_symbol["st_shndx"])
+        key_code = key_section.data()[key_symbol["st_value"]:key_symbol["st_value"] + key_symbol["st_size"]]
+        if key_elf["e_flags"] & 0x400 or not any(i.mnemonic.startswith("v")
+                for i in Cs(CS_ARCH_ARM, CS_MODE_ARM).disasm(key_code, 0)):
+            raise ValueError("Key DSP requires VFP instructions with the stock soft-float calling convention")
+    lab_objects = []
+    for name in ("rhythm_lab", "rhythm_lab_render", "glyph_run", "glyph_run_render", "game_motion_draw", "game_feel_art", "game_font", "wave_rider", "wave_rider_render", "wave_rider_art"):
+        target = args.output.resolve() / (name + "-native.o")
+        subprocess.run([compiler, "cc", "-target", "arm-linux-gnueabi.2.13", "-mcpu=cortex_a9",
+                        "-mfloat-abi=softfp", "-mfpu=vfpv3", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
+                        "-fPIC", "-fvisibility=hidden", "-c", str(ROOT / "arcade" / (name + ".c")),
+                        "-o", str(target)], check=True)
+        lab_objects.append(str(target))
+    # Display/model math only. VFP instructions keep the stock soft-float call ABI;
+    # preserve IEEE precision and prohibit multiply/add contraction.
+    display_math_sources = ("shell/shell_wave.c", "shell_runtime.c", "shell_runtime_core.c", "arcade/native_clock.c")
+    display_math_objects = []
+    for source in display_math_sources:
+        target = args.output.resolve() / (pathlib.Path(source).stem + "-display-vfp.o")
+        subprocess.run([compiler, "cc", "-target", "arm-linux-gnueabi.2.13", "-mcpu=cortex_a9",
+                        "-mfloat-abi=softfp", "-mfpu=vfpv3", "-ffp-contract=off", "-O2", "-std=c11",
+                        "-Wall", "-Wextra", "-Werror", "-fPIC", "-fvisibility=hidden",
+                        *(["-DXZ_SYNC_OBSERVATION=1"] if args.sync_observation else []),
+                        "-c", str(ROOT / source), "-o", str(target)], check=True)
+        display_math_objects.append(str(target))
+    diary_version = args.diary_version
+    if diary_version is None:
+        release_source = ROOT.parents[2] / "release-source.json"
+        diary_version = json.loads(release_source.read_text())["version"] if release_source.is_file() else "unknown"
+    if not re.fullmatch(r"unknown|[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9.]+)?(?:\+[a-z0-9.]+)?", diary_version):
+        raise ValueError("Invalid diary build version")
     command = [compiler, "cc", "-target", "arm-linux-gnueabi.2.13", "-mcpu=cortex_a9",
+               '-DXZ_DIARY_VERSION="' + diary_version + '"',
                "-O2", "-s", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared",
                "-fvisibility=hidden", "-Wl,--no-undefined", "-Wl,-z,nodelete",
                "-Wl,-T," + str(ROOT / "xz-relocations.ld"),
-               str(ROOT / "runtime.c"), str(ROOT / "cue/cue.c"), str(ROOT / "cue/native.c"),
+               str(ROOT / "runtime.c"), str(ROOT / "kernel_guard.c"), str(ROOT / "core_use.c"), str(ROOT / "games_gate.c"), str(ROOT / "xz_thread.c"), str(ROOT / "usb_probe.c"), str(ROOT / "usb_release.c"), str(ROOT / "cue/cue.c"), str(ROOT / "cue/native.c"),
+               str(ROOT / "deck_select.c"), str(ROOT / "extra_decks.c"), str(ROOT / "extra_cue_store.c"), str(ROOT / "tracklist.c"), str(ROOT / "tracklist_file.c"), str(ROOT / "tracklist_runtime.c"), str(ROOT / "classic_load.c"), str(ROOT / "classic_popup.c"), str(ROOT / "stock_dialog.c"),
+               str(player_object), str(ROOT / "anlz_extra.c"), str(transport_object),
                str(ROOT / "doom/native_bridge.c"),
+               str(ROOT / "kart/xz_kart_input.c"), str(ROOT / "kart/xz_kart_runtime.c"),
+               *(str(ROOT / "sdk" / name) for name in SDK_SOURCES),
                str(ROOT / "arcade/arcade.c"),str(ROOT / "arcade/render.c"),
-               str(ROOT / "arcade/input.c"),str(ROOT / "arcade/clock.c"),str(ROOT / "arcade/native_clock.c"),
-               str(ROOT / "arcade/wave_rider.c"),str(ROOT / "arcade/wave_rider_render.c"),
+               str(ROOT / "arcade/input.c"),str(ROOT / "arcade/clock.c"),display_math_objects[3],
                str(ROOT / "arcade/wave_rider_source.c"),str(ROOT / "arcade/wave_rider_runtime.c"),
+               *lab_objects, str(ROOT / "arcade/rhythm_lab_runtime.c"),
                str(ROOT / "doom/wad_catalog.c"),
                str(ROOT / "ota/native_update.c"),
-               str(ROOT / "ui_runtime.c"), *(str(ROOT / "ui" / name) for name in UI_SOURCES), str(ROOT / "ui/native_touch.c"),
+               str(ROOT / "support/native_support.c"), str(ROOT / "support/loader_identity.c"),
+               *(str(ROOT / "network" / name) for name in ("lease.c", "service.c", "linux.c", "linux_os.c", "runtime.c")),
+               str(ROOT / "ui_runtime.c"), str(ROOT / "metrics_runtime.c"),
+               # REC mark: the shared poller (the recorder seam, recorder_state.c, is linked with ram/removal.c below).
+               str(ROOT / "recorder_poll.c"),
+               str(ROOT / "diary/format.c"), str(ROOT / "diary/store.c"), str(ROOT / "diary/runtime.c"), str(ROOT / "pc_control/stems.c"), str(ROOT / "pc_control/native.c"), str(ROOT / "pc_control/wave.c"), *(str(ROOT / "ui" / name) for name in UI_SOURCES), str(ROOT / "ui/native_touch.c"),
                str(ROOT / "ui/stem_pads.c"), str(ROOT / "ui/beat_jump.c"),
                str(ROOT / "ui/native_led.c"),
                str(ROOT / "ui/native_wave.c"),
                str(ROOT / "ui/native_wave_runtime.c"),
+               str(ROOT / "ui/extra_lane.c"), str(ROOT / "ui/extra_detail.c"),
+               str(ROOT / "ui/classic_mixer.c"), str(ROOT / "ui/classic_mixer_runtime.c"), str(ROOT / "ui/classic_column.c"),
                str(ROOT / "ui/layered_wave.c"), str(ROOT / "ui/layered_wave_source.c"), str(layered_object),
                str(ROOT / "ui/native_skin_runtime.c"),
                str(ROOT / "ui/native_raw_skin.c"),
                str(ROOT / "ui/native_window_keys.c"),
-               str(ROOT / "settings.c"),
+               # FLAGSHIP source closure shares its small UI renderers with UI_SOURCES.
+               *(str(ROOT / "shell" / name) for name in SHELL_SOURCES if name != "shell_wave.c" and name not in {"../ui/" + item for item in UI_SOURCES}),
+               str(ROOT / "xz_bench_control.c"), str(ROOT / "bench_keys.c"), str(ROOT / "bench_lights.c"), str(ROOT / "master_lights.c"), str(ROOT / "shell_model.c"), display_math_objects[1], display_math_objects[2], display_math_objects[0], str(ROOT / "sync_native.c"),
+               str(ROOT / "sync_link_plan.c"), str(ROOT / "sync_link_runtime.c"), str(ROOT / "jog_display.c"), str(ROOT / "jog_display_wave.c"), str(ROOT / "jog_display_runtime.c"),
+               str(ROOT / "djlink_facts.c"), str(ROOT / "djlink_runtime.c"),
+               str(ROOT / "link_clock.c"), str(ROOT / "link_policy.c"), str(ROOT / "link_runtime.c"),
+               str(ROOT / "shell_library.c"), str(ROOT / "shell_analysis.c"), str(ROOT / "shell_playlists.c"), str(ROOT / "shell_utility.c"), str(ROOT / "shell_mysettings.c"), str(ROOT / "my_settings.c"), str(ROOT / "pdb/pdb.c"),
+               str(ROOT / "settings.c"), str(ROOT / "settings_internal.c"), str(ROOT / "usb_profile.c"),
+               str(ROOT / "dj_profile.c"), str(ROOT / "dj_runtime.c"), str(ROOT / "dj_profile_write.c"), str(ROOT / "dj_folders.c"),
+               str(ROOT / "dj_json.c"), str(ROOT / "dj_name_key.c"),
                str(ROOT / "ui/wave_viewport.c"),
-               str(ROOT / "key/keyshift.c"), str(ROOT / "key/runtime.c"),
-               str(ROOT / "audio/runtime.c"), str(ROOT / "audio/native_reader.c"),
+               str(key_object), str(ROOT / "key/runtime.c"),
+               str(ROOT / "key/control.c"), str(ROOT / "key/native.c"), str(ROOT / "key/native_browse.c"), str(ROOT / "key/traffic.c"),
+               str(ROOT / "key/catalog.c"), str(ROOT / "key/browser.c"),
+               str(audio_runtime_object), str(ROOT / "audio/native_reader.c"),
+               str(ROOT / "audio/trace.c"),
+               str(ROOT / "ram/cache.c"), str(ROOT / "ram/budget.c"), str(ROOT / "ram/file.c"), str(ROOT / "ram/extra.c"), str(ROOT / "ram/decks.c"), str(ROOT / "ram/runtime.c"), str(ROOT / "ram/removal.c"), str(ROOT / "recorder_state.c"), str(ROOT / "ram/presentation.c"), str(ROOT / "ram/pin.c"),
                str(ROOT / "audio/stem_cache.c"), str(ROOT / "audio/stem_mix.c"), str(ROOT / "audio/stem_decode.c"),
-               str(ROOT / "audio/overcue_file.c"), str(stream_object),
+               str(ROOT / "audio/overcue_file.c"), str(ROOT / "audio/foreign_stems.c"),
+               str(mp3_object), str(media_object), str(stream_object), str(ROOT / "audio/stem_pool.c"),
                str(ROOT / "audio/vendor/miniz/miniz_tinfl.c"), str(ROOT / "audio/vendor/sha256/sha256.c"),
                "-DMINIZ_NO_ARCHIVE_APIS", "-DMINIZ_NO_DEFLATE_APIS",
                "-pthread", "-lm", "-ldl",
                "-o", str(destination)]
-    subprocess.run(command, check=True)
+    if args.jog_display_proof:
+        command.insert(2, "-DXZ_JOG_DISPLAY_PROOF")
+    if args.sync_observation:
+        command.insert(2, "-DXZ_SYNC_OBSERVATION=1")
+    command[2:2] = player_defines(args)
+    link_at_low_base(command, destination)
     result = inspect(destination)
+    result["jog_display_proof"] = args.jog_display_proof
+    result["xp_service_proof"] = args.xp_service_proof
+    result["xp_service_proof_exports"] = proof_export(destination, args.xp_service_proof,
+        "xz_mods_xp_service_proof_v1", "read_xp_service_proof.py")
+    result["sync_observation"] = args.sync_observation
+    result["sync_observation_exports"] = proof_export(destination, args.sync_observation,
+        "xz_mods_sync_observation_v1", "read_sync_observation.py")
+    result["jog_latch_exports"] = proof_export(destination, args.jog_display_proof,
+        "xz_mods_jog_latch_v2", "read_jog_display_latch.py")
+    result["jog_position_exports"] = proof_export(destination, args.jog_display_proof,
+        "xz_mods_jog_position_v1", "read_jog_position.py")
+    result["jog_wave_exports"] = proof_export(destination, args.jog_display_proof,
+        "xz_mods_jog_wave_diagnostic_v1", "read_jog_wave_proof.py")
+    result["jog_position_reader_sha256"] = hashlib.sha256((ROOT / "read_jog_position.py").read_bytes()).hexdigest()
+    result["player_defines"] = player_defines(args)
+    result["jog_counts_per_rev"] = args.jog_counts_per_rev
+    result["jog_player_object_sha256"] = hashlib.sha256(player_object.read_bytes()).hexdigest()
+    result["jog_travel_ms_per_rev"] = 1800
+    result["jog_calibration"] = "provisional owner travel ratio; physical encoder counts not yet measured"
+    result["mp3_decoder"] = mp3_build
     vendor = ROOT.parent / "vendor"
     receiver = args.output.resolve() / "libxz-directfb-mods-test.so"
     subprocess.run([compiler, "cc", "-target", "arm-linux-gnueabi.2.13", "-mcpu=cortex_a9",
@@ -126,13 +381,55 @@ def main() -> None:
     tests = {
         "runtime-smoke": [str(ROOT / "runtime_smoke.c"), "-ldl"],
         "beat-jump-test": [str(ROOT / "ui/beat_jump.c"),str(ROOT / "ui/test_beat_jump.c")],
+        "support-ui-test": [*(str(ROOT / "ui" / name) for name in UI_SOURCES), str(ROOT / "ui/test_support_ui.c"), "-lm"],
         "cue-test": [str(ROOT / "cue/cue.c"), str(ROOT / "cue/test_cue.c")],
+        "deck-select-test": [str(ROOT / "deck_select.c"), str(ROOT / "test_deck_select.c")],
+        "deck-switch-idle-test": [str(ROOT / "deck_select.c"), str(ROOT / "tests/test_idle_jog_shift.c")],
+        "classic-lane-test": [str(ROOT / "ui" / name) for name in ("extra_lane.c", "wave_viewport.c", "layered_wave.c", "ui_draw.c", "test_extra_lane.c")],
+        "classic-detail-test": [str(ROOT / "ui" / name) for name in ("extra_detail.c", "extra_lane.c", "wave_viewport.c", "layered_wave.c", "ui_draw.c", "test_extra_detail.c")],
+        "classic-mixer-test": [str(ROOT / "ui" / name) for name in ("extra_lane.c", "wave_viewport.c", "layered_wave.c", "ui_draw.c", "test_classic_mixer.c")],
+        "classic-mixer-runtime-test": ["-pthread", str(ROOT / "shell_model.c"), *(str(ROOT / "ui" / name) for name in ("test_classic_mixer_runtime.c", "classic_mixer.c", "classic_column.c", "extra_lane.c", "wave_viewport.c", "layered_wave.c", "ui_draw.c")), "-lm"],
+        "deck-view-test": [str(ROOT / "ui" / name) for name in ("ui_draw.c", "deck_view.c", "test_deck_view.c")],
+        "route-card-test": [*(str(ROOT / "ui" / name) for name in ("ui_draw.c", "route_card.c", "cable_anim.c", "test_route_card.c")), "-lm"],
+        "cable-anim-test": [*(str(ROOT / "ui" / name) for name in ("ui_draw.c", "test_cable_anim.c")), "-lm"],
+        "extra-player-test": ["-DXZ_XP_TEST_RENDER_HOOK", "-pthread", *(str(ROOT / name) for name in (
+            "extra_player.c", "key/keyshift.c", "key/music.c", "key/control.c", "deck_select.c", "anlz_extra.c", "shell_analysis.c", "ui/layered_wave_source.c", "ui/layered_wave.c",
+            "audio/stem_media.c", "audio/stem_decode.c", "test_extra_player.c")), str(mp3_object), "-lm"],
         "settings-test": [str(ROOT / "settings.c"), str(ROOT / "tests/test_settings.c")],
+        "recorder-poll-test": ["-DXZ_RECORDER_POLL_HOST", str(ROOT / "recorder_poll.c"), str(ROOT / "ui/rec_mark.c"),
+                               str(ROOT / "ui/ui_draw.c"), str(ROOT / "test_recorder_poll.c")],
+        "my-settings-test": [str(ROOT / "my_settings.c"), str(ROOT / "test_my_settings.c")],
         "native-decode-test": [str(ROOT / "cue/native.c"), str(ROOT / "cue/test_native_decode.c")],
         "stem-test": ["-I" + str(ROOT / "audio"), str(ROOT / "audio/stem_cache.c"),
                       str(ROOT / "audio/stem_mix.c"), str(ROOT / "audio/tests/test_stems.c"), "-lm"],
         "decode-test": ["-I" + str(ROOT / "audio"), str(ROOT / "audio/stem_decode.c"),
                         str(ROOT / "audio/tests/test_decode.c"), "-lm"],
+        "shell-runtime-test": [*(str(ROOT / "shell" / name) for name in SHELL_SOURCES), str(ROOT / "shell_runtime_core.c"),
+                               str(ROOT / "shell_library.c"), str(ROOT / "shell_playlists.c"), str(ROOT / "pdb/pdb.c"), str(ROOT / "test_shell_runtime.c")],
+        "sync-native-test": [str(ROOT / "arcade/native_clock.c"), str(ROOT / "sync_native.c"), str(ROOT / "tests/test_sync_native.c")],
+        "sync-link-plan-test": [str(ROOT / "sync_link_plan.c"), str(ROOT / "tests/test_sync_link_plan.c"), "-lm"],
+        "sync-link-runtime-test": ["-pthread", str(ROOT / "sync_link_plan.c"), str(ROOT / "sync_link_runtime.c"), str(ROOT / "tests/test_sync_link_runtime.c"), "-lm"],
+        "jog-display-runtime-test": [str(ROOT / "jog_display.c"), str(ROOT / "jog_display_wave.c"), str(ROOT / "jog_display_runtime.c"), str(ROOT / "tests/test_jog_display_runtime.c")],
+        "djlink-facts-test": [str(ROOT / "djlink_facts.c"), str(ROOT / "tests/test_djlink_facts.c"), "-lm"],
+        "djlink-runtime-test": ["-pthread", '-DXZ_DJLINK_DIR="/tmp/xz-djlink-test"', str(ROOT / "djlink_runtime.c"), str(ROOT / "djlink_facts.c"),
+                                str(ROOT / "tests/test_djlink_runtime.c"), "-lm"],
+        "xz-wake-test": ["-pthread", str(ROOT / "tests/test_xz_wake.c")],
+        "recorder-state-test": ["-DXZ_RECORDER_STATE_NO_RUNTIME", str(ROOT / "recorder_state.c"), str(ROOT / "tests/test_recorder_state.c")],
+        "bench-keys-test": ["-DXZ_BENCH_KEYS_NO_RUNTIME", str(ROOT / "bench_keys.c"), str(ROOT / "tests/test_bench_keys.c")],
+        # USB STOP with the mods running: the unmount policy and the hidden mounts (usb_release.h).
+        "usb-release-test": ["-DXZ_USB_RELEASE_NO_RUNTIME", str(ROOT / "usb_release.c"), str(ROOT / "tests/test_usb_release.c")],
+        # MASTER / BEAT SYNC lights with DECK 3/4 (master_lights.h) and their bench read-out (bench_lights.h).
+        "master-lights-test": ["-DXZ_LED_PORTABLE_TEST", "-DXZ_MASTER_LIGHTS_NO_RUNTIME", str(ROOT / "ui/native_led.c"),
+                               str(ROOT / "master_lights.c"), str(ROOT / "tests/test_master_lights.c")],
+        "bench-lights-test": ["-DXZ_BENCH_LIGHTS_NO_RUNTIME", str(ROOT / "bench_lights.c"), str(ROOT / "tests/test_bench_lights.c")],
+        # Recording tracklist (tests/verify_recorder.py runs these and the mutation check on the host and under qemu).
+        "tracklist-test": [str(ROOT / "tracklist.c"), str(ROOT / "tests/tracklist/test_tracklist.c")],
+        "tracklist-file-test": [str(ROOT / "tracklist.c"), str(ROOT / "tracklist_file.c"), str(ROOT / "tests/tracklist/test_tracklist_file.c")],
+        "tracklist-runtime-test": ["-pthread", "-I" + str(ROOT), str(ROOT / "tracklist.c"), str(ROOT / "tracklist_file.c"),
+                                   str(ROOT / "tests/tracklist/test_tracklist_runtime.c")],
+        "link-policy-test": [str(ROOT / "link_policy.c"), str(ROOT / "link_clock.c"), str(ROOT / "tests/test_link_policy.c"), "-lm"],
+        "link-runtime-test": ["-pthread", '-DXZ_LINK_DIR="/tmp/xz-link-test"', str(ROOT / "link_runtime.c"), str(ROOT / "link_policy.c"),
+                              str(ROOT / "link_clock.c"), str(ROOT / "djlink_facts.c"), str(ROOT / "tests/test_link_runtime.c"), "-lm"],
     }
     test_evidence = {}
     for name, sources in tests.items():
@@ -143,8 +440,9 @@ def main() -> None:
                    "default_enabled": False, "hardware_verified": False,
                    "features": {"gate_cue": "native adapter, unverified",
                                 "smart_cue": "native adapter, unverified",
-                                "stems": "OverCue v4 96000 Hz paged PCM and legacy 44100 Hz WAV/FLAC; physical acceptance pending",
+                                "stems": "OverCue default; AZ four-part Vorbis and verified RX3 PCM packages/sidecars; legacy stemd retained; physical acceptance pending",
                                 "ui": "render and touch adapters, physical acceptance pending",
+                                "ram_tracks": "bounded complete compressed-track RAM; USB-removal adapter; physical eject acceptance pending",
                                 "vj_tools": "optional display bridge; original receiver separately packaged"}})
     destination.with_suffix(".json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf8")
     (args.output / "tests-build.json").write_text(json.dumps(test_evidence, indent=2) + "\n", encoding="utf8")

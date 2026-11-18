@@ -9,28 +9,48 @@ import shutil
 import subprocess
 from urllib.parse import quote
 
+def cargo_target_root(app):
+    metadata=json.loads(subprocess.check_output(['cargo','metadata','--no-deps','--format-version','1',
+        '--manifest-path',str(app/'src-tauri/Cargo.toml')],cwd=app,text=True))
+    if Path(metadata['workspace_root']).resolve()!=(app/'src-tauri').resolve():
+        raise ValueError('Cargo resolved a different application workspace')
+    return Path(metadata['target_directory']).resolve()
+
 APP=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--portable',action='store_true')
 p.add_argument('--skip-build',action='store_true',help='Package an installer already built from this source')
+p.add_argument('--quad-profile-sha256')
 a=p.parse_args()
+import sys
+sys.path.insert(0,str(APP/'source/xdj-xz-toolkit'))
+from builder.quad_payload import verified_files
+quad=verified_files(APP/'resources',a.quad_profile_sha256)
+if quad:
+    pin=APP/'resources/backend/_internal/builder/quad-profile.sha256'
+    if not pin.is_file() or pin.read_text().strip()!=a.quad_profile_sha256:raise ValueError('Frozen backend quad profile does not match release resources')
 config=json.loads((APP/'src-tauri/tauri.conf.json').read_text())
 version=config['version']
 subprocess.run(['python',str(APP/'tools/verify_release_source.py')],check=True)
+subprocess.run(['python',str(APP/'tools/build_manual.py'),'gate'],check=True)  # a release never ships a stale manual
 key=Path(os.environ.get('TAURI_SIGNING_PRIVATE_KEY',str(Path(os.environ['LOCALAPPDATA'])/'XZ Mods Release Keys/updater.key')))
 if not key.is_file():raise SystemExit('Updater signing key missing. Set TAURI_SIGNING_PRIVATE_KEY to its path.')
 if key.with_suffix(key.suffix+'.pub').read_text().strip()!=config['plugins']['updater']['pubkey'].strip():raise SystemExit('Signing key does not match the app updater public key.')
 notes=json.loads((APP/'release-notes.json').read_text())['releases']
 release=next(r for r in notes if r['version']==version)
-markdown='\n\n'.join('## '+title+'\n'+'\n'.join('- '+line for line in release.get(field,[])) for field,title in [('features','New features'),('fixes','Bug fixes'),('changes','Other changes')] if release.get(field))+'\n'
+def release_markdown(release):
+    return '\n\n'.join('## '+title+'\n'+'\n'.join('- '+line for line in release.get(field,[])) for field,title in [('features','New features'),('fixes','Bug fixes'),('changes','Other changes'),('requirements','Known limitations and setup')] if release.get(field))+'\n'
+
+markdown=release_markdown(release)
 if not a.skip_build:
     env=os.environ.copy();env.update(TAURI_SIGNING_PRIVATE_KEY=str(key),TAURI_SIGNING_PRIVATE_KEY_PASSWORD='',RUSTFLAGS='-C target-feature=+crt-static',CARGO_BUILD_JOBS='2')
     subprocess.run(['npx.cmd','--yes','@tauri-apps/cli@2.12.0','build','--target','x86_64-pc-windows-msvc','--bundles','nsis'],cwd=APP,env=env,check=True)
-installer=APP/f'src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/XZ Mods_{version}_x64-setup.exe'
+target_root=cargo_target_root(APP)
+installer=target_root/f'x86_64-pc-windows-msvc/release/bundle/nsis/XZ Mods_{version}_x64-setup.exe'
 if not installer.is_file() or not Path(str(installer)+'.sig').is_file():raise SystemExit('Signed installer is missing.')
 if a.portable:
-    subprocess.run(['python','-X','utf8',str(APP/'tools/package_preview.py'),'--output',str(a.output),'--exe',str(APP/'src-tauri/target/x86_64-pc-windows-msvc/release/xz-mods-builder.exe')],check=True)
+    subprocess.run(['python','-X','utf8',str(APP/'tools/package_preview.py'),'--output',str(a.output),'--exe',str(target_root/'x86_64-pc-windows-msvc/release/xz-mods-builder.exe')],check=True)
 else:a.output.mkdir(parents=True,exist_ok=False)
 # GitHub normalizes spaces in asset names to dots; publish that name explicitly.
 asset_name=installer.name.replace(' ','.')
@@ -45,5 +65,8 @@ for path in sorted(a.output.iterdir()):
         with path.open('rb') as f:digest=hashlib.file_digest(f,'sha256').hexdigest()
         checks.append(digest+'  '+path.name)
 (a.output/'SHA256SUMS.txt').write_text('\n'.join(checks)+'\n')
+# Antivirus false-positive package: hashes, PE audit, per-vendor submission text. Local only; uploads nothing.
+subprocess.run(['python',str(APP/'tools/prepare_av_submission.py'),'--release-dir',str(a.output),
+    '--app-exe',str(target_root/'x86_64-pc-windows-msvc/release/xz-mods-builder.exe'),'--resources',str(APP/'resources')],check=True)
 print('Local release files: '+str(a.output.resolve()))
 print('Not published. Upload the installer and signature before publishing latest.json.')

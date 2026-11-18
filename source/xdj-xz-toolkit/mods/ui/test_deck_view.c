@@ -1,0 +1,191 @@
+/* SPDX-License-Identifier: MIT */
+#ifdef NDEBUG
+#error DECK VIEW acceptance requires active assertions
+#endif
+#include "deck_view.h"
+#include "route_card.h"
+#include "deck_colour.h"
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+
+enum { W=800, H=480, SENTINEL=0x5aa5 };
+static uint16_t pixels[W*H];
+static struct xz_canvas canvas(void) { return (struct xz_canvas){pixels,W,W,H,0}; }
+static void clear(void) { for(int i=0;i<W*H;i++)pixels[i]=SENTINEL; }
+/* Every pixel outside r (grown by grow) still holds the sentinel. */
+static void only_inside(struct xz_dv_rect r, int grow) {
+ for(int y=0;y<H;y++)for(int x=0;x<W;x++){
+  int in=x>=r.x-grow&&y>=r.y-grow&&x<r.x+r.w+grow&&y<r.y+r.h+grow;
+  if(!in)assert(pixels[y*W+x]==SENTINEL);
+ }
+}
+static int changed_inside(struct xz_dv_rect r) {
+ int n=0;for(int y=r.y;y<r.y+r.h;y++)for(int x=r.x;x<r.x+r.w;x++)n+=pixels[y*W+x]!=SENTINEL;return n;
+}
+static uint32_t fnv(void) { uint32_t h=2166136261u;for(int i=0;i<W*H;i++){h^=pixels[i];h*=16777619u;}return h; }
+/* The button's number in slot (lanes left to right) is exactly the badge (deck_colour.h) for that deck, drawn
+   alone at the same place: digit, fill and polarity all checked. */
+static uint16_t ref[W*H];
+/* Where the first number starts: after the glyph and DECKS, or (compact, MODERN) centred left of the
+   triangle's 13 columns. */
+static int numbers_x(const struct xz_deck_view_style *s, const unsigned char *lanes, int n) {
+ struct xz_canvas c={ref,W,W,H,s->theme};const struct xz_dv_rect b=s->button;
+ if(!s->compact)return b.x+26+xz_text_width(c,"DECKS",1,99)+5;
+ int nw=0;for(int i=0;i<n;i++){char d[2]={(char)('0'+lanes[i]),0};nw+=xz_text_width(c,d,1,99)+(i?4:0);}
+ return b.x+2+(b.w-2-13-nw)/2;
+}
+static int button_badge_n(const struct xz_deck_view_style *s, const unsigned char *lanes, int n, int slot, int live) {
+ struct xz_canvas c={ref,W,W,H,s->theme};const struct xz_dv_rect b=s->button;
+ int tx=numbers_x(s,lanes,n),ty=b.y+(b.h-9)/2;
+ for(int i=0;i<slot;i++){char d[2]={(char)('0'+lanes[i]),0};tx+=xz_text_width(c,d,1,99)+4;}
+ char digit[2]={(char)('0'+lanes[slot]),0};int dw=xz_text_width(c,digit,1,99);
+ for(int i=0;i<W*H;i++)ref[i]=SENTINEL;
+ xz_deck_box(c,tx-1,ty-1,dw+3,11,lanes[slot]-1,live,s->button_fill,1,0);
+ for(int y=ty-1;y<ty+10;y++)for(int x=tx-1;x<tx+dw+2;x++)if(pixels[y*W+x]!=ref[y*W+x])return 0;
+ return 1;
+}
+
+static void test_words(void) {
+ assert(!strcmp(xz_deck_view_name(XZ_LAYOUT_TWO),"2 DECKS")&&!strcmp(xz_deck_view_name(XZ_LAYOUT_FOUR),"4 DECKS")&&!strcmp(xz_deck_view_name(XZ_LAYOUT_MIXER),"4 DECKS"));
+ assert(!strcmp(xz_deck_view_sub(0),"DECKS 1 2")&&!strcmp(xz_deck_view_sub(1),"NUMBER ORDER 1 2 3 4")&&!strcmp(xz_deck_view_sub(2),"MIXER ORDER 3 1 2 4"));
+ assert(!strcmp(xz_deck_view_name(7),"2 DECKS")&&!strcmp(xz_deck_view_sub(-1),"DECKS 1 2")&&xz_deck_view_valid(3)==XZ_LAYOUT_TWO);
+ enum xz_deck_view_tone t;
+ assert(!strcmp(xz_deck_view_status(0,0,&t),"LIKE THE PLAYER ITSELF")&&t==XZ_DECK_VIEW_TONE_DIM);
+ assert(!strcmp(xz_deck_view_status(0,1,&t),"LIKE THE PLAYER ITSELF")&&t==XZ_DECK_VIEW_TONE_DIM);
+ for(int v=1;v<3;v++){
+  assert(!strcmp(xz_deck_view_status(v,0,&t),"3 AND 4 NOT CONNECTED")&&t==XZ_DECK_VIEW_TONE_AMBER);
+  assert(!strcmp(xz_deck_view_status(v,1,&t),"DECKS 3 AND 4 READY")&&t==XZ_DECK_VIEW_TONE_GREEN);
+ }
+ unsigned char lanes[4];
+ assert(xz_deck_view_lanes(0,lanes)==2&&lanes[0]==1&&lanes[1]==2&&!lanes[2]);
+ assert(xz_deck_view_lanes(1,lanes)==4&&lanes[0]==1&&lanes[1]==2&&lanes[2]==3&&lanes[3]==4);
+ assert(xz_deck_view_lanes(2,lanes)==4&&lanes[0]==3&&lanes[1]==1&&lanes[2]==2&&lanes[3]==4);
+ assert(!strcmp(XZ_DECK_VIEW_READY_NOTICE,"DECKS 3 AND 4 ARE READY. TAP DECKS AT THE TOP FOR FOUR DECKS."));
+ puts("PASS deck view words: names, sub-lines, status tones, lane order, invalid values read as 2 DECKS");
+}
+static void test_button(void) {
+ const struct xz_deck_view_style *styles[2]={&xz_deck_view_modern,&xz_deck_view_classic};
+ /* Design rects and touch bands. */
+ /* MODERN: compact, deck numbers and triangle, between the REC slot and INFO (shell_play.c). */
+ assert(styles[0]->button.x==576&&styles[0]->button.w==54&&styles[0]->button.h==26&&styles[0]->button_touch_h==44&&styles[0]->compact);
+ assert(!styles[1]->compact);
+ assert(styles[1]->button.x==162&&styles[1]->button.w==116&&styles[1]->button.h==18&&styles[1]->button_touch_h==40);
+ for(int i=0;i<2;i++){
+  const struct xz_deck_view_style *s=styles[i];
+  assert(xz_deck_view_button_hit(s,s->button.x,0)&&xz_deck_view_button_hit(s,s->button.x+s->button.w-1,s->button_touch_h-1));
+  assert(!xz_deck_view_button_hit(s,s->button.x-1,5)&&!xz_deck_view_button_hit(s,s->button.x+s->button.w,5)&&!xz_deck_view_button_hit(s,s->button.x+5,s->button_touch_h));
+  assert(s->button_touch_h>=40);
+  uint32_t seen[12];int n=0;
+  for(int view=0;view<3;view++)for(int ready=0;ready<2;ready++){
+   clear();xz_deck_view_button_draw(canvas(),s,view,ready,0,0,0);only_inside(s->button,0);
+   assert(changed_inside(s->button)>s->button.w*s->button.h/2);
+   seen[n++]=fnv();
+  }
+  /* Ready changes only four-deck pictures (grey 3 and 4, the amber dot). */
+  assert(seen[0]==seen[1]&&seen[2]!=seen[3]&&seen[4]!=seen[5]&&seen[2]!=seen[4]&&seen[0]!=seen[2]);
+  clear();xz_deck_view_button_draw(canvas(),s,1,0,0,1,0);only_inside(s->button,0);uint32_t open=fnv();
+  clear();xz_deck_view_button_draw(canvas(),s,1,0,0,0,1);only_inside(s->button,0);uint32_t focus=fnv();
+  assert(open!=seen[2]&&focus!=seen[2]&&open!=focus);
+  /* Four decks: every number in its badge, 3 and 4 dimmed while they wait; 2 DECKS keeps plain ink. */
+  for(int view=0;view<3;view++)for(int ready=0;ready<2;ready++){
+   clear();xz_deck_view_button_draw(canvas(),s,view,ready,0,0,0);
+   unsigned char lanes[4];int lanes_n=xz_deck_view_lanes(view,lanes);
+   for(int k=0;k<lanes_n;k++)assert(button_badge_n(s,lanes,lanes_n,k,lanes[k]<=2||ready)==(view!=XZ_LAYOUT_TWO));
+  }
+  /* A 2 DECKS pair names the decks the sides drive, DECK 3 and 4 in their badges, 1 and 2 still plain; not
+     while 3 and 4 are down. */
+  static const unsigned char pair_lanes[4][2]={{1,2},{3,2},{1,4},{3,4}};
+  for(int pair=1;pair<4;pair++){
+   clear();xz_deck_view_button_draw(canvas(),s,0,1,pair,0,0);assert(fnv()!=seen[1]);only_inside(s->button,0);
+   for(int k=0;k<2;k++)assert(button_badge_n(s,pair_lanes[pair],2,k,1)==(pair_lanes[pair][k]>2));
+  }
+  clear();xz_deck_view_button_draw(canvas(),s,0,0,3,0,0);assert(fnv()==seen[0]);
+  if(s->compact){
+   /* MODERN's compact button: no lane glyph and no word (nothing drawn left of the numbers but the frame),
+      and four badges keep at least 2 px clear of the triangle. */
+   for(int view=0;view<3;view++){
+    unsigned char lanes[4];int lanes_n=xz_deck_view_lanes(view,lanes);
+    clear();xz_deck_view_button_draw(canvas(),s,view,1,0,0,0);
+    int x0=numbers_x(s,lanes,lanes_n)-1,ty=s->button.y+(s->button.h-9)/2;
+    uint16_t fill=pixels[(ty+4)*W+s->button.x+2];
+    for(int y=s->button.y+3;y<s->button.y+s->button.h-3;y++)for(int x=s->button.x+2;x<x0;x++)assert(pixels[y*W+x]==fill);
+    int end=numbers_x(s,lanes,lanes_n);
+    for(int k=0;k<lanes_n;k++){char d[2]={(char)('0'+lanes[k]),0};end+=xz_text_width(canvas(),d,1,99)+(k<lanes_n-1?4:0);}
+    assert(end+2+2<=s->button.x+s->button.w-8-3);
+   }
+  }
+ }
+ puts("PASS deck view button: design rects, touch bands >= 40 px, writes only its rect, 2/4/4 x ready/not, open and focus looks, deck badges in four-deck views and for DECK 3/4 in a 2 DECKS pair");
+}
+static void test_picker(void) {
+ const struct xz_deck_view_style *styles[2]={&xz_deck_view_modern,&xz_deck_view_classic};
+ assert(styles[0]->picker.x==296&&styles[0]->picker.y==30&&styles[0]->picker.w==500&&styles[0]->picker.h==206);
+ assert(styles[1]->picker.x==140&&styles[1]->picker.y==22&&styles[1]->picker.w==500&&styles[1]->picker.h==206);
+ uint32_t golden[2][3]={{0}};
+ for(int i=0;i<2;i++){
+  const struct xz_deck_view_style *s=styles[i];
+  for(int t=0;t<3;t++){
+   struct xz_dv_rect r=xz_deck_view_tile(s,t);
+   assert(r.w==156&&r.h==166&&r.x==s->picker.x+12+164*t&&r.y==s->picker.y+28);
+   assert(xz_deck_view_picker_hit(s,r.x,r.y)==t&&xz_deck_view_picker_hit(s,r.x+r.w-1,r.y+r.h-1)==t);
+   if(t<2)assert(xz_deck_view_picker_hit(s,r.x+r.w+2,r.y+40)==XZ_DECK_VIEW_HIT_PANEL);
+  }
+  assert(!xz_deck_view_tile(s,3).w&&!xz_deck_view_tile(s,-1).w);
+  assert(xz_deck_view_picker_hit(s,s->picker.x+5,s->picker.y+5)==XZ_DECK_VIEW_HIT_PANEL);
+  assert(xz_deck_view_picker_hit(s,s->picker.x-1,s->picker.y+50)==XZ_DECK_VIEW_HIT_OUTSIDE);
+  assert(xz_deck_view_picker_hit(s,s->picker.x+50,s->picker.y+s->picker.h)==XZ_DECK_VIEW_HIT_OUTSIDE);
+  for(int view=0;view<3;view++)for(int ready=0;ready<2;ready++)for(int focus=-1;focus<3;focus++){
+   clear();xz_deck_view_picker_draw(canvas(),s,view,ready,focus);only_inside(s->picker,1);
+   assert(changed_inside(s->picker)==s->picker.w*s->picker.h);
+   if(ready==0&&focus==1)golden[i][view]=fnv();
+  }
+ }
+ /* Golden pictures of the picker: chosen view, decks 3/4 not connected, encoder on the middle tile. The four-deck
+    tiles carry the deck badges (deck_colour.h) on their lane and channel numbers. */
+ static const uint32_t expected[2][3]={{0xa7e8dbebu,0x24e8ed63u,0x557a7782u},{0xbcad9c3fu,0xa1c635beu,0xfca8ae53u}};
+ int changed=0;
+ for(int i=0;i<2;i++)for(int v=0;v<3;v++)if(golden[i][v]!=expected[i][v]){
+  printf("golden picker %d view %d: 0x%08x, expected 0x%08x\n",i,v,golden[i][v],expected[i][v]);changed=1;
+ }
+ fflush(stdout);assert(!changed&&"picker golden frame changed");
+ assert(xz_deck_view_focus_step(0,-1)==0&&xz_deck_view_focus_step(0,1)==1&&xz_deck_view_focus_step(2,5)==2&&xz_deck_view_focus_step(-1,0)==0&&xz_deck_view_focus_step(9,-1)==1&&xz_deck_view_focus_step(0,2)==2&&xz_deck_view_focus_step(2,-99)==0);
+ puts("PASS deck view picker: three 156x166 tiles, panel absorbs, outside closes, full panel paint, golden frames, encoder clamps");
+}
+static void test_notice_latch(void) {
+ assert(!xz_deck_view_ready_notice_take(0));
+ assert(xz_deck_view_ready_notice_take(41)&&!xz_deck_view_ready_notice_take(41));
+ assert(xz_deck_view_ready_notice_take(42)&&!xz_deck_view_ready_notice_take(42)&&!xz_deck_view_ready_notice_take(0));
+ assert(xz_deck_view_ready_notice_take(0xffffffffu)&&xz_deck_view_ready_notice_take(1));
+ puts("PASS route-up notice latch: one notice per ready revision, shared by both interfaces, never for 0");
+}
+static void test_route_notice(void) {
+ struct xz_deck_view_notice n={0};
+ assert(!xz_deck_view_notice_text(&n,0)&&!xz_deck_view_notice_text(NULL,0));
+ /* 2 DECKS: the ready notice from the edge for 3.5 s, once per ready revision. */
+ assert(xz_deck_view_route_notice(XZ_LAYOUT_TWO,100,5000,&n)&&!strcmp(n.text,XZ_DECK_VIEW_READY_NOTICE));
+ assert(xz_deck_view_notice_text(&n,5000)&&xz_deck_view_notice_text(&n,8499)&&!xz_deck_view_notice_text(&n,8500)&&!xz_deck_view_notice_text(&n,4999));
+ assert(!xz_deck_view_route_notice(XZ_LAYOUT_TWO,100,6000,&n)&&!xz_deck_view_route_notice(XZ_LAYOUT_FOUR,0,6000,&n));
+ /* A four-deck view: the success notice once the READY hold and the wipe end, for 2.5 s. */
+ uint32_t after=XZ_ROUTE_CARD_READY_HOLD_MS+XZ_ROUTE_CARD_WIPE_MS;
+ assert(xz_deck_view_route_notice(XZ_LAYOUT_MIXER,101,0xfffffe00u,&n)&&!strcmp(n.text,XZ_DECK_VIEW_SUCCESS_NOTICE));
+ assert(!xz_deck_view_notice_text(&n,0xfffffe00u+after-1)&&xz_deck_view_notice_text(&n,0xfffffe00u+after)&&
+        xz_deck_view_notice_text(&n,0xfffffe00u+after+2499)&&!xz_deck_view_notice_text(&n,0xfffffe00u+after+2500));
+ /* Both fit the Classic banner (14 px in, 536 px surface). */
+ uint16_t px[8];struct xz_canvas c={px,8,8,1,0};
+ assert(xz_text_width(c,XZ_DECK_VIEW_READY_NOTICE,1,99)<=536-28&&strlen(XZ_DECK_VIEW_READY_NOTICE)<=63);
+ puts("PASS route-up banner: 2 DECKS notice for 3.5 s from the edge, four-deck success notice after the hold and wipe for 2.5 s, once per revision, wraps, fits the banner");
+}
+static void test_pair_notice(void) {
+ assert(!xz_deck_view_pair_notice(0,0)&&!xz_deck_view_pair_notice(1,1)&&!xz_deck_view_pair_notice(3,3)&&!xz_deck_view_pair_notice(2,6));
+ assert(!strcmp(xz_deck_view_pair_notice(0,1),"LEFT: DECK 3")&&!strcmp(xz_deck_view_pair_notice(1,0),"LEFT: DECK 1"));
+ assert(!strcmp(xz_deck_view_pair_notice(2,3),"LEFT: DECK 3")&&!strcmp(xz_deck_view_pair_notice(3,2),"LEFT: DECK 1"));
+ assert(!strcmp(xz_deck_view_pair_notice(0,2),"RIGHT: DECK 4")&&!strcmp(xz_deck_view_pair_notice(3,1),"RIGHT: DECK 2"));
+ assert(!strcmp(xz_deck_view_pair_notice(0,3),"LEFT: DECK 3  RIGHT: DECK 4")&&!strcmp(xz_deck_view_pair_notice(3,0),"LEFT: DECK 1  RIGHT: DECK 2"));
+ assert(!strcmp(xz_deck_view_pair_notice(1,2),"LEFT: DECK 1  RIGHT: DECK 4")&&!strcmp(xz_deck_view_pair_notice(2,1),"LEFT: DECK 3  RIGHT: DECK 2"));
+ /* Every text fits the CLASSIC banner (63 characters) and the shell's notice. */
+ for(unsigned a=0;a<4;a++)for(unsigned b=0;b<4;b++){const char *t=xz_deck_view_pair_notice(a,b);assert(!t||strlen(t)<=40);}
+ assert(XZ_DECK_VIEW_PAIR_NOTICE_MS==2000u);
+ puts("PASS 2 DECKS switch notice: LEFT/RIGHT/both, to software and back, nothing when no side changed");
+}
+int main(void) { test_words();test_button();test_picker();test_notice_latch();test_route_notice();test_pair_notice();return 0; }

@@ -1,0 +1,27 @@
+{
+  "section": "performance#playing-key",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "SCREEN"
+    },
+    {
+      "tap": "PLAYING KEY"
+    },
+    {
+      "tap": "PLAYING KEY"
+    },
+    {
+      "tap": "KEY MATCH COLOURS"
+    },
+    {
+      "tap": "KEY BEFORE TITLE"
+    },
+    {
+      "tap": "CLOSE"
+    }
+  ]
+}

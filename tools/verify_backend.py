@@ -49,9 +49,9 @@ with tempfile.TemporaryDirectory(prefix='xz-builder-acceptance-') as temporary:
     assert status['result']['separation_output_format']=='overcue-index/1' and status['result']['stem_builder']['beta'],status
     checks['standalone_status_without_python_path']=True
     request={'method':'import_stems','source':str(source),'separation_id':'acceptance-v1',**{name:str(path) for name,path in stems.items()}}
-    missing=call(request);assert not missing['ok'] and 'no Rekordbox export' in missing['error'],missing
+    missing=call(request);assert not missing['ok'] and 'no exported music library' in missing['error'],missing
     write_export(volume/'PIONEER/rekordbox/export.pdb',{7:'/Contents/Artist/Café track.wav',8:'/Contents/Artist/Other.wav'})
-    unexported=call({**request,'source':str(loose)});assert not unexported['ok'] and 'Rekordbox' in unexported['error'],unexported
+    unexported=call({**request,'source':str(loose)});assert not unexported['ok'] and 'not in the library exported' in unexported['error'],unexported
     outside=call({**request,'source':str(stems['vocals'])});assert not outside['ok'] and 'Contents' in outside['error'],outside
     checks['requires_rekordbox_exported_usb_track']=True
     no_engine=call(request);assert not no_engine['ok'] and 'Set up the separation engine first' in no_engine['error'],no_engine
@@ -102,9 +102,13 @@ with tempfile.TemporaryDirectory(prefix='xz-builder-acceptance-') as temporary:
         automatic=call({'method':'inspect_firmware','firmware':str(a.local_firmware.resolve())})
         assert automatic['ok'] and automatic['result']['key_verified_against_input'],automatic
         checks['packaged_automatic_boot_support']=True
-        unsuitable=call({'method':'prepare_usb','volume':str(volume),'experimental':True})
-        assert not unsuitable['ok'] and 'FAT/FAT32 USB drive' in unsuitable['error'],unsuitable
-        checks['one_step_rejects_non_usb_before_download']=True
+        # A folder is a staging target now and any USB drive root takes the loader, whatever its file system; an
+        # existing loader is still never replaced, and that is refused before anything downloads.
+        occupied=root/'occupied';occupied.mkdir();(occupied/'autoexec.bin').write_bytes(b'keep this loader')
+        unsuitable=call({'method':'prepare_usb','volume':str(occupied),'experimental':True})
+        assert not unsuitable['ok'] and 'already has autoexec.bin' in unsuitable['error'],unsuitable
+        assert (occupied/'autoexec.bin').read_bytes()==b'keep this loader'
+        checks['one_step_keeps_an_existing_loader_before_download']=True
         build=call({'method':'build_usb','volume':str(volume),'firmware':str(a.local_firmware.resolve()),'key':str(a.local_key.resolve()),'experimental':True})
         assert build['ok'],build
         assert (volume/'autoexec.bin').is_file() and not build['result']['share_image']

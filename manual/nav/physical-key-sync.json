@@ -1,0 +1,17 @@
+{
+  "section": "performance#from-the-deck",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "shift": true
+    },
+    {
+      "gesture": "SYNC",
+      "code": 31,
+      "side": 0
+    },
+    {
+      "shift": false
+    }
+  ]
+}

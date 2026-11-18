@@ -27,7 +27,7 @@ def main() -> None:
         executable = root / "key-runtime-test.exe"
         subprocess.run(common + ["-UNDEBUG", str(HERE / "keyshift.c"),
                        str(HERE / "runtime.c"), str(HERE / "test_runtime.c"),
-                       "-o", str(executable)], check=True)
+                       "-lm", "-o", str(executable)], check=True)
         subprocess.run([str(executable)], check=True)
         for source in ("keyshift.c", "runtime.c"):
             subprocess.run([zig, "cc", "-target", "arm-linux-gnueabi.2.13",

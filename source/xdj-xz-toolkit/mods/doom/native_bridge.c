@@ -7,18 +7,22 @@
 #include <signal.h>
 #include <spawn.h>
 #include <pthread.h>
+#include "../usb_probe.h"
+#include "../games_gate.h"
+#include "../xz_mutex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include "../clock_compat.h"
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
 static struct xz_game_native bridge;
-static pthread_mutex_t browser_mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t browser_mutex=XZ_MUTEX_INITIALIZER;
 static struct xz_wad_catalog catalog;
 static int catalog_scanning,base_index=-1,map_index=-1;
 static void *scan_games(void *unused) {
@@ -93,11 +97,11 @@ int xz_doom_choose_game(int chex) {
 }
 uint32_t xz_game_milliseconds(void) {
     struct timespec t;
-    if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t)) return 0;
+    if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&t)) return 0;
     return (uint32_t)((uint64_t)t.tv_sec*1000+(uint32_t)t.tv_nsec/1000000);
 }
 int xz_game_active(const struct xz_game_input *s,uint32_t now) {
-    return s && s->magic==XZ_GAME_INPUT_MAGIC && s->version==1 &&
+    return s && s->magic==XZ_GAME_INPUT_MAGIC && s->version==XZ_GAME_INPUT_VERSION &&
         __atomic_load_n(&s->owner,__ATOMIC_ACQUIRE) &&
         (uint32_t)(now-__atomic_load_n(&s->heartbeat,__ATOMIC_ACQUIRE))<750;
 }
@@ -138,7 +142,7 @@ int xz_doom_bridge_start(void) {
     if(bridge.input==MAP_FAILED) { bridge.input=NULL; return -1; }
     /* A stale game must never retain ownership after a DJ app restart. */
     memset(bridge.input,0,sizeof(*bridge.input));
-    bridge.input->version=1; bridge.input->magic=XZ_GAME_INPUT_MAGIC;
+    bridge.input->version=XZ_GAME_INPUT_VERSION; bridge.input->magic=XZ_GAME_INPUT_MAGIC;
     if(access("/dev/shm/doom1.wad",R_OK)==0) {
         pthread_mutex_lock(&browser_mutex);
         if(!catalog.count&&xz_wad_inspect("/dev/shm/doom1.wad",&catalog.files[0])==0&&catalog.files[0].kind==XZ_WAD_BASE){catalog.count=1;base_index=0;}
@@ -159,7 +163,10 @@ static int game_paths(char binary[1024],char wad[1024]) {
     if(access(wad,R_OK)) snprintf(wad,1024,"/dev/shm/doom1.wad");
     return 0;
 }
-int xz_doom_ready(void) {
+static int doom_ready_now(void);
+/* Called from the drawing path: the stick is only asked by the probe worker (usb_probe.h). */
+int xz_doom_ready(void) { return XZ_GAMES_ON() && XZ_PROBE_CACHED(doom_ready_now); }   /* no stick probe unless games are installed */
+static int doom_ready_now(void) {
     char binary[1024],wad[1024];
     if(!bridge.input || game_paths(binary,wad) || access(binary,X_OK))return 0;
     pthread_mutex_lock(&browser_mutex);int selected=base_index>=0,ready=selected;
@@ -173,6 +180,7 @@ static void *reap_game(void *value) {
     return NULL;
 }
 int xz_doom_launch(void) {
+    if(!XZ_GAMES_ON())return -1;
     char binary[1024],wad[1024],map[1024]={0};int family=XZ_WAD_DOOM;
     if(!bridge.input || game_paths(binary,wad) || access(binary,X_OK)) return -1;
     pthread_mutex_lock(&browser_mutex);
@@ -218,4 +226,20 @@ int xz_doom_launch(void) {
     return result?-1:0;
 }
 int xz_doom_running(void) { return xz_game_active(bridge.input,xz_game_milliseconds()); }
-__attribute__((visibility("default"))) int xz_mods_game_active_v1(void) { return xz_doom_running(); }
+int xz_doom_input_pending(void){return xz_doom_running()||bridge.owned[0]||bridge.owned[1];}
+int xz_game_nav_send(struct xz_game_input *s,enum xz_game_nav_key key,uint32_t now) {
+    if(!xz_game_active(s,now)) return 0;
+    uint32_t head=__atomic_load_n(&s->nav_head,__ATOMIC_RELAXED);
+    __atomic_store_n(&s->nav[head%XZ_GAME_NAV],(uint32_t)key,__ATOMIC_RELAXED);
+    __atomic_store_n(&s->nav_head,head+1,__ATOMIC_RELEASE);
+    return 1;
+}
+int xz_doom_nav(enum xz_game_nav_key key) { return xz_game_nav_send(bridge.input,key,xz_game_milliseconds()); }
+/* Other local display owners (the XZ SDK foreground app) register here, so the
+ * receiver refuses remote clients for them as well. They never touch the input lease. */
+static int (*display_owner)(void);
+void xz_game_display_owner(int (*active)(void)) { __atomic_store_n(&display_owner,active,__ATOMIC_RELEASE); }
+__attribute__((visibility("default"))) int xz_mods_game_active_v1(void) {
+    int (*owner)(void)=__atomic_load_n(&display_owner,__ATOMIC_ACQUIRE);
+    return xz_doom_running() || (owner && owner());
+}

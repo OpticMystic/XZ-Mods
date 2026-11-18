@@ -1,0 +1,2178 @@
+{
+  "schema": 1,
+  "scope": "All chapter level-2 and level-3 headings are inventoried, including informational and desktop sections. Flows illustrate excerpts, not full section acceptance.",
+  "sections": [
+    {
+      "section": "browse#browsing-in-modern",
+      "title": "Browsing in MODERN {modern}",
+      "level": 2,
+      "chapter": "browse.md",
+      "sha256": "fad6c8b98d20df6db0edfd928f09f021eae3a9945ec34c3fa69db898ab04412e",
+      "flows": [
+        "browse-category-folder"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#moving-through-a-list",
+      "title": "Moving through a list {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "de5039df1b06e468fd4503d99ef9de594c04c7745e02fecacc75cc1333e1aa15",
+      "flows": [
+        "encoder-list"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#loading-a-track",
+      "title": "Loading a track {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "4f8efd2ff94eb0202295847bd8787eb99f1c1d91f77755356cd9b6930bbda283",
+      "flows": [
+        "browse-load"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#info-panel",
+      "title": "INFO panel {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "cc6972bf7b1f5ca0f578882a86f6251b7b778593b0a241c876158b11f469836f",
+      "flows": [
+        "browse-rating-edit"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#sort-columns-and-the-track-menu",
+      "title": "Sort, columns and the track menu {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "1255caf939031ae0090e9a36893525aa6b60e5b121ff620e9e644c63b96e51bb",
+      "flows": [
+        "browse-cue-loop-load",
+        "browse-loop-load",
+        "browse-menu",
+        "browse-sort-columns",
+        "browse-tag-edit"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#filter",
+      "title": "Filter {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "918df63eb09d52a799f67e4bca6b170932cfdcc027b324d1e99e346dd7f20c0f",
+      "flows": [
+        "filter"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#search",
+      "title": "Search {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "7dd7146b07ea7277082f9dc705ed37505866161f1a796ccb8cad5e18f9cfabda",
+      "flows": [
+        "search",
+        "search-results-load"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#tag-list",
+      "title": "Tag list {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "56ffadfdcd2d7341982e551ec7e2941ce21dded235258e6d6564c4c99aaa2c9a",
+      "flows": [
+        "tag-list"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#playlists",
+      "title": "Playlists {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "83d6953c3f0acf96832264af4d93d2b5f9ad6e58ebb56e607e73ecc45c251ae9",
+      "flows": [
+        "playlists"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#source",
+      "title": "SOURCE {modern}",
+      "level": 2,
+      "chapter": "browse.md",
+      "sha256": "f3bf76b2cf2133b4b6fdd68eb5954152110048a73ba7750bad543e5e8e75546f",
+      "flows": [
+        "source"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#info",
+      "title": "INFO {modern}",
+      "level": 2,
+      "chapter": "browse.md",
+      "sha256": "ad5420acc93e440f561958a3e008c3ab28ce728ce4d70ee12c95f4782e4b3a4c",
+      "flows": [
+        "browse-rating-edit",
+        "info"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#browsing-in-classic",
+      "title": "Browsing in CLASSIC {classic}",
+      "level": 2,
+      "chapter": "browse.md",
+      "sha256": "2cef5bfde83bbfebd8e39b1d78c54bd457c42770cdc0463b349d2b2299642507",
+      "flows": null,
+      "reason": "closed_stock_firmware",
+      "detail": "The closed stock firmware owns this screen or operation."
+    },
+    {
+      "section": "browse#browse-settings",
+      "title": "Browse settings",
+      "level": 2,
+      "chapter": "browse.md",
+      "sha256": "b4c071df1f472446e54c05edbbdd4c7202ca42215ba17a5543b1a02168ba59a1",
+      "flows": [
+        "nav-a-browse-settings"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "browse#if-browsing-goes-wrong",
+      "title": "If browsing goes wrong",
+      "level": 2,
+      "chapter": "browse.md",
+      "sha256": "6e3b0dc740841661e9407435749ebe5f95e8bf54d2db3f59d1d943510dedbd2a",
+      "flows": [
+        "nav-a-browse-recovery"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "connect#the-connect-page",
+      "title": "The CONNECT page",
+      "level": 2,
+      "chapter": "connect.md",
+      "sha256": "86d26597870dacbc3f84315cf9a64ba6c181f2d710e958652e28418ecd96d224",
+      "flows": [
+        "mods-connect"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "connect#dj-profile",
+      "title": "DJ profile",
+      "level": 2,
+      "chapter": "connect.md",
+      "sha256": "2c5b48b41ebec366164bec16004573acfaf5f43329b33e39c3b41786ae3f172e",
+      "flows": [
+        "dj-profile",
+        "profile-logo"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "connect#make-a-profile-on-a-computer",
+      "title": "Make a profile on a computer",
+      "level": 3,
+      "chapter": "connect.md",
+      "sha256": "bb0385eda990c59b19775b4002a505925bdf53a963e0c8d7b6662619f8d0e65e",
+      "flows": [
+        "b-profile-rescan"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "connect#make-a-profile-on-the-xz",
+      "title": "Make a profile on the XZ",
+      "level": 3,
+      "chapter": "connect.md",
+      "sha256": "95b22fecbaea9a4f63e9f03d3d042fb866f14b0ae1be168b5f0c0148cbced303",
+      "flows": [
+        "dj-profile-create-switch",
+        "profile-logo",
+        "profile-logo-error",
+        "profile-save-error"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "connect#choose-and-switch-profiles",
+      "title": "Choose and switch profiles",
+      "level": 3,
+      "chapter": "connect.md",
+      "sha256": "15354743b7bda639571ed623651f198bce8894b6b4fba813b5b1f095160d3cad",
+      "flows": [
+        "dj-profile-create-switch",
+        "profile-logo"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "connect#when-a-profile-will-not-save-or-show",
+      "title": "When a profile will not save or show",
+      "level": 3,
+      "chapter": "connect.md",
+      "sha256": "25b9e74bef1e75ff8e9a31308a6bc4e4430256bdf7d296d1ad9ce76db797bfe1",
+      "flows": [
+        "profile-logo-error",
+        "profile-save-error",
+        "b-profile-usb2-recovery",
+        "nav-c-profile-610",
+        "nav-c-profile-611"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "connect#vjtools",
+      "title": "VJ.Tools {experimental}",
+      "level": 2,
+      "chapter": "connect.md",
+      "sha256": "98d1e280e39a904e7aa960ad88672b2d8085545f9ddc906053fc3bee7396d854",
+      "flows": [
+        "vj-tools"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "connect#network",
+      "title": "Network {experimental}",
+      "level": 2,
+      "chapter": "connect.md",
+      "sha256": "0bcc9e9839106bba13bc311e32770a9ba2c51d74a06d011ca3b0c509dc90a3e7",
+      "flows": [
+        "network",
+        "network-review",
+        "network-static",
+        "network-static-failure"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "connect#pro-dj-link-and-ableton-link",
+      "title": "Pro DJ Link and Ableton Link {experimental}",
+      "level": 3,
+      "chapter": "connect.md",
+      "sha256": "6a6f2ec40a6fe1b2b317a0f94c7831fcae8edd2fcf2bee52402613b73cd788d3",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Explains what the player shows or does; no separate navigation procedure is scripted for it."
+    },
+    {
+      "section": "connect#updates-over-the-network",
+      "title": "Updates over the network {experimental}",
+      "level": 2,
+      "chapter": "connect.md",
+      "sha256": "f06270a2dfb994c04cd6bb4b2a04e498c5d7154ff3f3986cadf8191d1eba371d",
+      "flows": [
+        "updates"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "desktop-app#around-the-app",
+      "title": "Around the app",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "840ae00e4c12284ebaddca2881a8c96b4104987d4c0c8db43106173fc11b4c8a",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#usb",
+      "title": "USB",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "25fc3721d988340d3bcc092de65d3e4ef34b50de57db9b5ca4418cd1bede6cbf",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#choose-a-usb-or-a-folder",
+      "title": "Choose a USB or a folder",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "b46a0f8b85eaa207aba46065fb544f6374b43bb9da4df47e2f0c7d153093b837",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#the-usb-dashboard",
+      "title": "The USB dashboard",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "1fa5e66631d4b70391a5706d84a718ed8d347d1bc2ae6d0c7eb82578add3390c",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#install-or-update-xz-mods",
+      "title": "Install or update XZ Mods",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "27aede8458c2c61eb0bdef787351a26f79812179061a91dd14fd945a5993b7bc",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#four-decks-in-the-app",
+      "title": "Four decks in the app {experimental}",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "1cff6c2988a02fdf4798ff75f4c9e902b28a059b8fccd942f69f04232482780f",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#stems",
+      "title": "Stems",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "2584faf4510aa6e9c840da8b6f6ebd934a19d1be73281f8582e553e9f6431bba",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#which-players-use-this-usb",
+      "title": "Which players use this USB",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "bf006ddab4c17d1b433fac6b5ede8b3699f35c0b405a0a38776e9a29063ecf27",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#set-up-the-stem-engine",
+      "title": "Set up the stem engine",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "8a2e4cec927c36878e5b4f6dad14ee7a8eeeeca7668f57ab73ba4cab18ec6697",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#import-stems-you-already-have",
+      "title": "Import stems you already have",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "fdc3a81d2a93191e1062722005fc8babc588cf8bd1ff13257f862e2237443cbb",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#xz-screen",
+      "title": "XZ Screen {experimental}",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "2ad9423fb8bebcab47c8aab862fc529b90fbb9202840c3548231ec4c81531046",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#tools",
+      "title": "Tools",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "bf51022c782abca9baa17cbeddb8b74c64b374dfa1d474125cc7dfa7f6cc837b",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#dj-profile",
+      "title": "DJ Profile",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "8ba70775224bb39f052f1adaefcc5f44ba30699d4a00ab29b9e29230bb979358",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#updates",
+      "title": "Updates",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "1e93323e53adc92645b8d125badd7bc886106886a47bf526930253c198201451",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#repair-library",
+      "title": "Repair library",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "41dc4ff29601cb312c2533966c4d6589e309ee1befb3a20d4aaa506acf51388c",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#network-updates",
+      "title": "Network updates {experimental}",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "ff34dcddcc339fa46de45536b3429c09dd21be3ce2d810b3c669b435ab6940ad",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#xz-mods-version",
+      "title": "XZ Mods version",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "b21902e6e939ec4733f978fe9013b848d084e2724783b7833902c27021c08db8",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#app-updates",
+      "title": "App updates",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "9a8b1e35a503c192b0b91efc8f8500243fe64252c61799e7b5af119e1adf69de",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#game-downloads",
+      "title": "Game downloads",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "e8bc9e2c6f925bb5ef527ac3284708dcc259e6b75d33bd8e0d364b425a3efcbb",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#about",
+      "title": "About",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "29e4966d37b39ed60aeb5414c38220d123b7e02591635b03dd536cc7f2f82f38",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#feedback",
+      "title": "Feedback",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "26825938eac3f28166d348228c93c39ce1d2fab32fda1f2aca20732ee62e8c73",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#report-a-problem-or-share-an-idea",
+      "title": "Report a problem or share an idea",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "4380369f50135bbb7791f397d055a8c051bae7b97d70cf6138153e0870916d8d",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#included-details",
+      "title": "Included details",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "e311b59e46f3452d09aa00932b58b83f5c12375f5556ad8183818ede4da0f563",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#when-something-got-worse",
+      "title": "When something got worse",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "8d99c7cf27c66597a355d430ba569bdd54d8d505a1c748e59389ab2cdcc87a22",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#after-you-send",
+      "title": "After you send",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "a24b35593b22ccf1134da7aed7b6a9e89d32ee7c8176b3594493949c9cc4edc5",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#my-reports",
+      "title": "My reports",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "3ffa23ed6511071f27a4583248a0e3f7f1ecf9c484fcf0601327d5a79e0d1ba8",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#from-your-xz",
+      "title": "From your XZ",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "f7103a4b301d1608f59a889c0c6af02678f926e19068ddd5fc36bf866de33002",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#your-xz-sticks",
+      "title": "Your XZ sticks",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "66c0ce309dd0aec6df86a631d411535b51b4800ed2239f4a938d6abf2bd2bdd6",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#maintainer-inbox",
+      "title": "Maintainer inbox",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "4c3e1ab5bf2b41cac67282c47282e9a163c82c2971fbbcceabbbc70db2c71c25",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#desktop-language",
+      "title": "Desktop language",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "b04c1e8aa9c54b876ef030d761cf10982827b4d1f0360ba295a265dde07053fe",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Every action is in the computer app."
+    },
+    {
+      "section": "desktop-app#manual",
+      "title": "Manual",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "0996510b5e45da2ec89e43f51634566d33e438a5c8e3e91ed841a7ba6860aa52",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#the-menu-map",
+      "title": "The menu map",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "7e6a5b8e05849fe5dd95f1c685fafca7704e2865c09457c407aa4a23d9eeef7e",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "extras#the-extras-page",
+      "title": "The EXTRAS page",
+      "level": 2,
+      "chapter": "extras.md",
+      "sha256": "8b255c51301df04eb12f84a0538e67502653d61f5b75f8e6787a9b2eb663afeb",
+      "flows": [
+        "mods-extras"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "extras#games",
+      "title": "Games",
+      "level": 2,
+      "chapter": "extras.md",
+      "sha256": "4442e8e64de0e496592cee54418eb1204eeeed3c3f98ca4bafbe58087c987a6c",
+      "flows": [
+        "games"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "extras#moving-around-a-game",
+      "title": "Moving around a game",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "167e4a892babae5a0d8c77e1273ba7b4fbdb7ded825cdb16c12fe557caff7e65",
+      "flows": [
+        "b-rider",
+        "b-arcade"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "extras#beat-arcade",
+      "title": "Beat Arcade {experimental}",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "c9013fec315c8c86b301105ce977729e0106918237cc934ac911cca02024b47b",
+      "flows": [
+        "b-arcade",
+        "nav-c-arcade-0-0",
+        "nav-c-arcade-1-1",
+        "nav-c-arcade-2-2",
+        "nav-c-arcade-3-0"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "extras#wave-rider",
+      "title": "Wave Rider {experimental}",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "0e8bc4b195257df3140e6084eb5f256faefc039134c57f488a06ce609bfb5da8",
+      "flows": [
+        "b-rider"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "extras#doom-and-chex-quest",
+      "title": "Doom and Chex Quest",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "8abae76cd09c3073b039e1cf6be40ac33831f6cf6e6c1ee7375d0948db934a93",
+      "flows": [
+        "wad-loader"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "extras#my-house",
+      "title": "My House {experimental}",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "79d47d363b4665ed4d241dec38b718b93866c033cf97af025aea5a788ad275b4",
+      "flows": [
+        "my-house-setup"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "extras#usb-apps",
+      "title": "USB apps {experimental}",
+      "level": 2,
+      "chapter": "extras.md",
+      "sha256": "e42df2d6abefb2916c41f1ed90ddc1f75c12ad2652a961b675226a7384a3744d",
+      "flows": [
+        "apps-setup",
+        "usb-apps",
+        "b-apps-wizard"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "extras#recording",
+      "title": "Recording",
+      "level": 2,
+      "chapter": "extras.md",
+      "sha256": "7679557c914e0f3d70e26c3a00496e712d6dfd0d440c1afb5dc4a471603acf8b",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Explains what the player shows or does; no separate navigation procedure is scripted for it."
+    },
+    {
+      "section": "extras#recording-tracklist",
+      "title": "Recording tracklist {experimental}",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "243b9ddb3809e6b68fcb84aa000177a54eeebc761a8fd6824c56949f278a365d",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Explains what the player shows or does; no separate navigation procedure is scripted for it."
+    },
+    {
+      "section": "extras#report-an-issue",
+      "title": "Report an issue",
+      "level": 2,
+      "chapter": "extras.md",
+      "sha256": "34d64745e922279e608071314a98df2c0d2e876974c4f70f6eebc64b89a118fc",
+      "flows": [
+        "report-issue"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "extras#after-you-send",
+      "title": "After you send",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "1bea684995de7d18e94dfe22b229982ee063dce52a77e7c480f3fc92ce27892c",
+      "flows": [
+        "report-edit-recovery",
+        "report-error",
+        "report-retry",
+        "report-saved",
+        "report-sent"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "extras#report-an-error-from-the-dock",
+      "title": "Report an error from the dock",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "39dda2920f6b969bfd30cc0ad44d6a7d4c13a37317cd5cd71e458f90550ce4aa",
+      "flows": [
+        "report-dock-entry"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "extras#what-the-player-sends",
+      "title": "What the player sends",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "b1b02340d430e08388d282a3e759786ec13aecc74dd35ea5fba1794f2cb5373a",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Report payload explanation; no player action."
+    },
+    {
+      "section": "extras#language",
+      "title": "Language",
+      "level": 2,
+      "chapter": "extras.md",
+      "sha256": "c4061827b5f0cd2b81b6bbbdc45019c581496b26752e9db1906340c1cc80afe2",
+      "flows": null,
+      "reason": "informational",
+      "detail": "One page of 15 choices; no navigation flow is captured for it yet."
+    },
+    {
+      "section": "extras#about-xz-mods",
+      "title": "About XZ Mods",
+      "level": 2,
+      "chapter": "extras.md",
+      "sha256": "ac1a21719fa0c1d3ba1880b811aadf2226e9fff74a6a5ac74f2b8da5597153d8",
+      "flows": [
+        "about"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "four-decks#what-you-need",
+      "title": "What you need {experimental}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "76e6dd6f6d484847fa1e1f1759e6529ef75ac06cd44f901f771ef1289e611975",
+      "flows": null,
+      "reason": "physical_usb",
+      "detail": "Cable, mixer switches and music-stick prerequisites require physical hardware."
+    },
+    {
+      "section": "four-decks#set-up-four-decks",
+      "title": "Set up four decks {experimental}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "ea371e99c832c6920f12940eeef29e17b2c6a5b762d3df23bd31cd562c6ed3d1",
+      "flows": [
+        "nav-a-route-rescan"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "four-decks#add-music-and-a-usb-hub",
+      "title": "Add music and a USB hub {experimental}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "08b7ca30fcc0b6c444f3967f8c6627d5cd29c19f1119b64dc645b081e306db64",
+      "flows": null,
+      "reason": "physical_usb",
+      "detail": "Connecting hubs and waiting for USB enumeration needs physical USB."
+    },
+    {
+      "section": "four-decks#the-4-decks-page-in-mods",
+      "title": "The 4 DECKS page in MODS",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "d9a2739bc3bbf1772019d4e43fb7cc2988ab79d5def4d97e8d824f30a736e15f",
+      "flows": [
+        "nav-a-four-page"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "four-decks#the-card-in-every-state",
+      "title": "The card in every state",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "c8172e2123567a58b6743d65f3e1db283871a7bb9e76582bfaf2d7b74f9c152e",
+      "flows": [
+        "nav-a-route-states"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "four-decks#with-the-loopback-cable-in",
+      "title": "With the loopback cable in {experimental}",
+      "level": 3,
+      "chapter": "four-decks.md",
+      "sha256": "b3bf518df6061d94d0ea3afd816361f0354f5d6510c0cd1502f2522882076938",
+      "flows": null,
+      "reason": "physical_usb",
+      "detail": "The loopback cable and music hubs need a real player; no hardware touched."
+    },
+    {
+      "section": "four-decks#deck-view",
+      "title": "DECK VIEW",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "01c3258ef4f9142ee377520c00e39b805cfd91d0cdcef037e453ecd382473e69",
+      "flows": [
+        "nav-a-deck-orders",
+        "nav-a-four-page"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "four-decks#the-decks-button-and-its-picker",
+      "title": "The DECKS button and its picker",
+      "level": 3,
+      "chapter": "four-decks.md",
+      "sha256": "0665431c4e05bcdd268c14737f7b8fae68160aba41dee6efc1cb1cee0c73c46c",
+      "flows": [
+        "deck-view"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "four-decks#switch-a-side-between-decks",
+      "title": "Switch a side between decks {experimental}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "9ef80dd619048b414880553348c498fc136d2045b65204eb1923ac2b957d0bca",
+      "flows": [
+        "physical-double-shift-1",
+        "physical-double-shift-2"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "four-decks#the-modern-four-deck-screen",
+      "title": "The MODERN four-deck screen {modern}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "37c5b400a31242574539c509aeb40d0bd38ba82438a95108e484984addea825f",
+      "flows": [
+        "nav-a-four-detail"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "four-decks#the-side-mark",
+      "title": "The side mark {modern}",
+      "level": 3,
+      "chapter": "four-decks.md",
+      "sha256": "a37b03d974774f50d40cd85a0803dc13a91acf951770c750aa9c99d41d65ddf8",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Explains what the player shows or does; no separate navigation procedure is scripted for it."
+    },
+    {
+      "section": "four-decks#the-classic-four-deck-screen",
+      "title": "The CLASSIC four-deck screen {classic}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "aeb2905a2fa6ae88678e6f507caa8e8b22c8bde02124c0da723d6accf6220c5f",
+      "flows": [
+        "nav-a-classic-four",
+        "nav-c-classic-full"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "four-decks#load-tracks-onto-decks-3-and-4",
+      "title": "Load tracks onto decks 3 and 4 {experimental}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "0b42ac3baf7b2ff3e2b46f9277210508ddc23e1778ac2186992af85ce35b0d2e",
+      "flows": [
+        "nav-a-four-load"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "four-decks#info-source-and-utility-with-four-decks",
+      "title": "INFO, SOURCE and UTILITY with four decks {modern}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "77cd7de243a76ae884d1f5ea210d63162c1ebbe843bdf92bd36f29df808e4ea7",
+      "flows": [
+        "nav-a-four-fullscreens"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "four-decks#what-decks-3-and-4-can-do",
+      "title": "What decks 3 and 4 can do {experimental}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "1e98dfe10652b9e238f5fcd0dd9004e6e0f57c340daa5a4a6f3952d007aad75d",
+      "flows": [
+        "nav-c-player-3",
+        "nav-c-player-4"
+      ]
+    },
+    {
+      "section": "four-decks#sync-on-decks-3-and-4",
+      "title": "SYNC on decks 3 and 4 {experimental}",
+      "level": 3,
+      "chapter": "four-decks.md",
+      "sha256": "2fa00dc9a9dec29578ec329d9ed35b62b2491d6c0825c1d8fa07efe8011baed0",
+      "flows": [
+        "nav-c-player-3",
+        "nav-c-player-4"
+      ]
+    },
+    {
+      "section": "four-decks#limits",
+      "title": "Limits",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "dce2beab3ef68edb47852aef1cd2931cabaebfcd5eacb94c9a65b1a6e0222f98",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Format, readiness, master handover and experimental-limit reference; no additional navigation procedure."
+    },
+    {
+      "section": "getting-started#what-changes-and-what-stays-the-same",
+      "title": "What changes and what stays the same",
+      "level": 2,
+      "chapter": "getting-started.md",
+      "sha256": "a461cdecbb4480c986c3f2a04d2355a439ce203c70ca9e1963b7385ada85c238",
+      "flows": [
+        "utility"
+      ],
+      "scope": "Scripted host excerpts. Physical USB, start-up, network and audio remain separate acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "getting-started#start-without-xz-mods",
+      "title": "Start without XZ Mods",
+      "level": 3,
+      "chapter": "getting-started.md",
+      "sha256": "00b6642353b8c688fa3c6b876a2354d3256d51a154b3f6962106633675649575",
+      "flows": null,
+      "reason": "usb_or_boot",
+      "detail": "Power-off and start with the loader USB absent need a player; no host screen owns these actions."
+    },
+    {
+      "section": "getting-started#what-you-need",
+      "title": "What you need",
+      "level": 2,
+      "chapter": "getting-started.md",
+      "sha256": "4aeb6e8af29b4364710a375090b9b7042928c6dec2b59737650bae91ee4ce96d",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Requirements table; no player action."
+    },
+    {
+      "section": "getting-started#prepare-a-usb",
+      "title": "Prepare a USB",
+      "level": 2,
+      "chapter": "getting-started.md",
+      "sha256": "c3f595282b33292a3def282fd06380190b15af0afe5eb26e1364bffa274cc030",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Install/write/eject wizard runs on the computer, not the player."
+    },
+    {
+      "section": "getting-started#first-start",
+      "title": "First start",
+      "level": 2,
+      "chapter": "getting-started.md",
+      "sha256": "5ba4fb5d23b36900e3763111b7570e003f7e33b5512f059089f68d8ba2e6fe16",
+      "flows": [
+        "b-first-menu"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "getting-started#modern-on-first-start",
+      "title": "MODERN on first start {modern}",
+      "level": 3,
+      "chapter": "getting-started.md",
+      "sha256": "97a9649b4e583bb2866661523a5f8bf879173fc76ded60345a0e5744140771bb",
+      "flows": [
+        "b-first-menu",
+        "deck-view",
+        "stem-mute-bypass"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "getting-started#classic-on-first-start",
+      "title": "CLASSIC on first start {classic}",
+      "level": 3,
+      "chapter": "getting-started.md",
+      "sha256": "858f2e56477e843d7cc0d0ef606704582386dcbe4b173489fd91a128eb8077d2",
+      "flows": [
+        "physical-above-link",
+        "interface-choice"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "getting-started#choose-modern-or-classic",
+      "title": "Choose MODERN or CLASSIC",
+      "level": 2,
+      "chapter": "getting-started.md",
+      "sha256": "af07f0e524ae535d8cae0ad3be9137d61cce00efdfdb2971885132f214c0ef14",
+      "flows": [
+        "interface-choice"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "getting-started#switch-on-the-player",
+      "title": "Switch on the player",
+      "level": 3,
+      "chapter": "getting-started.md",
+      "sha256": "919fa979a7741c83935baed66a2a62c2b3a162904f66637a44e282f35dc08dde",
+      "flows": [
+        "interface-choice"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "getting-started#updating",
+      "title": "Updating",
+      "level": 2,
+      "chapter": "getting-started.md",
+      "sha256": "4b0a8948638e9325ac84dc8cfb28c0ba48861a24221f91e6577b64089eddceba",
+      "flows": [
+        "updates"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "hardware#the-top-panel",
+      "title": "The top panel",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "528a8967a50487992440d33611d92a7566c52fa45b9fb8fae3c53522cc980853",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Annotated physical control map; per-control actions are assigned under Browse section keys and Deck keys."
+    },
+    {
+      "section": "hardware#browse-section-keys",
+      "title": "Browse section keys",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "d6e23e1ff5ba733fbb5bc87365c71331f0c51cca941407f6235cfaa31d631df3",
+      "flows": [
+        "b-browse-keys",
+        "encoder-settings",
+        "browse-load"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "hardware#the-button-above-link",
+      "title": "The button above LINK",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "db3ab3b2b9ad5689935983e3b5c40e57d02822e01bbb9320d98a3988008f97c3",
+      "flows": [
+        "physical-above-link",
+        "above-link-button",
+        "above-link-button-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "hardware#link-and-the-vjtools-view",
+      "title": "LINK and the VJ.Tools view",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "6246223946a22e53c8ead8312eead8fded49f4a1517b54aa42b332a3db34b112",
+      "flows": [
+        "vj-tools"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "hardware#deck-keys",
+      "title": "Deck keys",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "8f2b4cb5f3e50ac03bc61d04b856b58805627b3643da10685d54331d72809223",
+      "flows": [
+        "b-master-tempo",
+        "physical-key-sync",
+        "physical-double-shift-1",
+        "physical-double-shift-2",
+        "physical-stem-pads",
+        "physical-beat-jump"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "hardware#performance-pads",
+      "title": "Performance pads",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "555f8966ed7ba4e64eb025cb3d76235ceb675928c47451e1758896ad968c9ada",
+      "flows": [
+        "physical-pad-mode-pages"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "hardware#stem-pads",
+      "title": "Stem pads",
+      "level": 3,
+      "chapter": "hardware.md",
+      "sha256": "e12ad74fb2a76e5d59b1fcea8cc7c0f890d276085061360ca5ae1b0390e3fb90",
+      "flows": [
+        "stem-pads-values",
+        "physical-stem-pads"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "hardware#pad-lights",
+      "title": "Pad lights",
+      "level": 3,
+      "chapter": "hardware.md",
+      "sha256": "0863b58709f16769a1c2e378d4621b4f37592d2ca106c07993a398963585d769",
+      "flows": [
+        "stem-pads-values",
+        "physical-pad-mode-pages"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "hardware#decks-3-and-4-from-the-deck-controls",
+      "title": "Decks 3 and 4 from the deck controls",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "90f7367fe0dcecfb47ff6c0fe8835de2149d9bc1ace5b2b61960958a19859cab",
+      "flows": [
+        "physical-double-shift-1",
+        "physical-double-shift-2"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "hardware#when-a-control-does-not-respond",
+      "title": "When a control does not respond",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "92ec36a29e43de43d607b3def90e50cea2218e61427c7e9ef2d1a24c6d4c22fc",
+      "flows": [
+        "b-browse-keys",
+        "above-link-button-values",
+        "mods-four-decks"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "mods-menu#open-and-close-mods",
+      "title": "Open and close MODS",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "6ca9bbf461fb81e1a00ad78561b418ce6fed430221d30431a7bf43ef11d31512",
+      "flows": [
+        "menu-close"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#move-around",
+      "title": "Move around",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "6017ccb541c0f1a6c2bef41985b51f334a7fb2574cdd857605297dfd4ae60d37",
+      "flows": [
+        "encoder-settings"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#home",
+      "title": "HOME",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "fe47e849dfb79ec8df0ff5f475c7c8879d920eadb41cf5db3bc2b733acf83b2b",
+      "flows": [
+        "mods-home"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#play",
+      "title": "PLAY",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "5dcb5f45982aa1c53a8ce043d48471d1461c1fbf9e912354212c8b5f1aa8e774",
+      "flows": [
+        "mods-play",
+        "mods-play-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#stems",
+      "title": "STEMS",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "702be55f4a14952af2e28764ed8d239df46ed68b32be634552d7f999e14fdbb2",
+      "flows": [
+        "mods-stems",
+        "mods-stems-values",
+        "mods-stems-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#screen",
+      "title": "SCREEN",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "afcfbfda3d1d8abeb9d0572dcb29fb06df4607645b0c38653cf672ba8164be85",
+      "flows": [
+        "mods-screen",
+        "mods-screen-values",
+        "mods-screen-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#4-decks",
+      "title": "4 DECKS",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "86cabdc4016a9b608d27be5423500de7ddafa1e5caa4c661977d6d1c7ac2c892",
+      "flows": [
+        "mods-four-decks",
+        "mods-four-decks-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#connect",
+      "title": "CONNECT",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "b708dc4b2e980d8bb7a11463971ee79faf5c90d19c59cd23a6bbb4f8f335ef93",
+      "flows": [
+        "mods-connect"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#extras",
+      "title": "EXTRAS",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "df9caa542a0688a3df7d94b3a0dd5e839442c44b78834672cb146e8365f4a00c",
+      "flows": [
+        "mods-extras"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#utility-the-players-own-settings",
+      "title": "UTILITY, the player's own settings",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "b3aff798ecca89173447268a31422f7b01e0c665708288cb3d01ad5f7b4d2bab",
+      "flows": [
+        "utility"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#modern-utility",
+      "title": "MODERN UTILITY {modern}",
+      "level": 3,
+      "chapter": "mods-menu.md",
+      "sha256": "8e4c2bfc7781de2b9cf6541307988a11225cc3acad9d9a66e423872c1b325d9e",
+      "flows": [
+        "needle-lock",
+        "utility"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#my-settings",
+      "title": "MY SETTINGS {modern}",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "51d24a2a6d414f1d03fcdd171512c40e85cd16fcd702e4e88dca874d2cd655c1",
+      "flows": [
+        "my-settings-load-save",
+        "b-my-settings-pause",
+        "b-my-settings-failure",
+        "b-my-settings-readonly"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#saving-to-the-usb",
+      "title": "Saving to the USB",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "acb853e01a7d13752c107aa776c883680df79745e91ffc6964dae73083180460",
+      "flows": [
+        "b-save-recovery"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "mods-menu#older-pages",
+      "title": "Older pages",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "7505617158341900fed63afd7f7b3f09f4b7a47e9fb9f339f5ebfbe0bdfb8892",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Historical page redirect table; retired pages cannot be opened by a reader."
+    },
+    {
+      "section": "performance#the-play-page",
+      "title": "The PLAY page",
+      "level": 2,
+      "chapter": "performance.md",
+      "sha256": "da43fcf10747304b38efb914eccec2b39014724f1eb565602c58452b960c38a5",
+      "flows": [
+        "mods-play",
+        "mods-play-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "performance#beat-jump",
+      "title": "Beat jump",
+      "level": 2,
+      "chapter": "performance.md",
+      "sha256": "6e51b1789d62220191298886a4c2a843c000bed51c1a17d79e9fbf053fd49afb",
+      "flows": [
+        "beat-jump",
+        "physical-beat-jump"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "performance#change-the-jump-sizes",
+      "title": "Change the jump sizes",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "9e47ec3ee9f3673c506b8bbf622839a5349c1fcee5966cdacc1e9dd54f712595",
+      "flows": [
+        "beat-jump-pages"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "performance#decks-3-and-4",
+      "title": "Decks 3 and 4",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "a5dc19ec227acd7e250bf4ee2af443a12608f213ce773c7390e300861d559b9f",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Describes shared jump sizing and BPM fallback; the heading gives no separate player procedure."
+    },
+    {
+      "section": "performance#when-a-jump-is-refused",
+      "title": "When a jump is refused",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "6c2aff26654613ec59d35ff9e84bab3d3b976367645852d0a8ae1714594e648b",
+      "flows": [
+        "nav-a-jump-refused"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "performance#gate-cue-and-smart-cue",
+      "title": "Gate cue and smart cue",
+      "level": 2,
+      "chapter": "performance.md",
+      "sha256": "1d9c15022e48639cf0ccd0efa8a05ec5531cd2d58f09cebe284ec65685414586",
+      "flows": [
+        "nav-a-gate-smart"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "performance#feature-setup",
+      "title": "Feature setup",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "68eb54bf3cd6db637da2b246eb1b2496a37c22445de395d91105f25d7e554146",
+      "flows": [
+        "nav-a-feature-gate",
+        "nav-a-feature-smart"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "performance#keys-and-key-sync",
+      "title": "Keys and KEY SYNC",
+      "level": 2,
+      "chapter": "performance.md",
+      "sha256": "0f5a5d1e17a42cb8bf205d05aa5041b17c0e81f774adb6cd706572447aa1d249",
+      "flows": [
+        "keys",
+        "physical-key-sync"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "performance#from-the-deck",
+      "title": "From the deck",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "a62e6fbeab98025828c49d083ae28d9e588b85bef51755ba6194e4bb5d3f8371",
+      "flows": [
+        "physical-key-sync"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "performance#the-keys-page",
+      "title": "The KEYS page",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "a055038a9c15aa542052ff3ffc47ea6b376cc70bf7412ab028e934c8d9ed7170",
+      "flows": [
+        "key-shift-sync",
+        "keys",
+        "keys-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "performance#the-key-on-the-modern-play-screen",
+      "title": "The key on the MODERN play screen {modern}",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "08ad745fc2f934b5ea5b5ebe06687937874f731a24a2a7e2c7c71206994fe741",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Readout legend; operation is described under From the deck and PLAYING KEY."
+    },
+    {
+      "section": "performance#the-key-on-the-classic-play-screen",
+      "title": "The key on the CLASSIC play screen {classic}",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "045b045b579f7c7c88931047c8bec826f1e5ea7fab7e963420a27c56d33bcdc7",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Readout legend without a separate player action."
+    },
+    {
+      "section": "performance#playing-key",
+      "title": "PLAYING KEY",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "86a5703160c1c2970768a9fe196c8dd48beda7a2b661024dfbe03dd94f1c5249",
+      "flows": [
+        "nav-a-playing-key"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "performance#ram-tracks",
+      "title": "RAM tracks {experimental}",
+      "level": 2,
+      "chapter": "performance.md",
+      "sha256": "300a6c4f77adfa51f6d407d748b264b7723fdd9827b56a5d158a65bcd9661248",
+      "flows": [
+        "ram-copy-error",
+        "ram-tracks"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "performance#when-the-music-usb-goes-out",
+      "title": "When the music USB goes out {experimental}",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "e4a7d98c4683ff27fdebe439de1a2d75d7fdcad1dd17738957125aa0e7468303",
+      "flows": [
+        "nav-a-ram-detached"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "performance#quantize",
+      "title": "Quantize",
+      "level": 2,
+      "chapter": "performance.md",
+      "sha256": "155e3778546cf0e4bc2ba6436dd6fa5801b1d8ce42bc6a10fc30c2d1f6c8f8f0",
+      "flows": [
+        "physical-quantize"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "play-screen#the-modern-play-screen",
+      "title": "The MODERN play screen {modern}",
+      "level": 2,
+      "chapter": "play-screen.md",
+      "sha256": "278ed444b440a4a05620d31ae886461d831d80077e5c3634a95bca91f473eaeb",
+      "flows": [
+        "nav-a-play-zoom-time"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "play-screen#top-bar",
+      "title": "Top bar {modern}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "6f66ea4f9558cb2eaef48fa749257393f2ce87ed20cbc3b477322398d089b10d",
+      "flows": [
+        "nav-a-four-stems",
+        "nav-a-play-zoom-time"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "play-screen#the-rec-mark",
+      "title": "The REC mark {modern}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "0db27f41abaea1700047025f2eba9d6ba05f2d03edfc1f02849d29187425ee96",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Explains what the player shows or does; no separate navigation procedure is scripted for it."
+    },
+    {
+      "section": "play-screen#deck-column-and-waveform-lanes",
+      "title": "Deck column and waveform lanes {modern}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "41b279e922d85a63a20c573a69bcc2ef3df1813e790c403fa438ecbe61557bea",
+      "flows": [
+        "nav-a-play-zoom-time"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "play-screen#deck-strip",
+      "title": "Deck strip {modern}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "00d9aed820c2353b975c91110f5e53d96a7cefbcb974ae378150c42dd0fc7798",
+      "flows": [
+        "nav-a-play-zoom-time"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "play-screen#key-and-key-sync",
+      "title": "Key and KEY SYNC {modern}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "461de4e3a3001b1ce73d81a6de16c146f32e7c68bc0fcf5b325d670530e66ac6",
+      "flows": [
+        "key-shift-sync"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "play-screen#waveform-colours",
+      "title": "Waveform colours {modern}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "9f869410fadd8247c8d7e0705d70f9f9caa8c66120053a0d4f1b99783caa65ff",
+      "flows": [
+        "nav-a-play-colours"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "play-screen#notices",
+      "title": "Notices {modern}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "53fe5a621ed6c0830078e8606a9014f0c36fa3236ca49590ee40906f6636276e",
+      "flows": [
+        "nav-a-choose-track-error"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "play-screen#shortcut",
+      "title": "SHORTCUT {modern}",
+      "level": 2,
+      "chapter": "play-screen.md",
+      "sha256": "337b982fe6a6329126940df74670013aa092f51b4554db4bc67205652031d9a7",
+      "flows": [
+        "shortcut"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "play-screen#the-classic-play-screen",
+      "title": "The CLASSIC play screen {classic}",
+      "level": 2,
+      "chapter": "play-screen.md",
+      "sha256": "8ff402c5a5f9b7c7ed45be5a78f49d514dcca741e5e2f3fd6c107dd948a87684",
+      "flows": [
+        "classic-stems",
+        "nav-a-classic-four"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "play-screen#scrolling-waveform",
+      "title": "Scrolling waveform {classic}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "b4f34ca8af7765920f0acbd027f6a18ed4f8dce24bc232cf4d6400fdb320205a",
+      "flows": [
+        "nav-a-classic-wave-choices"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "play-screen#if-something-looks-wrong",
+      "title": "If something looks wrong",
+      "level": 2,
+      "chapter": "play-screen.md",
+      "sha256": "328ac4703c0ca50d7b579f4d1e5281d29cb075af20a06f9fa05003007286aab6",
+      "flows": [
+        "nav-a-playing-key"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "screen-and-themes#the-screen-page",
+      "title": "The SCREEN page",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "fb4d70913a4967246a4f4733a929629b361c58620cbd5534503ced40356a7722",
+      "flows": [
+        "mods-screen-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#modern-and-classic",
+      "title": "MODERN and CLASSIC",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "40e78d9581736b794e993826a0083a3e4f411ca8bed68fb0e3a8d927373c29f8",
+      "flows": [
+        "interface-choice",
+        "physical-above-link"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#classic-themes",
+      "title": "Classic themes {classic}",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "1b02646446bdbe8a0e0b074e3e48683874447ca983210a9ab719c77a62fc47ea",
+      "flows": [
+        "classic-themes",
+        "classic-themes-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#theme-families",
+      "title": "Theme families {classic}",
+      "level": 3,
+      "chapter": "screen-and-themes.md",
+      "sha256": "1ecac8bcad6a1fd9a8221e8d270e5684668ab1d473329b32303dc9d05256335a",
+      "flows": [
+        "classic-overlays-analog",
+        "classic-overlays-lcars",
+        "classic-overlays-matrix",
+        "classic-overlays-standard"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#modern-look",
+      "title": "MODERN look {modern}",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "2f658ea10ad5213f73e9b10c2e27d8814e7fe63d667820c0cf451a6b7a08eb29",
+      "flows": [
+        "lamps-and-titles",
+        "lamps-and-titles-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#waveform-colours",
+      "title": "Waveform colours",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "af793d20f85264cd12ac5fdd1697291ba4ef7243f3abb1a804e396946a5464c8",
+      "flows": [
+        "mods-screen-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#3-band-colours",
+      "title": "3-band colours",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "5875a8bc1cabc8c6563cb3f34174c772153ba6a83b39bbbc171f58ed30abdcc0",
+      "flows": [
+        "band-colours",
+        "band-colours-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#keys",
+      "title": "Keys",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "c34b2604622f04b6040a6dd604c16af53e881346c36c747a643c76d87e8339e5",
+      "flows": [
+        "mods-screen-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#key-notation",
+      "title": "Key notation",
+      "level": 3,
+      "chapter": "screen-and-themes.md",
+      "sha256": "45f599576052d7b490870789f82407c479ff42204cde037b439d049d94e9e189",
+      "flows": [
+        "mods-screen-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#playing-key",
+      "title": "Playing key",
+      "level": 3,
+      "chapter": "screen-and-themes.md",
+      "sha256": "e9893078184b41c6e0665fdb0a280b427853a4dfbc19e1d43584c1a60b7f9ff6",
+      "flows": [
+        "mods-screen-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#key-match-colours-and-key-before-title",
+      "title": "Key match colours and key before title",
+      "level": 3,
+      "chapter": "screen-and-themes.md",
+      "sha256": "a4a016d6c10ee1ddff27135656e062602939ede23415d68e02f5758b7435c9dd",
+      "flows": [
+        "mods-screen-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#deck-colours",
+      "title": "Deck colours",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "44efa2fa3d5e56d3d4668744d30beca5cb1caa1f68091d6c9cf58050732b975b",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Explains fixed badges and colour meanings; no player action."
+    },
+    {
+      "section": "screen-and-themes#system-readout",
+      "title": "System readout",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "651e33aa32eeb9ed8e0c4b53ee44bb1c979efb73ca151f7fa65ac7d095a6fc90",
+      "flows": [
+        "system-readout"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#when-something-looks-wrong",
+      "title": "When something looks wrong",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "2544669bd4e1b5c6ec7a3f5439d9f1d44d546a3e7dd9a971d423fe370072f656",
+      "flows": [
+        "b-theme-recovery"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "settings#where-settings-are-kept",
+      "title": "Where settings are kept",
+      "level": 2,
+      "chapter": "settings.md",
+      "sha256": "aa31ffff3b7b1737ae03290141d16d7003e3767d9907b201a7a11b2e985610f1",
+      "flows": null,
+      "reason": "usb_or_boot",
+      "detail": "USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow."
+    },
+    {
+      "section": "settings#when-the-usb-changes",
+      "title": "When the USB changes",
+      "level": 2,
+      "chapter": "settings.md",
+      "sha256": "19606d9ea428d8784e1756742cba25946c2e01aacf09472c69fd80187bbc1fcf",
+      "flows": null,
+      "reason": "usb_or_boot",
+      "detail": "USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow."
+    },
+    {
+      "section": "settings#going-back-to-the-defaults",
+      "title": "Going back to the defaults",
+      "level": 2,
+      "chapter": "settings.md",
+      "sha256": "3da012409c4c1637281b34d1c301912e65fd8b5220bc185a5c1aa921ec17eecb",
+      "flows": null,
+      "reason": "usb_or_boot",
+      "detail": "USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow."
+    },
+    {
+      "section": "settings#every-setting",
+      "title": "Every setting",
+      "level": 2,
+      "chapter": "settings.md",
+      "sha256": "bced64a60ff1a32f04ca3b681da7fa7bed8b61ce8f31ad61fb09f9bf7132dec2",
+      "flows": null,
+      "reason": "usb_or_boot",
+      "detail": "USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow."
+    },
+    {
+      "section": "stems#prepare-stems",
+      "title": "Prepare stems",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "2367c6466d07d2b87753e52545ed042ea92d97295466fc831d808f08f3a455ab",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Preparation and media copy take place in the desktop app and on USB."
+    },
+    {
+      "section": "stems#stems-from-overcue-desktop",
+      "title": "Stems from OverCue Desktop",
+      "level": 3,
+      "chapter": "stems.md",
+      "sha256": "e08aa4bec3ebc85f7f471ff00a48978e1409436f4c139bf5e99c9664d82d52aa",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Stems are made on the computer, in the app or in OverCue Desktop; no player action."
+    },
+    {
+      "section": "stems#stems-are-held-in-memory",
+      "title": "Stems are held in memory",
+      "level": 3,
+      "chapter": "stems.md",
+      "sha256": "d34fd92f0a3609c7b71fc085024e74b99e1be4c46c1b0cf1a199420c45bc478d",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Explains what the player shows or does; no separate navigation procedure is scripted for it."
+    },
+    {
+      "section": "stems#turn-stems-on",
+      "title": "Turn stems on",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "c93df8e9c7d3fd1f6d77f16b1810f68a635010b493dce311bb7b51d928720648",
+      "flows": [
+        "nav-a-stem-toggle"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "stems#stem-buttons-on-the-play-screen",
+      "title": "Stem buttons on the play screen",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "97e3238eef20e21a076d05c891d8e2c74e1011a7894508d111ac39ebc02f07a2",
+      "flows": [
+        "nav-a-stem-layouts"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "stems#modern-stem-buttons",
+      "title": "MODERN stem buttons {modern}",
+      "level": 3,
+      "chapter": "stems.md",
+      "sha256": "0827037ea8d8cc749a906c900d93f6d51c25dc777cf11f426287c6fd65840f6b",
+      "flows": [
+        "stem-mute-bypass"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "stems#stem-buttons-in-4-decks",
+      "title": "Stem buttons in 4 DECKS {modern}",
+      "level": 3,
+      "chapter": "stems.md",
+      "sha256": "fafc1e29240343b2c82b231cddf71b70985fd83ce78a672227ad97ff1a0ae647",
+      "flows": [
+        "nav-a-four-stems"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "stems#classic-stem-rows",
+      "title": "CLASSIC stem rows {classic}",
+      "level": 3,
+      "chapter": "stems.md",
+      "sha256": "2bc3fe18e618e2d2ea0add61585bddd220dc8f81d29e6e638f11b900a5a5a641",
+      "flows": [
+        "classic-stems"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "stems#stem-pads",
+      "title": "Stem pads",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "7883aa17202023aea08d65d50ec747b70c053e721e3a1fac167843199d6aba1e",
+      "flows": [
+        "physical-stem-pads",
+        "stem-pads",
+        "stem-pads-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "stems#stem-order",
+      "title": "Stem order",
+      "level": 3,
+      "chapter": "stems.md",
+      "sha256": "d74bda24e2ba7e808567360e8cf395e8288532afa40fc437ac7e2c112b531e76",
+      "flows": [
+        "mods-stems-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "stems#stem-colours",
+      "title": "Stem colours",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "b729f64e437f8314d3ce805a35f6bce72b5285f7ae237008979c2f4c99849954",
+      "flows": [
+        "stem-colours",
+        "stem-colours-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "stems#stem-readiness",
+      "title": "Stem readiness",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "462559cd343ef358c497fcc7f1b7a747afc4ba00a7811b9cd8ce549b98c001f2",
+      "flows": [
+        "nav-a-usb-setup"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "stems#usb-stems-setup",
+      "title": "USB STEMS setup",
+      "level": 3,
+      "chapter": "stems.md",
+      "sha256": "e28d8c169accda0f5480f9d66bf8311595c8b7e3fe52ea6459fc33765904f422",
+      "flows": [
+        "nav-a-usb-setup"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "stems#stems-in-dj-software",
+      "title": "Stems in DJ software {experimental}",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "453be66acb21c789dfe2614ef4e4e19012abe0ef254c824045cc01f0e7441def",
+      "flows": [
+        "pc-stems"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "stems#if-stems-do-not-play",
+      "title": "If stems do not play",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "994eb89d220118b8251396d9191911fba8200ad95498aa875b5b3417259a6714",
+      "flows": [
+        "nav-a-stem-toggle",
+        "nav-a-stem-layouts"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
+    },
+    {
+      "section": "troubleshooting#if-the-player-will-not-start-with-the-usb",
+      "title": "If the player will not start with the USB",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "9f0f66e25b91d9cab1e6be538f08b0ef4a3b5471a43f7546938ded865fe2b664",
+      "flows": [
+        "updates",
+        "b-first-menu"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "troubleshooting#stems-on-the-usb",
+      "title": "Stems on the USB",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "a181e323ce1384ed62c32c3b93e9d98c3ff4b6d8b5fe248941834a1db1b73157",
+      "flows": [
+        "b-stem-setup"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "troubleshooting#notices-on-the-play-screen",
+      "title": "Notices on the play screen {modern}",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "dd306fb67b9d730cbba905ef0060c04b845c6040fd57d445e7897f4991281ddd",
+      "flows": [
+        "b-notice-load-recovery",
+        "nav-c-notice-00",
+        "nav-c-notice-01",
+        "nav-c-notice-02",
+        "nav-c-notice-03",
+        "nav-c-notice-04",
+        "nav-c-notice-05",
+        "nav-c-notice-06",
+        "nav-c-notice-07",
+        "nav-c-notice-08",
+        "nav-c-notice-09",
+        "nav-c-notice-10",
+        "nav-c-notice-11",
+        "nav-c-notice-12",
+        "nav-c-notice-13",
+        "nav-c-notice-14",
+        "nav-c-notice-15",
+        "nav-c-notice-16",
+        "nav-c-notice-17",
+        "nav-c-notice-18",
+        "nav-c-notice-19",
+        "nav-c-notice-20"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "troubleshooting#errors-on-a-deck",
+      "title": "Errors on a deck",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "aa16b0eb5664602cf0d88f8b3d1979159a66f7f6749b2d2d8fdf21b7adff2110",
+      "flows": [
+        "b-deck-error-recovery",
+        "report-dock-entry"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "troubleshooting#the-players-own-warnings",
+      "title": "The player's own warnings",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "49a7556f7aff22ff9cda06158fa2bc1789018ac2ee688194ab497e3507151ef3",
+      "flows": null,
+      "reason": "closed_stock_firmware",
+      "detail": "The closed stock firmware owns this screen or operation."
+    },
+    {
+      "section": "troubleshooting#loopback-cable-connected",
+      "title": "LOOPBACK CABLE CONNECTED",
+      "level": 3,
+      "chapter": "troubleshooting.md",
+      "sha256": "f49a035e2d9fa41199c7464aaa6a9031a0a1562c8c95be6e9d309b6e96a97544",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Explains the cable card; no player action in this section. Actual cable detection needs hardware."
+    },
+    {
+      "section": "troubleshooting#when-settings-cannot-be-saved",
+      "title": "When settings cannot be saved",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "e70147d97a5a1a61ac26839b283250abdab3c3d1463ae18c4a992abb495d3db8",
+      "flows": [
+        "b-save-recovery"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
+    },
+    {
+      "section": "troubleshooting#messages-in-the-xz-mods-app",
+      "title": "Messages in the XZ Mods app",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "6fa11abceb3a051a5cccd19425ebe246050dbcefadf2e4457eab03d4c89a8168",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Every action is in the computer app."
+    },
+    {
+      "section": "troubleshooting#the-diary-on-your-usb-sticks",
+      "title": "The diary on your USB sticks",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "94933daf9924b684878f2ea2a898b290fa1b77c4f77cdbbdd06b8c94e0b1ad69",
+      "flows": null,
+      "reason": "informational",
+      "detail": "Explains automatically written diagnostic files; no on-player control. Actual USB diary persistence requires USB runtime."
+    },
+    {
+      "section": "troubleshooting#report-a-problem",
+      "title": "Report a problem",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "1fd3cb94486c175e0a049a9f4ce7c72e8907c071e0477b7e192a3d695f72da44",
+      "flows": [
+        "report-dock-entry"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    }
+  ]
+}

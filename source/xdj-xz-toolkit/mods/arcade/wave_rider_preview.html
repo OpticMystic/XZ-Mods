@@ -1,23 +1,38 @@
 <!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Wave Rider native preview</title>
-<style>body{margin:0;background:#060914;color:#e4eefb;font:15px system-ui;display:grid;place-content:center;min-height:100vh}main{max-width:960px;padding:24px}h1{font-size:20px;font-weight:600}p{color:#96a4ba;line-height:1.6}canvas{width:min(92vw,960px);height:auto;aspect-ratio:5/3;border:1px solid #27324a;touch-action:none;background:#080d1c}button{font:inherit;color:inherit;background:#17243c;border:1px solid #354863;border-radius:5px;padding:8px 14px;margin-right:8px}small{color:#96a4ba}</style>
-<main><h1>Wave Rider · native C preview</h1>
-<p>Actual exported waveform data. Simulated playhead, no audio or controller connection.</p>
-<canvas width="800" height="480" tabindex="0" aria-label="Wave Rider native game screen. Click Set up Wave Rider, then follow the on-screen controls."></canvas>
-<p>Arrow keys or mouse wheel = jog altitude · Q = CUE hop · 1–8 = pads · Space = pause preview</p>
+<title>Wave Rider · VJ OpticMystic</title>
+<style>body{margin:0;background:#060914;color:#e4eefb;font:15px system-ui;display:grid;place-content:center;min-height:100vh}main{max-width:960px;padding:24px}h1{font-size:20px;font-weight:600}p{color:#96a4ba;line-height:1.6}canvas{width:min(92vw,960px);height:auto;aspect-ratio:5/3;border:1px solid #27324a;touch-action:none;background:#080d1c}button{font:inherit;color:inherit;background:#17243c;border:1px solid #354863;border-radius:5px;padding:8px 14px;margin-right:8px}small{color:#96a4ba}.players{display:flex;gap:32px;flex-wrap:wrap}.players b{color:#55e8f3}.players p+p b{color:#ff8b80}</style>
+<main><h1>Wave Rider · A game by VJ OpticMystic</h1>
+<p>Actual C physics and renderer, using exported waveform data. Simulated playhead; no audio or device control.</p>
+<p>Choose Easy, Normal, or Hard on the control-check screen. Easy holds the air angle you set.</p><canvas width="800" height="480" tabindex="0" aria-label="Wave Rider game screen. Choose Solo, Co-op or Versus, then Set up."></canvas>
+<div class="players"><p><b>Player 1</b> A / D tilt · Hold Q to add weight (CUE) · R quick spin</p><p><b>Player 2</b> ← / → tilt · Hold Enter to add weight (CUE) · / quick spin</p></div>
+<p>Spin Lift is optional; turn it on or off on the last setup screen. With it on, press R or / once as you near a rising crest. That sends one quick spin, like a fast jog turn, and arms a one-time extra lift. You still have to release weight and let the hill launch you. These keys only test the timing; they don't reproduce how the jog feels.</p>
+<p>Tilt is bounded: the nose stops at its limit and never spins. Holding Q or Enter is the same as holding CUE: it adds weight to dive down slopes. Release to soar off the crests. The mouse wheel tilts; holding either side of the screen adds weight. Keys 5 / 6 use earned powers. Space pauses the preview.</p>
 <button id="pause">Pause / resume track</button><button id="rewind">Replay from 20s</button><small id="state"></small></main>
 <script>
-const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d'),status=document.querySelector('#state');
-const send=body=>fetch('/input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-const keys=new Set();
-document.addEventListener('keydown',event=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','q','Q'].includes(event.key)){event.preventDefault();}if(event.repeat)return;keys.add(event.key);if(event.key.toLowerCase()==='q')send({kind:'key',key:0});if(event.key===' ')send({kind:'pause'});if(/^[1-8]$/.test(event.key))send({kind:'key',key:Number(event.key)});});
-document.addEventListener('keyup',event=>keys.delete(event.key));window.addEventListener('blur',()=>keys.clear());
-setInterval(()=>{let delta=(keys.has('ArrowUp')||keys.has('ArrowRight')?1:0)-(keys.has('ArrowDown')||keys.has('ArrowLeft')?1:0);if(delta)send({kind:'move',delta:delta*13});},25);
-canvas.addEventListener('wheel',event=>{event.preventDefault();send({kind:'move',delta:-Math.sign(event.deltaY)*24});},{passive:false});
+const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d'),status=document.querySelector('#state'),keys=new Set();let playerMode=0;
+const send=body=>fetch('/input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).catch(()=>{status.textContent='Preview reconnecting';});
+const binding=key=>key==='q'||key==='Q'?{player:0,key:0}:key==='Enter'?{player:1,key:0}:/^[1-8]$/.test(key)?{player:0,key:Number(key)}:null;
+const flick=key=>key==='r'||key==='R'?0:key==='/'?1:-1;
+document.addEventListener('keydown',event=>{
+ if(['a','A','d','D','ArrowLeft','ArrowRight','Enter',' ','q','Q','r','R','/'].includes(event.key))event.preventDefault();
+ if(event.repeat)return;
+ const f=flick(event.key);if(f>=0){send({kind:'move',player:f,delta:1200});return;}
+ keys.add(event.key);
+ const b=binding(event.key);if(b)send({kind:'key',...b,down:1});
+ if(event.key===' ')send({kind:'pause'});
+});
+document.addEventListener('keyup',event=>{keys.delete(event.key);const b=binding(event.key);if(b)send({kind:'key',...b,down:0});});
+window.addEventListener('blur',()=>{for(const key of keys){const b=binding(key);if(b)send({kind:'key',...b,down:0})}keys.clear();});
+setInterval(()=>{
+ const deltas=[(keys.has('d')||keys.has('D')?1:0)-(keys.has('a')||keys.has('A')?1:0),(keys.has('ArrowRight')?1:0)-(keys.has('ArrowLeft')?1:0)];
+ deltas.forEach((v,player)=>{if(v)send({kind:'move',player,delta:v*60})});
+},25);
+canvas.addEventListener('wheel',event=>{event.preventDefault();const r=canvas.getBoundingClientRect();send({kind:'move',player:playerMode&&event.clientX-r.left>r.width/2?1:0,delta:Math.sign(event.deltaY)*100});},{passive:false});
 function touch(event,down){const r=canvas.getBoundingClientRect();send({kind:'touch',x:Math.floor((event.clientX-r.left)*800/r.width),y:Math.floor((event.clientY-r.top)*480/r.height),down});}
-canvas.addEventListener('pointerdown',event=>{canvas.setPointerCapture(event.pointerId);touch(event,1)});canvas.addEventListener('pointerup',event=>touch(event,0));canvas.addEventListener('pointercancel',event=>touch(event,0));
+canvas.addEventListener('pointerdown',event=>{canvas.setPointerCapture(event.pointerId);touch(event,1)});
+canvas.addEventListener('pointerup',event=>touch(event,0));canvas.addEventListener('pointercancel',event=>touch(event,0));
 document.querySelector('#pause').onclick=()=>send({kind:'pause'});document.querySelector('#rewind').onclick=()=>send({kind:'seek',seconds:20});
-async function frame(){try{const response=await fetch('/frame');const bitmap=await createImageBitmap(await response.blob());ctx.drawImage(bitmap,0,0);bitmap.close();}finally{setTimeout(frame,30)}}frame();
-setInterval(async()=>{const s=await(await fetch('/state')).json();status.textContent=`${(s.position/150).toFixed(1)}s · ${s.score} points`;},500);
+async function frame(){let delay=25;try{const response=await fetch('/frame');if(!response.ok)throw new Error('Preview frame unavailable');const bitmap=await createImageBitmap(await response.blob());ctx.drawImage(bitmap,0,0);bitmap.close()}catch{status.textContent='Preview reconnecting';delay=500}finally{setTimeout(frame,delay)}}frame();
+setInterval(async()=>{try{const s=await(await fetch('/state')).json();playerMode=s.mode;status.textContent=(s.position/150).toFixed(1)+'s · '+s.players.slice(0,s.mode?2:1).map((p,i)=>'P'+(i+1)+' '+p.score).join(' / ')}catch{status.textContent='Preview reconnecting'}},500);
 </script></html>

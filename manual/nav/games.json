@@ -1,0 +1,20 @@
+{
+  "section": "extras#games",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "EXTRAS"
+    },
+    {
+      "tap": "GAMES",
+      "expect_page": 13
+    },
+    {
+      "turn": 2
+    }
+  ]
+}

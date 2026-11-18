@@ -1,0 +1,80 @@
+/* SPDX-License-Identifier: MIT */
+#ifndef XZ_SHELL_MODEL_H
+#define XZ_SHELL_MODEL_H
+/* Fills the FLAGSHIP shell model from the deck's own state, using only the read contracts proven in
+   VJToolsLibrary docs/research/2026-10-18-xz-shell-abi.md section 7 (R3 stat frames, R4 settings,
+   R5 title text, R6 cautions) plus what the runtime already reads (key snapshot, native clock grid,
+   PWV7 waves). A field that cannot be read this tick keeps its known bit clear. */
+#include <stddef.h>
+#include <stdint.h>
+#include "shell/shell.h"
+
+/* The unit's own players. The native reads, the runtime's per-deck state and its frame input cover
+   these; the shell model holds up to XZ_SHELL_DECKS. */
+#define XZ_SHELL_NATIVE_DECKS 2
+
+/* Everything the model points into lives here, so the model never points at native memory. */
+struct xz_shell_model_storage;
+size_t xz_shell_model_storage_size(void);
+
+/* Reads native memory through this function only (the runtime passes xz_read_memory; host tests pass a
+   fake image). Returns 0 on success; a failed read leaves the destination untouched. */
+typedef int (*xz_shell_read_fn)(uintptr_t address, void *destination, size_t length);
+
+/* Refreshes model and storage. Safe on the Flip thread: reads only, double-reads mutable cells, never
+   calls native functions. now_ms is a monotonic clock. Returns a bitmask of decks whose loaded track
+   changed (bit 0 deck 1, bit 1 deck 2) so the caller can start a waveform load. */
+unsigned xz_shell_model_refresh(struct xz_shell_model *model, struct xz_shell_model_storage *storage,
+                                xz_shell_read_fn read, uint32_t now_ms);
+
+/* Hands decoded waveform data for one deck to the model (called by the runtime's worker after it loads
+   the deck's PWV7 analysis; NULL clears it). Columns are copied into storage. */
+void xz_shell_model_set_wave(struct xz_shell_model_storage *storage, int deck,
+                             const struct xz_shell_column *scroll, size_t scroll_count, uint32_t scroll_span_ms,
+                             const struct xz_shell_column *overview, size_t overview_count, uint32_t overview_span_ms);
+
+/* The deck's stem layer (columns low = drums, mid = harmonics, high = vocal, from its OverCue bundle;
+   NULL clears it). Published as xz_shell_deck.stems with XZ_SHELL_F_STEM_WAVE once shell.h defines
+   XZ_SHELL_HAS_STEM_WAVE; a new track clears it with the other waves. */
+void xz_shell_model_set_stems(struct xz_shell_model_storage *storage, int deck,
+                              const struct xz_shell_column *stems, size_t count, uint32_t span_ms);
+int xz_shell_model_has_stems(const struct xz_shell_model_storage *storage, int deck);
+
+/* Legacy raw browse caution ID for diagnostics. Visibility is owned by stock_dialog.c live-window reads. */
+uint32_t xz_shell_model_caution(const struct xz_shell_model_storage *storage);
+
+/* Values the runtime already reads elsewhere (key snapshot, native clock grid and bar phase, loaded and
+   playing, source device kind 2/3). Copied on the next refresh; call it on the same serialized path as
+   refresh and render. */
+void xz_shell_model_set_input(struct xz_shell_model_storage *storage, int deck,
+                              const struct xz_shell_deck *input, unsigned device_kind);
+
+/* Guard failures counted per read family: [0] R3 stat frames, [1] R4 settings, [2] R5 title, [3] R6 caution. */
+void xz_shell_model_diagnostics(const struct xz_shell_model_storage *storage, uint32_t out[4]);
+
+/* BEAT FX guard failures (getBfxState and its field loads), and how many deck refreshes republished the
+   last complete snapshot because a read was torn or unstable (at most 250 ms per snapshot). */
+uint32_t xz_shell_model_fx_failures(const struct xz_shell_model_storage *storage);
+uint32_t xz_shell_model_holds(const struct xz_shell_model_storage *storage);
+/* The last stable BEAT FX record (12 bytes, as getBfxState copies it). 0 when none was read yet. Debug: the
+   channel selector byte (+1) and LEVEL/DEPTH have no proven label mapping; the runtime logs the raw record
+   so a selector sweep on the deck can prove one. */
+int xz_shell_model_fx_raw(const struct xz_shell_model_storage *storage, unsigned char out[12]);
+
+/* The playing BPM x100 of the native deck that is MASTER, from the same stat frames and guard as the refresh,
+   for DECK 3 / 4 SYNC. 0 when neither deck is master or a read fails. Reads only and keeps no state, so any
+   thread may call it, with or without the shell running. */
+int32_t xz_shell_model_master_bpm(xz_shell_read_fn read);
+
+/* The title stock shows for native deck 0/1 (the R5 record), as UTF-8 cut at a character boundary to fit cap.
+   1 = title, 0 = none or malformed, -1 = the record could not be read stably. Reads only and keeps no state,
+   so any thread may call it (the tracklist sampler does). */
+int xz_shell_model_title(xz_shell_read_fn read, unsigned deck, char *out, size_t cap);
+
+/* Qualified Utility quantize subdivision: denominator 1,2,4,8. Unknown returns
+ * zero and clears *denominator; this does not infer a deck's QUANTIZE on/off. */
+int xz_shell_model_quantize_grid(xz_shell_read_fn read, unsigned *denominator);
+
+/* Hot cue OUT time (loop hot cues); returns 0 when not known. */
+int xz_shell_model_hot_cue_out(const struct xz_shell_model_storage *storage, int deck, int cue, int32_t *out_ms);
+#endif

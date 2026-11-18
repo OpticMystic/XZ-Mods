@@ -2,10 +2,39 @@
 #define _FILE_OFFSET_BITS 64
 #define _POSIX_C_SOURCE 200809L
 #include "overcue.h"
+#include "../xz_cloexec.h"
 #include <limits.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(__linux__)
+extern int xz_ram_files_pin(FILE *const[],struct xz_ram_file_pin[],size_t) __attribute__((weak));
+extern void xz_ram_file_unpin(struct xz_ram_file_pin *) __attribute__((weak));
+extern void xz_ram_pin_set_poll(int (*)(void *),void *) __attribute__((weak));
+extern int xz_ram_track_load_busy(void) __attribute__((weak));
+#include <fcntl.h>
+#include <time.h>
+#include <unistd.h>
+/* The bytes of a stem page just read from the stick are decoded and not read again in a store build. Left in
+   the kernel's file cache they are a second copy of the whole stem set, evicted only under pressure, in the
+   middle of the next track load. Whole cache pages only: the last, partial one holds the next stem page's
+   head. Drops clean pages; a later read of the same bytes still works and reads the stick again. */
+static void cache_release(FILE *file,uint64_t offset,uint64_t bytes){
+    uint64_t begin=offset&~UINT64_C(4095),end=(offset+bytes)&~UINT64_C(4095);
+    if(end>begin)(void)posix_fadvise(fileno(file),(off_t)begin,(off_t)(end-begin),POSIX_FADV_DONTNEED);
+}
+/* A track that is loading on any deck has the USB to itself (ram/budget.h). */
+static void usb_stand_back(void){
+    while(xz_ram_track_load_busy&&xz_ram_track_load_busy()){struct timespec wait={0,20000000};nanosleep(&wait,NULL);}
+}
+#else
+#define xz_ram_file_unpin xz_ram_file_unpin_absent
+static void usb_stand_back(void){}
+static void cache_release(FILE *file,uint64_t offset,uint64_t bytes){(void)file;(void)offset;(void)bytes;}
+static void (*xz_ram_file_unpin)(struct xz_ram_file_pin *);
+#endif
+/* Parent links keep sibling-heavy catalog parsing linear. */
+#define JSMN_PARENT_LINKS
 #define JSMN_STATIC
 #include "vendor/jsmn/jsmn.h"
 #include "vendor/sha256/sha256.h"
@@ -24,21 +53,30 @@ static int digest_matches(const unsigned char digest[32], const char *hexstr) {
     return 1;
 }
 static void hash(const void *data,size_t n,unsigned char out[32]) { SHA256_CTX c;sha256_init(&c);sha256_update(&c,data,n);sha256_final(&c,out); }
-static int file_hash_matches(const char *path,const char *expected) {
+static int file_hash(const char *path,unsigned char sum[32]) {
     FILE *f=fopen(path,"rb"); if(!f)return 0;
-    SHA256_CTX c;sha256_init(&c);unsigned char data[32768],sum[32];size_t n;uint64_t total=0;
-    while((n=fread(data,1,sizeof(data),f))){sha256_update(&c,data,n);total+=n;if(total>UINT64_C(2147483648)){fclose(f);return 0;}}
-    int ok=!ferror(f);fclose(f);sha256_final(&c,sum);return ok&&digest_matches(sum,expected);
+    SHA256_CTX c;sha256_init(&c);unsigned char data[32768];size_t n;uint64_t total=0;
+    while((n=fread(data,1,sizeof(data),f))){sha256_update(&c,data,n);total+=n;if(total>UINT64_C(2147483648)){fclose(f);return 0;}usb_stand_back();}
+    int ok=!ferror(f);fclose(f);sha256_final(&c,sum);return ok;
 }
+static int file_hash_matches(const char *path,const char *expected) {
+    unsigned char sum[32];return file_hash(path,sum)&&digest_matches(sum,expected);
+}
+/* OverCue Desktop 2.2.40+ can grow index.json past the 4 MiB older OverCue firmware reads. */
+#define XZ_OC_DOCUMENT_MAX (16*1024*1024)
 static int document_open(const char *path,struct document *d) {
     memset(d,0,sizeof(*d));FILE *f=fopen(path,"rb");if(!f)return -1;
     if(fseek(f,0,SEEK_END)){fclose(f);return -1;}long size=ftell(f);rewind(f);
-    if(size<2||size>4*1024*1024){fclose(f);return -1;}
-    d->text=calloc((size_t)size+1,1);d->token=calloc((size_t)size/2+1,sizeof(*d->token));
-    if(!d->text||!d->token){fclose(f);return -1;}
+    if(size<2||size>XZ_OC_DOCUMENT_MAX){fclose(f);return -1;}
+    d->text=calloc((size_t)size+1,1);
+    if(!d->text){fclose(f);return -1;}
     int ok=fread(d->text,1,(size_t)size,f)==(size_t)size;fclose(f);if(!ok)return -1;
     jsmn_parser parser;jsmn_init(&parser);
-    d->count=jsmn_parse(&parser,d->text,(size_t)size,d->token,(unsigned)size/2+1);
+    int count=jsmn_parse(&parser,d->text,(size_t)size,NULL,0);
+    if(count<1)return -1;
+    d->token=calloc((size_t)count,sizeof(*d->token));if(!d->token)return -1;
+    jsmn_init(&parser);
+    d->count=jsmn_parse(&parser,d->text,(size_t)size,d->token,(unsigned)count);
     return d->count>0&&d->token[0].type==JSMN_OBJECT?0:-1;
 }
 static void document_close(struct document *d){free(d->text);free(d->token);memset(d,0,sizeof(*d));}
@@ -86,11 +124,13 @@ static double number(const struct document *d,int t){
 static int path_join(char out[4096],const char *a,const char *b){return snprintf(out,4096,"%s/%s",a,b)>=4096?-1:0;}
 static int open_pgz(const char *path,const char *table_sha,uint64_t frames,struct xz_oc_file *f){
     unsigned char header[24],sum[32];for(unsigned i=0;i<XZ_OC_PAGE_SLOTS;i++)f->cached_page[i]=UINT32_MAX;
-    f->file=fopen(path,"rb");if(!f->file)return -1;
+    f->file=fopen(path,XZ_FOPEN_READ_CLOEXEC);if(!f->file)return -1;
     if(fread(header,1,24,f->file)!=24||be32(header+8)!=XZ_OC_PAGE)return -1;
     if(!memcmp(header,"OVPGZ001",8))f->codec=1;
     else if(!memcmp(header,"OVPGZ003",8))f->codec=3;
+    else if(!memcmp(header,"OVPGZ004",8))f->codec=4;
     else return -1;
+    f->sample_rate=f->codec==4?44100u:XZ_OC_RATE;
     f->page_count=be32(header+12);f->bytes=be64(header+16);
     if(f->bytes!=frames*4||!f->page_count||f->page_count>XZ_OC_MAX_PAGES||f->page_count!=(f->bytes+XZ_OC_PAGE-1)/XZ_OC_PAGE)return -1;
     size_t table_bytes=(size_t)f->page_count*48;unsigned char *table=malloc(table_bytes);if(!table)return -1;
@@ -99,16 +139,29 @@ static int open_pgz(const char *path,const char *table_sha,uint64_t frames,struc
     if(!digest_matches(sum,table_sha)){free(table);return -1;}
     if(fseek(f->file,0,SEEK_END)){free(table);return -1;}long file_bytes=ftell(f->file);if(file_bytes<0){free(table);return -1;}
     f->pages=calloc(f->page_count,sizeof(*f->pages));f->raw=malloc(XZ_OC_PAGE*XZ_OC_PAGE_SLOTS);f->compressed=malloc(XZ_OC_COMPRESSED_MAX);
-    if(!f->pages||!f->raw||!f->compressed){free(table);return -1;}
+    f->arena=f->codec>=3?malloc(XZ_OC_DECODER_AREA):NULL;
+    if(!f->pages||!f->raw||!f->compressed||(f->codec>=3&&!f->arena)){free(table);return -1;}
     uint64_t previous=24+table_bytes,total=0;
     for(uint32_t i=0;i<f->page_count;i++){
         const unsigned char *p=table+(size_t)i*48;struct xz_oc_page *page=f->pages+i;
         page->offset=be64(p);page->compressed=be32(p+8);page->bytes=be32(p+12);memcpy(page->sha,p+16,32);
-        uint32_t limit=f->codec==3?page->bytes+65536u:XZ_OC_COMPRESSED_MAX;
+        uint32_t limit=f->codec>=3?page->bytes+65536u:XZ_OC_COMPRESSED_MAX;
         if(page->offset!=previous||!page->compressed||page->compressed>limit||!page->bytes||page->bytes>XZ_OC_PAGE||page->bytes%4||
            (i+1<f->page_count&&page->bytes!=XZ_OC_PAGE)||page->offset+page->compressed>(uint64_t)file_bytes){free(table);return -1;}
         total+=page->bytes;previous=page->offset+page->compressed;
     }free(table);return total==f->bytes&&previous==(uint64_t)file_bytes?0:-1;
+}
+/* The FLAC decoder asks for its working memory once per page. Served from a fixed area per file: no heap
+   traffic while stems are decoded (a request that does not fit falls back to the heap). */
+static void *decoder_take(size_t bytes,void *user){
+    struct xz_oc_file *f=user;size_t at=(f->arena_used+15u)&~(size_t)15u;
+    if(f->arena&&bytes<=XZ_OC_DECODER_AREA&&at<=XZ_OC_DECODER_AREA-bytes){f->arena_used=at+bytes;return f->arena+at;}
+    return malloc(bytes);
+}
+static void decoder_give(void *memory,void *user){
+    struct xz_oc_file *f=user;unsigned char *p=memory;
+    if(!p||(f->arena&&p>=f->arena&&p<f->arena+XZ_OC_DECODER_AREA))return;
+    free(p);
 }
 static int page_read(struct xz_oc_file *f,uint32_t index){
     if(index>=f->page_count)return -1;
@@ -121,14 +174,17 @@ static int page_read(struct xz_oc_file *f,uint32_t index){
     unsigned char *raw=f->raw+(size_t)slot*XZ_OC_PAGE;
     struct xz_oc_page *p=f->pages+index;unsigned char sum[32];
     if(p->offset>LONG_MAX||fseek(f->file,(long)p->offset,SEEK_SET)||fread(f->compressed,1,p->compressed,f->file)!=p->compressed)return -1;
+    if(!f->ram.mapping)cache_release(f->file,p->offset,p->compressed); /* a RAM copy has no second copy */
     size_t n;
-    if(f->codec==3){
+    if(f->codec>=3){
         if(p->compressed<42||memcmp(f->compressed,"fLaC",4)||(f->compressed[4]&127)!=0||
            f->compressed[5]!=0||f->compressed[6]!=0||f->compressed[7]!=34)return -1;
-        drflac *decoder=drflac_open_memory(f->compressed,p->compressed,NULL);
+        f->arena_used=0;
+        drflac_allocation_callbacks room={f,decoder_take,NULL,decoder_give};
+        drflac *decoder=drflac_open_memory(f->compressed,p->compressed,&room);
         if(!decoder)return -1;
         uint64_t frames=p->bytes/4;
-        int valid=decoder->sampleRate==XZ_OC_RATE&&decoder->channels==2&&decoder->bitsPerSample==16&&
+        int valid=decoder->sampleRate==f->sample_rate&&decoder->channels==2&&decoder->bitsPerSample==16&&
                   decoder->totalPCMFrameCount==frames;
         uint64_t got=valid?drflac_read_pcm_frames_s16(decoder,frames,(int16_t *)raw):0;
         int16_t extra[2];
@@ -160,7 +216,58 @@ int xz_oc_read(struct xz_oc_file *f,int64_t first,size_t count,int16_t *out){
         for(size_t i=0;i<n*2;i++){unsigned char *p=f->raw+(size_t)slot*XZ_OC_PAGE+offset+i*2;out[done*2+i]=(int16_t)((unsigned)p[0]|(unsigned)p[1]<<8);}done+=n;
     }return 0;
 }
-static void close_file(struct xz_oc_file *f){if(f->file)fclose(f->file);free(f->pages);free(f->raw);free(f->compressed);memset(f,0,sizeof(*f));}
+/* A RAM copy is unmapped, emptied and only then closed, so its pages return whatever still names the file. */
+static void close_file(struct xz_oc_file *f){
+    int copied=f->ram.mapping!=NULL;
+    if(copied&&xz_ram_file_unpin)xz_ram_file_unpin(&f->ram);
+    if(f->file){
+#if defined(__linux__)
+        if(copied&&ftruncate(fileno(f->file),0)){}
+#endif
+        fclose(f->file);
+    }
+    free(f->pages);free(f->raw);free(f->compressed);free(f->arena);memset(f,0,sizeof(*f));
+}
+int xz_oc_assets_pin_supported(void){
+#if defined(__linux__)
+    return xz_ram_files_pin!=NULL;
+#else
+    return 0;
+#endif
+}
+int xz_oc_assets_pin_polled(struct xz_oc_assets *a,int (*poll)(void *),void *context){
+#if defined(__linux__)
+    if(xz_ram_pin_set_poll)xz_ram_pin_set_poll(poll,context);
+    int result=xz_oc_assets_pin(a);
+    if(xz_ram_pin_set_poll)xz_ram_pin_set_poll(NULL,NULL);
+    return result;
+#else
+    (void)poll;(void)context;return xz_oc_assets_pin(a);
+#endif
+}
+int xz_oc_assets_pin(struct xz_oc_assets *a){
+#if defined(__linux__)
+    if(!a||!xz_ram_files_pin)return 0;
+    struct xz_oc_file *members[4]={&a->role[0],&a->role[1],&a->role[2],&a->reference};
+    FILE *files[4];struct xz_ram_file_pin pins[4]={{0}};
+    for(unsigned i=0;i<4;i++){if(members[i]->ram.mapping)return 1;files[i]=members[i]->file;}
+    int result=xz_ram_files_pin(files,pins,4);
+    if(result==1)for(unsigned i=0;i<4;i++)members[i]->ram=pins[i];
+    return result;
+#else
+    (void)a;return 0;
+#endif
+}
+void xz_oc_assets_release_audio(struct xz_oc_assets *a){
+    if(!a)return;
+    for(unsigned i=0;i<3;i++)close_file(&a->role[i]);
+    close_file(&a->reference);
+}
+size_t xz_oc_assets_ram_bytes(const struct xz_oc_assets *a){
+    if(!a)return 0;size_t total=a->reference.ram.bytes;
+    for(unsigned i=0;i<3;i++)total+=a->role[i].ram.bytes;
+    return total;
+}
 int xz_oc_verify_role(const char *path,uint64_t frames,const char *table_sha,const char *pcm_sha){
     struct xz_oc_file file={0};int rc=-1;
     if(!frames||frames>XZ_OC_MAX_PAGES*(XZ_OC_PAGE/4u)||!pcm_sha||strlen(pcm_sha)!=64)return -1;
@@ -171,14 +278,12 @@ int xz_oc_verify_role(const char *path,uint64_t frames,const char *table_sha,con
     if(!open_pgz(path,table_sha,frames,&file))rc=xz_oc_verify(&file);
     close_file(&file);return rc;
 }
-void xz_oc_close(struct xz_oc_assets *a){if(!a)return;for(unsigned i=0;i<3;i++){close_file(a->role+i);close_file(a->combination+i);free(a->wave[i]);}close_file(&a->reference);memset(a,0,sizeof(*a));}
+void xz_oc_close(struct xz_oc_assets *a){if(!a)return;for(unsigned i=0;i<3;i++){close_file(a->role+i);free(a->wave[i]);}close_file(&a->reference);memset(a,0,sizeof(*a));}
 struct xz_oc_file *xz_oc_mix_file(struct xz_oc_assets *a,unsigned mask){
-    switch(mask){case 1:return a->role;case 2:return a->role+1;case 4:return a->role+2;
-    case 3:return a->combination;case 5:return a->combination+1;case 6:return a->combination+2;case 7:return &a->reference;default:return NULL;}
+    switch(mask){case 1:return a->role;case 2:return a->role+1;case 4:return a->role+2;case 7:return &a->reference;default:return NULL;}
 }
 float xz_oc_mix_gain(const struct xz_oc_assets *a,unsigned mask){
-    switch(mask){case 1:return a->gain[0];case 2:return a->gain[1];case 4:return a->gain[2];
-    case 3:return a->combination_gain[0];case 5:return a->combination_gain[1];case 6:return a->combination_gain[2];default:return 1;}
+    switch(mask){case 1:return a->gain[0];case 2:return a->gain[1];case 4:return a->gain[2];default:return 1;}
 }
 static void load_wave(const char *path,unsigned char **wave,uint32_t *count){
     FILE *f=fopen(path,"rb");if(!f)return;unsigned char h[24];
@@ -200,26 +305,37 @@ static int same_token(const struct document *d,int left,int right){
     return length==(size_t)(d->token[right].end-d->token[right].start)&&
            !memcmp(d->text+d->token[left].start,d->text+d->token[right].start,length);
 }
-static int find_entry(const struct document *d,const char *track,char bundle[17]){
+/* -1 means no matching entry; -2 means a matching identity is invalid or ambiguous. */
+static int find_entry(const struct document *d,const char *track,const unsigned char *source_sha,char bundle[17]){
     const char *maps[]={"tracks","tracks_onelibrary"};int found=-1;char value[4096];
-    const char *keys[]={"bundle","frames","three_part","page_bytes","source_sha256",
+    const char *keys[]={"bundle","frames","three_part","page_bytes","sample_rate","source_sha256",
         "vocal_sha256","vocal_page_table_sha256","instrumental_sha256","instrumental_page_table_sha256",
         "drums_sha256","drums_page_table_sha256","harmonics_sha256","harmonics_page_table_sha256",
         "vocals_drums_sha256","vocals_drums_page_table_sha256","vocals_harmonics_sha256","vocals_harmonics_page_table_sha256",
         "full_mix_sha256","full_mix_page_table_sha256"};
     for(unsigned m=0;m<2;m++){
-        int map=field(d,0,maps[m]);if(map<0)continue;if(d->token[map].type!=JSMN_OBJECT)return -1;
+        int map=field(d,0,maps[m]);if(map<0)continue;if(d->token[map].type!=JSMN_OBJECT)return -2;
         for(int key=map+1;key<d->count&&d->token[key].start<d->token[map].end;){
-            int entry=key+1;if(entry>=d->count)return -1;
-            if(!string(d,field(d,entry,"file_path"),value,sizeof(value))&&!strcmp(value,track)){
-                if(string(d,field(d,entry,"bundle"),value,sizeof(value))||strlen(value)!=16)return -1;
-                for(unsigned i=0;i<16;i++)if(!((value[i]>='0'&&value[i]<='9')||(value[i]>='a'&&value[i]<='f')))return -1;
+            int entry=key+1;if(entry>=d->count)return -2;
+            int match=source_sha?(!string(d,field(d,entry,"source_sha256"),value,sizeof(value))&&digest_matches(source_sha,value)):
+                (!string(d,field(d,entry,"file_path"),value,sizeof(value))&&!strcmp(value,track));
+            if(match){
+                if(string(d,field(d,entry,"bundle"),value,sizeof(value))||strlen(value)!=16)return -2;
+                for(unsigned i=0;i<16;i++)if(!((value[i]>='0'&&value[i]<='9')||(value[i]>='a'&&value[i]<='f')))return -2;
                 if(found>=0)for(unsigned i=0;i<sizeof(keys)/sizeof(*keys);i++)
-                    if(!same_token(d,field(d,found,keys[i]),field(d,entry,keys[i])))return -1;
+                    if(!same_token(d,field(d,found,keys[i]),field(d,entry,keys[i])))return -2;
                 found=entry;memcpy(bundle,value,17);
             }key=next(d,entry);
         }
     }return found;
+}
+static int source_entry(const struct document *d,const char *track,const char *source,char bundle[17]){
+    int entry=find_entry(d,track,NULL,bundle);
+    if(entry!=-1)return entry;
+    /* Exporters can assign another ID/path to an identical source. Resolve only
+     * by its complete bytes, on the worker, without trusting names or metadata. */
+    unsigned char sum[32];
+    return file_hash(source,sum)?find_entry(d,track,sum,bundle):-1;
 }
 int xz_oc_open(const char *source,struct xz_oc_assets *a,char *error,size_t capacity){
     struct document index={0},manifest={0};char path[4096],root[4096],bundle[32]="",value[4096],expected[65];int rc=-1;
@@ -228,7 +344,7 @@ int xz_oc_open(const char *source,struct xz_oc_assets *a,char *error,size_t capa
     char *relative=strstr(root,"/Contents/");if(!relative)goto done;char track[4096];strcpy(track,relative);*relative=0;
     if(path_join(path,root,"CDJMODS/index.json")||document_open(path,&index))goto done;
     if(!equal(&index,field(&index,0,"schema"),"overcue-index/1"))goto done;
-    int entry=find_entry(&index,track,bundle);if(entry<0)goto done;
+    int entry=source_entry(&index,track,source,bundle);if(entry<0)goto done;
     char folder[4096];if(snprintf(folder,sizeof(folder),"%s/CDJMODS/stems/%s",root,bundle)>=(int)sizeof(folder))goto done;
     if(path_join(path,folder,"overcue-manifest.json"))goto done;
     int has_manifest=!document_open(path,&manifest);
@@ -238,8 +354,8 @@ int xz_oc_open(const char *source,struct xz_oc_assets *a,char *error,size_t capa
     double frames=indexed?number(&index,field(&index,entry,"frames")):number(&manifest,field(&manifest,runtime,"frames"));
     if(frames<1||frames>XZ_OC_MAX_PAGES*(XZ_OC_PAGE/4u)||frames!=floor(frames))goto done;
     if(indexed){
-        if(number(&index,field(&index,entry,"three_part"))!=1||number(&index,field(&index,entry,"page_bytes"))!=XZ_OC_PAGE)goto done;
-    }else if(number(&manifest,field(&manifest,runtime,"sample_rate"))!=XZ_OC_RATE||number(&manifest,field(&manifest,runtime,"channels"))!=2||
+        if(number(&index,field(&index,entry,"page_bytes"))!=XZ_OC_PAGE)goto done;
+    }else if((number(&manifest,field(&manifest,runtime,"sample_rate"))!=XZ_OC_RATE&&number(&manifest,field(&manifest,runtime,"sample_rate"))!=44100)||number(&manifest,field(&manifest,runtime,"channels"))!=2||
              !equal(&manifest,field(&manifest,runtime,"format"),"s16le"))goto done;
     a->frames=(uint64_t)frames;
     int source_digest=field(&index,entry,"source_sha256"),manifest_digest=field(&manifest,src,"sha256");
@@ -252,9 +368,12 @@ int xz_oc_open(const char *source,struct xz_oc_assets *a,char *error,size_t capa
             if(string(&manifest,manifest_digest,value,sizeof(value))||strcmp(value,expected))goto done;
         }
     }
-    const char *names[]={"drums","harmonics","vocal","full-mix","instrumental","vocals-drums","vocals-harmonics"};
-    const unsigned masks[]={1,2,4,7,3,5,6};
-    for(unsigned i=0;i<7;i++){
+    const char *names[]={"drums","harmonics","vocal","full-mix"};
+    const unsigned masks[]={1,2,4,7};
+    const char *pair_keys[]={"instrumental_sha256","vocals_drums_sha256","vocals_harmonics_sha256"};
+    const char *pair_roles[]={"instrumental","vocals-drums","vocals-harmonics"};
+    for(unsigned i=0;i<3;i++)a->pair_files+=indexed?field(&index,entry,pair_keys[i])>=0:field(&manifest,roles,pair_roles[i])>=0;
+    for(unsigned i=0;i<4;i++){
         int role=field(&manifest,roles,names[i]);double gain=1;
         struct xz_oc_file *file=xz_oc_mix_file(a,masks[i]);
         if(indexed){
@@ -279,9 +398,16 @@ int xz_oc_open(const char *source,struct xz_oc_assets *a,char *error,size_t capa
         }
         if(snprintf(path,sizeof(path),"%s/stems-sidecar-%s.s16le.pgz",folder,names[i])>=(int)sizeof(path)||
            open_pgz(path,expected,a->frames,file))goto done;
-        if(i>=4)a->combination_gain[i-4]=(float)gain;
+        if(!a->sample_rate)a->sample_rate=file->sample_rate;
+        if(file->sample_rate!=a->sample_rate){snprintf(error,capacity,"Stem mixes use different sample rates");goto done;}
         if(i<3){a->gain[i]=(float)gain;
             if(snprintf(path,sizeof(path),"%s/stems-%s-waveform.EXT",folder,names[i])<(int)sizeof(path))load_wave(path,&a->wave[i],&a->wave_count[i]);}
+    }
+    int declared_rate=field(&index,entry,"sample_rate");
+    /* An indexed entry without sample_rate is the 96 kHz profile: OVPGZ004 never stands in for it. */
+    if((declared_rate>=0&&number(&index,declared_rate)!=a->sample_rate)||(indexed&&declared_rate<0&&a->sample_rate!=XZ_OC_RATE)||
+       (runtime>=0&&field(&manifest,runtime,"sample_rate")>=0&&number(&manifest,field(&manifest,runtime,"sample_rate"))!=a->sample_rate)){
+        snprintf(error,capacity,"Stem sample rate does not match its index");goto done;
     }
     error[0]=0;rc=0;
 done:
@@ -294,7 +420,7 @@ int xz_oc_bundle(const char *source,char *folder,size_t capacity){
     char *relative=strstr(root,"/Contents/");if(!relative)return -1;strcpy(track,relative);*relative=0;
     if(path_join(path,root,"CDJMODS/index.json")||document_open(path,&index))goto done;
     if(!equal(&index,field(&index,0,"schema"),"overcue-index/1"))goto done;
-    if(find_entry(&index,track,bundle)<0)goto done;
+    if(source_entry(&index,track,source,bundle)<0)goto done;
     if(bundle[0]&&snprintf(folder,capacity,"%s/CDJMODS/stems/%s",root,bundle)<(int)capacity)rc=0;
 done:
     document_close(&index);return rc;

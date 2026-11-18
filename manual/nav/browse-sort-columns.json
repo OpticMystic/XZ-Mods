@@ -1,0 +1,24 @@
+{
+  "section": "browse#sort-columns-and-the-track-menu",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "BROWSE"
+    },
+    {
+      "push": true
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "panel_select": "BPM"
+    },
+    {
+      "panel_select": "ARTIST"
+    },
+    {
+      "panel_select": "RATING"
+    }
+  ]
+}

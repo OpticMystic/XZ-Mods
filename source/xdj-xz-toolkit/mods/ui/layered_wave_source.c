@@ -88,6 +88,9 @@ int xz_anlz_track_path(const uint8_t *file,size_t n,char *out,size_t cap){
  return -1;
 }
 
+void xz_wave_decode_bands(uint8_t *bands,uint32_t count){
+ for(uint32_t i=0;i<count;i++){uint8_t mid=bands[i*3],high=bands[i*3+1];bands[i*3]=bands[i*3+2];bands[i*3+1]=mid;bands[i*3+2]=high;}
+}
 uint32_t xz_wave_normalization(const uint8_t *bands,uint32_t count,unsigned kind){
  (void)kind;
  uint32_t histogram[1021];memset(histogram,0,sizeof(histogram));
@@ -174,6 +177,7 @@ int xz_wave_load_three_band(const char *source,struct xz_wave_load *out){
  if(!file)return -1;
  if(xz_anlz_section(file,n,"PWV7",3,&at,&count)||!(out->bands=malloc((size_t)count*3))){free(file);return -1;}
  memcpy(out->bands,file+at,(size_t)count*3);free(file);
+ xz_wave_decode_bands(out->bands,count);
  out->count=count;out->kind=XZ_LAYERED_THREE_BAND;
  out->normalization=xz_wave_normalization(out->bands,count,out->kind);
  return 0;

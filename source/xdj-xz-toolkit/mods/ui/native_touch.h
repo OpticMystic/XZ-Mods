@@ -11,8 +11,11 @@ struct xz_native_touch {
  xz_touch_actions apply;
  void *context;
  int visible,capture,opening_contact;
- int badge_x,badge_y,badge_w,badge_h;
- int vj_btn_x,vj_btn_y,vj_btn_w,vj_btn_h;
+ int badge_x,badge_w;                 /* MODS columns (top_bar.h) */
+ int vj_btn_x,vj_btn_y,vj_btn_w,vj_btn_h; /* VJ.TOOLS; the runtime sets vj_btn_w 0 while it is hidden */
+ /* How far down STEMS and MODS answer: XZ_TOP_BAR_TOUCH_H, or XZ_TOP_BAR_DEEP_H while the stock play
+    screen shows (the runtime sets it for each contact; top_bar.h says why). */
+ int reach;
  int vj_contact;
  int region_x,region_y,region_w,region_h,regional;
 };

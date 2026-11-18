@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "xz_controls.h"
 #include "vendor/doomkeys.h"
+#include "native_bridge.h"
 #include <assert.h>
 #include <stdio.h>
 static struct xz_doom_controls controls;
@@ -41,5 +42,30 @@ int main(void) {
     assert(xz_doom_key(&controls,&pressed,&key)&&pressed&&key==KEY_FIRE);
     xz_doom_physical(&controls,1u<<4,0); assert(!xz_doom_key(&controls,&pressed,&key));
     xz_doom_physical(&controls,0,0); assert(xz_doom_key(&controls,&pressed,&key)&&!pressed&&key==KEY_FIRE);
-    puts("Native Doom controls, latched fire, releases and RGB565 bounds passed");
+    controls=(struct xz_doom_controls){0};
+    assert(xz_doom_nav_tap(&controls,XZ_GAME_NAV_DOWN));
+    assert(!xz_doom_nav_tap(&controls,XZ_GAME_NAV_DOWN));
+    assert(xz_doom_key(&controls,&pressed,&key)&&pressed&&key==KEY_DOWNARROW);
+    assert(!xz_doom_nav_tap(&controls,XZ_GAME_NAV_DOWN));
+    assert(xz_doom_key(&controls,&pressed,&key)&&!pressed&&key==KEY_DOWNARROW);
+    assert(!xz_doom_key(&controls,&pressed,&key));
+    assert(xz_doom_nav_tap(&controls,XZ_GAME_NAV_DOWN));
+    assert(xz_doom_key(&controls,&pressed,&key)&&pressed&&key==KEY_DOWNARROW);
+    assert(xz_doom_key(&controls,&pressed,&key)&&!pressed&&key==KEY_DOWNARROW);
+    static const struct { unsigned nav; int key; } taps[]={{XZ_GAME_NAV_UP,KEY_UPARROW},{XZ_GAME_NAV_ENTER,KEY_ENTER},{XZ_GAME_NAV_BACK,KEY_ESCAPE}};
+    for(unsigned i=0;i<3;i++){
+        assert(xz_doom_nav_tap(&controls,taps[i].nav));
+        assert(xz_doom_key(&controls,&pressed,&key)&&pressed&&key==taps[i].key);
+        assert(xz_doom_key(&controls,&pressed,&key)&&!pressed&&key==taps[i].key);
+    }
+    xz_doom_physical(&controls,1u<<9,0);
+    assert(xz_doom_key(&controls,&pressed,&key)&&pressed&&key==KEY_ESCAPE);
+    assert(!xz_doom_nav_tap(&controls,XZ_GAME_NAV_BACK));
+    xz_doom_physical(&controls,0,0);
+    assert(xz_doom_key(&controls,&pressed,&key)&&!pressed&&key==KEY_ESCAPE);
+    assert(xz_doom_nav_tap(&controls,XZ_GAME_NAV_BACK));
+    assert(xz_doom_key(&controls,&pressed,&key)&&pressed&&key==KEY_ESCAPE);
+    assert(xz_doom_key(&controls,&pressed,&key)&&!pressed&&key==KEY_ESCAPE);
+    assert(!controls.quit&&xz_doom_nav_tap(&controls,XZ_GAME_NAV_QUIT)&&controls.quit);
+    puts("Native Doom controls, latched fire, encoder taps, releases and RGB565 bounds passed");
 }

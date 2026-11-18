@@ -1,0 +1,20 @@
+{
+  "section": "hardware#the-above-link-button",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "PLAY"
+    },
+    {
+      "tap": "BUTTON ABOVE LINK",
+      "expect_page": 29
+    },
+    {
+      "settings": "all supported value controls on this page"
+    }
+  ]
+}

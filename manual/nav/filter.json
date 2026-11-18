@@ -1,0 +1,21 @@
+{
+  "interface": "MODERN",
+  "section": "browse#filter",
+  "steps": [
+    {
+      "key": "BROWSE"
+    },
+    {
+      "key": "TRACK FILTER"
+    },
+    {
+      "turn": 2
+    },
+    {
+      "push": true
+    },
+    {
+      "back": true
+    }
+  ]
+}

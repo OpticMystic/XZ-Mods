@@ -1,0 +1,45 @@
+{
+  "section": "four-decks#info-source-and-utility-with-four-decks",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "tap": "DECKS"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "key": "INFO"
+    },
+    {
+      "touch": [
+        293,
+        12
+      ]
+    },
+    {
+      "touch": [
+        369,
+        12
+      ]
+    },
+    {
+      "back": true
+    },
+    {
+      "key": "SOURCE"
+    },
+    {
+      "back": true
+    },
+    {
+      "key": "MENU hold"
+    },
+    {
+      "back": true
+    }
+  ]
+}

@@ -8,6 +8,178 @@ physical acceptance separately from portable UI tests.
 device, audio, network or allocation dependency. The runtime supplies a snapshot
 and receives typed actions; the renderer never assumes a feature is implemented.
 
+## Screen layout and hardware navigation
+
+The panel is a fixed grid shared by every skin (`ui_skin.h`): a 40 px header
+with BACK, the page title, optional deck pickers and CLOSE; a 124 px section
+rail (CONTROLS, APPEARANCE, ADVANCED, EXTRAS) with drawn icons; content in
+x 136..792, y 48..404; and an info dock at y 412..480. Controls never enter
+the dock (`test_ui.c` enforces this for all 25 themes; one exception below). The dock names the
+focused control, its state (ON, OFF, SELECTED, NOT READY, ADJUSTING), what it
+changes, the save status or latest notice, and the hardware key hints.
+
+In MODERN a known stock counter error (E-7206, E-8302, E-8304, E-8305, E-8306)
+takes the dock's title row while MODS is open, because stock errors are never
+covered: one red strip with each deck's badge, the code, the firmware's own text
+and SHOW DECK. It is the one touch target in the dock: a tap closes MODS onto the
+play screen, the encoder never stops on it, and nothing else on screen moves.
+CLASSIC leaves the stock deck area visible instead.
+
+### DJ Profile in the header
+
+The header's right corner shows the DJ Profile like a signed-in user: the
+logo in a circle, the DJ name, the USB it came from and a caret. Beside the
+deck pickers it shrinks to the logo and caret, and the deck pickers narrow to
+170 px. The chip shows the active profile of the USB the master deck plays
+from, else a USB another deck plays from, else the USB the browser shows,
+else the first USB with a profile (`dj_runtime.c`). With no profile it shows
+a silhouette and TAP TO SET UP.
+
+Tapping the chip (or pushing it with the encoder) opens a list under the
+corner, over the dimmed page: every profile on both USBs with its logo,
+name, USB and tagline, a check on each USB's active profile, pages of five,
+and PROFILE SETUP (SET UP DJ PROFILE when there is none, as the primary
+button). Picking a profile sets `active` in that USB's
+`DJPROFILE/DJPROFILE.json` (DJ Profile 1.0, XZ-Mods `spec/djprofile`); the
+footer shows the result on every page for three seconds. A damaged pre-1.0
+profile stays listed under its index name and cannot be picked. While the list is open it is the only thing touch and the
+encoder reach. A tap outside or BACK closes it, and focus returns to the chip.
+The list's last button opens the DJ PROFILE page (`ui_profile.c`). It shows
+one profile at a time: the full 160 px logo, name, tagline, USB and whether
+VJ software sees it now, and PREV and NEXT between profiles. QR display and
+online sharing are removed for now at the owner's request; the online page
+is not available. Buttons: EDIT, MAKE ACTIVE, NEW PROFILE, CHECK USB. With no
+profile the page walks insert USB, create, choose, with CREATE ON THIS XZ as
+the primary button and CHECK USB beside it.
+
+The editor (`XZ_UI_PROFILE_EDIT`) has four steps: DJ NAME and TAGLINE on an
+on-screen keyboard (letters, digits, a symbols layer, SHIFT, SPACE, DELETE; 64
+and 80 characters), LOGO from any PNG or JPEG on the USB (images directly in
+`DJPROFILE/<name>` and `DJPROFILES/<name>` folders first, then the rest of the
+stick up to three folders deep, rendered as the XZ tile before it is chosen,
+or NO LOGO for a monogram), and REVIEW with SAVE TO USB 1 or 2. A new profile
+takes the logo in the folder named like the typed name until the DJ picks
+(`xz_ui_profile_autopick`). Without one, the LOGO step tells the DJ to put the
+logo in `DJPROFILE/<typed name>`: as the whole step, with CHECK USB AGAIN as
+the one button, when the stick has no image at all, otherwise above a
+four-row list with RESCAN. The page with no profile leads with the same
+folder: make `DJPROFILE`, a folder with your DJ name inside, the logo in it.
+
+Hand-made folders (level 0: a folder and a logo) appear in the header and on
+the page in the stick's rekordbox colour. MAKE ACTIVE names the folder as
+active; EDIT writes `profile.json` into that same folder, keeping its logo (as
+`logo.png` or `logo.jpg` beside the DJ's own file). A new profile walks the steps
+in order; EDIT opens on REVIEW and each CHANGE button returns there. BACK goes
+one step back before it leaves. Every key is focusable, so the encoder alone
+can type. Typing stays in `xz_ui`; SAVE hands the draft to the worker, which
+writes only below `DJPROFILE/` on that USB (`dj_profile_write.c`, spec section
+7) and makes a new profile active there. Profiles are never stored on the XZ.
+`model.dj` is NULL when the runtime has no reader, which hides the chip, the
+page's buttons and the editor.
+
+The stick layout is DJ Profile 1.0: one folder per DJ under `DJPROFILE/` with
+`logo.png` or `logo.jpg`, an optional `profile.json`, and the optional
+`DJPROFILE/DJPROFILE.json` with the profile order and the active profile.
+`dj_profile.c` reads it as the reference reader
+`spec/djprofile/tools/check_djprofile.py` does (tested on every example stick
+and a set of edge cases), except that it never lists `DJPROFILE/VJTOOLS` and
+does not open the ID3 tag of a profile track copy (only its size and SHA-256).
+The tile rendition (`rgb565le`, `for` `xdj-xz`, 160 x 160) is the fast path for
+the header chip; without one the worker decodes the primary logo. Name keys
+are full Unicode NFC plus ASCII case folding (`dj_name_key.c`, tables generated
+from Python's `unicodedata` by `gen_dj_name_key.py`), so `Beyonce` + U+0301
+written on a Mac equals `Beyoncé` typed on the XZ. Sticks written before 1.0
+(`DJPROFILE/VJTOOLS`, `VJ.Tools/Branding`) are still read; the first write on
+such a stick (a save, an edit or MAKE ACTIVE) moves every old profile into a
+profile folder and leaves the old store in place, since the XZ has nowhere to
+back it up (VJToolsLibrary `docs/architecture/dj-profile-standard.md` section
+0). A profile without a logo gets its initial on its accent colour as
+`logo.png`, matching what the header draws. Logos over 4096 px a side or
+4 megapixels are scaled down and written as PNG (`vendor/stb/stb_image_write.h`).
+
+Every control is reachable without the touchscreen, so a player with a broken
+digitizer keeps the whole MODS menu:
+
+| Key | While MODS is open | While MODS is closed |
+|---|---|---|
+| REKORDBOX | what CONTROLS > BUTTONS assigns (below); MODS MENU closes MODS | what CONTROLS > BUTTONS assigns; MODS MENU opens MODS |
+| Browse encoder turn | moves focus: content in reading order, then deck pickers, then the section rail, wrapping | stock |
+| Browse encoder push | activates the focused control exactly like a tap | stock |
+| BACK | leaves a value edit, else goes up one page, else closes | stock |
+
+Focus is stored by control identity (`focus_kind`, `focus_index`,
+`focus_deck`), so relayouts keep it, and a touch moves it to the touched
+control. Pushing a beat-jump pair or the X-PAD volume enters an edit where
+turning changes the value; push or BACK ends it. `xz_ui_encoder_turn`,
+`xz_ui_encoder_push`, `xz_ui_focused` and `xz_ui_describe` are pure and
+host-tested; the runtime hooks `UiKey_EncoderRotate` (0xe15b0),
+`UiKey_EncoderPush` (0xdec08) and `UiKey_rekordbox` (0xe0a50) behind their
+prologue guards.
+
+This panel is the one MODS menu in both interfaces. MODERN draws it over the
+FLAGSHIP shell in the FLAGSHIP skin (theme 24): the same pages, rows and
+explanations, plus MODERN's own play-screen parts (`xz_ui_modern_menu`: LAMPS AND
+TITLES, BYPASS BUTTON, four waveform colours, six stem layouts), which the shell
+owns and applies (`XZ_UI_SHELL_LOOK`). MODERN's rail starts with UTILITY, the
+player's own settings, drawn by the shell; its rail opens MODS on a section. Every
+way in (the MODS button, MENU, the button next to LINK, UTILITY's rail, setups,
+HOME's SET UP) opens this panel. A short MENU follows `menu_key.h` in both
+interfaces: stock first, MODS only where MENU has no stock job; held MENU is
+UTILITY. `verify_menu_runtime.py` and `shell/test_mods_entry.c` cover it.
+
+Stock delivers every phase to `UiKey_EncoderPush` (press, hold and release,
+and again on later key passes while the entry state it never clears stays
+set). The shell's path filters them (`xz_shrt_push_event`); `encoder_push_hook`
+lets the panel, games and Doom act on the press phase only (`entry.flags == 1`)
+and swallows the rest. Before that, one click in CLASSIC's panel activated the
+focused control two or more times; after a link the second activation landed on
+the new page's first control.
+
+### REKORDBOX button
+
+CONTROLS > BUTTONS assigns the physical REKORDBOX key twice: a plain press and
+SHIFT + press (either deck's SHIFT). Each slot is one of MODS MENU, EXPORT MODE
+PLAYBACK (the key's stock action), INTERFACE, VJ.TOOLS SCREEN, STEMS or NOTHING;
+the defaults are INTERFACE and EXPORT MODE PLAYBACK (`../SETTINGS.md`). The
+FLAGSHIP shell's MODS screen shows the same two rows on its BUTTONS tab.
+
+One decision per press. `ui_runtime.c`'s onKey hook reads SHIFT at the press,
+picks the action and latches it. In MODERN it gives the action to the shell
+first (`xz_shell_runtime_rekordbox_action`), whose key verdict
+(`xz_shrt_rekordbox_verdict`) swallows only its own actions: MODS opens or
+closes the shell's MODS screen (`XZ_SHELL_KEY_MODS`, as a short MENU there)
+and STEMS runs the header STEMS request. The stock action passes with a
+visible hand-off; INTERFACE, VJ.TOOLS SCREEN and NOTHING pass untouched.
+Whatever passes reaches `UiKey_rekordbox`, whose hook runs the latched action
+once and calls stock only for the stock action. In CLASSIC the shell is
+stopped and the hook alone acts. MODS stays reachable by hardware with the
+default assignment: REKORDBOX switches CLASSIC to MODERN, where MENU opens the
+shell's MODS screen. With MODS MENU assigned and the shell unable to show its
+screen, the MODS panel opens instead. VJ.TOOLS SCREEN without a connected link
+says so (the shell's notice in MODERN, the VJ.TOOLS page with the reason in
+CLASSIC).
+
+The games launched from MODS take the same keys, so they need no touch either:
+
+| Key | Wave Rider, Rhythm Lab, Glyph Run, Beat Arcade | Doom |
+|---|---|---|
+| Browse encoder turn | first detent shows a focus ring on the screen's main control, later detents move it through every on-screen control | menu up / down |
+| Browse encoder push | taps the focused control | Enter |
+| BACK | one screen back (setup step, sub-screen, menu); from a game's first screen, leaves it; ignored mid-round | Escape (game menu) |
+| REKORDBOX (any assignment but NOTHING) | leaves the game and opens MODS on the page it was launched from | quits Doom; the next press opens MODS |
+
+Each game renderer records the controls it draws that frame
+(`arcade/game_nav.h`). The encoder moves over that list and a push replays a
+touch at the control's centre through the game's own touch handler, so touch
+and encoder share one hit test. A new set of controls means a new screen, and
+focus returns to its primary control; it never starts on DECK or DJ VIEW, so a
+stray push mid-round does nothing. Touching the screen hides the ring.
+`arcade/verify_game_nav.py` taps every recorded control on 22 game screens and
+drives Wave Rider setup with the encoder alone. Doom receives these keys
+through a tap queue in the shared input page (protocol version 2).
+SDK applications, including the kart preview, keep their own controls;
+REKORDBOX assigned to MODS MENU opens MODS over them, where APPS can stop them.
+
 ## Runtime contract
 
 1. Zero-initialize `xz_ui_model`; initialize each deck's `groove_active` and
@@ -147,6 +319,10 @@ inline rows does not change active stem levels or physical pad assignments.
 The dual-row layout has portable render and touch checks; hardware audio and
 screen acceptance must be recorded separately.
 
+While software DECK 3 and DECK 4 are routed to CH3 and CH4, the same window
+shows four 64-row lanes instead and the stem rows wait for the route to go
+down. See `FOUR_DECK.md`.
+
 ## Streamlined menu and themes
 
 MODS opens to Controls, with Appearance and Advanced as its other main pages.
@@ -209,6 +385,17 @@ Native-view touches stay native; streamed-view touches go to the desktop.
 A gesture keeps its owner until release even when it crosses the view button
 or a source shortcut changes the view.
 
+## Top bar on stock screens
+
+VJ.TOOLS or EXIT VJ, DECKS, the metrics readout, METRICS, STEMS and MODS form one
+row, 18 pixels tall, in the black band above the stock play screen's waveform,
+DECK 1 tab and BEAT FX header. `top_bar.h` holds the row's geometry, where each
+stock bound comes from, and how far down each control answers a touch: VJ.TOOLS
+stops at y 17 (stock DECK 1 select starts at y 18), STEMS and MODS reach y 39 on
+the play screen, METRICS and the readout keep y 0..23. Every painter draws
+through `xz_top_bar_canvas`, so no frame style reaches below the band.
+`test_top_bar.c` checks the band for all 25 themes and the touch depths.
+
 ## Shared MODS layout
 
 All themes use the LCARS control positions from `ui_layout.c`: left navigation,
@@ -216,4 +403,14 @@ top deck selectors, three-column Appearance picker and fixed control groups.
 Each skin retains its colors, text and widget rendering. Non-LCARS page details
 share those coordinates; inline stem rows and native main-screen layouts are
 unchanged. The layout test checks identical rectangles and touch targets for
-every control across all 24 themes.
+every control across all 25 themes.
+
+FLAGSHIP (theme 24, `skin_flagship.c`) draws the same grid as the UTILITY and
+browse screens of the current flagship club players: a `#191919` header and
+list rows with 1 px black separators, a `#3c3c3c` category rail whose open
+cell is `#646465`, `#007de1` for the selected choice row and primary buttons,
+outlined ON/OFF chips for toggles, hatched `#313131` launch tiles, outlined
+caption boxes (DECK, BPM, VOLUME, KEY) that carry a big value, HOT CUE style
+pad chips, radio rows on the theme list, and a `#ff4619` NOT READY / READ ONLY
+tag on anything the runtime cannot do yet. One `kind_style` table maps every
+widget kind to its row style before anything is drawn.

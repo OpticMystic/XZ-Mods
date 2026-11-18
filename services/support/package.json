@@ -1,0 +1,21 @@
+{
+  "name": "xz-mods-support",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "types": "python -B ../../tools/generate_support_contract.py",
+    "typecheck": "tsc --noEmit",
+    "contract:check": "python -B ../../tools/generate_support_contract.py --check",
+    "test": "npm run contract:check && node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "latest",
+    "esbuild": "latest",
+    "miniflare": "5.20261019.2-beta",
+    "typescript": "latest",
+    "wrangler": "latest"
+  }
+}

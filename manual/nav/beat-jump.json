@@ -1,0 +1,20 @@
+{
+  "section": "performance#beat-jump",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "PLAY"
+    },
+    {
+      "tap": "BEAT JUMP PADS",
+      "expect_page": 6
+    },
+    {
+      "turn": 2
+    }
+  ]
+}

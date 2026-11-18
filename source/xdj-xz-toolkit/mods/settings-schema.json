@@ -9,7 +9,27 @@
     12,
     22,
     23,
-    24
+    24,
+    30,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    41,
+    43,
+    44,
+    46,
+    47,
+    50,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62
   ],
   "fields": [
     {
@@ -43,8 +63,28 @@
       "readonly": false
     },
     {
-      "key": "theme",
-      "label": "Theme",
+      "key": "interface",
+      "label": "Interface",
+      "group": "appearance",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 1,
+          "label": "MODERN"
+        },
+        {
+          "value": 0,
+          "label": "CLASSIC"
+        }
+      ]
+    },
+    {
+      "key": "classic_theme",
+      "label": "Classic theme",
       "group": "appearance",
       "default": 0,
       "min": 0,
@@ -151,6 +191,66 @@
       ]
     },
     {
+      "key": "modern_theme",
+      "label": "Modern theme",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 0,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "STANDARD"
+        }
+      ]
+    },
+    {
+      "key": "deck_view",
+      "label": "Deck view",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 2,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "2 DECKS"
+        },
+        {
+          "value": 1,
+          "label": "4 DECKS, NUMBER ORDER 1 2 3 4"
+        },
+        {
+          "value": 2,
+          "label": "4 DECKS, MIXER ORDER 3 1 2 4"
+        }
+      ]
+    },
+    {
+      "key": "browse_preview",
+      "label": "Preview waveform in MODERN browse",
+      "group": "browse",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "HIDE"
+        },
+        {
+          "value": 1,
+          "label": "SHOW"
+        }
+      ]
+    },
+    {
       "key": "stem_page",
       "label": "Stem shortcut pad mode",
       "group": "stems",
@@ -179,30 +279,10 @@
       ]
     },
     {
-      "key": "shift_pages",
-      "label": "Shift + pad modes for stems",
-      "group": "stems",
-      "default": 0,
-      "min": 0,
-      "max": 1,
-      "kind": "boolean",
-      "readonly": false
-    },
-    {
       "key": "pad_feedback",
       "label": "Stem pad lights",
       "group": "stems",
       "default": 1,
-      "min": 0,
-      "max": 1,
-      "kind": "boolean",
-      "readonly": false
-    },
-    {
-      "key": "shift_keysync",
-      "label": "Shift + Sync",
-      "group": "advanced",
-      "default": 0,
       "min": 0,
       "max": 1,
       "kind": "boolean",
@@ -231,10 +311,6 @@
         {
           "value": 0,
           "label": "Link"
-        },
-        {
-          "value": 1,
-          "label": "Rekordbox"
         },
         {
           "value": 2,
@@ -274,17 +350,7 @@
     },
     {
       "key": "jump_enabled",
-      "label": "Custom Beat Jump",
-      "group": "beat_jump",
-      "default": 1,
-      "min": 0,
-      "max": 1,
-      "kind": "boolean",
-      "readonly": false
-    },
-    {
-      "key": "jump_shift_page",
-      "label": "Shift + Beat Jump page 2",
+      "label": "Page 1 custom Beat Jump",
       "group": "beat_jump",
       "default": 1,
       "min": 0,
@@ -332,7 +398,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -384,7 +451,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -436,7 +504,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -488,7 +557,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -540,7 +610,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -592,7 +663,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -644,7 +716,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -696,7 +769,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -710,13 +784,71 @@
     },
     {
       "key": "stems_overlay",
-      "label": "Show stem rows",
+      "label": "Stem row layout",
       "group": "stems",
       "default": 1,
       "min": 0,
-      "max": 1,
-      "kind": "boolean",
-      "readonly": false
+      "max": 4,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Hidden / normal waveforms"
+        },
+        {
+          "value": 1,
+          "label": "Below / full height"
+        },
+        {
+          "value": 2,
+          "label": "Below / half height"
+        },
+        {
+          "value": 3,
+          "label": "Outside / full height"
+        },
+        {
+          "value": 4,
+          "label": "Outside / half height"
+        }
+      ]
+    },
+    {
+      "key": "modern_stems",
+      "label": "Stem buttons (modern interface)",
+      "group": "stems",
+      "default": 5,
+      "min": 0,
+      "max": 5,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Hidden / normal waveforms"
+        },
+        {
+          "value": 1,
+          "label": "Full rows below each deck"
+        },
+        {
+          "value": 2,
+          "label": "Half rows below each deck"
+        },
+        {
+          "value": 3,
+          "label": "Full rows at the outer edges"
+        },
+        {
+          "value": 4,
+          "label": "Half rows at the outer edges"
+        },
+        {
+          "value": 5,
+          "label": "Small buttons beside the hot cues"
+        }
+      ]
     },
     {
       "key": "wave_mode",
@@ -741,6 +873,929 @@
           "label": "STEMS"
         }
       ]
+    },
+    {
+      "key": "browse_1",
+      "label": "Browse column 1",
+      "group": "browse",
+      "default": 0,
+      "min": 0,
+      "max": 3,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "TITLE"
+        },
+        {
+          "value": 1,
+          "label": "ARTIST"
+        },
+        {
+          "value": 2,
+          "label": "KEY"
+        },
+        {
+          "value": 3,
+          "label": "BPM"
+        }
+      ]
+    },
+    {
+      "key": "browse_2",
+      "label": "Browse column 2",
+      "group": "browse",
+      "default": 2,
+      "min": 0,
+      "max": 3,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "TITLE"
+        },
+        {
+          "value": 1,
+          "label": "ARTIST"
+        },
+        {
+          "value": 2,
+          "label": "KEY"
+        },
+        {
+          "value": 3,
+          "label": "BPM"
+        }
+      ]
+    },
+    {
+      "key": "browse_3",
+      "label": "Browse column 3",
+      "group": "browse",
+      "default": 3,
+      "min": 0,
+      "max": 3,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "TITLE"
+        },
+        {
+          "value": 1,
+          "label": "ARTIST"
+        },
+        {
+          "value": 2,
+          "label": "KEY"
+        },
+        {
+          "value": 3,
+          "label": "BPM"
+        }
+      ]
+    },
+    {
+      "key": "browse_key_prefix",
+      "label": "Show key before track title",
+      "group": "browse",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "browse_traffic",
+      "label": "Color compatible keys",
+      "group": "browse",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "key_format",
+      "label": "Key notation",
+      "group": "browse",
+      "default": 0,
+      "min": 0,
+      "max": 2,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "USB PREFERENCE"
+        },
+        {
+          "value": 1,
+          "label": "CLASSIC"
+        },
+        {
+          "value": 2,
+          "label": "CAMELOT"
+        }
+      ]
+    },
+    {
+      "key": "stem_drums_color",
+      "label": "Drums color",
+      "group": "appearance",
+      "min": 0,
+      "max": 8,
+      "default": 0,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Theme default"
+        },
+        {
+          "value": 1,
+          "label": "Blue"
+        },
+        {
+          "value": 2,
+          "label": "Red"
+        },
+        {
+          "value": 3,
+          "label": "Green"
+        },
+        {
+          "value": 4,
+          "label": "Amber"
+        },
+        {
+          "value": 5,
+          "label": "Purple"
+        },
+        {
+          "value": 6,
+          "label": "Cyan"
+        },
+        {
+          "value": 7,
+          "label": "Pink"
+        },
+        {
+          "value": 8,
+          "label": "White"
+        }
+      ],
+      "kind": "choice",
+      "readonly": false
+    },
+    {
+      "key": "stem_harmonics_color",
+      "label": "Harmonics color",
+      "group": "appearance",
+      "min": 0,
+      "max": 8,
+      "default": 0,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Theme default"
+        },
+        {
+          "value": 1,
+          "label": "Blue"
+        },
+        {
+          "value": 2,
+          "label": "Red"
+        },
+        {
+          "value": 3,
+          "label": "Green"
+        },
+        {
+          "value": 4,
+          "label": "Amber"
+        },
+        {
+          "value": 5,
+          "label": "Purple"
+        },
+        {
+          "value": 6,
+          "label": "Cyan"
+        },
+        {
+          "value": 7,
+          "label": "Pink"
+        },
+        {
+          "value": 8,
+          "label": "White"
+        }
+      ],
+      "kind": "choice",
+      "readonly": false
+    },
+    {
+      "key": "stem_vocals_color",
+      "label": "Vocals color",
+      "group": "appearance",
+      "min": 0,
+      "max": 8,
+      "default": 0,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Theme default"
+        },
+        {
+          "value": 1,
+          "label": "Blue"
+        },
+        {
+          "value": 2,
+          "label": "Red"
+        },
+        {
+          "value": 3,
+          "label": "Green"
+        },
+        {
+          "value": 4,
+          "label": "Amber"
+        },
+        {
+          "value": 5,
+          "label": "Purple"
+        },
+        {
+          "value": 6,
+          "label": "Cyan"
+        },
+        {
+          "value": 7,
+          "label": "Pink"
+        },
+        {
+          "value": 8,
+          "label": "White"
+        }
+      ],
+      "kind": "choice",
+      "readonly": false
+    },
+    {
+      "key": "key_feedback",
+      "label": "Effective key and Key Sync display",
+      "group": "appearance",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "rekordbox_press",
+      "label": "Button above LINK",
+      "group": "advanced",
+      "default": 2,
+      "min": 0,
+      "max": 6,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "MODS MENU"
+        },
+        {
+          "value": 1,
+          "label": "ITS OWN JOB"
+        },
+        {
+          "value": 2,
+          "label": "INTERFACE"
+        },
+        {
+          "value": 3,
+          "label": "VJ.TOOLS SCREEN"
+        },
+        {
+          "value": 4,
+          "label": "STEMS"
+        },
+        {
+          "value": 6,
+          "label": "DECK VIEW"
+        },
+        {
+          "value": 5,
+          "label": "NOTHING"
+        }
+      ]
+    },
+    {
+      "key": "rekordbox_shift",
+      "label": "SHIFT + button above LINK",
+      "group": "advanced",
+      "default": 1,
+      "min": 0,
+      "max": 6,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "MODS MENU"
+        },
+        {
+          "value": 1,
+          "label": "ITS OWN JOB"
+        },
+        {
+          "value": 2,
+          "label": "INTERFACE"
+        },
+        {
+          "value": 3,
+          "label": "VJ.TOOLS SCREEN"
+        },
+        {
+          "value": 4,
+          "label": "STEMS"
+        },
+        {
+          "value": 6,
+          "label": "DECK VIEW"
+        },
+        {
+          "value": 5,
+          "label": "NOTHING"
+        }
+      ]
+    },
+    {
+      "key": "stem_order",
+      "label": "Stem order",
+      "group": "stems",
+      "default": 0,
+      "min": 0,
+      "max": 5,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "VOCALS / HARMONICS / DRUMS"
+        },
+        {
+          "value": 1,
+          "label": "VOCALS / DRUMS / HARMONICS"
+        },
+        {
+          "value": 2,
+          "label": "HARMONICS / VOCALS / DRUMS"
+        },
+        {
+          "value": 3,
+          "label": "HARMONICS / DRUMS / VOCALS"
+        },
+        {
+          "value": 4,
+          "label": "DRUMS / VOCALS / HARMONICS"
+        },
+        {
+          "value": 5,
+          "label": "DRUMS / HARMONICS / VOCALS"
+        }
+      ]
+    },
+    {
+      "key": "band_low_color",
+      "label": "3-BAND LOW COLOUR",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 8,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "STANDARD"
+        },
+        {
+          "value": 1,
+          "label": "BLUE"
+        },
+        {
+          "value": 2,
+          "label": "RED"
+        },
+        {
+          "value": 3,
+          "label": "GREEN"
+        },
+        {
+          "value": 4,
+          "label": "AMBER"
+        },
+        {
+          "value": 5,
+          "label": "PURPLE"
+        },
+        {
+          "value": 6,
+          "label": "CYAN"
+        },
+        {
+          "value": 7,
+          "label": "PINK"
+        },
+        {
+          "value": 8,
+          "label": "WHITE"
+        }
+      ]
+    },
+    {
+      "key": "band_mid_color",
+      "label": "3-BAND MID COLOUR",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 8,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "STANDARD"
+        },
+        {
+          "value": 1,
+          "label": "BLUE"
+        },
+        {
+          "value": 2,
+          "label": "RED"
+        },
+        {
+          "value": 3,
+          "label": "GREEN"
+        },
+        {
+          "value": 4,
+          "label": "AMBER"
+        },
+        {
+          "value": 5,
+          "label": "PURPLE"
+        },
+        {
+          "value": 6,
+          "label": "CYAN"
+        },
+        {
+          "value": 7,
+          "label": "PINK"
+        },
+        {
+          "value": 8,
+          "label": "WHITE"
+        }
+      ]
+    },
+    {
+      "key": "band_high_color",
+      "label": "3-BAND HIGH COLOUR",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 8,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "STANDARD"
+        },
+        {
+          "value": 1,
+          "label": "BLUE"
+        },
+        {
+          "value": 2,
+          "label": "RED"
+        },
+        {
+          "value": 3,
+          "label": "GREEN"
+        },
+        {
+          "value": 4,
+          "label": "AMBER"
+        },
+        {
+          "value": 5,
+          "label": "PURPLE"
+        },
+        {
+          "value": 6,
+          "label": "CYAN"
+        },
+        {
+          "value": 7,
+          "label": "PINK"
+        },
+        {
+          "value": 8,
+          "label": "WHITE"
+        }
+      ]
+    },
+    {
+      "key": "modern_wave_color",
+      "label": "MODERN WAVEFORM COLOUR",
+      "group": "appearance",
+      "default": 2,
+      "min": 0,
+      "max": 3,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "BLUE"
+        },
+        {
+          "value": 1,
+          "label": "RGB"
+        },
+        {
+          "value": 2,
+          "label": "3-BAND"
+        },
+        {
+          "value": 3,
+          "label": "STEMS"
+        }
+      ]
+    },
+    {
+      "key": "wave_position",
+      "label": "WAVEFORM POSITION",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "CENTRE"
+        },
+        {
+          "value": 1,
+          "label": "LEFT"
+        }
+      ]
+    },
+    {
+      "key": "key_display",
+      "label": "KEY DISPLAY",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 2,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "AS THE DECK SHOWS IT"
+        },
+        {
+          "value": 1,
+          "label": "CLASSIC"
+        },
+        {
+          "value": 2,
+          "label": "ALPHANUMERIC"
+        }
+      ]
+    },
+    {
+      "key": "wave_zoom",
+      "label": "WAVEFORM ZOOM",
+      "group": "appearance",
+      "default": 3,
+      "min": 0,
+      "max": 6,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "0"
+        },
+        {
+          "value": 1,
+          "label": "1"
+        },
+        {
+          "value": 2,
+          "label": "2"
+        },
+        {
+          "value": 3,
+          "label": "3"
+        },
+        {
+          "value": 4,
+          "label": "4"
+        },
+        {
+          "value": 5,
+          "label": "5"
+        },
+        {
+          "value": 6,
+          "label": "6"
+        }
+      ]
+    },
+    {
+      "key": "usb_colors",
+      "label": "USB COLOURS",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 2,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "TILE AND WAVEFORM"
+        },
+        {
+          "value": 1,
+          "label": "TILE ONLY"
+        },
+        {
+          "value": 2,
+          "label": "OFF"
+        }
+      ]
+    },
+    {
+      "key": "hidden_parts",
+      "label": "Hidden MODERN parts (bitmask)",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 31,
+      "kind": "number",
+      "readonly": false
+    },
+    {
+      "key": "modern_browse_columns",
+      "label": "MODERN browse columns (bitmask, 0 automatic)",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 2047,
+      "kind": "number",
+      "readonly": false
+    },
+    {
+      "key": "controller_locale",
+      "label": "Controller language",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 14,
+      "kind": "number",
+      "readonly": false
+    },
+    {
+      "key": "network_dhcp",
+      "label": "DHCP on at startup",
+      "group": "advanced",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "pro_dj_link_decks",
+      "label": "PRO DJ LINK DECKS 3/4",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "ableton_link",
+      "label": "ABLETON LINK",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "DISABLED"
+        },
+        {
+          "value": 1,
+          "label": "ENABLED / SESSION FOLLOWS THIS UNIT'S TEMPO MASTER"
+        }
+      ]
+    },
+    {
+      "key": "recording_tracklist",
+      "label": "RECORDING TRACKLIST",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
     }
-  ]
+  ],
+  "wire_order": [
+    "stems",
+    "gate",
+    "smart",
+    "theme",
+    "stem_page",
+    "shift_pages",
+    "pad_feedback",
+    "shift_keysync",
+    "fb_takeover",
+    "takeover_assign",
+    "spare_eq",
+    "stem_bank",
+    "jump_enabled",
+    "jump_shift_page",
+    "jump_1",
+    "jump_2",
+    "jump_3",
+    "jump_4",
+    "jump_5",
+    "jump_6",
+    "jump_7",
+    "jump_8",
+    "stems_overlay",
+    "wave_mode",
+    "browse_1",
+    "browse_2",
+    "browse_3",
+    "browse_key_prefix",
+    "browse_traffic",
+    "key_format",
+    "stem_drums_color",
+    "stem_harmonics_color",
+    "stem_vocals_color",
+    "key_feedback",
+    "ram_debug",
+    "rekordbox_menu",
+    "metrics_enabled",
+    "stem_order",
+    "interface",
+    "classic_theme",
+    "modern_theme",
+    "rekordbox_press",
+    "rekordbox_shift",
+    "modern_stems",
+    "deck_view",
+    "deck_view_button",
+    "browse_preview",
+    "band_low_color",
+    "band_mid_color",
+    "band_high_color",
+    "modern_wave_color",
+    "wave_position",
+    "key_display",
+    "wave_zoom",
+    "usb_colors",
+    "hidden_parts",
+    "modern_browse_columns",
+    "controller_locale",
+    "network_dhcp",
+    "pro_dj_link_decks",
+    "ableton_link",
+    "recording_tracklist"
+  ],
+  "retired_fields": {
+    "jump_shift_page": {
+      "key": "jump_shift_page",
+      "label": "Shift + Beat Jump page 2",
+      "group": "beat_jump",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true
+    },
+    "ram_debug": {
+      "key": "ram_debug",
+      "label": "Free RAM box",
+      "group": "debug",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true
+    },
+    "metrics_enabled": {
+      "key": "metrics_enabled",
+      "label": "On-device metrics",
+      "group": "debug",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true
+    },
+    "shift_pages": {
+      "key": "shift_pages",
+      "label": "Shift + pad modes for stems",
+      "group": "stems",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true
+    },
+    "shift_keysync": {
+      "key": "shift_keysync",
+      "label": "Shift + Sync",
+      "group": "advanced",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true
+    },
+    "deck_view_button": {
+      "key": "deck_view_button",
+      "label": "Deck view button on the play screen",
+      "group": "appearance",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true
+    }
+  },
+  "derived_fields": {
+    "theme": {
+      "key": "theme",
+      "label": "Theme slot of older records",
+      "group": "appearance",
+      "default": 24,
+      "min": 0,
+      "max": 24,
+      "kind": "choice",
+      "readonly": true,
+      "derived": {
+        "modern_value": 24,
+        "interface": "interface",
+        "classic": "classic_theme"
+      }
+    },
+    "rekordbox_menu": {
+      "key": "rekordbox_menu",
+      "label": "Button above LINK opens MODS (read by older runtimes)",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true,
+      "derived": {
+        "press": "rekordbox_press",
+        "shift": "rekordbox_shift",
+        "mods_value": 0,
+        "menu_on_press": 2,
+        "menu_off_press": 1,
+        "shift_default": 1,
+        "takeover": "takeover_assign",
+        "takeover_retired": 1,
+        "takeover_press": 3,
+        "takeover_replacement": 0
+      }
+    }
+  }
 }

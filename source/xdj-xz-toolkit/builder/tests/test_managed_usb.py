@@ -1,6 +1,8 @@
 import hashlib,json,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch
+import subprocess
+from types import SimpleNamespace
 from builder import managed_usb as usb,usb_settings as settings
 from builder.jobs import Job,Cancelled
 
@@ -27,6 +29,13 @@ class ManagedUsbTests(unittest.TestCase):
         s=snapshot or self.snapshot()
         with patch.object(usb.usb,'build_usb',self.build):
             return usb.update_loader(self.volume,s['identity'],s['loader'],self.firmware,self.firmware,self.resources,job or self.job)
+    def test_inspect_reports_space_stems_and_rekordbox(self):
+        (self.volume/'CDJMODS/stems/track').mkdir(parents=True);(self.volume/'CDJMODS/stems/track/a.bin').write_bytes(b'x'*7)
+        report=self.snapshot()
+        self.assertGreater(report['space']['total_bytes'],0);self.assertLessEqual(report['space']['free_bytes'],report['space']['total_bytes'])
+        self.assertEqual(report['stems'],{'tracks':1,'bytes':7});self.assertFalse(report['rekordbox'])
+        (self.volume/'PIONEER/rekordbox').mkdir(parents=True);(self.volume/'PIONEER/rekordbox/export.pdb').write_bytes(b'pdb')
+        self.assertTrue(self.snapshot()['rekordbox'])
     def test_identity_keeps_large_os_ids_as_strings(self):
         observed=usb.identity(self.volume)
         self.assertIsInstance(observed["device"],str);self.assertIsInstance(observed["directory"],str)
@@ -88,11 +97,75 @@ class ManagedUsbTests(unittest.TestCase):
         with self.assertRaises(ValueError):usb.restore_loader(self.volume,snap['identity'],snap['loader'],folder.name,self.resources,self.job)
         self.assertEqual(self.loader.read_bytes(),b'new verified loader')
     def test_schema_binding_low_space_and_lock_collision(self):
-        with patch.object(usb.shutil,'disk_usage',return_value=type('Space',(),{'free':0})()),self.assertRaisesRegex(ValueError,'free space'):self.update()
+        with patch.object(usb.shutil,'disk_usage',return_value=type('Space',(),{'free':0,'total':0})()),self.assertRaisesRegex(ValueError,'free space'):self.update()
         (self.volume/'.xzmods-write.lock').write_bytes(b'unrelated file')
         with self.assertRaisesRegex(ValueError,'recognized lock'):self.update()
         self.assertEqual(self.loader.read_bytes(),b'old verified loader')
         (self.resources/'runtime/settings-schema.json').write_bytes(b'{}')
         with self.assertRaisesRegex(ValueError,'does not match'):settings.contract(self.resources)
+
+class MacDiscoverTests(unittest.TestCase):
+    def test_offers_only_local_disk_mounts_from_volumes(self):
+        temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup)
+        volumes=Path(temp.name).resolve()
+        for name in ('KINGSTON','Folder','Share','Unreadable','Ejected','LOCKED'):(volumes/name).mkdir()
+        def mac_volume(root):
+            if root.name=='KINGSTON':return {'volume_root':str(root),'filesystem':'FAT32','writable':True}
+            if root.name=='LOCKED':return {'volume_root':str(root),'filesystem':'EXFAT','writable':False}
+            if root.name=='Folder':return {'volume_root':'/'}
+            if root.name=='Share':raise ValueError('Choose a mounted USB volume or a local staging folder')
+            if root.name=='Unreadable':raise subprocess.CalledProcessError(1,['/usr/sbin/diskutil'])
+            raise OSError('volume went away')
+        fake_os=SimpleNamespace(name='posix',stat=lambda path:SimpleNamespace(st_dev=1 if str(path)=='/' else 2))
+        with patch.object(usb.sys,'platform','darwin'),patch.object(usb,'os',fake_os),\
+             patch.object(usb,'Path',lambda path:volumes if path=='/Volumes' else Path(path)),\
+             patch('builder.host.mac_volume',mac_volume):
+            found=usb.discover(None)['usbs']
+        # Every local disk is listed with what the app needs to know: whether a loader can go on it.
+        self.assertEqual(sorted(drive['volume'] for drive in found),[str(volumes/'KINGSTON'),str(volumes/'LOCKED')])
+        drives={Path(drive['volume']).name:drive for drive in found}
+        self.assertTrue(drives['KINGSTON']['removable'])
+        self.assertEqual((drives['KINGSTON']['filesystem'],drives['KINGSTON']['writable']),('FAT32',True))
+        self.assertEqual((drives['LOCKED']['filesystem'],drives['LOCKED']['writable']),('EXFAT',False))
+
+# Windows STORAGE_BUS_TYPE values.
+USB_BUS,SATA_BUS,NVME_BUS=7,0x0B,0x11
+
+class WindowsDiscoverTests(unittest.TestCase):
+    """Windows calls many fast USB 3 sticks and USB SSDs fixed disks. The bus they sit on, not the removable flag, makes them USB."""
+    # name: (GetDriveTypeW, bus or None when Windows did not say, file system)
+    DRIVES={'PNY256FAT':(3,USB_BUS,'FAT32'),'PNY256EXFAT':(3,USB_BUS,'EXFAT'),'CHEAP32':(2,USB_BUS,'FAT32'),
+            'USBSSD':(3,USB_BUS,'NTFS'),'SYSTEM':(3,NVME_BUS,'NTFS'),'DATA':(3,SATA_BUS,'NTFS'),'SATAEXFAT':(3,SATA_BUS,'EXFAT'),
+            'UNKNOWNEXFAT':(3,None,'EXFAT'),'UNKNOWNNTFS':(3,None,'NTFS')}
+    def test_lists_usb_disks_by_bus_and_leaves_out_internal_disks(self):
+        temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup)
+        roots={name:Path(temp.name).resolve()/name for name in self.DRIVES}
+        for root in roots.values():root.mkdir()
+        rows=[(roots[name],name,kind,filesystem,True) for name,(kind,_,filesystem) in self.DRIVES.items()]
+        buses={roots[name]:bus for name,(_,bus,_) in self.DRIVES.items()}
+        with patch.object(usb.os,'name','nt'),patch.object(usb,'_windows_volumes',return_value=rows),             patch.object(usb.usb,'windows_bus',side_effect=lambda root:buses[root]):
+            found={drive['label']:drive for drive in usb.discover(None)['usbs']}
+        # Both 256 GB sticks Windows reports as fixed, the small removable stick, a USB SSD in NTFS, and a fixed
+        # FAT or exFAT disk whose bus Windows would not name (the file-system rule target_info applies).
+        self.assertEqual(sorted(found),['CHEAP32','PNY256EXFAT','PNY256FAT','UNKNOWNEXFAT','USBSSD'])
+        self.assertTrue(all(drive['removable'] for drive in found.values()))
+        self.assertEqual(found['PNY256EXFAT']['filesystem'],'EXFAT')
+
+    def test_an_internal_disk_with_a_loader_is_listed_but_not_as_usb(self):
+        temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup)
+        root=Path(temp.name).resolve()/'DATA';root.mkdir();(root/'autoexec.bin').write_bytes(b'loader kept on an internal disk')
+        with patch.object(usb.os,'name','nt'),patch.object(usb,'_windows_volumes',return_value=[(root,'DATA',3,'NTFS',True)]),             patch.object(usb.usb,'windows_bus',return_value=SATA_BUS):
+            found=usb.discover(None)['usbs']
+        self.assertEqual([(drive['label'],drive['removable'],drive['loader']) for drive in found],[('DATA',False,True)])
+
+class OnUsbTests(unittest.TestCase):
+    def test_the_bus_decides_and_the_old_rule_covers_an_unknown_bus(self):
+        cases=[((3,USB_BUS,'FAT32'),True),((3,USB_BUS,'EXFAT'),True),((3,USB_BUS,'NTFS'),True),((2,USB_BUS,'FAT32'),True),
+               ((3,0x0C,'EXFAT'),True),((3,0x0D,'FAT32'),True),
+               ((3,NVME_BUS,'NTFS'),False),((3,SATA_BUS,'NTFS'),False),((3,SATA_BUS,'EXFAT'),False),
+               ((2,None,'NTFS'),True),((3,None,'EXFAT'),True),((3,None,'FAT32'),True),((3,None,'NTFS'),False),((3,None,None),False)]
+        for (kind,bus,filesystem),expected in cases:
+            with self.subTest(kind=kind,bus=bus,filesystem=filesystem):
+                self.assertIs(usb.usb.on_usb(kind,bus,filesystem),expected)
 
 if __name__=='__main__':unittest.main()

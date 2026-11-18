@@ -1,0 +1,18 @@
+{
+  "section": "connect#when-a-profile-will-not-save-or-show",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 611
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "CONNECT"
+    },
+    {
+      "tap": "DJ PROFILE"
+    }
+  ]
+}

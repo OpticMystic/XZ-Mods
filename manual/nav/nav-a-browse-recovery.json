@@ -1,0 +1,24 @@
+{
+  "section": "browse#if-browsing-goes-wrong",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "SOURCE"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "key": "BROWSE"
+    },
+    {
+      "push": true
+    },
+    {
+      "key": "LOAD"
+    }
+  ]
+}

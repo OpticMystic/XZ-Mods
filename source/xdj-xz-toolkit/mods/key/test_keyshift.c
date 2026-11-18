@@ -179,7 +179,7 @@ static void smooth_zero_reset(void)
     puts("nonzero changes and zero reset glide before exact bypass");
 }
 
-static void frequency_case(int semitones, double expected)
+static void frequency_case(int cents, double input_frequency, double expected)
 {
     float block[TEST_FRAMES * 2u];
     double phase = 0;
@@ -187,13 +187,13 @@ static void frequency_case(int semitones, double expected)
     unsigned blocks, i;
     xz_key_shift_init(&states[0]);
     for (blocks = 0; blocks < 100; ++blocks) {
-        tone(block, TEST_FRAMES, &phase, 440, 440);
+        tone(block, TEST_FRAMES, &phase, input_frequency, input_frequency);
         assert(xz_key_shift_process(&states[0], block, TEST_FRAMES) == 0);
     }
-    assert(xz_key_shift_set_semitones(&states[0], semitones) == 0);
+    assert(xz_key_shift_set_cents(&states[0], cents) == 0);
     for (blocks = 0; blocks < 360; ++blocks) {
         uint32_t n = TEST_FRAMES;
-        tone(block, n, &phase, 440, 440);
+        tone(block, n, &phase, input_frequency, input_frequency);
         assert(xz_key_shift_process(&states[0], block, n) == 0);
         if (blocks >= 260 && written < XZ_KEY_SHIFT_SAMPLE_RATE) {
             uint32_t take = XZ_KEY_SHIFT_SAMPLE_RATE - written;
@@ -209,7 +209,7 @@ static void frequency_case(int semitones, double expected)
     {
         double left = dominant_frequency(capture, written, 0, expected);
         double right = dominant_frequency(capture, written, 1, expected);
-        printf("%+d semitones: left %.2f Hz, right %.2f Hz\n", semitones, left, right);
+        printf("%+d cents: left %.2f Hz, right %.2f Hz\n", cents, left, right);
         fflush(stdout);
         assert(fabs(left - expected) < 3.0);
         assert(fabs(right - expected) < 3.0);
@@ -222,8 +222,10 @@ int main(void)
     channel_isolation();
     partition_and_deck_isolation();
     smooth_zero_reset();
-    frequency_case(12, 880.0);
-    frequency_case(-12, 220.0);
+    frequency_case(1200, 440.0, 880.0);
+    frequency_case(-1200, 440.0, 220.0);
+    frequency_case(77, 440.0 * exp2(123.0 / 1200.0), 440.0 * exp2(200.0 / 1200.0));
+    frequency_case(-137, 440.0, 440.0 * exp2(-137.0 / 1200.0));
     puts("PASS portable 44.1 kHz stereo key shifter; no native hook exercised");
     return 0;
 }

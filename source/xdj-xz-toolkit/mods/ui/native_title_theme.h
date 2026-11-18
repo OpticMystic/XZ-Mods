@@ -11,6 +11,8 @@ static inline int xz_native_title_deck(unsigned id,unsigned width,unsigned heigh
 static inline int xz_native_title_colors(int theme,int deck,uint32_t *paper,uint32_t *ink){
  if(deck<0||deck>1)return 0;
  if(theme==XZ_THEME_LCARS){*paper=deck?XZ_LCARS_NATIVE_VIOLET:XZ_LCARS_NATIVE_AMBER;*ink=0;return 1;}
+ /* FLAGSHIP keeps the stock black paper and white ink; the palette LUT maps
+    both onto themselves, so no title override is needed. */
  if(theme<7||theme>18)return 0;
  const struct xz_theme *t=xz_theme(theme);*paper=t->title;*ink=t->title_ink;return 1;
 }

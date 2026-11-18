@@ -1,19 +1,23 @@
-"""Build original loading artwork only; no manufacturer image pack is shipped."""
+"""Build original loading artwork only; no manufacturer image pack is shipped.
+
+    python mods/ui/build_branding_assets.py <xdj-xz-toolkit> <output folder>
+
+Writes splash.rgb565 (image 1446, the start-up screen) and logo.rgb565 (image 1487, the stock player's
+empty-deck logo), both drawn from the vector mark by build_logo.py, plus apply.sh and MD5SUMS. The
+folder is the runtime bundle's branding/ folder; the loader patches the two images into the player's
+image pack in RAM at start-up."""
 from pathlib import Path
 import hashlib
 import sys
-import numpy as np
+
 
 def build(source: Path, output: Path):
-    sys.path.insert(0, str(source / 'vendor'))
-    from tools.xz_gui.theme import make_splash, make_unloaded_logo
+    sys.path.insert(0, str(source / 'mods/ui'))
+    from build_logo import banner_image, load, pack_rgb565, splash_image
     output.mkdir(parents=True, exist_ok=True)
-    font=source/'mods/ui/fonts/BarlowSemiCondensed-Medium.ttf'
-    logo=source/'mods/ui/assets/xz-mods.png'
-    for name, image in [('splash.rgb565',make_splash(font,logo)),('logo.rgb565',make_unloaded_logo(font,logo))]:
-        rgb=np.asarray(image.convert('RGB'),dtype=np.uint16)
-        pixels=((rgb[:,:,0]>>3)<<11)|((rgb[:,:,1]>>2)<<5)|(rgb[:,:,2]>>3)
-        (output/name).write_bytes(pixels.astype('<u2').tobytes())
+    layers = load()
+    for name, image in [('splash.rgb565', splash_image(layers)), ('logo.rgb565', banner_image(layers))]:
+        (output/name).write_bytes(pack_rgb565(image))
     (output/'apply.sh').write_text('''#!/bin/sh
 set -eu
 pack="$1"

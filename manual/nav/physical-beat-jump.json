@@ -1,0 +1,108 @@
+{
+  "section": "performance#beat-jump",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "gesture": "BEAT JUMP",
+      "code": 4,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad A",
+      "code": 10,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad B",
+      "code": 11,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad C",
+      "code": 12,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad D",
+      "code": 13,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad E",
+      "code": 14,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad F",
+      "code": 15,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad G",
+      "code": 16,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad H",
+      "code": 17,
+      "side": 0
+    },
+    {
+      "shift": true
+    },
+    {
+      "gesture": "BEAT JUMP",
+      "code": 4,
+      "side": 0
+    },
+    {
+      "shift": false
+    },
+    {
+      "gesture": "performance pad A",
+      "code": 10,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad B",
+      "code": 11,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad C",
+      "code": 12,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad D",
+      "code": 13,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad E",
+      "code": 14,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad F",
+      "code": 15,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad G",
+      "code": 16,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad H",
+      "code": 17,
+      "side": 0
+    }
+  ],
+  "requires_effects": [
+    [
+      "runtime-beat-jump",
+      1
+    ]
+  ]
+}

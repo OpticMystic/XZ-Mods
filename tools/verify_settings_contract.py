@@ -9,9 +9,9 @@ with tempfile.TemporaryDirectory(prefix='xz-settings-contract-') as folder:
  code.write_text('''#include "settings.h"
 #include "ui/themes.h"
 #include <stdio.h>
-int main(int argc,char **argv){struct xz_settings s;char text[512];
+int main(int argc,char **argv){struct xz_settings s;char text[1024];
 if(argc==1){xz_settings_default(&s);int n=xz_settings_format(&s,text,sizeof(text));if(n<0)return 3;fputs(text,stdout);return 0;}
-FILE *f=fopen(argv[1],"rb");if(!f)return 2;size_t n=fread(text,1,511,f);fclose(f);text[n]=0;return xz_settings_parse(text,&s)?1:0;}
+FILE *f=fopen(argv[1],"rb");if(!f)return 2;size_t n=fread(text,1,1023,f);fclose(f);text[n]=0;return xz_settings_parse(text,&s)?1:0;}
 ''')
  subprocess.run(['gcc','-std=c11','-O1','-I',str(native),str(code),str(native/'settings.c'),'-o',str(exe)],check=True)
  expected=usb_settings.serialize(usb_settings.defaults(schema),schema)
@@ -19,9 +19,10 @@ FILE *f=fopen(argv[1],"rb");if(!f)return 2;size_t n=fread(text,1,511,f);fclose(f
  cases=[expected]
  lines=expected.splitlines(keepends=True)
  cases += [b''.join(lines[:n+1]) for n in range(8,24)]
- for field in schema['fields']:
+ raw=lambda values:(schema['header']+chr(10)+''.join(f"{f['key']}={values[f['key']]}"+chr(10) for f in usb_settings.wire_fields(schema))).encode('ascii')
+ for field in usb_settings.wire_fields(schema):
   for value in [field['min'],field['max']]:
-   values=usb_settings.defaults(schema);values[field['key']]=value;cases.append(usb_settings.serialize(values,schema))
+   values=usb_settings.defaults(schema);values[field['key']]=value;cases.append(raw(values))
   cases.append(expected.replace((field['key']+'='+str(field['default'])+'\n').encode(),(field['key']+'='+str(field['max']+1)+'\n').encode()))
  cases += [expected+b'future=1\n',expected.replace(b'\n',b'\r\n'),expected.replace(b'SETTINGS 1',b'SETTINGS 2')]
  for i,data in enumerate(cases):

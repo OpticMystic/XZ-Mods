@@ -1,0 +1,52 @@
+{
+  "section": "mods-menu#my-settings",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 22
+    },
+    {
+      "key": "BROWSE"
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "fixture": 401
+    },
+    {
+      "touch": [
+        660,
+        131
+      ]
+    },
+    {
+      "touch": [
+        660,
+        131
+      ]
+    },
+    {
+      "fixture": 402
+    },
+    {
+      "touch": [
+        660,
+        131
+      ]
+    },
+    {
+      "touch": [
+        660,
+        131
+      ]
+    }
+  ],
+  "requires_actions": [
+    [
+      "shell",
+      19,
+      0
+    ]
+  ]
+}

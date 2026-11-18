@@ -31,6 +31,21 @@ class RecordingJob:
         return json.dumps(self.verified)
 
 
+class FakeEngine:
+    opened = []
+
+    def __init__(self, preset, job, resources):
+        self.preset, self.job, self.resources = preset, job, resources
+        self.state = {'device': 'cpu', 'python': 'python'}
+
+    def __enter__(self):
+        FakeEngine.opened.append(self)
+        return self
+
+    def __exit__(self, *error):
+        self.closed = True
+
+
 class BatchTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -49,7 +64,7 @@ class BatchTests(unittest.TestCase):
         self.resources = self.root / 'resources'
 
     def generate(self, effect):
-        with patch.object(stem_batch.engines, 'separate', side_effect=effect):
+        with patch.object(stem_batch.engines, 'Engine', FakeEngine),                 patch.object(stem_batch.engines, 'separate', side_effect=lambda request, job, resources, engine=None: effect(request, job, resources)):
             return stem_batch.generate(self.request, self.job, self.resources)
 
     def test_continues_after_track_failure_and_preserves_sources(self):
@@ -122,12 +137,59 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(len(self.job.commands), 3)
         self.assertEqual(self.job.commands[0][1], self.root / self.mapping[1].lstrip('/'))
 
+    def test_cdj3000_batch_prepares_own_44k1_stems_again_and_reuses_the_rest(self):
+        states = {
+            # XZ Mods' own 44.1 kHz stems: CDJ-3000s cannot play them, so a 96 kHz batch prepares them again.
+            1: {'stem_status': 'present', 'can_generate': True, 'producer': 'xz-mods', 'stem_sample_rate': 44100},
+            # 96 kHz stems already serve both players.
+            2: {'stem_status': 'present', 'can_generate': True, 'producer': 'xz-mods', 'stem_sample_rate': 96000},
+            # Stems another writer made are never replaced by a batch.
+            3: {'stem_status': 'present', 'can_generate': False, 'producer': 'OverCue', 'stem_sample_rate': 44100},
+        }
+        sent = []
+        def separate(request, job, resources):
+            sent.append(request)
+            return {'reused': False}
+        self.request['stem_sample_rate'] = 96000
+        with patch.object(stem_library, 'stem_status', side_effect=lambda root, track, index, error: states[track['id']]):
+            result = self.generate(separate)
+        self.assertEqual((result['prepared'], result['reused'], result['failed']), (1, 2, 0))
+        self.assertEqual([(request['source'], request['stem_sample_rate']) for request in sent],
+                         [(str(self.root / self.mapping[1].lstrip('/')), 96000)])
+        self.assertEqual(len(self.job.commands), 2)
+
+    def test_xz_batch_reuses_present_stems_at_either_rate(self):
+        for rate in (44100, 96000):
+            with self.subTest(rate=rate):
+                present = {'stem_status': 'present', 'can_generate': True, 'producer': 'xz-mods', 'stem_sample_rate': rate}
+                self.request['stem_sample_rate'] = 44100
+                with patch.object(stem_library, 'stem_status', return_value=present):
+                    result = self.generate(lambda *args: self.fail('Present stems prepared again'))
+                self.assertEqual(result['reused'], 3)
+
+    def test_unknown_stem_sample_rate_is_refused_before_the_engine_starts(self):
+        for rate in (48000, '44100', 44100.0, True):
+            with self.subTest(rate=rate):
+                self.request['stem_sample_rate'] = rate
+                FakeEngine.opened.clear()
+                with self.assertRaisesRegex(ValueError, 'Stem sample rate'):
+                    self.generate(lambda *args: self.fail('Invalid rate ran'))
+                self.assertEqual(FakeEngine.opened, [])
+
     def test_failed_verification_leaves_prepared_stems_alone(self):
         self.job.verified['all_pages_verified'] = False
         with patch.object(stem_library, 'stem_status', return_value={'stem_status': 'present'}):
             result = self.generate(lambda *args: self.fail('Corrupt existing track overwritten'))
         self.assertEqual(result['failed'], 3)
         self.assertEqual(result['reused'], 0)
+
+    def test_four_to_seven_verified_mixes_are_reused(self):
+        for count in (4,5,6,7,3,8,None,'4',True):
+            with self.subTest(count=count):
+                self.job.verified.update(verified_mixes=count,layout='four-file' if count==4 else 'seven-file')
+                with patch.object(stem_library,'stem_status',return_value={'stem_status':'present'}):
+                    result=self.generate(lambda *args:self.fail('Existing track regenerated'))
+                self.assertEqual(result['reused'],3 if type(count) is int and 4<=count<=7 else 0)
 
     def test_request_validation_before_engine_execution(self):
         for ids in ([], ['1', '1'], [True], ['../1'], ['4294967296'], ['0'], [1] * 101, ['999']):

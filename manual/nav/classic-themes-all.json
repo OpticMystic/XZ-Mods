@@ -1,0 +1,22 @@
+{
+  "section": "screen-and-themes#classic-themes",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "SCREEN"
+    },
+    {
+      "tap": "CLASSIC"
+    },
+    {
+      "tap": "THEME"
+    },
+    {
+      "settings": true
+    }
+  ]
+}

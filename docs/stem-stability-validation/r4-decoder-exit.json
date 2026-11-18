@@ -1,0 +1,17 @@
+{
+  "source_commit": "e9e9fd34df091f635b983f2ba3e96adc726ebd56",
+  "source_file_manifest_sha256": "6d4b01cfe8d18df13d28937a40eb7ac6b3a6965b5f2c9d9b5652b1591e6d15ea",
+  "command": [
+    "wsl",
+    "-d",
+    "Ubuntu",
+    "--",
+    "python3",
+    "/mnt/e/Codex/xz-stem-fix-20261015/app-e9e9fd3/source/xdj-xz-toolkit/mods/audio/tests/verify_overcue.py",
+    "--cc",
+    "gcc",
+    "--sanitizer",
+    "address"
+  ],
+  "exit_code": 0
+}

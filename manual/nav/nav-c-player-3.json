@@ -1,0 +1,126 @@
+{
+  "section": "four-decks#what-decks-3-and-4-can-do",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "tap": "DECKS"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "player": [
+        0,
+        0
+      ],
+      "control": "PLAY"
+    },
+    {
+      "player": [
+        1,
+        0
+      ],
+      "control": "CUE"
+    },
+    {
+      "player": [
+        0,
+        0
+      ],
+      "control": "PLAY"
+    },
+    {
+      "player": [
+        5,
+        0
+      ],
+      "control": "SYNC"
+    },
+    {
+      "player": [
+        24,
+        0
+      ],
+      "control": "QUANTIZE"
+    },
+    {
+      "player": [
+        5,
+        0
+      ],
+      "control": "SYNC"
+    },
+    {
+      "player": [
+        19,
+        0
+      ],
+      "control": "MASTER"
+    },
+    {
+      "player": [
+        5,
+        0
+      ],
+      "control": "SYNC"
+    },
+    {
+      "player": [
+        0,
+        0
+      ],
+      "control": "PLAY"
+    },
+    {
+      "player": [
+        13,
+        0
+      ],
+      "control": "LOOP IN"
+    },
+    {
+      "player": [
+        14,
+        0
+      ],
+      "control": "LOOP OUT"
+    },
+    {
+      "player": [
+        15,
+        0
+      ],
+      "control": "RELOOP"
+    }
+  ],
+  "requires_effects": [
+    [
+      "software-player",
+      0
+    ],
+    [
+      "software-player",
+      5
+    ],
+    [
+      "software-player",
+      24
+    ]
+  ],
+  "requires_observations": [
+    {
+      "software_loaded": 1
+    },
+    {
+      "software_loaded": 1,
+      "sync3": 1
+    },
+    {
+      "software_loaded": 1,
+      "sync3": 0
+    }
+  ]
+}

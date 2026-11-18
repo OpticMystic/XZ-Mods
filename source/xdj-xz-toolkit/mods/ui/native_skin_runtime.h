@@ -1,8 +1,10 @@
 #ifndef XZ_NATIVE_SKIN_RUNTIME_H
 #define XZ_NATIVE_SKIN_RUNTIME_H
 #include <stdint.h>
+void xz_native_skin_band_colors(const uint32_t rgb[3]);
 int xz_native_skin_start(int theme);
 void xz_native_skin_request(int theme);
+void xz_native_skin_request_repaint(void);
 const char *xz_native_skin_status(void);
 void xz_native_skin_stop(void);
 int xz_native_skin_on_owner_thread(void);

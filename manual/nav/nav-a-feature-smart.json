@@ -1,0 +1,36 @@
+{
+  "section": "performance#feature-setup",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 240
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "PLAY"
+    },
+    {
+      "tap": "SET UP SMART CUE"
+    },
+    {
+      "tap": "DETECT FEATURE"
+    },
+    {
+      "fixture": 241
+    },
+    {
+      "tap": "DETECT FEATURE"
+    },
+    {
+      "tap": "USE SELECTED DECK"
+    },
+    {
+      "tap": "ENABLE FEATURE"
+    },
+    {
+      "tap": "I TESTED IT / DONE"
+    }
+  ]
+}

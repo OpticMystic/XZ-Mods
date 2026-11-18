@@ -1,0 +1,27 @@
+{
+  "section": "troubleshooting#report-a-problem",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 37
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "REPORT THIS"
+    },
+    {
+      "tap": "SKIP, I'LL ADD IT ON MY COMPUTER"
+    },
+    {
+      "tap": "SEND REPORT"
+    }
+  ],
+  "requires_effects": [
+    [
+      "MODS",
+      135
+    ]
+  ]
+}

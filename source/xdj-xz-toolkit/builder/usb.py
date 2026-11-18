@@ -14,10 +14,55 @@ from . import firmware
 def sha(path):
     with Path(path).open('rb') as file:return hashlib.file_digest(file,'sha256').hexdigest()
 
+# A drive root takes the loader when it is a USB drive (see on_usb) and writable. The file system is not a condition:
+# the XZ boots a loader from an exFAT stick as well as a FAT32 one. Anything else is a folder whose contents the DJ
+# copies to a USB afterward.
+USB_FILESYSTEMS=('FAT','FAT32','EXFAT')
+DRIVE_REMOVABLE=2
+# STORAGE_BUS_TYPE values for USB, SD and MMC: the buses the desktop host also ejects (src-tauri/src/eject.rs).
+USB_BUSES=(7,0x0C,0x0D)
+
+def on_usb(drive_type,bus,filesystem):
+    """Whether a Windows drive is a USB stick or card. The bus decides: Windows calls many fast USB 3 sticks and USB SSDs
+    fixed disks, the same as an internal disk. When Windows does not name the bus, a removable drive or a FAT, FAT32 or
+    exFAT one counts (the disks this computer runs from never are)."""
+    if drive_type==DRIVE_REMOVABLE or bus in USB_BUSES:return True
+    return bus is None and filesystem in USB_FILESYSTEMS
+
+def windows_bus(root):
+    """STORAGE_DEVICE_DESCRIPTOR.BusType of the disk under a volume root (a drive root like E:/ or a mount folder), or None
+    when Windows does not say. Opens the volume with no access rights, so it needs no administrator and never reads the media."""
+    from ctypes import wintypes
+    # A private WinDLL, so these prototypes never change the shared ctypes.windll.kernel32 others call.
+    kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+    kernel.GetVolumeNameForVolumeMountPointW.argtypes=[wintypes.LPCWSTR,wintypes.LPWSTR,wintypes.DWORD]
+    kernel.GetVolumeNameForVolumeMountPointW.restype=wintypes.BOOL
+    kernel.CreateFileW.argtypes=[wintypes.LPCWSTR,wintypes.DWORD,wintypes.DWORD,ctypes.c_void_p,wintypes.DWORD,wintypes.DWORD,wintypes.HANDLE]
+    kernel.CreateFileW.restype=wintypes.HANDLE
+    kernel.DeviceIoControl.argtypes=[wintypes.HANDLE,wintypes.DWORD,ctypes.c_void_p,wintypes.DWORD,ctypes.c_void_p,wintypes.DWORD,ctypes.POINTER(wintypes.DWORD),ctypes.c_void_p]
+    kernel.DeviceIoControl.restype=wintypes.BOOL
+    kernel.CloseHandle.argtypes=[wintypes.HANDLE]
+    mount=str(root).replace('/','\\')
+    if not mount.endswith('\\'):mount+='\\'
+    volume=ctypes.create_unicode_buffer(64)
+    if not kernel.GetVolumeNameForVolumeMountPointW(mount,volume,len(volume)):return None
+    # \\?\Volume{GUID}\ without its trailing backslash names the volume device. FILE_SHARE_READ|FILE_SHARE_WRITE, OPEN_EXISTING.
+    handle=kernel.CreateFileW(volume.value.rstrip('\\'),0,3,None,3,0,None)
+    if handle in (None,ctypes.c_void_p(-1).value):return None
+    try:
+        # STORAGE_PROPERTY_QUERY: StorageDeviceProperty, PropertyStandardQuery. BusType is at offset 28 of the reply.
+        query=(ctypes.c_uint32*3)();reply=ctypes.create_string_buffer(1024);returned=wintypes.DWORD()
+        if not kernel.DeviceIoControl(handle,0x002D1400,query,12,reply,len(reply),ctypes.byref(returned),None) or returned.value<32:return None
+        return int.from_bytes(reply.raw[28:32],'little')
+    finally:kernel.CloseHandle(handle)
+
+READ_ONLY='The selected USB is read-only. Reconnect it so it can be written, or unlock it, and try again.'
+NOT_USB='This drive is part of this computer, not a USB. Choose a USB drive, or a folder. XZ Mods does not format drives.'
+
 def target_info(path, *, boot_loader=True):
     path=_safe_path(path)
     if not path.is_dir():raise ValueError('Choose an existing USB root or staging folder')
-    filesystem=None;root=None;serial=None
+    filesystem=None;root=None;serial=None;removable=False;writable=True
     if os.name=='nt':
         get_root=ctypes.windll.kernel32.GetVolumePathNameW
         get_root.argtypes=[ctypes.c_wchar_p,ctypes.c_wchar_p,ctypes.c_uint32];get_root.restype=ctypes.c_int
@@ -29,31 +74,42 @@ def target_info(path, *, boot_loader=True):
         if not get_root(str(path),buffer,len(buffer)):
             raise OSError('Could not identify the target volume')
         root=buffer.value;name=ctypes.create_unicode_buffer(64)
-        volume_serial=ctypes.c_uint32()
-        if not get_info(root,None,0,ctypes.byref(volume_serial),None,None,name,len(name)):
+        volume_serial=ctypes.c_uint32();flags=ctypes.c_uint32()
+        if not get_info(root,None,0,ctypes.byref(volume_serial),None,ctypes.byref(flags),name,len(name)):
             raise OSError('Could not read the target filesystem')
         filesystem=name.value.upper();serial=volume_serial.value
-        if boot_loader and path==Path(root) and filesystem not in ('FAT','FAT32'):
-            raise ValueError('Choose a FAT/FAT32 USB root, or a staging folder. XZ Mods does not format drives.')
+        writable=not flags.value&0x80000  # FILE_READ_ONLY_VOLUME: a locked card or a write-protected stick
+        removable=on_usb(ctypes.windll.kernel32.GetDriveTypeW(root),windows_bus(root),filesystem)
     elif sys.platform=='darwin':
         from .host import mac_volume
         info=mac_volume(path);root=info['volume_root'];filesystem=info['filesystem'];serial=info['volume_serial']
-        if boot_loader and path==Path(root):
-            if filesystem not in ('FAT','FAT32'):
-                raise ValueError('Choose a FAT/FAT32 USB root, or a staging folder. XZ Mods does not format drives.')
-            if not info['writable']:
-                raise ValueError('The selected USB is read-only. Reconnect a writable FAT/FAT32 USB and try again.')
-    direct=bool(root and path==Path(root) and filesystem in ('FAT','FAT32'))
+        writable=info.get('writable') is not False;removable=info.get('internal') is False
+    at_root=bool(root and path==Path(root))
+    direct=at_root and (removable or filesystem in USB_FILESYSTEMS)
+    if boot_loader and at_root:
+        if not direct:raise ValueError(NOT_USB)
+        if not writable:raise ValueError(READ_ONLY)
     return {'filesystem':filesystem,'volume_serial':serial,'volume_root':root,'direct_usb_root':direct,'requires_copy_to_usb_root':not direct}
 
 def require_usb_root(path):
     path=_safe_path(path)
     target=target_info(path)
     if not target['direct_usb_root']:
-        raise ValueError('Choose the root of a FAT/FAT32 USB drive. XZ Mods does not format drives or erase music.')
+        raise ValueError('Choose the root of a USB drive. XZ Mods does not format drives or erase music.')
     if (path/'autoexec.bin').exists():
         raise FileExistsError('This USB already has autoexec.bin. Keep that loader or back it up before preparing a new one.')
     return path
+
+def require_loader_target(path):
+    """A USB drive root, or a staging folder whose loader the DJ copies to a USB afterward."""
+    path=_safe_path(path)
+    target=target_info(path)
+    if target['direct_usb_root']:return require_usb_root(path),target
+    if target.get('volume_root') and path==Path(target['volume_root']):
+        raise ValueError(NOT_USB)
+    if (path/'autoexec.bin').exists():
+        raise FileExistsError('This folder already has autoexec.bin. Choose an empty folder.')
+    return path,target
 
 def inspect_inputs(rbp,key):
     application_path=_regular(rbp);secret=_regular(key)
@@ -73,7 +129,7 @@ def build_usb(volume,rbp,key,resources,job,experimental=False):
     runtime=resources/'runtime'/'libxz-mods.so';receiver=resources/'runtime'/'libxz-receiver.so'
     for name,path in [('runtime_sha256',runtime),('receiver_sha256',receiver)]:
         if sha(path)!=manifest[name]:raise ValueError('Bundled mod files failed integrity verification')
-    for field,name in [('doom_sha256','xz-doom'),('private_doom_wad_sha256','doom1.wad'),('ota_updater_sha256','xz-updater'),('ota_runtime_smoke_sha256','xz-runtime-smoke')]:
+    for field,name in [('doom_sha256','xz-doom'),('private_doom_wad_sha256','doom1.wad'),('ota_updater_sha256','xz-updater'),('ota_runtime_smoke_sha256','xz-runtime-smoke'),('support_sha256','xz-support')]:
         if manifest.get(field) and sha(resources/'runtime'/name)!=manifest[field]:
             raise ValueError('Bundled Doom files failed integrity verification')
     secret=firmware.effective_key(key)
@@ -83,6 +139,16 @@ def build_usb(volume,rbp,key,resources,job,experimental=False):
         staging=temporary/'payload'
         job.progress('build','Assembling the standalone mod and VJ.Tools connection')
         expected=firmware.stage_payload(staging,patched,runtime,receiver,resources/'bootstrap.sh')
+        version_path=resources/'mod-version.json'
+        if version_path.is_file():
+            version_data=version_path.read_bytes()
+            version=json.loads(version_data)
+            if version.get('runtime_sha256')!=manifest['runtime_sha256'] or version.get('receiver_sha256')!=manifest['receiver_sha256']:
+                raise ValueError('Selected mod version does not match the payload libraries')
+            if version.get('bootstrap_sha256')!=sha(resources/'bootstrap.sh'):
+                raise ValueError('Selected mod startup policy changed before building')
+            (staging/'xz-mod-version.json').write_bytes(version_data)
+            expected['xz-mod-version.json']=version_data
         branding=resources/'branding'
         if branding.is_dir():
             (staging/'branding').mkdir()
@@ -90,9 +156,12 @@ def build_usb(volume,rbp,key,resources,job,experimental=False):
                 data=(branding/name).read_bytes()
                 (staging/'branding'/name).write_bytes(data)
                 expected['branding/'+name]=data
-        notices=staging/'licenses';notices.mkdir()
+        notices=staging/'licenses';notices.mkdir(exist_ok=True)
         for path in (resources/'licenses').iterdir():
-            if path.is_file():shutil.copyfile(path,notices/path.name)
+            # Corresponding-source archives ship with the desktop package and release.
+            # Only license notices belong in the small controller boot image.
+            if path.is_file() and not path.name.lower().endswith(('.zip','.tar.gz','.tar.xz','.tar.bz2')):
+                shutil.copyfile(path,notices/path.name)
         image=temporary/'autoexec.bin'
         data=firmware.author_image(staging,secret);image.write_bytes(data)
         job.progress('verify','Verifying the encrypted USB image before installation')

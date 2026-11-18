@@ -18,7 +18,7 @@ __declspec(dllexport) void preview_step(unsigned now){
     xz_arcade_step(&game,now);
 }
 __declspec(dllexport) void preview_music(int command,float value,unsigned now){
-    preview_step(now);game.clock_deck=2;
+    preview_step(now);if(command<2)game.clock_deck=2;
     if(command==0){demo_playing=demo_enabled?!demo_playing:1;demo_enabled=1;}
     else if(command==1){demo_beat=0;demo_track++;demo_enabled=demo_playing=1;}
     else if(command==2&&value>=40&&value<=240)demo_bpm=value;

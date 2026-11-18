@@ -1,0 +1,27 @@
+{
+  "section": "browse#loading-a-track",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "BROWSE"
+    },
+    {
+      "push": true
+    },
+    {
+      "turn": 3
+    },
+    {
+      "key": "LOAD"
+    },
+    {
+      "back": true
+    }
+  ],
+  "requires_effects": [
+    [
+      "shell",
+      5
+    ]
+  ]
+}

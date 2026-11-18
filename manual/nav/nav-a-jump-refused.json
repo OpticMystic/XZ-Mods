@@ -1,0 +1,17 @@
+{
+  "section": "performance#when-a-jump-is-refused",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 270
+    },
+    {
+      "gesture": "BEAT JUMP",
+      "code": 4
+    },
+    {
+      "gesture": "PAD A",
+      "code": 10
+    }
+  ]
+}

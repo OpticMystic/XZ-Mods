@@ -1,0 +1,425 @@
+/* SPDX-License-Identifier: MIT */
+#ifndef XZ_SHELL_RUNTIME_H
+#define XZ_SHELL_RUNTIME_H
+/* FLAGSHIP shell on the deck: frame ownership, input routing, the command
+   queue onto the native UI thread and the stock hand-off.
+
+   Active while the FLAGSHIP theme (24) is selected and XZ_MODS_SHELL=1 was in
+   the environment at start. The MODS panel, the games, Doom and the VJ
+   takeover keep priority: ui_runtime.c passes `eligible` = none of them owns
+   the screen. While the shell owns the screen xz_mods_visible_v1 reports
+   true, so the receiver treats it exactly like the open MODS panel.
+
+   Two layers. shell_runtime_core.c is pure (key table, press-time key verdict,
+   touch and encoder ownership, hand-off state machine, command queue, setting
+   mapping) and host-tested by test_shell_runtime.c. shell_runtime.c is the
+   device glue: native reads, the worker, the C2/C3/UiKey_Menu calls. */
+#include <stddef.h>
+#include <stdint.h>
+#include "shell/shell.h"
+#include "shell_model.h"
+#include "extra_decks.h"
+#include "shell/shell_settings.h"
+
+/* ---- Device entry points (shell_runtime.c). Weak in ui_runtime.c. ---- */
+struct xz_shell_runtime_key { int valid; char text[8]; char original[8]; int cents, synced; int matches_master, shift; };
+#define XZ_SHELL_RUNTIME_DJ 32
+struct xz_shell_runtime_frame_input {
+ unsigned controller_locale;
+ int eligible, theme;
+ int key_controls_open; /* transient PLAY overlay, forces a clean frame beneath it */
+ struct xz_shell_runtime_key key[XZ_SHELL_NATIVE_DECKS];
+ int browse_preview; /* applied saved preference from ui_runtime, default collapsed */
+ int stems_known, stems_on;   /* the STEMS overlay layout (lights the shell's STEMS header button) */
+ int stem_muted_known[XZ_SHELL_NATIVE_DECKS];  /* the deck plays 3-stem local stems: stem_muted is meaningful */
+ unsigned stem_muted[XZ_SHELL_NATIVE_DECKS];   /* bit 0 drums, 1 harmonics, 2 vocal */
+ int stem_bypass[XZ_SHELL_NATIVE_DECKS]; /* Native stem BYPASS state. */
+ int stem_rgb_known; uint32_t stem_rgb[3]; /* stem pad colours 0xRRGGBB: drums, harmonics, vocal */
+ int cached;                  /* ui_runtime.c's UI lock was busy: this is the previous frame's input */
+ /* DJ profiles on the sticks: dj_runtime's view, copied (entry i = view entry i). */
+ int dj_known, dj_count;
+ int four_decks_attention;   /* a four-deck view is chosen and decks 3 and 4 are not connected: 4 DECKS gets a dot */
+ /* The look settings MY SETTINGS and the shell follow (ui_runtime.c's model). */
+ int look_known, ui_interface, modern_theme, wave_mode, key_format, key_feedback, browse_traffic, stem_colors[3];
+ int modern_browse_columns;
+ int band_colors[3];
+ int modern_wave_color, wave_position, key_display, wave_zoom, usb_colors, hidden_parts;
+ int stem_order;
+ int stems_overlay;           /* MODERN's stem layout (settings modern_stems): enum xz_shell_stem_layout */
+ int rekordbox_known, rekordbox_assign[2]; /* the REKORDBOX button's press and SHIFT + press (enum xz_rekordbox_action) */
+ int stem_level_known[XZ_SHELL_NATIVE_DECKS]; float stem_level[XZ_SHELL_NATIVE_DECKS][3]; /* the stem levels 0..1 (drums, harmonics, vocal) */
+ struct xz_shell_runtime_dj { char name[48]; int usb, stick_active, locked, damaged, has_accent; uint32_t accent; } dj[XZ_SHELL_RUNTIME_DJ];
+};
+int xz_shell_runtime_start(void);
+void xz_shell_runtime_stop(void);
+/* The shell runs only in the MODERN interface: starts it (thread, USB scan) on MODERN, stops it on
+   CLASSIC. The stop happens off the caller's thread; drawing ends at once. Safe under the UI lock. */
+int xz_shell_runtime_follow_interface(int modern);
+/* Lock-free: the shell owns the screen now. */
+int xz_shell_runtime_owns(void);
+int xz_shell_pipeline_allowed(void);
+int xz_shell_pipeline_epoch(uint32_t,int,int);
+void xz_shell_pipeline_begin(uint32_t,uint32_t,uint64_t);
+int xz_shell_pipeline_end(void);
+int xz_shell_pipeline_accept(uint32_t,uint32_t,uint64_t);
+/* Caller holds the UI lock; copies a changed active-profile logo without USB I/O. */
+void xz_shell_runtime_dj_logo(int usb,uint64_t revision,const uint16_t *pixels) __attribute__((weak));
+/* Logical deck under a PLAY key readout, -1 on other screens or hidden decks. */
+int xz_shell_runtime_key_hit(int x,int y,uint32_t *projection);
+uint32_t xz_shell_runtime_key_frame(void);
+/* Lock-free: owns the screen and no frame is due, so the caller can skip all work. */
+int xz_shell_runtime_idle(void);
+/* Scheduling hint only; position and motion still come from native observations. */
+void xz_shell_runtime_native_input(int side,uint32_t monotonic_ms);
+void xz_shell_runtime_native_contact(int side,uint32_t monotonic_ms,int pressed);
+/* Lock-free: the next frame refreshes the model (native reads). ui_runtime.c moves its own 10 Hz refresh
+   off such frames so the two never land in the same 16 ms. */
+int xz_shell_runtime_will_refresh(void);
+/* Called for every xz_mods_render_v1 under the UI mutex. 1 = drew the whole
+   frame, -1 = owns the screen but drew nothing (keep the last frame), 0 = not
+   the owner (draw the usual badges). */
+int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shell_runtime_frame_input *in);
+enum xz_shell_touch_result { XZ_SHELL_TOUCH_TO_STOCK, XZ_SHELL_TOUCH_TAKEN, XZ_SHELL_TOUCH_TAKEN_RELEASE_STOCK };
+/* stock_down: the native solver's previous status had a contact down. */
+int xz_shell_runtime_touch(int eligible, int theme, int x, int y, int down, int stock_down);
+/* IKeyManager::onKey input: code at +8, channel at +0xa, op = low nibble of +0xb. 1 = swallow. */
+int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channel, unsigned op);
+/* LOAD of a side whose controls drive DECK 3 / 4 (side 0 left, 1 right), decided by runtime.c's deck select:
+   the press loads the highlighted row to that player. 1 when the shell owns the screen and took it. */
+int xz_shell_runtime_extra_load_key(int eligible, int theme, int side);
+/* Opens the existing track browser for this logical deck, including a temporary
+   browser over CLASSIC. Returns to the saved interface on PLAY. Never loads a row. */
+int xz_shell_runtime_key_setup_load(int deck);
+int xz_shell_runtime_encoder_turn(int eligible, int theme, int delta);
+/* UiKey_EncoderPush entry words: flags (+0) and state (+8). */
+/* phase: enum xz_push_phase (encoder_push.h), read from stock's browse key entry by the caller. */
+int xz_shell_runtime_selector_push(int eligible, int theme, int phase);
+/* The older entry, kept for older callers: flags and state of stock's entry, read without writing it back. */
+int xz_shell_runtime_encoder_push(int eligible, int theme, uint32_t flags, uint32_t state);
+/* The native event-loop hook (repaint owner thread): runs queued commands and the starvation pump. */
+void xz_shell_runtime_owner_tick(void);
+/* Header-button requests the shell cannot execute itself (they belong to ui_runtime.c's MODS panel and
+   STEMS overlay). Set by shell input; ui_runtime.c takes them under its UI mutex on the same input thread
+   right after the shell call and runs them exactly as the stock-mode badge and STEMS button do. */
+enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_MUTE=4u, XZ_SHELL_UI_DJ_PICK=8u, XZ_SHELL_UI_ACTION=16u,
+ XZ_SHELL_UI_DECK_VIEW=64u };
+/* XZ_SHELL_UI_DECK_VIEW: the DECK VIEW the PLAY picker or the decks 3 and 4 card chose (enum xz_deck_layout),
+   or -1. Taken once; ui_runtime.c applies it through its one DECK VIEW entry point. */
+int xz_shell_runtime_take_deck_view(void);
+/* MODS is ui_runtime.c's panel in both interfaces. The shell's own MODS screen is UTILITY (the player's own
+   settings), whose rail opens the panel's sections (XZ_SHELL_UI_OPEN_MODS). show_utility: the panel's UTILITY
+   rail cell, the shell shows UTILITY; 0 when it cannot (not running). close_mods: MODS closed, UTILITY leaves
+   the screen too when it was under it. */
+int xz_shell_runtime_show_utility(void);
+void xz_shell_runtime_close_mods(void);
+/* The MODERN play screen's own parts the panel shows and sets (ui.h struct xz_ui_modern_look, XZ_UI_SHELL_LOOK).
+   look: their values now, 0 (known 0) when the shell is not running. look_set: item enum xz_ui_look_item,
+   choice as the panel's; applied and saved as the UTILITY row of the same item; 0 when refused. */
+struct xz_ui_modern_look;
+int xz_shell_runtime_look(struct xz_ui_modern_look *out);
+int xz_shell_runtime_look_set(int item, int choice);
+/* Stock is on its own play screen with no stock menu over it: 1, 0 when not, -1 when it cannot be read. For the
+   CLASSIC MENU key (ui/menu_key.h); reads only, any thread. */
+int xz_shell_runtime_stock_play(void);
+/* MODS is the shell's top screen (it then draws over the VJ takeover, as the panel does in CLASSIC). */
+int xz_shell_runtime_mods_open(void);
+/* The screen the shell shows (enum xz_shell_screen), or -1 when it is not running. Read for REPORT AN ISSUE when
+   MODS opens; never blocks (a busy shell answers with the screen of its last whole second). */
+int xz_shell_runtime_screen(void);
+/* XZ_SHELL_UI_ACTION: MODS-panel actions the shell's item tabs asked for, oldest first (kind = enum
+   xz_ui_action_kind, index, value as the panel sends them); 0 when none is left. ui_runtime.c runs them
+   through apply(), so side effects and the settings save are the panel's own. */
+int xz_shell_runtime_take_ui_action(int *kind, int *deck, int *index, float *value);
+/* XZ_SHELL_UI_DJ_PICK: the dj_runtime view entry the shell's DJ PROFILE row asked to make active, or -1. */
+int xz_shell_runtime_take_dj_pick(void);
+unsigned xz_shell_runtime_take_ui_requests(void);
+/* XZ_SHELL_UI_STEM_MUTE: the stem mutes the shell asked for, oldest first; 0 when none is left.
+   value 1 = muted, 0 = playing. ui_runtime.c runs them through its own stem mute path. */
+int xz_shell_runtime_take_stem_mute(int *deck, int *stem, int *value);
+/* XZ_SHELL_UI_OPEN_MODS: the MODS panel page asked for (enum xz_ui_page, a UTILITY rail tab's section), or -1 for
+   the page MODS was last on (the MODS key, MENU, the MODS button). Taken once. */
+int xz_shell_runtime_take_mods_page(void);
+/* A header action ui_runtime.c took but could not carry out: shown as the shell's notice toast. */
+void xz_shell_runtime_notice(const char *text);
+/* REKORDBOX button (ui_runtime.c decides; see xz_shrt_rekordbox_verdict).
+   rekordbox_action: the action of the press about to reach xz_shell_runtime_key, set under the UI lock on the
+   same input thread just before it. */
+void xz_shell_runtime_rekordbox_action(int action);
+/* SOURCE screen LINK and EXPORT MODE tiles. A select queues the slot's stock key (0 LINK, 1 REKORDBOX); it
+   runs only on the native key task, where stock's own key handlers run: ui_runtime.c takes it right after
+   the encoder push that selected it (UiKey_EncoderPush runs on Ui_EventTask) and calls the stock handler.
+   A touch select cannot run it (the touch thread is not that task): the shell says so. Returns -1 when
+   nothing is queued. ran: what the stock call returned (0 ran, -1 the handler hook is not armed); the shell
+   hands the screen to stock when it ran and says why when it did not. */
+int xz_shell_runtime_take_stock_key(void);
+void xz_shell_runtime_stock_key_ran(int which, int ran);
+
+/* ---- Pure core (shell_runtime_core.c) ---- */
+
+/* R1 key table. A key is delivered on its press, or (MENU, BACK) on its
+   release with a separate event for the hold. STOCK entries are listed so the
+   table documents every browse-section key the shell leaves alone. */
+/* HAND_OFF: a browse key the shell has no screen for: while the shell owns the screen it goes to stock
+   with a visible hand-off, never to a hidden stock screen (no key has this rule now; LINK opens SOURCE).
+   ASSIGNED: the key does what the DJ assigned (REKORDBOX, settings.h enum xz_rekordbox_action); the runtime
+   decides its press with xz_shrt_rekordbox_verdict. */
+enum xz_shrt_rule { XZ_SHRT_STOCK, XZ_SHRT_ON_PRESS, XZ_SHRT_ON_RELEASE, XZ_SHRT_HAND_OFF, XZ_SHRT_ASSIGNED };
+struct xz_shrt_key_map { uint16_t code; uint8_t channel; uint8_t rule; int8_t key, hold, deck; };
+const struct xz_shrt_key_map *xz_shrt_key_lookup(uint16_t code, unsigned channel);
+enum xz_shrt_phase { XZ_SHRT_PRESS, XZ_SHRT_HOLD, XZ_SHRT_RELEASE };
+enum xz_shrt_phase xz_shrt_phase_of(unsigned op);
+/* 1 for the source keys (USB 1, USB 2, LINK): pressed in MODERN while the shell is handed off to stock, they
+   end the hand-off and act in the shell, so a source key never opens a stock source screen behind the DJ's
+   back (owner 2026-11-17: USB 1, USB 2 and LINK opened CLASSIC screens). */
+int xz_shrt_key_reclaims(const struct xz_shrt_key_map *k);
+
+/* Decided once per key contact, at the press, so all three ops of a key are
+   swallowed or none. PASS_HAND_OFF: the shell would hand this screen to stock,
+   so the key goes to stock untouched and the shell steps aside. PASS is only for
+   STOCK-rule deck keys: a browse-section key is never passed to a hidden stock
+   screen (an inert key, LOAD on anything but a loadable track, and BACK on PLAY
+   are swallowed). */
+enum xz_shrt_verdict { XZ_SHRT_PASS, XZ_SHRT_PASS_HAND_OFF, XZ_SHRT_SWALLOW };
+enum xz_shrt_verdict xz_shrt_key_verdict(const struct xz_shell *, const struct xz_shell_model *, const struct xz_shrt_key_map *);
+/* The shell key for this phase of a swallowed contact, or -1. held: a hold was already delivered. */
+int xz_shrt_key_for_phase(const struct xz_shrt_key_map *, enum xz_shrt_phase, int held);
+/* REKORDBOX while the shell owns the screen. action: what ui_runtime.c decided for this press (enum
+   xz_rekordbox_action, the SHIFT slot already picked). Only the shell's own actions are swallowed: MODS
+   (effect SHELL_MODS: the shell key XZ_SHELL_KEY_MODS) and STEMS (effect STEMS: the header STEMS request).
+   STOCK passes with a visible hand-off; INTERFACE, VJ.TOOLS SCREEN and NOTHING pass untouched, and
+   ui_runtime.c's REKORDBOX handler hook runs them once without stock. One decider: the same action reaches
+   that hook, so nothing runs twice. */
+enum xz_shrt_rb_effect { XZ_SHRT_RB_NONE, XZ_SHRT_RB_SHELL_MODS, XZ_SHRT_RB_STEMS };
+enum xz_shrt_verdict xz_shrt_rekordbox_verdict(int action, enum xz_shrt_rb_effect *effect);
+
+#define XZ_SHRT_CONTACTS 8
+struct xz_shrt_contacts { struct { uint16_t code; uint8_t channel, used, swallow, held; uint32_t at; } c[XZ_SHRT_CONTACTS]; };
+/* now: the press time, for the timed hold below. */
+void xz_shrt_contact_press(struct xz_shrt_contacts *, uint16_t code, unsigned channel, int swallow, uint32_t now);
+/* LOAD-only duplicate PRESS: -1 new/non-LOAD, 0 repeats a passed contact,
+ * 1 repeats a swallowed contact. Never changes contact or hold state. */
+int xz_shrt_load_duplicate(const struct xz_shrt_contacts *,const struct xz_shrt_key_map *,enum xz_shrt_phase);
+/* Hold/release follow the press. Returns the press decision (1 swallow, 0 pass)
+   or -1 when no press was seen; *held says whether a hold came before. A
+   release forgets the contact; a hold marks it. */
+int xz_shrt_contact_follow(struct xz_shrt_contacts *, uint16_t code, unsigned channel, enum xz_shrt_phase, int *held);
+/* A held key the shell swallowed. Stock times a hold inside IKeyManager::onKey (0x2eae50): the press starts
+   the key's UiTimer (startTimer, 0x2eb280) and the timer's onLongPress (0x2ea984) sends op 1. A press the
+   mods swallow never reaches that code, so stock sends no hold for it; the runtime times it with stock's
+   times. xz_shrt_hold_ms: KeyInput::getLongPressTime (0x2ee4c0) for the shell keys that have a hold
+   (BROWSE 0x209 and MENU 0x20b 330 ms, BACK 0x4208 500 ms), 0 for the rest. */
+uint32_t xz_shrt_hold_ms(uint16_t code);
+/* The first swallowed, not yet held contact of a key with a hold that has been down hold_ms by now: marked
+   held (so its later hold and release deliver nothing) and its map returned, once. NULL when none is due. */
+const struct xz_shrt_key_map *xz_shrt_contact_due(struct xz_shrt_contacts *, uint32_t now);
+
+/* Touch: a contact belongs to whoever had it at touch-down, until release. */
+enum xz_shrt_touch_owner { XZ_SHRT_T_NONE, XZ_SHRT_T_SHELL, XZ_SHRT_T_STOCK, XZ_SHRT_T_SWALLOW };
+struct xz_shrt_touch { enum xz_shrt_touch_owner owner; int x, y; };
+struct xz_shrt_touch_step { int to_stock, release_stock, event; /* event: -1 or enum xz_shell_event_kind */ int x, y; };
+struct xz_shrt_touch_step xz_shrt_touch_route(struct xz_shrt_touch *, int owns, int x, int y, int down, int stock_down);
+
+/* MENU follows the general probe: its hold opens the shell's own UTILITY, so the key is swallowed on
+   every screen that has it. A short MENU that would hand off to stock's menu popup (list screens) is
+   inert: there is no proven way to open that popup (stock's short MENU needs a native browse list and
+   Ui_EventTask), so the shell neither synthesises it nor steps aside. Should a probe ever give
+   PASS_HAND_OFF for MENU, the whole key goes to stock and the runtime steps aside only on the hold. */
+
+/* The rotary selector's push (encoder_push.h reads the phases from stock's browse key entry). A click acts
+   on its release, as stock's browse lists do (UiKey_EncoderPush does nothing on a list's press, 0xdeee0, and
+   enters on the release; a hold enters jump mode, 0xdf06c). A hold acts once, at 500 ms, while the selector
+   is still down, and the release after it does nothing (stock clears the entry on the hold, so its release
+   starts no pass). xz_shrt_push_event gives the shell event to deliver now (XZ_SHELL_ENCODER_PUSH or _HOLD)
+   or -1. */
+struct xz_shrt_push { int down, held; };
+int xz_shrt_push_event(struct xz_shrt_push *, int phase /* enum xz_push_phase */);
+
+/* Hand-off. Resume once stock has been back on its play screen for
+   XZ_SHRT_RESUME_STABLE_MS, after it either left the play screen or
+   XZ_SHRT_RESUME_GRACE_MS passed; BACK_HOLD resumes at once. A caution
+   (non-zero, including the UINT32_MAX "unknown" sentinel) yields until it clears. */
+#define XZ_SHRT_RESUME_STABLE_MS 400u
+#define XZ_SHRT_RESUME_GRACE_MS 2500u
+struct xz_shrt_handoff { int handed, left_play, caution; uint32_t since, play_since; uint32_t count, resumes; };
+void xz_shrt_handoff_begin(struct xz_shrt_handoff *, uint32_t now);
+void xz_shrt_handoff_end(struct xz_shrt_handoff *);
+/* play: 1 stock shows its play screen, 0 it does not, -1 unknown (never resumes). Returns 1 on resume. */
+int xz_shrt_handoff_step(struct xz_shrt_handoff *, uint32_t now, int play);
+void xz_shrt_handoff_caution(struct xz_shrt_handoff *, uint32_t caution);
+/* Come back `remaining` ms from now instead of after the full grace if stock never leaves its play
+   screen (a short MENU on PLAY opens nothing in stock). */
+void xz_shrt_handoff_shorten(struct xz_shrt_handoff *, uint32_t now, uint32_t remaining);
+/* The caution read fails closed with UINT32_MAX. One failed read must not hand the screen to stock for a
+   frame (a full-screen flash plus a full stock repaint): UNKNOWN passes only after XZ_SHRT_CAUTION_RUNS
+   refreshes in a row; until then the last known value stands. A real caution id passes at once. */
+#define XZ_SHRT_CAUTION_RUNS 3
+struct xz_shrt_caution { uint32_t last, shown, ack; int unknown_run; };
+uint32_t xz_shrt_caution_filter(struct xz_shrt_caution *, uint32_t caution);
+/* BACK held while the shell yields to a caution: the user has seen it. That caution id (or the unknown
+   sentinel) no longer yields until the read value changes or clears, so a caution id that stays latched
+   in memory after the popup is gone cannot keep the shell away. */
+void xz_shrt_caution_ack(struct xz_shrt_caution *);
+int xz_shrt_handoff_yields(const struct xz_shrt_handoff *);
+
+/* Commands executed on the native UI thread. */
+/* UTILITY: one stock UTILITY item (shell_utility.h); deck = its row in the generated table, so sets of one
+   item coalesce and different items do not; value = the setter argument. */
+enum xz_shrt_command_kind { XZ_SHRT_CMD_NONE, XZ_SHRT_CMD_TIME_MODE, XZ_SHRT_CMD_QUANTIZE_BEAT, XZ_SHRT_CMD_LOAD, XZ_SHRT_CMD_STOCK_MENU,
+ XZ_SHRT_CMD_UTILITY };
+struct xz_shrt_command {
+ enum xz_shrt_command_kind kind;
+ int deck;            /* 0/1, or -1 for both decks (TIME_MODE) */
+ int32_t value;       /* TIME_MODE: 1 = remain; QUANTIZE_BEAT: C3 value 0..3 (1, 1/2, 1/4, 1/8 beat) */
+ uint32_t track_id;   /* LOAD */
+ uint8_t device_kind; /* LOAD: 2 USB1, 3 USB2 (inferred) */
+ uint32_t at_ms;
+ uint32_t media_generation; /* LOAD: nonzero source incarnation captured at admission. */
+};
+#define XZ_SHRT_QUEUE 16
+struct xz_shrt_queue { struct xz_shrt_command c[XZ_SHRT_QUEUE]; unsigned head, count; uint32_t dropped, coalesced; };
+/* A queued command of the same kind and deck takes the new value instead of queueing twice. */
+int xz_shrt_queue_push(struct xz_shrt_queue *, const struct xz_shrt_command *);
+int xz_shrt_queue_pop(struct xz_shrt_queue *, struct xz_shrt_command *);
+unsigned xz_shrt_queue_drop_source(struct xz_shrt_queue *,uint8_t device_kind);
+int xz_shrt_load_generation_current(const struct xz_shrt_command *,uint32_t observed_generation);
+/* Shell-owned display settings (wave colour, wave position, key display, wave zoom): the shell already
+   applied them; the runtime only stores the value and restores it with xz_shell_restore_setting after
+   xz_shell_init. They are never stock commands. */
+int xz_shrt_shell_owned_setting(int id);
+/* SET_SETTING -> the C3 command it needs. 0 when no proven setter exists for that id or value. */
+int xz_shrt_setting_writable(int id, int time_mode, int quantize_beat);
+int xz_shrt_setting_command(const struct xz_shell_action *, uint32_t now, struct xz_shrt_command *);
+/* QUANTIZE BEAT VALUE choices in shell order, and the stored R4 value (0x30..0x33) -> choice index. */
+extern const char *const xz_shrt_quantize_choices[4];
+int xz_shrt_quantize_index(int quantize_den);
+
+/* Frame period: every presenter tick (60 Hz) on PLAY while a deck moves, 10 Hz otherwise (input
+   redraws at once). 12 ms, not 16: a vsync-paced caller with a millisecond of jitter must still be due
+   on every tick, while a faster caller stays near 60 Hz. The model refreshes at most every
+   XZ_SHRT_REFRESH_MS; the renderer extrapolates the playhead in between. */
+#define XZ_SHRT_FRAME_LIVE_MS 12u
+#define XZ_SHRT_FRAME_IDLE_MS 100u
+/* A render longer than this (half a 60 Hz vsync) marks the next frame late: moving pictures step down. */
+#define XZ_SHRT_LATE_RENDER_US 8000u
+#define XZ_SHRT_REFRESH_MS 33u
+/* model.clock_ms leads the render time by one presenter period: the receiver shows a frame on the vblank
+   after it was drawn (present-then-prepare, 61.6 Hz measured on the deck). */
+#define XZ_SHRT_PRESENT_LEAD_MS 16u
+uint32_t xz_shrt_frame_period_ms(enum xz_shell_screen, int any_moving);
+unsigned xz_shrt_moving_decks(const struct xz_shell_model *);
+/* PLAY's ABLETON LINK control from the Link runtime's glance (link_runtime.h xz_link_runtime_glance, one atomic
+   word): ENABLED and NO_MASTER are ON (in the session), NO_HELPER and FAILED are FAILED. NULL (no Link runtime in
+   this build) is not known: no control. */
+#include "link_status.h"
+struct xz_shell_ableton xz_shrt_ableton(const struct xz_link_glance *);
+
+/* Deck motion from the stat frame's elapsed time: moving while it changed within XZ_SHRT_MOTION_MS.
+   Used for PLAYING only when the native clock read gives no answer. */
+#define XZ_SHRT_MOTION_MS 300u
+struct xz_shrt_motion { int valid; int32_t last_ms; uint32_t changed_at; };
+int xz_shrt_motion_step(struct xz_shrt_motion *, int32_t elapsed_ms, uint32_t read_at);
+
+/* Playhead smoother. The stat frame's elapsed time is coarse and read at the refresh rate; extrapolating
+   from each raw reading makes the scrolling lane step back and forth by the reading's jitter. This keeps
+   one continuous estimate: it predicts with the tempo, moves toward each new reading by 1/8 of the error
+   (at most XZ_SHRT_POSITION_NUDGE_MS per reading) and snaps on a jump larger than
+   XZ_SHRT_POSITION_SNAP_MS (seek, cue, loop, scratch). Paused decks publish the raw reading.
+   rate_ppm: playback speed in parts per million (1000000 = normal). Outputs xz_shell_deck elapsed_ms
+   and elapsed_at_ms. */
+#define XZ_SHRT_POSITION_SNAP_MS 60
+#define XZ_SHRT_POSITION_NUDGE_MS 2
+/* measure (a precise source: the audio engine position): consecutive readings give the deck's observed
+   speed. When it is far from rate_ppm (a jog hold, a scratch, reverse, a brake) the deck is not moving
+   as its pitch says, so the smoother follows the readings exactly and publishes elapsed_at_ms = 0 (no
+   extrapolation, shell.h): the playhead never runs ahead of the last reading. It returns to smoothing
+   after XZ_SHRT_REGULAR_RUNS regular readings in a row. Returns 1 while following. */
+#define XZ_SHRT_RATE_TOLERANCE_PPM 250000 /* of the nominal rate, per million */
+#define XZ_SHRT_REGULAR_RUNS 2
+struct xz_shrt_position { int valid; int64_t base_us; uint32_t base_at, read_at; int32_t read_ms;
+ int have_last, following, regular_run; int32_t last_ms; uint32_t last_at; int32_t observed_ppm;
+ struct { uint32_t at; int64_t us; } native_sample[32];
+ unsigned native_count,native_head;
+ uint32_t native_progress_at,native_poll_at;int64_t native_us;int32_t native_rate;int native_seen;
+ struct { int valid;uint32_t at;int32_t rate;int64_t raw_us,shown_us,phase_us; } display; };
+#define XZ_SHRT_NATIVE_PROGRESS_MS 150u
+int xz_shrt_native_position_step_us(struct xz_shrt_position *,int playing,int64_t source_us,uint32_t read_at,
+                                int32_t rate_ppm,int32_t *out_ms,uint32_t *out_at);
+int64_t xz_shrt_native_display_step(struct xz_shrt_position *,uint32_t target_ms);
+void xz_shrt_position_reset(struct xz_shrt_position *);
+int xz_shrt_position_step(struct xz_shrt_position *, int playing, int32_t elapsed_ms, uint32_t read_at,
+                          int32_t rate_ppm, int measure, int32_t *out_ms, uint32_t *out_at);
+/* Speed in ppm from the stat frame's tempo (0.01 %), the fallback when the engine speed is not read. */
+int32_t xz_shrt_rate_from_tempo(int32_t tempo_x100);
+
+/* ---- DECK 3 / DECK 4 (extra_decks.h): the software players in the shell model ----
+   The model's decks 2 and 3 while the CH3/CH4 route is up. Pure: the runtime takes the snapshot, converts
+   its arrays and executes what these decide. */
+/* Every per-deck action of enum xz_shell_cap, and the ones the players take. The native decks have no
+   seek input. */
+#define XZ_SHRT_DECK_CAPS (XZ_SHELL_CAP_SEEK|XZ_SHELL_CAP_LOAD|XZ_SHELL_CAP_SET_SETTING|XZ_SHELL_CAP_GRID|\
+ XZ_SHELL_CAP_GRID_EDIT|XZ_SHELL_CAP_TAG_TRACK|XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN|XZ_SHELL_CAP_STEM_BYPASS|XZ_SHELL_CAP_CUE_LIST)
+#define XZ_SHRT_EXTRA_CAPS (XZ_SHELL_CAP_SEEK|XZ_SHELL_CAP_LOAD)
+/* A player's wave (lane and overview columns) and beat grid, converted by the runtime into memory it keeps
+   (the snapshot's arrays are the players'). */
+struct xz_shrt_extra_parts {
+ const struct xz_shell_column *scroll, *overview; uint32_t scroll_n, overview_n, span_ms;
+ const struct xz_shell_beat *grid; uint32_t grid_n;
+};
+/* After the native refresh: deck_count, decks 2 and 3 and sides_extra from one snapshot. Route down leaves
+   exactly the two-deck model. Title, artist and key point into s, so s must outlive the frame. model_now is
+   this refresh's model clock; mono_now the monotonic ms that s->deck[].elapsed_at_ms counts in. */
+void xz_shrt_extra_map(struct xz_shell_model *, const struct xz_extra_decks *s, const struct xz_shrt_extra_parts parts[XZ_EXTRA_DECKS],
+                       uint32_t model_now, uint32_t mono_now);
+/* The model's capabilities and every deck's caps_off for its deck count. caps: the runtime's capabilities
+   without LOAD; native_load / extra_load: LOAD works for the native decks / the players; deck_select: the
+   runtime can switch the sides (XZ_SHELL_ACT_DECK_SELECT). Two decks: caps (with LOAD when native_load) and
+   no caps_off. Returns the capabilities, also stored in the model. */
+uint32_t xz_shrt_extra_caps(struct xz_shell_model *, uint32_t caps, int native_load, int extra_load, int deck_select);
+/* A shell action for DECK 3 or 4. INPUT: *event is the player input (LOAD from the browse stick
+   browse_slot 0/1, SEEK); REFUSE: a per-deck action no player takes, or one the deck's capabilities do not
+   allow; NONE: not a player's action, the native path runs it. */
+enum xz_shrt_extra_route { XZ_SHRT_EXTRA_NONE, XZ_SHRT_EXTRA_INPUT, XZ_SHRT_EXTRA_REFUSE };
+enum xz_shrt_extra_route xz_shrt_extra_action(const struct xz_shell_model *, const struct xz_shell_action *, int browse_slot,
+                                              struct xz_extra_deck_event *event);
+/* 1 when s carries a notice not shown yet and still fresh (raised less than XZ_SHELL_NOTICE_MS before
+   mono_now). *seen keeps the last notice_seq looked at. */
+int xz_shrt_extra_notice(uint32_t *seen, const struct xz_extra_decks *s, uint32_t mono_now);
+/* 2 DECKS shows the decks the sides control; when a side switches deck the shell says where it went, the same
+   words as the CLASSIC banner (deck_view.h xz_deck_view_pair_notice): the notice for this refresh, or NULL.
+   seen keeps the last pair and when it was looked at. The route down, a refresh gap of a second or more (the
+   shell was not drawing) and any view but 2 DECKS adopt the new pair silently. */
+struct xz_shrt_pair_seen { int valid; unsigned pair; uint32_t at_ms; };
+const char *xz_shrt_pair_notice(struct xz_shrt_pair_seen *, const struct xz_shell_model *, int deck_view, uint32_t now_ms);
+/* DECK VIEW follows the loopback cable on MODERN (shell_runtime.c cable_tick_locked runs one step per owner tick).
+   in: now_ms (monotonic), route_up (the published CH3/CH4 route, xz_extra_decks_route), view (DECK VIEW now,
+   enum xz_deck_layout), layout_revision (xz_deck_layout_revision) and ready (the play screen is at rest and on
+   screen, so the picker may open: xz_shell_deck_view_quiet plus the runtime's own overlays).
+   A connection is the route going up after it was settled down. The first step only takes the route as it is:
+   switching into MODERN with the cable in is no connection. A connection while DECK VIEW shows 2 DECKS waits for
+   ready, then returns SHOW_FOUR once (4 DECKS in mixer order and the picker). It is dropped, without SHOW_FOUR,
+   when DECK VIEW is a four-deck view or changes for any other reason before then.
+   A drop settles after the route has stayed down XZ_SHRT_CABLE_DROP_MS: BACK_TO_TWO, once (2 DECKS and the
+   controller's sides on DECK 1 and 2). A drop shorter than that is the same connection: nothing either way. */
+#define XZ_SHRT_CABLE_DROP_MS 1500u
+enum { XZ_SHRT_CABLE_SHOW_FOUR=1u, XZ_SHRT_CABLE_BACK_TO_TWO=2u };
+struct xz_shrt_cable { int seen, up, pending, dropping; uint32_t dropped_at; unsigned layout_revision; };
+struct xz_shrt_cable_in { uint32_t now_ms; int route_up, view, ready; unsigned layout_revision; };
+unsigned xz_shrt_cable_step(struct xz_shrt_cable *, const struct xz_shrt_cable_in *);
+/* The resolver's answer from a library row: path = root + rel (rel starts "/Contents/"), the text fields
+   truncated to their arrays on a character boundary. anlz_dir is left empty. 0, or -1 when rel is empty or
+   the path does not fit. */
+int xz_shrt_extra_track(struct xz_extra_track *out, int source, uint32_t track_id, const char *root, const char *rel,
+                        const char *title, const char *artist, const char *key, uint32_t bpm_x100);
+/* Three-band columns (low, mid, high bytes per column) for the lanes: band_peak is the 99.5th percentile of
+   each column's loudest band; bin_columns writes up to bins columns, each band's peak over its bin scaled so
+   that peak is full height, and returns how many. */
+uint32_t xz_shrt_band_peak(const uint8_t *bands, uint32_t count);
+uint32_t xz_shrt_bin_columns(const uint8_t *bands, uint32_t count, uint32_t peak, struct xz_shell_column *out, uint32_t bins);
+
+/* Presented-frame statistics in microseconds: frames, the largest gap between two frames and the gaps
+   longer than XZ_SHRT_LATE_US (a missed 60 Hz slot). Gaps of a second or more (idle screens) are ignored. */
+#define XZ_SHRT_LATE_US 20000u
+/* hist: frame-to-frame gaps under 14 ms, 14-18 (one 61.6 Hz vblank), 18-26, 26-34 (one missed), 34+ ms. */
+struct xz_shrt_frames { uint64_t last_us; uint32_t frames, gap_max_us, late, hist[5]; };
+void xz_shrt_frame_mark(struct xz_shrt_frames *, uint64_t now_us);
+#endif

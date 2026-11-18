@@ -1,0 +1,2 @@
+# Preserve the exact upstream bytes checked by source.json.
+* -text

@@ -1,0 +1,477 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -297,7 +297,7 @@
+ 	elseif( NOT MINGW )
+ 		# Generic GCC/Clang requires position independent executable to be enabled explicitly
+ 		set( ALL_C_FLAGS "${ALL_C_FLAGS} -fPIE" )
+-		set( CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie" )
++		set( CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -no-pie" )
+ 	endif( APPLE )
+ endif()
+ 
+--- a/src/common/rendering/gles/gles_system.h
++++ b/src/common/rendering/gles/gles_system.h
+@@ -23,7 +23,7 @@
+ #include <sys/stat.h>
+ #include <fcntl.h>
+ 
+-#define USE_GLES2 0 // For Desktop PC leave as 0, it will use the exisiting OpenGL context creationg code but run with the GLES2 renderer
++#define USE_GLES2 1 // For Desktop PC leave as 0, it will use the exisiting OpenGL context creationg code but run with the GLES2 renderer
+                     // Set to 1 for when comipling for a real GLES device
+ 
+ #if (USE_GLES2)
+--- a/src/common/rendering/gles/gles_system.cpp
++++ b/src/common/rendering/gles/gles_system.cpp
+@@ -53,6 +53,21 @@
+ 	}
+ 
+ 	return ret;
++}
++
++#elif defined(__linux__)
++#include <dlfcn.h>
++static void* LoadGLES2Proc(const char* name)
++{
++    static void* glesLib = dlopen("/usr/lib/libGLESv2-fb.so.2.0.0", RTLD_NOW | RTLD_LOCAL);
++    static void* eglLib = dlopen("/usr/lib/libEGL-fb.so", RTLD_NOW | RTLD_LOCAL);
++    void* address = glesLib ? dlsym(glesLib, name) : nullptr;
++    if (!address && eglLib)
++    {
++        auto getproc = reinterpret_cast<void*(*)(const char*)>(dlsym(eglLib, "eglGetProcAddress"));
++        if (getproc) address = getproc(name);
++    }
++    return address;
+ }
+ 
+ #elif defined _WIN32
+@@ -168,6 +183,13 @@
+ 		gles.useMappedBuffers = gles_use_mapped_buffer;
+ 		gles.forceGLSLv100 = gles_force_glsl_v100;
+ 		gles.maxlights = gles_max_lights_per_surface;
++        if (getenv("XZ_GZ_OFFSCREEN")) {
++            GLint vectors=0;glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_VECTORS,&vectors);
++            unsigned budget=vectors>48?unsigned(vectors-48)/LIGHT_VEC4_NUM:1;
++            if(gles.maxlights>budget)gles.maxlights=budget;
++            Printf("XZ_GZ_LIGHT_BUDGET vectors=%d lights=%u\n",vectors,gles.maxlights);
++        }
++
+ 
+ 		gles.modelstring = (char*)glGetString(GL_RENDERER);
+ 		gles.vendorstring = (char*)glGetString(GL_VENDOR);
+--- a/libraries/lzma/C/7zCrc.c
++++ b/libraries/lzma/C/7zCrc.c
+@@ -71,7 +71,7 @@
+ 
+ #ifdef MY_CPU_LE
+ 
+-#if defined(MY_CPU_ARM_OR_ARM64)
++#if defined(MY_CPU_ARM_OR_ARM64) && (defined(__aarch64__) || (defined(__ARM_ARCH) && __ARM_ARCH >= 8))
+ 
+ // #pragma message("ARM*")
+ 
+--- a/src/common/platform/posix/sdl/i_main.cpp
++++ b/src/common/platform/posix/sdl/i_main.cpp
+@@ -146,15 +146,16 @@
+ 
+ int main (int argc, char **argv)
+ {
++	if (getenv("XZ_GZ_OFFSCREEN")) setvbuf(stdout, nullptr, _IONBF, 0);
+ #if !defined (__APPLE__)
+ 	{
+ 		int s[4] = { SIGSEGV, SIGILL, SIGFPE, SIGBUS };
+-		cc_install_handlers(argc, argv, 4, s, GAMENAMELOWERCASE "-crash.log", GetCrashInfo);
++		if (!getenv("XZ_GZ_OFFSCREEN")) cc_install_handlers(argc, argv, 4, s, GAMENAMELOWERCASE "-crash.log", GetCrashInfo);
+ 	}
+ #endif // !__APPLE__
+ 
+ 	printf(GAMENAME" %s - %s - SDL version\nCompiled on %s\n",
+-		GetVersionString(), GetGitTime(), __DATE__);
++		GetVersionString(), GetGitTime(), "XZ ARM build");
+ 
+ 	seteuid (getuid ());
+ 	// Set LC_NUMERIC environment variable in case some library decides to
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -305,10 +305,7 @@
+ 
+ # Update gitinfo.h
+ 
+-add_custom_target( revision_check ALL
+-	COMMAND "${CMAKE_COMMAND}" -P "${CMAKE_SOURCE_DIR}/tools/updaterevision/UpdateRevision.cmake" src/gitinfo.h
+-	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+-)
++add_custom_target( revision_check ALL )
+ 
+ # required libraries
+ 
+@@ -1344,9 +1341,11 @@
+ 
+ if( NOT WIN32 AND NOT APPLE )
+ 	FILE( WRITE ${CMAKE_CURRENT_BINARY_DIR}/link-make "if [ ! -e ${ZDOOM_OUTPUT_DIR}/${ZDOOM_EXE_NAME} ]; then ln -sf ${CMAKE_CURRENT_BINARY_DIR}/${ZDOOM_EXE_NAME} ${ZDOOM_OUTPUT_DIR}/${ZDOOM_EXE_NAME}; fi" )
++	if(CMAKE_HOST_UNIX)
+ 	add_custom_command( TARGET zdoom POST_BUILD
+ 		COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/link-make
+ 		COMMAND ${CMAKE_CURRENT_BINARY_DIR}/link-make )
++	endif()
+ 	IF ("${INSTALL_RPATH}" STREQUAL "")
+ 		set_target_properties(zdoom PROPERTIES
+ 			#allow libzmusic.so.1 library in same folder as executable at runtime
+@@ -1498,3 +1497,5 @@
+ source_group("Versioning" FILES version.h win32/zdoom.rc)
+ source_group("Xlat" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/xlat/.+" FILES ${CMAKE_CURRENT_BINARY_DIR}/xlat_parser.c ${CMAKE_CURRENT_BINARY_DIR}/xlat_parser.h)
+ source_group("Source Files" FILES ${CMAKE_CURRENT_BINARY_DIR}/sc_man_scanner.h common/engine/sc_man_scanner.re)
++
++target_sources(zdoom PRIVATE "common/platform/posix/sdl/xz/doom/xz_controls.c")
+--- a/src/common/engine/i_interface.cpp
++++ b/src/common/engine/i_interface.cpp
+@@ -5,7 +5,7 @@
+ #include "c_cvars.h"
+ #include "gstrings.h"
+ 
+-static_assert(sizeof(void*) == 8, "32 builds are not supported");
++static_assert(sizeof(void*) == 4, "XZ port requires ARM32");
+ 
+ // Some global engine variables taken out of the backend code.
+ FStartupScreen* StartWindow;
+--- a/src/common/objects/autosegs.h
++++ b/src/common/objects/autosegs.h
+@@ -115,7 +115,7 @@
+ 
+ 		for (void **it = begin; it < end; ++it)
+ 		{
+-			if (intptr_t(it) > 0xffff && *it && intptr_t(*it) > 0xffff)
++			if (uintptr_t(it) > 0xffff && *it && uintptr_t(*it) > 0xffff)
+ 			{
+ 				func(reinterpret_cast<ArgType>(*it));
+ 			}
+@@ -130,7 +130,7 @@
+ 
+ 		for (void **it = begin; it < end; ++it)
+ 		{
+-			if (intptr_t(it) > 0xffff && *it && intptr_t(*it) > 0xffff)
++			if (uintptr_t(it) > 0xffff && *it && uintptr_t(*it) > 0xffff)
+ 			{
+ 				if (!func(reinterpret_cast<ArgType>(*it)))
+ 				{
+--- a/src/common/platform/posix/sdl/sdlglvideo.cpp
++++ b/src/common/platform/posix/sdl/sdlglvideo.cpp
+@@ -58,6 +58,8 @@
+ #include "vulkan/system/vk_framebuffer.h"
+ #endif
+ 
++#include "xz_offscreen.inc"
++
+ // MACROS ------------------------------------------------------------------
+ 
+ #if defined HAVE_VULKAN
+@@ -402,6 +404,11 @@
+ SystemGLFrameBuffer::SystemGLFrameBuffer(void *hMonitor, bool fullscreen)
+ : SystemBaseFrameBuffer(hMonitor, fullscreen)
+ {
++	if (XzOffscreen::enabled()) {
++		win_w=vid_defwidth; win_h=vid_defheight; Priv::CreateWindow(0);
++		if (!Priv::window) I_FatalError("XZ dummy window failed: %s", SDL_GetError());
++		XzOffscreen::open(vid_defwidth, vid_defheight); GLContext=XzOffscreen::context; return;
++	}
+ 	// NOTE: Core profiles were added with GL 3.2, so there's no sense trying
+ 	// to set core 3.1 or 3.0. We could try a forward-compatible context
+ 	// instead, but that would be too restrictive (w.r.t. shaders).
+@@ -460,6 +467,7 @@
+ 
+ SystemGLFrameBuffer::~SystemGLFrameBuffer ()
+ {
++	if (XzOffscreen::enabled()) { XzOffscreen::close(); if(Priv::window)Priv::DestroyWindow(); return; }
+ 	if (Priv::window)
+ 	{
+ 		if (GLContext)
+@@ -473,6 +481,7 @@
+ 
+ int SystemGLFrameBuffer::GetClientWidth()
+ {
++	if (XzOffscreen::enabled()) return XzOffscreen::width;
+ 	int width = 0;
+ 	SDL_GL_GetDrawableSize(Priv::window, &width, nullptr);
+ 	return width;
+@@ -480,6 +489,7 @@
+ 
+ int SystemGLFrameBuffer::GetClientHeight()
+ {
++	if (XzOffscreen::enabled()) return XzOffscreen::height;
+ 	int height = 0;
+ 	SDL_GL_GetDrawableSize(Priv::window, nullptr, &height);
+ 	return height;
+@@ -487,6 +497,7 @@
+ 
+ void SystemGLFrameBuffer::SetVSync( bool vsync )
+ {
++	if (XzOffscreen::enabled()) return;
+ #if defined (__APPLE__)
+ 	const GLint value = vsync ? 1 : 0;
+ 	CGLSetParameter( CGLGetCurrentContext(), kCGLCPSwapInterval, &value );
+@@ -505,12 +516,14 @@
+ 
+ void SystemGLFrameBuffer::SwapBuffers()
+ {
++	if (XzOffscreen::enabled()) { XzOffscreen::present(); return; }
+ 	SDL_GL_SwapWindow(Priv::window);
+ }
+ 
+ 
+ void ProcessSDLWindowEvent(const SDL_WindowEvent &event)
+ {
++    if(XzOffscreen::enabled()){extern bool AppActive;AppActive=true;return;}
+ 	switch (event.event)
+ 	{
+ 	extern bool AppActive;
+--- a/src/maploader/udmf.cpp
++++ b/src/maploader/udmf.cpp
+@@ -400,6 +400,51 @@
+ 	FName type;
+ };
+ 
++#include <fcntl.h>
++#include <sys/mman.h>
++#include <sys/stat.h>
++#include <unistd.h>
++class XzMappedMap
++{
++    void *mapping=MAP_FAILED;size_t length=0;
++    static unsigned word(const unsigned char *p){return unsigned(p[0])|unsigned(p[1])<<8|unsigned(p[2])<<16|unsigned(p[3])<<24;}
++public:
++    ~XzMappedMap(){if(mapping!=MAP_FAILED)munmap(mapping,length);}
++    const char *text(unsigned expected){
++        const char *path=getenv("XZ_GZ_MAP_FILE");if(!path)return nullptr;
++        int fd=open(path,O_RDONLY|O_NOFOLLOW);struct stat st;
++        if(fd<0)return nullptr;
++        if(fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_size<12||st.st_size>128*1024*1024){close(fd);return nullptr;}
++        length=size_t(st.st_size);mapping=mmap(nullptr,length,PROT_READ,MAP_PRIVATE,fd,0);close(fd);
++        if(mapping!=MAP_FAILED)madvise(mapping,length,MADV_SEQUENTIAL);
++        if(mapping==MAP_FAILED)return nullptr;
++        const auto *bytes=static_cast<const unsigned char *>(mapping);
++        if(memcmp(bytes,"PWAD",4))return nullptr;
++        unsigned count=word(bytes+4),directory=word(bytes+8);
++        if(count>65536 || uint64_t(directory)+uint64_t(count)*16>length)return nullptr;
++        for(unsigned i=0;i<count;i++){
++            const auto *entry=bytes+directory+i*16;unsigned offset=word(entry),size=word(entry+4);
++            if(!memcmp(entry+8,"TEXTMAP",7)&&size==expected&&uint64_t(offset)+size<=length)return reinterpret_cast<const char *>(bytes+offset);
++        }
++        return nullptr;
++    }
++};
++
++class XzMapScanner : public FScanner
++{
++public:
++    bool OpenMapView(const char *name, const char *data, unsigned size)
++    {
++        if (!data || !size || data[size-1] != '\n' ||
++            (size>3 && (unsigned char)data[0]==0xef && (unsigned char)data[1]==0xbb && (unsigned char)data[2]==0xbf)) return false;
++        // MapData owns this view throughout UDMFParser's lifetime.
++        // Initialize normal tokenizer state without copying the large map.
++        OpenString(name, "\n");
++        ScriptPtr=data;ScriptEndPtr=data+size;
++        return true;
++    }
++};
++
+ class UDMFParser : public UDMFParserBase
+ {
+ 	bool isTranslated;
+@@ -2146,6 +2191,8 @@
+ 	void ProcessLineDefs()
+ 	{
+ 		int sidecount = 0;
++        bool orderedSides=true;
++        unsigned nextSide=0;
+ 		for(unsigned i = 0, skipped = 0; i < ParsedLines.Size();)
+ 		{
+ 			// Relocate the vertices
+@@ -2169,17 +2216,19 @@
+ 				ParsedLines[i].v1 = &Level->vertexes[v1i];
+ 				ParsedLines[i].v2 = &Level->vertexes[v2i];
+ 
+-				if (ParsedLines[i].sidedef[0] != NULL)
+-					sidecount++;
+-				if (ParsedLines[i].sidedef[1] != NULL)
+-					sidecount++;
++                for(int sd=0;sd<2;sd++)if(ParsedLines[i].sidedef[sd]!=nullptr){
++                    if(uintptr_t(ParsedLines[i].sidedef[sd])!=uintptr_t(nextSide+1))orderedSides=false;
++                    nextSide++;sidecount++;
++                }
+ 				loader->linemap.Push(i+skipped);
+ 				i++;
+ 			}
+ 		}
+ 		unsigned numlines = ParsedLines.Size();
+-		Level->sides.Alloc(sidecount);
+-		Level->lines.Alloc(numlines);
++        bool reuseSides=getenv("XZ_GZ_OFFSCREEN") && orderedSides && nextSide==ParsedSides.Size();
++        if(reuseSides)Level->sides.Swap(ParsedSides);else Level->sides.Alloc(sidecount);
++        Level->lines.Swap(ParsedLines);
++        fprintf(stdout,"XZ_GZ_GEOMETRY_STORAGE reused_lines=%u reused_sides=%u\n",numlines,reuseSides?nextSide:0);
+ 		int line, side;
+ 		auto lines = &Level->lines[0];
+ 		auto sides = &Level->sides[0];
+@@ -2188,7 +2237,7 @@
+ 		{
+ 			short tempalpha[2] = { SHRT_MIN, SHRT_MIN };
+ 
+-			lines[line] = ParsedLines[line];
++
+ 
+ 			for(int sd = 0; sd < 2; sd++)
+ 			{
+@@ -2197,7 +2246,7 @@
+ 					int mapside = int(intptr_t(lines[line].sidedef[sd]))-1;
+ 					if (mapside < sidecount)
+ 					{
+-						sides[side] = ParsedSides[mapside];
++                        if(!reuseSides)sides[side] = ParsedSides[mapside];
+ 						sides[side].linedef = &lines[line];
+ 						sides[side].sector = &Level->sectors[intptr_t(sides[side].sector)];
+ 						lines[line].sidedef[sd] = &sides[side];
+@@ -2214,6 +2263,7 @@
+ 				}
+ 			}
+ 
++			if(getenv("XZ_GZ_OFFSCREEN") && line % 32768 == 0)fprintf(stdout,"XZ_GZ_LINES processed=%d total=%u\n",line,numlines);
+ 			lines[line].AdjustLine();
+ 			loader->FinishLoadingLineDef(&lines[line], tempalpha[0]);
+ 		}
+@@ -2243,7 +2293,14 @@
+ 		isExtended = false;
+ 		floordrop = false;
+ 
+-		sc.OpenMem(fileSystem.GetFileFullName(map->lumpnum), map->Read(ML_TEXTMAP));
++		XzMappedMap mapped;
++        const char *view=mapped.text(map->Size(ML_TEXTMAP));
++        if(!view)view=map->Reader(ML_TEXTMAP).GetBuffer();
++        XzMapScanner borrowed;
++        if (getenv("XZ_GZ_OFFSCREEN") && borrowed.OpenMapView(fileSystem.GetFileFullName(map->lumpnum),view,map->Size(ML_TEXTMAP))) {
++            sc=borrowed;
++            fprintf(stdout,"XZ_GZ_MAP_VIEW bytes=%u\n",map->Size(ML_TEXTMAP));
++        } else sc.OpenMem(fileSystem.GetFileFullName(map->lumpnum), map->Read(ML_TEXTMAP));
+ 		sc.SetCMode(true);
+ 		if (sc.CheckString("namespace"))
+ 		{
+@@ -2371,6 +2428,8 @@
+ 			}
+ 		}
+ 
++		fprintf(stdout,"XZ_GZ_PARSED vertices=%u lines=%u sides=%u sectors=%u\n",ParsedVertices.Size(),ParsedLines.Size(),ParsedSides.Size(),ParsedSectors.Size());
++
+ 		// Catch bogus maps here rather than during nodebuilding
+ 		if (ParsedVertices.Size() == 0)	I_Error("Map has no vertices.");
+ 		if (ParsedSectors.Size() == 0)	I_Error("Map has no sectors. ");
+@@ -2378,13 +2437,13 @@
+ 		if (ParsedSides.Size() == 0)	I_Error("Map has no sidedefs.");
+ 		if (BadCoordinates)				I_Error("Map has out of range coordinates");
+ 
++		sc.Close();
++
+ 		// Create the real vertices
+-		Level->vertexes.Alloc(ParsedVertices.Size());
+-		memcpy(&Level->vertexes[0], &ParsedVertices[0], Level->vertexes.Size() * sizeof(vertex_t));
++		Level->vertexes.Swap(ParsedVertices);
+ 
+ 		// Create the real sectors
+-		Level->sectors.Alloc(ParsedSectors.Size());
+-		memcpy(&Level->sectors[0], &ParsedSectors[0], Level->sectors.Size() * sizeof(sector_t));
++		Level->sectors.Swap(ParsedSectors);
+ 		Level->extsectors.Alloc(Level->sectors.Size());
+ 		for(unsigned i = 0; i < Level->sectors.Size(); i++)
+ 		{
+--- a/src/common/filesystem/filesystem.cpp
++++ b/src/common/filesystem/filesystem.cpp
+@@ -373,6 +373,7 @@
+ 			FResourceLump *lump = resfile->GetLump(i);
+ 			if (lump->Flags & LUMPF_EMBEDDED)
+ 			{
++                if(getenv("XZ_GZ_MAP_FILE") && !stricmp(lump->getName(),"house.wad"))continue;
+ 				FString path;
+ 				path.Format("%s:%s", filename, lump->getName());
+ 				auto embedded = lump->NewReader();
+--- a/src/maploader/maploader.cpp
++++ b/src/maploader/maploader.cpp
+@@ -59,6 +59,17 @@
+ 
+ 
+ #include <math.h>
++#include <malloc.h>
++
++static void XzMapStage(const char *stage)
++{
++    if(!getenv("XZ_GZ_OFFSCREEN"))return;
++    malloc_trim(0);
++    fprintf(stdout,"XZ_GZ_STAGE %s\n",stage);
++    FILE *status=fopen("/proc/self/status","r");
++    if(status){char line[256];while(fgets(line,sizeof(line),status))if(!strncmp(line,"VmRSS:",6)||!strncmp(line,"VmData:",7))fprintf(stdout,"XZ_GZ_MEMORY %s",line);fclose(status);}
++}
++
+ #include <cmath>	// needed for std::floor on mac
+ #include "maploader.h"
+ #include "c_cvars.h"
+@@ -3038,10 +3049,13 @@
+ 		ParseTextMap(map, missingtex);
+ 	}
+ 
++	XzMapStage("geometry");
+ 	CalcIndices();
+ 	PostProcessLevel(checksum);
+ 
++	XzMapStage("postprocess");
+ 	LoopSidedefs(true);
++	XzMapStage("sideloops");
+ 
+ 	SummarizeMissingTextures(missingtex);
+ 	bool reloop = false;
+@@ -3074,7 +3088,9 @@
+ 		if (fr != nullptr && fr->isOpen()) fr->Read(&id, 4);
+ 		if (id != 0 && (id == idcheck || id == idcheck2 || id == idcheck3 || id == idcheck4 || id == idcheck5 || id == idcheck6))
+ 		{
++			XzMapStage("nodes-start");
+ 			NodesLoaded = LoadExtendedNodes(*fr, id);
++			XzMapStage("nodes-loaded");
+ 		}
+ 		else if (!map->isText)	// regular nodes are not supported for text maps
+ 		{
+@@ -3173,12 +3189,15 @@
+ 	// If the original nodes being loaded are not GL nodes they will be kept around for
+ 	// use in P_PointInSubsector to avoid problems with maps that depend on the specific
+ 	// nodes they were built with (P:AR E1M3 is a good example for a map where this is the case.)
++	XzMapStage("nodes-check-start");
+ 	reloop |= CheckNodes(map, BuildGLNodes, (uint32_t)(endTime - startTime));
++	XzMapStage("nodes-check-done");
+ 	
+ 	// set the head node for gameplay purposes. If the separate gamenodes array is not empty, use that, otherwise use the render nodes.
+ 	Level->headgamenode = Level->gamenodes.Size() > 0 ? &Level->gamenodes[Level->gamenodes.Size() - 1] : Level->nodes.Size() ? &Level->nodes[Level->nodes.Size() - 1] : nullptr;
+ 
+ 	LoadBlockMap(map);
++	XzMapStage("blockmap");
+ 
+ 	LoadReject(map, false);
+ 	GroupLines(false);
+@@ -3197,6 +3216,7 @@
+ 	for (auto & p : Level->bodyque)
+ 		p = nullptr;
+ 
++	XzMapStage("groups");
+ 	CreateSections(Level);
+ 
+ 	// [RH] Spawn slope creating things first.
+@@ -3207,6 +3227,7 @@
+ 	Spawn3DFloors();
+ 
+ 	SpawnThings(position);
++	XzMapStage("things");
+ 
+ 	// Load and link lightmaps - must be done after P_Spawn3DFloors (and SpawnThings? Potentially for baking static model actors?)
+ 	if (!ForceNodeBuild)
+@@ -3245,6 +3266,7 @@
+ 		node.len = (float)g_sqrt(fdx * fdx + fdy * fdy);
+ 	}
+ 
++	XzMapStage("render-info-start");
+ 	InitRenderInfo();				// create hardware independent renderer resources for the level. This must be done BEFORE the PolyObj Spawn!!!
+ 	Level->ClearDynamic3DFloorData();	// CreateVBO must be run on the plain 3D floor data.
+ 	CreateVBO(screen->mVertexData, Level->sectors);

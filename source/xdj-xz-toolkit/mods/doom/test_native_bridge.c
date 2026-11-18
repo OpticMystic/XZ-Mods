@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-static struct xz_game_input state={.magic=XZ_GAME_INPUT_MAGIC,.version=1,.owner=42,.heartbeat=1000};
+static struct xz_game_input state={.magic=XZ_GAME_INPUT_MAGIC,.version=XZ_GAME_INPUT_VERSION,.owner=42,.heartbeat=1000};
 static struct xz_game_native bridge={.input=&state};
 static unsigned char input[24];
 static void event(unsigned key,unsigned op,int pulse) {
@@ -27,5 +27,9 @@ int main(void) {
     state.owner=42;
     event(0x4101,0,0); assert(xz_game_decode(&bridge,0,input,1800)==0);
     assert(xz_game_decode(&bridge,2,input,1100)==0);
-    puts("Game key ownership, both decks, jog pulses, crash expiry and release drain passed");
+    assert(xz_game_nav_send(&state,XZ_GAME_NAV_DOWN,1100)&&xz_game_nav_send(&state,XZ_GAME_NAV_QUIT,1100));
+    assert(state.nav_head==2&&state.nav[0]==XZ_GAME_NAV_DOWN&&state.nav[1]==XZ_GAME_NAV_QUIT);
+    assert(!xz_game_nav_send(&state,XZ_GAME_NAV_ENTER,1900)&&state.nav_head==2);
+    state.nav_head=XZ_GAME_NAV*3+1;assert(xz_game_nav_send(&state,XZ_GAME_NAV_BACK,1100)&&state.nav[1]==XZ_GAME_NAV_BACK);
+    puts("Game key ownership, both decks, jog pulses, crash expiry, release drain and navigation queue passed");
 }

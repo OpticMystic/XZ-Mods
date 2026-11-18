@@ -1,0 +1,20 @@
+{
+  "section": "hardware#deck-keys",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "shift": true
+    },
+    {
+      "gesture": "SYNC",
+      "code": 31
+    },
+    {
+      "shift": false
+    },
+    {
+      "gesture": "MASTER TEMPO",
+      "code": 32
+    }
+  ]
+}

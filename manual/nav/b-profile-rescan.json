@@ -1,0 +1,24 @@
+{
+  "section": "connect#make-a-profile-on-a-computer",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "CONNECT"
+    },
+    {
+      "tap": "DJ PROFILE"
+    },
+    {
+      "tap": "SET UP DJ PROFILE"
+    },
+    {
+      "tap": "CHECK USB FOR PROFILES"
+    },
+    {
+      "back": true
+    }
+  ]
+}

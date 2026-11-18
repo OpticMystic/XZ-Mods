@@ -6,11 +6,53 @@
 #include "../runtime.h"
 #include <math.h>
 #include <pthread.h>
+#include "../xz_thread.h"
+#include "../xz_mutex.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+static float onset(const uint8_t *bands,uint32_t at){
+    unsigned low=bands[at*3];
+    for(uint32_t j=at>6?at-6:0;j<at;j++)if(bands[j*3]<low)low=bands[j*3];
+    unsigned rise=bands[at*3]-low;
+    return rise>=4?(float)rise:0;
+}
+void xz_wave_rider_rhythm(struct xz_wave_rider_snapshot *out,const uint8_t *bands,uint32_t count){
+    out->pulse_period=out->pulse_origin=out->pulse_confidence=0;
+    if(!bands||count<600||count>1000000)return;
+    enum {WINDOW=4500};
+    uint32_t n=count<WINDOW?count:WINDOW,begin=0;double energy=0,best=-1;
+    for(uint32_t i=0;i<count;i++){
+        float v=onset(bands,i);energy+=v*v;
+        if(i>=n){v=onset(bands,i-n);energy-=v*v;}
+        if(i+1>=n&&energy>best){best=energy;begin=i+1-n;}
+    }
+    if(best<400)return;
+    float flux[WINDOW],correlation[152]={0},mean=0;
+    uint32_t loudest=0;
+    for(uint32_t i=0;i<n;i++){flux[i]=onset(bands,begin+i);mean+=flux[i];if(flux[i]>flux[loudest])loudest=i;}
+    mean/=n;for(uint32_t i=0;i<n;i++)flux[i]-=mean;
+    unsigned winner=0;float score=0;
+    for(unsigned lag=39;lag<=151&&lag<n/3;lag++){
+        double dot=0,a=0,b=0;
+        for(uint32_t i=lag;i<n;i++){dot+=flux[i]*flux[i-lag];a+=flux[i]*flux[i];b+=flux[i-lag]*flux[i-lag];}
+        correlation[lag]=a>1&&b>1?(float)(dot/sqrt(a*b)):0;
+    }
+    for(unsigned lag=40;lag<=150;lag++)
+        if(correlation[lag]>correlation[lag-1]&&correlation[lag]>=correlation[lag+1]&&correlation[lag]>score){score=correlation[lag];winner=lag;}
+    if(score<.25f||!winner)return;
+    if(winner>=80){unsigned half=(winner+1)/2;if(correlation[half]>=score*.90f)winner=half;}
+    float left=correlation[winner-1],mid=correlation[winner],right=correlation[winner+1];
+    float curve=left-2*mid+right,offset=curve<-.00001f?.5f*(left-right)/curve:0;
+    if(offset<-.5f)offset=-.5f;if(offset>.5f)offset=.5f;
+    out->pulse_period=winner+offset;
+    out->pulse_origin=fmodf((float)(begin+loudest),out->pulse_period);
+    out->pulse_confidence=mid;
+}
+
 #ifndef XZ_WAVE_RIDER_SOURCE_PORTABLE
 #include <sys/syscall.h>
+#include "../clock_compat.h"
 #include <unistd.h>
 #endif
 
@@ -54,12 +96,12 @@ int xz_wave_rider_window(struct xz_wave_rider_snapshot *out,const uint8_t *bands
 }
 
 #ifndef XZ_WAVE_RIDER_SOURCE_PORTABLE
-static pthread_mutex_t publication_lock=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t publication_lock=XZ_MUTEX_INITIALIZER;
 static struct xz_wave_rider_snapshot published;
 static int selected=-1,started;
 static uint32_t selection_epoch,published_epoch;
 static uint32_t milliseconds(void){
-    struct timespec ts;if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&ts))return 0;
+    struct timespec ts;if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&ts))return 0;
     return (uint32_t)((uint64_t)ts.tv_sec*1000+(uint32_t)ts.tv_nsec/1000000);
 }
 static int read_native(void *context,uint32_t address,void *out,size_t count){
@@ -121,6 +163,7 @@ static void *worker(void *unused){
                         xz_wave_load_free(&wave);memset(&identity,0,sizeof(identity));
                         value.valid=0;value.error=XZ_WAVE_RIDER_NO_TRACK;
                     }else if(rc)value.error=XZ_WAVE_RIDER_NO_ANALYSIS;
+                    else xz_wave_rider_rhythm(&value,wave.bands,wave.count);
                 }
                 struct xz_wave_rider_position position;
                 if(wave.bands){
@@ -147,7 +190,7 @@ int xz_wave_rider_source_start(void){
     uint8_t got[16];pthread_t thread;
     if(xz_read_memory(0x49588,got,sizeof(position_guard))||memcmp(got,position_guard,sizeof(position_guard))||
        xz_read_memory(0x62b7c,got,sizeof(pause_guard))||memcmp(got,pause_guard,sizeof(pause_guard))||
-       pthread_create(&thread,NULL,worker,NULL)){
+       XZ_WORKER_CREATE(&thread,worker,NULL)){
         __atomic_store_n(&started,0,__ATOMIC_RELEASE);return -1;
     }
     pthread_detach(thread);__atomic_store_n(&started,2,__ATOMIC_RELEASE);return 0;

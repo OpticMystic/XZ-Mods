@@ -1,0 +1,7 @@
+/* XDJ-XZ button glyphs (ui/assets/buttons, drawn by tools/xz_buttons.py): a picture of the control in the line of text,
+   its name kept as text for screen readers, search and copying. Larger in tables and figure legends. */
+.xzb{display:inline-block;position:relative;line-height:0;vertical-align:-.42em;margin:0 .1em;white-space:nowrap}
+.xzb-g{display:inline-block;height:1.4em;width:auto;max-width:none}
+.xzb-n{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+td .xzb .xzb-g,.mf-legend .xzb .xzb-g{height:1.7em}
+td .xzb{vertical-align:-.55em}

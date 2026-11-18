@@ -1,0 +1,193 @@
+/* SPDX-License-Identifier: MIT */
+#ifndef XZ_EXTRA_LANE_H
+#define XZ_EXTRA_LANE_H
+#include "../extra_decks.h"
+#include "../shell/shell.h"
+#include "layered_wave.h"
+#include "wave_viewport.h"
+#include <stddef.h>
+#include <stdint.h>
+
+/* A software deck (DECK 3 or 4) drawn into its 64-row lane of the classic 536x268 wave surface,
+   as the native lanes look after they shrink: the same 132-row lane geometry (cue bands, beat
+   ticks, layered 3-band body around row 65) resampled with xz_wave_lane_row, the playhead at the
+   native column, and a deck plate at the left edge because these decks have no info panel. */
+#define XZ_EXTRA_LANE_PLAYHEAD_X 268
+/* Native zoom when no native column has been seen: one PWV7 sample (1/150 s) per column. */
+#define XZ_EXTRA_LANE_COLUMN_US 6667u
+/* The deck plate: tag, SYNC/MASTER, key, clock, BPM, tempo and mode lamps, title. It darkens the
+   oldest part of the lane only; the playhead and everything after it stay clear. */
+#define XZ_EXTRA_LANE_READOUT_W 208
+/* Rows of the plate's top line (deck tag and SYNC/MASTER chip): a side switch or a SYNC change
+   redraws only these. */
+#define XZ_EXTRA_LANE_TAG_ROWS 16
+
+struct xz_extra_lane_view {
+ uint32_t now_ms;      /* the players' monotonic clock (elapsed_at_ms) */
+ uint32_t column_us;   /* audio per column, the native lanes' zoom */
+ unsigned background;  /* the native column background mode: 1 grey, otherwise blue */
+ int lit;              /* left_on_3 / right_on_4: the deck controls drive this deck */
+};
+/* What a lane drew in layer colours, for the theme pass. */
+struct xz_extra_lane_marks { struct xz_layered_data look; struct xz_layered_col col[XZ_WAVE_WIDTH]; };
+
+/* The playing position: elapsed_ms moved on by the time since elapsed_at_ms at the tempo, at most
+   one second, inside the track. 0 when ELAPSED is unknown. */
+int xz_extra_lane_position_ms(const struct xz_extra_deck *,uint32_t now_ms,int32_t *out);
+/* Draws deck number 3 or 4 into rows lane_y..lane_y+63 of a surface 536 pixels wide. Every lane
+   pixel is written. NULL deck draws as unloaded. marks may be NULL. */
+int xz_extra_lane_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
+ const struct xz_extra_deck *,const struct xz_extra_lane_view *,struct xz_extra_lane_marks *marks);
+/* Four-channel layout: waveform and deck tag only; the main readouts live in the bottom mixer panels. */
+int xz_extra_lane_draw_wave(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
+ const struct xz_extra_deck *,const struct xz_extra_lane_view *,struct xz_extra_lane_marks *marks);
+/* 2 DECKS with a side on this deck: a whole native lane, XZ_WAVE_NATIVE_LANE_HEIGHT rows at lane_y, drawn as the
+   native lane it replaces (no tag: the side column beside it names the deck, as it names DECK 1 and 2). */
+int xz_extra_lane_draw_full(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
+ const struct xz_extra_deck *,const struct xz_extra_lane_view *,struct xz_extra_lane_marks *marks);
+/* A lane's deck number (1..4) in its badge (deck_colour.h), XZ_FOUR_NUMBER_BOX square at x, y:
+   the first part of every lane tag, and of the lane numbers beside an open detail panel. */
+#define XZ_FOUR_NUMBER_BOX 13
+struct xz_canvas;
+void xz_four_number_box(struct xz_canvas c,int x,int y,unsigned number);
+/* Native DECK 1 or 2 in four-deck mode: the same deck tag the software lanes carry, in the lane's
+   top-left corner, lit while that side's controls drive the native deck. The native left column no
+   longer lines up with the lanes, so every lane names its deck. Writes only the tag's pixels. */
+int xz_four_badge_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,int lit);
+/* A transient player/route notice is fresh (3.5 s), including after route loss. CLASSIC shows it in the top bar
+   (native_wave_runtime.h xz_native_play_notice, play_notice.h), never on the waveform surface. */
+int xz_extra_notice_active(const struct xz_extra_decks *,uint32_t now_ms);
+
+/* The SYNC/MASTER state of a software deck, as the plate and the detail panel say it. */
+enum xz_extra_sync_class {
+ XZ_EXTRA_SYNC_CLASS_NONE,     /* SYNC off and not master (or unknown) */
+ XZ_EXTRA_SYNC_CLASS_MASTER,   /* the clock master; 3/4 scope never drives DECK 1/2 */
+ XZ_EXTRA_SYNC_CLASS_LOCKED,   /* beat and tempo locked to the master */
+ XZ_EXTRA_SYNC_CLASS_TEMPO,    /* current-source tempo matched without continuous beat following */
+ XZ_EXTRA_SYNC_CLASS_ENABLED,  /* SYNC requested; phase proof is independent */
+ XZ_EXTRA_SYNC_CLASS_BLOCKED   /* tempo limit, missing BPM, or unsupported master source */
+};
+/* One pure presentation decision for lane, detail, Classic and the MODERN projection.
+   Header-local so shell-only builds need no waveform renderer dependency. The LED value is
+   independent of MASTER, known bits and phase; native_led.c retains record ownership. */
+struct xz_extra_sync_presentation {
+ enum xz_extra_sync_class klass;
+ enum xz_shell_sync_status status;
+ int master_deck,led_on;
+ const char *label,*line1,*line2;
+};
+static inline struct xz_extra_sync_presentation xz_extra_sync_present(const struct xz_extra_deck *d){
+ struct xz_extra_sync_presentation p={XZ_EXTRA_SYNC_CLASS_NONE,XZ_SHELL_SYNC_OFF,-1,0,"","SYNC OFF",""};
+ if(!d)return p;
+ p.led_on=!!(d->loaded&&d->sync.requested);
+ int requested=(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC))&&d->sync.requested;
+ int master=(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_MASTER))&&d->master;
+ if(master||(requested&&d->sync.reason==XZ_EXTRA_SYNC_MASTER_CLOCK)){
+  unsigned scope=master?d->master_scope:d->sync.master_scope;
+  p.klass=XZ_EXTRA_SYNC_CLASS_MASTER;p.status=requested?XZ_SHELL_SYNC_MASTER:XZ_SHELL_SYNC_OFF;
+  p.label=scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE?"3/4 MASTER":"MASTER";
+  p.line1="MASTER";p.line2=scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE?"DECKS 3 AND 4 ONLY":"";
+  return p;
+ }
+ if(!requested)return p;
+ int source=d->sync.source;
+ if(source==XZ_EXTRA_SYNC_SOURCE_NONE&&d->sync.master_deck>=0)source=XZ_EXTRA_SYNC_SOURCE_LIVE;
+ int live=source==XZ_EXTRA_SYNC_SOURCE_LIVE;
+ int matched=live&&d->sync.tempo_matched;
+ int paused=(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_PLAYING))&&!d->playing;
+ int tempo_only=(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_QUANTIZE))&&!d->quantize;
+ p.klass=XZ_EXTRA_SYNC_CLASS_ENABLED;p.status=XZ_SHELL_SYNC_ENABLED;p.line1="SYNC ON";
+ p.master_deck=live?d->sync.master_deck:-1;
+ switch(d->sync.reason){
+ case XZ_EXTRA_SYNC_WAIT_MASTER:
+  p.master_deck=-1;
+  /* A legacy WAIT_MASTER with a deck number has lost its usable clock, not its selection. */
+  p.line1=source==XZ_EXTRA_SYNC_SOURCE_NONE?"NO MASTER":source==XZ_EXTRA_SYNC_SOURCE_EMERGENCY?
+   "EMERGENCY LOOP":"MASTER CLOCK UNAVAILABLE";
+  p.line2=source==XZ_EXTRA_SYNC_SOURCE_NONE?"TEMPO UNCHANGED":"LAST TEMPO RETAINED";break;
+ case XZ_EXTRA_SYNC_DISCONTINUITY:
+  if(!live){
+   p.line1=source==XZ_EXTRA_SYNC_SOURCE_NONE?"NO MASTER":source==XZ_EXTRA_SYNC_SOURCE_EMERGENCY?
+    "EMERGENCY LOOP":"MASTER CLOCK UNAVAILABLE";
+   p.line2=source==XZ_EXTRA_SYNC_SOURCE_NONE?"TEMPO UNCHANGED":"LAST TEMPO RETAINED";break;
+  }
+  /* fall through */
+ case XZ_EXTRA_SYNC_ACQUIRING:case XZ_EXTRA_SYNC_LOCKED:{
+  static const char *const following[]={"","FOLLOWING DECK 1","FOLLOWING DECK 2","FOLLOWING DECK 3","FOLLOWING DECK 4"};
+  int n=p.master_deck>=0&&p.master_deck<4?p.master_deck+1:0;p.line2=following[n];
+  if(d->sync.reason==XZ_EXTRA_SYNC_LOCKED&&d->sync.locked&&matched){p.klass=XZ_EXTRA_SYNC_CLASS_LOCKED;p.status=XZ_SHELL_SYNC_LOCKED;}
+  break;
+ }
+ case XZ_EXTRA_SYNC_WAIT_ANCHOR:
+  if(tempo_only&&matched)p.status=XZ_SHELL_SYNC_TEMPO_ONLY;
+  p.line2=paused?(matched?"PAUSED / TEMPO MATCHED":"PAUSED"):(matched?"TEMPO MATCHED":"");break;
+ case XZ_EXTRA_SYNC_NO_GRID:
+  if(matched)p.status=XZ_SHELL_SYNC_TEMPO_ONLY;
+  p.line1=matched?"BPM SYNC":"SYNC ON";
+  p.line2=d->sync.quantum_unknown?"QUANTIZE VALUE UNAVAILABLE":"NO BEAT GRID";break;
+ case XZ_EXTRA_SYNC_MANUAL:p.line2="JOG CONTROL";break;
+ case XZ_EXTRA_SYNC_LOOP_UNALIGNED:
+  if(matched)p.status=XZ_SHELL_SYNC_TEMPO_ONLY;
+  p.line1=matched?"BPM SYNC":"SYNC ON";p.line2="LOOP ACTIVE";break;
+ case XZ_EXTRA_SYNC_OUT_OF_RANGE:
+  p.klass=XZ_EXTRA_SYNC_CLASS_BLOCKED;p.status=XZ_SHELL_SYNC_RATE_LIMIT;
+  p.line1="SYNC TEMPO LIMIT";p.line2="LAST TEMPO RETAINED";break;
+ case XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE:
+  if(matched)p.status=XZ_SHELL_SYNC_TEMPO_ONLY;
+  p.line1=matched?"BPM SYNC":"SYNC ON";p.line2="BEAT POSITION UNAVAILABLE";break;
+ case XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED:
+  p.klass=XZ_EXTRA_SYNC_CLASS_BLOCKED;p.status=XZ_SHELL_SYNC_EXTERNAL_MASTER;
+  p.line1="EXTERNAL MASTER";p.line2="SYNC SOURCE UNAVAILABLE";break;
+ case XZ_EXTRA_SYNC_NO_SOURCE_BPM:
+  p.klass=XZ_EXTRA_SYNC_CLASS_BLOCKED;p.status=XZ_SHELL_SYNC_NO_BPM;
+  p.line1="TRACK BPM UNAVAILABLE";p.line2="SYNC ON";break;
+ case XZ_EXTRA_SYNC_TEMPO_FOLLOW:
+  if(matched)p.status=XZ_SHELL_SYNC_TEMPO_ONLY;
+  p.line1=matched?"BPM SYNC":"SYNC ON";
+  p.line2=tempo_only?"QUANTIZE OFF":d->sync.master_paused?"MASTER PAUSED":paused?"DECK PAUSED":"";break;
+ default:p.master_deck=-1;break;
+ }
+ if(p.status==XZ_SHELL_SYNC_TEMPO_ONLY)p.klass=XZ_EXTRA_SYNC_CLASS_TEMPO;
+ p.label=xz_shell_sync_label(p.status,p.master_deck);
+ return p;
+}
+enum xz_extra_sync_class xz_extra_sync_class(const struct xz_extra_deck *);
+/* Short caps text for the chip; empty for SYNC off without MASTER. */
+const char *xz_extra_sync_chip(const struct xz_extra_deck *,char *out,size_t size);
+/* What pads A..H do now, for the plate ("BEAT LOOP 1/4"); "" when unloaded or NULL. */
+const char *xz_extra_pad_text(const struct xz_extra_deck *,char *out,size_t size);
+/* One pad's meaning in the deck's pad mode: hot cue letter, loop length or jump; "" when inert. */
+const char *xz_extra_pad_label(const struct xz_extra_deck *,int pad,char *out,size_t size);
+/* Same fallback colours as the physical pad lamps for cues without a rekordbox colour. */
+uint32_t xz_extra_cue_color(const struct xz_extra_cue *);
+
+/* Theme pass over the four-deck surface (stride 536), the LAYERED_WAVE.md rule for four lanes:
+   protect marks pixels that still hold the layer colour this frame drew for a deck (cue, beat and
+   playhead marks and the readout drawn over them are not marked), the theme recolours the
+   surface, restore puts the marked pixels back. col[d] NULL skips deck d. */
+struct xz_four_marks { struct xz_layered_data look[XZ_FOUR_DECKS]; const struct xz_layered_col *col[XZ_FOUR_DECKS]; };
+#define XZ_FOUR_KEEP_BYTES (XZ_WAVE_WIDTH*XZ_WAVE_HEIGHT/8)
+void xz_four_protect(const struct xz_four_layout *,const struct xz_four_marks *,const uint16_t *pixels,uint8_t *keep);
+void xz_four_restore(const struct xz_four_layout *,const struct xz_four_marks *,uint16_t *pixels,const uint8_t *keep);
+
+/* 2 DECKS shows the two decks the physical sides control (FOUR_DECK.md "2 DECKS follows the sides"). pair says
+   which side controls a software deck now: bit 0 the left side DECK 3, bit 1 the right side DECK 4 (as
+   xz_deck_view_button_draw's pair and the shell's sides_extra). Such a side's half of the stock surface is the
+   software deck's: the left half rows 0..131, the right half rows 132..267 with its lane from row 136, where
+   native DECK 2's lane sits (rows 132..135 are the stock separator, left black). */
+#define XZ_TWO_HALF_Y(side) ((side)?132u:0u)
+#define XZ_TWO_LANE_Y(side) ((side)?136u:0u)
+#define XZ_TWO_HALF_H(side) ((side)?136u:132u)
+struct xz_two_frame {
+ const struct xz_extra_decks *decks;
+ unsigned pair;             /* nonzero: bit 0 left on DECK 3, bit 1 right on DECK 4 */
+ uint32_t now_ms, column_us;
+ unsigned background;       /* the native column background mode */
+};
+/* Draws every half pair names, before the theme (the stock halves of the other sides are left alone).
+   marks: two, by side, cleared first (a side not in pair stays clear), or NULL. */
+int xz_two_frame_draw(uint16_t *pixels,size_t count,const struct xz_two_frame *,struct xz_extra_lane_marks marks[2]);
+/* The theme pass rule (LAYERED_WAVE.md) for the software halves of pair, keep as xz_four_protect's. */
+void xz_two_protect(unsigned pair,const struct xz_extra_lane_marks marks[2],const uint16_t *pixels,uint8_t *keep);
+void xz_two_restore(unsigned pair,const struct xz_extra_lane_marks marks[2],uint16_t *pixels,const uint8_t *keep);
+#endif

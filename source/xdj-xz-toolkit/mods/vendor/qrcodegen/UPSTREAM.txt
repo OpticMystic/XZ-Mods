@@ -1,0 +1,12 @@
+https://github.com/nayuki/QR-Code-generator
+release v1.8.0, commit 720f62bddb7226106071d4728c292cb1df519ceb
+downloaded 2026-10-08 from https://raw.githubusercontent.com/nayuki/QR-Code-generator/v1.8.0/c/
+
+sha256  file
+300eff07ee25baaa7578f20284411638154716379437391e7e689c0e6ce81403  qrcodegen.c
+e82df4bff37d18b5863b9e7486fe6bda1b6cda8c3b9ecebfec473907265cb589  qrcodegen.h
+
+Unmodified. LICENSE is the MIT notice from the qrcodegen.c header (same text as the upstream Readme).
+Builds clean with no extra flags under gcc 13 (-std=c11 -Wall -Wextra -Werror, ASan/UBSan) and
+zig cc -target arm-linux-gnueabi.2.13 -mcpu=cortex_a9 -std=c11 -Wall -Wextra -Werror -O2 -fPIC.
+Used by mods/dj_link.c (byte mode only via qrcodegen_encodeBinary).

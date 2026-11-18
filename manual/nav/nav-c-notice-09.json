@@ -1,0 +1,21 @@
+{
+  "section": "troubleshooting#notices-on-the-play-screen",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 509
+    },
+    {
+      "wait": 500
+    },
+    {
+      "key": "BROWSE"
+    },
+    {
+      "key": "LOAD"
+    },
+    {
+      "fixture": 599
+    }
+  ]
+}

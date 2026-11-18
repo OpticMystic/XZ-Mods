@@ -1,0 +1,20 @@
+{
+  "section": "stems#stem-pads",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "STEMS"
+    },
+    {
+      "tap": "STEM PADS",
+      "expect_page": 41
+    },
+    {
+      "settings": "all supported value controls on this page"
+    }
+  ]
+}

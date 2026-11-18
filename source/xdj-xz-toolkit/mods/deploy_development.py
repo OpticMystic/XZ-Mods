@@ -1,7 +1,6 @@
 """Explicitly restart the XZ application into a reviewed private RAM test image."""
 from __future__ import annotations
 import argparse
-import base64
 import hashlib
 import json
 from pathlib import Path
@@ -25,14 +24,22 @@ def main():
     parser.add_argument("--previous-evidence", type=Path, help="Verified live receipt when replacing an earlier development pair")
     parser.add_argument("--previous-bundle", type=Path, help="Verified bundle used by the normal combined USB loader")
     parser.add_argument("--fast-transfer", action="store_true", help="Use the already installed private RAM transfer helper")
+    parser.add_argument("--push-port", type=int, help="Upload outbound only: the deck listens with busybox nc on this port and the PC connects (no inbound connection to the PC)")
     parser.add_argument("--pad-trace", action="store_true", help="Enable bounded in-memory physical-key diagnostics")
     parser.add_argument("--native-view", action="store_true", help="Start this RAM trial on the native deck view; the visible VJ.Tools button can reopen the stream")
     parser.add_argument("--stems", action="store_true", help="Enable prepared-stem discovery with native-audio alignment")
     parser.add_argument("--ram-settings", action="store_true", help="Read existing preferences but keep all trial changes in RAM")
-    parser.add_argument("--theme", type=int, choices=range(12), help="Initial display theme for this RAM trial")
+    parser.add_argument("--theme", type=int, choices=range(25), help="Initial display theme for this RAM trial (24 = FLAGSHIP)")
+    parser.add_argument("--shell", action="store_true", help="Let the FLAGSHIP shell own the screen while theme 24 is active")
+    parser.add_argument("--shell-load-by-id", action="store_true", help="Offer the shell's unproven LOAD-by-track-id path (needs --shell)")
+    parser.add_argument("--shell-debug", action="store_true", help="Log FLAGSHIP shell frame counters once per second")
     parser.add_argument("--inline-observe", action="store_true", help="Observe the exact native wave lock without drawing")
     parser.add_argument("--settings-usb", help="Existing mounted XZ USB volume for persistent preferences")
     args = parser.parse_args()
+    if args.push_port:
+        import os
+        os.environ["XZ_NC_PUSH_PORT"] = str(args.push_port)
+        os.environ.pop("XZ_HTTP_SERVE", None)
     if args.settings_usb:
         if not re.fullmatch(r"/media/usb[12]/[A-Za-z0-9_-]+",args.settings_usb):
             raise ValueError("Expected an explicit XZ USB mount")
@@ -77,9 +84,13 @@ def main():
         if old_mod not in tokens or old_receiver not in tokens:
             raise ValueError("Previous development pair is not in the active preload")
         # Verify the current files against the locally retained, reviewed image hashes.
+        local = {hashlib.sha256(f.read_bytes()).hexdigest(): f
+                 for f in (ROOT.parent / "builds").rglob("*.so")}
         for path, expected in ((old_mod, previous["runtime_sha256"]), (old_receiver, previous["receiver_sha256"])):
-            data = base64.b64decode("".join(command(args.host, "base64 " + shlex.quote(path)).splitlines()), validate=True)
-            if hashlib.sha256(data).hexdigest() != expected:
+            if expected not in local:
+                raise ValueError("No local copy of the previous development library")
+            remote_md5 = command(args.host, "md5sum " + shlex.quote(path)).split()[0]
+            if remote_md5 != hashlib.md5(local[expected].read_bytes()).hexdigest():
                 raise ValueError("Previous development library differs from its receipt")
         old_enabled = 1
         old_observer = int(previous["mode"] == "observer")
@@ -92,8 +103,11 @@ def main():
         if old_receiver not in tokens:
             raise ValueError("Combined USB runtime has no matching receiver")
         for remote_file, name in ((old_mod, "libxz-mods.so"), (old_receiver, "libxz-receiver.so")):
-            data = base64.b64decode("".join(command(args.host, "base64 " + shlex.quote(remote_file)).splitlines()), validate=True)
+            data = (args.previous_bundle / name).read_bytes()
             if hashlib.sha256(data).hexdigest() != previous["files"][name]:
+                raise ValueError("Local previous bundle differs from its manifest")
+            remote_md5 = command(args.host, "md5sum " + shlex.quote(remote_file)).split()[0]
+            if remote_md5 != hashlib.md5(data).hexdigest():
                 raise ValueError("Running USB library differs from the previous bundle")
         old_enabled = old_ui = 1
     elif old_receiver not in tokens:
@@ -129,6 +143,7 @@ def main():
         new_env += " XZ_MODS_STEMS_FORCE=1"
     if args.ram_settings:
         new_env += " XZ_MODS_SETTINGS_READONLY=1"
+        old_env += " XZ_MODS_SETTINGS_READONLY=1"
     if args.theme is not None:
         new_env += " XZ_MODS_THEME=" + str(args.theme)
     if args.settings_usb:
@@ -136,6 +151,8 @@ def main():
     new_env += f" XZ_MODS_PAD_TRACE={int(args.pad_trace)}"
     if args.native_view:
         new_env += " XZ_MODS_NATIVE_VIEW=1"
+    if args.shell:
+        new_env += " XZ_MODS_SHELL=1" + " XZ_MODS_SHELL_LOAD_BY_ID=1" * args.shell_load_by_id + " XZ_MODS_SHELL_DEBUG=1" * args.shell_debug
     script = f'''#!/bin/sh
 trap '' HUP
 ulimit -c 0

@@ -1,0 +1,23 @@
+{
+  "section": "mods-menu#move-around",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "select": "PLAY",
+      "expect_page": 36
+    },
+    {
+      "select": "GATE CUE"
+    },
+    {
+      "select": "SMART CUE"
+    },
+    {
+      "back": true
+    }
+  ]
+}

@@ -1,80 +1,116 @@
-# Beat Arcade
+﻿# Beat Arcade
 
-A native, shared-screen rhythm arcade for the XDJ-XZ 1.26. All simulation and
-800×480 RGB565 drawing run on the XZ. The current implementation adds four
-games under MODS → Extras → Beat Arcade:
+A native shared-screen rhythm arcade for XDJ-XZ 1.26. Open **MODS > Extras >
+Games > Beat Arcade**. The game and its 800×480 RGB565 visuals run on the XZ.
 
-- Solo Pong against a speed-limited opponent.
-- Pong Duel, one jog wheel per player, first to seven.
-- Solo Breaks, three lives and repeating equalizer patterns.
-- Back2Back, cooperative Breakout with two bottom paddles and shared lives.
+- Solo Pong against a limited opponent.
+- Pong Duel, one jog per player, first to seven.
+- Solo Breaks with a generous paddle and five lives in Chill mode.
+- Back2Back cooperative Breakout with shared lives and a shared groove meter.
 
-Turn your deck's jog to move. Ordinary paddle saves always work. Tap PLAY or
-pad A near a return to earn a Perfect and more charge. A landing ring shows
-where and when to meet the ball. Paddle offset controls the outgoing angle.
+## Play the groove
+
+Turn the jog to catch the ball. Tap **CUE on each beat** as the moving light
+meets the center target. Spatial catches work even when you miss a rhythm tap.
+Good notes build charge. Eight consecutive good notes earn a shield. Sixteen
+notes build an arena-wide Drop, launched on the next downbeat for eight beats.
+
+The default Smooth jog gain is 0.55 pixels per pulse, down from 1.8. Fine and
+Fast options remain available. Chill makes the ball easier to follow, gives
+larger paddles and adds two lives. Flow and Club increase the challenge.
+These choices last for the current application session.
 
 | Control | Action |
 |---|---|
-| PLAY / pad A | Strike, confirm resume, or rematch |
-| CUE / DJ Pause | Freeze the round and return controls to the DJ |
+| PLAY / PAUSE | Normal music transport, including press and release |
+| Track-search / skip buttons | Normal music navigation and restart behavior |
+| CUE / pad A | Rhythm strike; start, confirm resume or rematch |
+| Jog | Move the paddle; turn to select a game in the menu |
 | Pad B | Wide paddle for 16 beats, costs 3 charge |
-| Pad C | Shield saves one miss, costs 4 charge |
-| Pad D | Drop for 8 beats, costs 6 charge; faster Pong shots or brick piercing |
-| Pads E / F | Bias the next shot left or right |
-| Pad G | Cycle three geometric visual styles |
-| Pad H | Tap tempo |
+| Pad C | Save one miss with a shield, costs 4 charge |
+| Pad D | Queue an arena-wide Drop on the next downbeat, costs 6 charge |
+| Pads E / F | Bias the next return's aim |
+| Pad G | Cycle Tunnel, Grid and Orbit visuals |
+| Pad H | Align mixer tempo, or tap a manual tempo |
+| DJ View on screen | Save the round and return all game controls to the DJ |
+| Browse encoder | Turn moves a focus ring over the on-screen controls, push taps it |
+| BACK | Menu or paused screen: DJ View. Beat source: done. Results: menu |
+| REKORDBOX | Save the round and open MODS |
 
-CUE changes only the game. It does not pause, cue, seek, or load the track.
-After changing music, reopen Beat Arcade from Extras. Each present player
-confirms with PLAY, then a four-beat countdown resumes the saved ball.
-Releases from game-owned buttons and touchscreen contacts remain captured
-through the handoff, so they cannot reach stock controls as orphan releases.
+The game captures platter touch as well as jog rotation. Touching the jog in
+Vinyl mode therefore does not pause or scratch the music while playing.
+Matching CUE/pad/jog-touch releases stay captured after leaving the game.
+PLAY and track-search events pass through unchanged.
 
-Beat Sync setup chooses deck 1 or 2, detects an existing beat packet, offers
-tap tempo, and shows a four-beat pulse for live verification. The passive
-`sendto`/`recvfrom` observers retain only validated beat timing. They forward
-the original call and preserve its return and errno; they create no socket
-and send no extra packets. When beat packets stop, the game keeps its last
-tempo and labels the clock TAP after four seconds. The default is 120 BPM.
+After DJ View, reopen Beat Arcade and confirm with CUE. Multiplayer waits for
+both players. Four beats count in before the saved ball moves. A native USB
+track pause freezes the round; resume and track changes give a fresh count-in.
+An earned Drop remains queued for a future downbeat after a pause.
 
-The engine finds the next physical contact before choosing its duration.
-Every newly planned arrival uses the next feasible quarter-beat boundary.
-The stored endpoint stays fixed while the paddle moves. Tempo updates change
-the elapsed beat rate, with a bounded phase correction applied to the music
-clock. Contact planning aligns subsequent flights to that corrected clock.
-Live phase changes can require several packets to settle. This is musical
-contact timing, with exact deck phase subject to physical verification.
+## Music sources
 
-One ball, 48 bricks, twelve trail samples, and a bounded impact animation keep
-the court readable. There is no game audio, persistent score storage, account
-connection, or game input recording. Calm visuals remove trails, particles,
-background pulses and drop borders.
+Tap the source display at the top of the screen to open beat setup.
 
-## Run the real C preview
+| Source | Timing path |
+|---|---|
+| Analyzed USB track | Read-only native beat grid, position, pitch and playing state |
+| Pro DJ Link | Validated beat packets already sent or received by the DJ app |
+| Computer DJ software | Pro DJ Link where supplied; otherwise mixer tempo plus phase alignment |
+| External audio | Mixer tempo plus phase alignment, or manual taps |
+| Any source without usable timing | Four taps on pad H establish a manual clock |
+
+Auto prefers a playing internal deck with a consistent grid, then Link, then
+usable mixer tempo. You can explicitly choose deck 1, deck 2, Mixer or Tap.
+For mixer timing, select the desired Beat FX channel, normally MASTER, and
+use AUTO BPM on the XZ. The game reads that tempo without enabling an effect.
+One CUE or H tap on the beat aligns its pulse. If the detector is out of range,
+choose Tap and tap four beats. Mixer tempo does not contain a validated phase
+or track transport signal; those are never presented as an automatic lock.
+
+The source display distinguishes USB/Link sync, mixer tempo, aligned taps,
+and a free-running clock. A stale or invalid grid cannot label itself LIVE.
+A paused native track or a lost previously active grid holds the ball safely.
+Tap clocks continue independently from external playback; DJ View pauses the
+round when that source cannot report its transport state.
+
+## Visuals and timing
+
+Paddle arrivals land on whole beats; wall and brick contacts use half beats.
+The engine fixes each geometric endpoint before choosing its deadline.
+Clock corrections preserve the visible ball position, and track discontinuities
+start a count-in. Cue timing uses a 48 ms Perfect window and a 115 ms Good
+window. Repeated taps on an already scored beat do not earn extra charge.
+
+A moving beat lane, 16-note groove meter, pad pulses, impact particles and
+Drop transitions share the same musical clock. Three procedural scenes use
+small lookup fields and bounded wireframe strokes. The ball is drawn last
+and stays brighter than the effects. Calm removes the animated background,
+trails and particles. The game produces no audio on the XZ.
+
+## Play the C preview
 
 From the repository root:
 
 ```powershell
-python packages/xdj-xz-toolkit/mods/arcade/preview.py --zig .tmp/cdj-zig/ziglang/zig.exe --output .tmp/xz-arcade/preview --port 8769
+python packages/xdj-xz-toolkit/mods/arcade/preview.py --zig .tmp/cdj-zig/ziglang/zig.exe --output .tmp/xz-arcade-v2/preview --port 8772
 ```
 
-Open `http://127.0.0.1:8769`. Player 1 uses WASD, Space and digits 1–8.
-Player 2 uses arrows, Enter and numpad 1–8. Q pauses. Click the native game
-cards to begin. This Windows preview runs the same C engine and RGB565
-renderer as the XZ; it does not connect to hardware.
+Open `http://127.0.0.1:8772`. Player 1 uses WASD, Space and digits 1–8.
+Player 2 uses arrows, Enter and numpad 1–8. Q pauses the game. The optional
+**Play demo groove** button supplies a synthetic beat for testing the real C
+engine. P plays/pauses that demo and R restarts it. It does not control the XZ.
 
-## Verify
+## Verification
 
 ```powershell
-python packages/xdj-xz-toolkit/mods/arcade/verify.py --zig .tmp/cdj-zig/ziglang/zig.exe --output .tmp/xz-arcade/verify
-python packages/xdj-xz-toolkit/mods/ui/verify.py --zig .tmp/cdj-zig/ziglang/zig.exe
+python packages/xdj-xz-toolkit/mods/arcade/verify.py --zig .tmp/cdj-zig/ziglang/zig.exe --output .tmp/xz-arcade-v2/verify
 ```
 
-The first command executes six-minute simulated rallies in the actual C
-engine, checks powers, tempo, pause, input ownership and drawing bounds, then
-builds ARM game and UI-runtime acceptance executables. The second command
-runs existing UI regressions. `device_verify.py` runs those ARM executables
-in isolated XZ RAM while checking that the DJ app PID stays unchanged.
+This exercises long rallies, beat timing, charge, groove rewards, transport
+handoff, pause/resume/skip, drawing bounds and native clock data validation.
+It builds the same checks for ARM. `device_verify.py` runs the ARM executables
+in isolated RAM while confirming the DJ app PID stays unchanged.
 
-Physical input feel, audible playback continuity, live track phase, actual
-presented frame cadence and a fresh USB boot are separate acceptance gates.
+Physical feel and alignment to real playing music require hands-on acceptance.
+The current evidence does not claim that all three source types were played
+and measured during verification.

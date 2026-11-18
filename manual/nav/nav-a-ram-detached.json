@@ -1,0 +1,21 @@
+{
+  "section": "performance#when-the-music-usb-goes-out",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 251
+    },
+    {
+      "wait": 600
+    },
+    {
+      "key": "BROWSE"
+    },
+    {
+      "push": true
+    },
+    {
+      "key": "LOAD"
+    }
+  ]
+}

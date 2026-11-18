@@ -1,0 +1,57 @@
+{
+  "section": "stems#usb-stems-setup",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 222
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "STEMS"
+    },
+    {
+      "tap": "SET UP USB STEMS"
+    },
+    {
+      "tap": "CHECK STEM ENGINE"
+    },
+    {
+      "fixture": 223
+    },
+    {
+      "tap": "TURN ON USB STEMS / DECKS 1 + 2"
+    },
+    {
+      "fixture": 225
+    },
+    {
+      "tap": "CHECK THIS DECK AGAIN"
+    },
+    {
+      "fixture": 226
+    },
+    {
+      "wait": 400
+    },
+    {
+      "fixture": 227
+    },
+    {
+      "wait": 400
+    },
+    {
+      "fixture": 228
+    },
+    {
+      "tap": "CHECK THIS DECK AGAIN"
+    },
+    {
+      "fixture": 221
+    },
+    {
+      "tap": "STEMS READY / BACK TO PLAY"
+    }
+  ]
+}
