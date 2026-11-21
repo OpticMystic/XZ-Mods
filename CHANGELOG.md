@@ -46,6 +46,7 @@ Steadier four-deck audio, stems held in memory and ready in seconds, and beat-lo
 - The tempo readout fits its box. Values like +16.00 % no longer run into the BPM box, and WIDE shows one decimal (-100.0).
 - Recordings made with XZ Mods running were checked and are clean.
 - XZ Mods 0.6.0 is a full release, not a beta. The app no longer shows Beta, and from now on it offers you full releases only.
+- 0.6.0 is also out for Mac, added on 20 November 2026: DMGs for Apple Silicon and Intel on macOS 14 or later. Macs on 0.2.1 or the Mac beta update from inside the app. Stem generation runs on Apple Silicon; an Intel Mac imports stems prepared elsewhere. The Mac app is not notarized by Apple, so macOS may ask you to approve its first launch.
 - Games are off unless you install them. They no longer start with the player. Add them to a USB from the app under Tools > Game downloads.
 - The app's USB setup no longer adds the free games by itself. To add them, choose Add free games in its review step.
 - No notice covers the waveforms any more. Notices that only repeat what the screen already shows, such as a new master deck or a loop being set, are no longer shown. The others appear in the top bar for a few seconds, in place of the BEAT FX readout (MODERN) or METRICS (CLASSIC). When NEEDLE LOCK refuses a touch, its mark on the deck lights instead.
